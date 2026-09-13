@@ -154,9 +154,15 @@ export interface LlmRequest {
    * outputs (e.g. the Lottie motion-graphics worker) pass a higher value.
    */
   timeoutMs?: number
-  /** Allow a collapsed SSE adapter to restart a failed stream; defaults to true.
-   * Structured calls with maxRetries: 0 disable this as well as output repairs.
-   * Serving-lane fallback and vendor SDK retry settings are separate policies.
+  /**
+   * Allow a collapsed SSE adapter to restart a stream that failed BEFORE reporting any usage;
+   * defaults to true. Set `false` to see the first failure immediately.
+   *
+   * This is a TRANSPORT policy and it is independent of `llmCompleteStructured`'s `maxRetries`,
+   * which counts validation retries. A transport retry re-asks a question the provider never
+   * answered and never billed; a validation retry re-asks one it DID answer, and pays again. A
+   * call that reported usage is never retried here, whatever this field says. Serving-lane
+   * fallback and vendor SDK retry settings are separate policies again.
    */
   retryStreamOnError?: boolean
   /**
@@ -556,11 +562,83 @@ export class StructuredLlmError extends Error {
   }
 }
 
-/** A terminal provider response must not be retried or lose its reported usage. */
+/**
+ * A provider failure that REPORTED USAGE. Two things follow from that, and they are the
+ * reason this class exists rather than a plain `Error`:
+ *
+ * 1. the usage must survive to the caller, so the job is billed for what it actually spent;
+ * 2. the call must never be retried — the provider answered and charged for answering, so a
+ *    second attempt is a second bill for the same question.
+ *
+ * Everything that fails WITHOUT usage — a connection error, a 5xx before the stream starts, an
+ * `event: error` frame that arrives before any token — is a plain `Error`, and that is what
+ * {@link transportRetryable} keys on. The distinction is made at the one place that can see
+ * the usage (`parseSseStream`), not guessed downstream.
+ */
 class LlmStreamResponseError extends Error {
   constructor(message: string, readonly usage: StructuredLlmError["usage"]) {
     super(message)
     this.name = "LlmStreamResponseError"
+  }
+}
+
+/** One short pause before the single transport retry, so a wobbling proxy is not hit
+ *  instantly twice. Deliberately small: the retry exists to clear a FAST failure, and it sits
+ *  inside the caller's own deadline. */
+const LLM_TRANSPORT_RETRY_DELAY_MS = 400
+
+/**
+ * May this failure be retried at the TRANSPORT level — i.e. did it cost nothing?
+ *
+ * The rule is one line and it is the whole safety property: **a call that reported usage is
+ * never retried.** A failure that reported none (connection error, 5xx, an `event: error` frame
+ * or a silent close before any usage arrived) spent nothing, so one more attempt is free; a
+ * failure carrying usage is an {@link LlmStreamResponseError} and re-asking would double-pay.
+ *
+ * This is deliberately INDEPENDENT of `llmCompleteStructured`'s `maxRetries`, which counts
+ * VALIDATION retries — re-asking a provider that already answered, and paying again for a
+ * better-shaped answer. A caller that sets `maxRetries: 0` (the plugin host's structured calls
+ * do, on purpose) is refusing to pay twice for a wrong answer; it is not asking to fail on a
+ * 503 that cost nothing. Coupling the two, as this file did between 2026-09-08 and now, is
+ * what left the Scene3D planner with no retry at all: measured 2026-09-13, a
+ * `503 {"type":"server_error"}` and an `upstream_error … "The server is currently being
+ * maintained"` frame, both with NO usage, each ending a paid job outright.
+ *
+ * `retryStreamOnError: false` is the explicit opt-out, for a caller that must see the first
+ * failure immediately.
+ */
+function transportRetryable(err: unknown, req: LlmRequest): boolean {
+  if (err instanceof LlmStreamResponseError) return false
+  return req.retryStreamOnError !== false
+}
+
+/**
+ * Run `once`, and on a failure that cost nothing run it exactly one more time.
+ *
+ * Bounded at one extra attempt on purpose: a genuinely down endpoint must still surface fast
+ * rather than multiply the caller's wait. The second attempt's error propagates unchanged — no
+ * retry-exhausted wrapper, so the provider's own reason is what the caller and the logs see.
+ *
+ * `abandoned` lets a lane that shares ONE deadline across both attempts (the responses lane)
+ * stop rather than start a second attempt the caller no longer has time for.
+ */
+async function withTransportRetry<T>(
+  modelId: string,
+  req: LlmRequest,
+  once: () => Promise<T>,
+  abandoned: () => boolean = () => false,
+): Promise<T> {
+  try {
+    return await once()
+  } catch (err) {
+    if (!transportRetryable(err, req) || abandoned()) throw err
+    console.warn(
+      `[llm-kie-stream-retry] ${modelId} attempt 2/2 — first attempt failed before any usage was reported: ` +
+        String(err).slice(0, 160),
+    )
+    await new Promise((resolve) => setTimeout(resolve, LLM_TRANSPORT_RETRY_DELAY_MS))
+    if (abandoned()) throw err
+    return once()
   }
 }
 
@@ -621,8 +699,14 @@ export async function llmCompleteStructured<T>(
   for (let attempt = 0; attempt <= retries; attempt++) {
     let resp: LlmResponse
     try {
+      // `maxRetries` is NOT passed down as a transport policy. It bounds how many times a
+      // provider that ANSWERED is asked again for a better-shaped answer — each of those is
+      // paid work, which is why a caller that must not re-pay (the plugin host's structured
+      // calls) sets it to 0. A stream that failed before reporting any usage was not an
+      // answer and cost nothing, so refusing to re-dial it buys the caller no protection and
+      // costs it the whole job. `retryStreamOnError` is that separate lever and travels
+      // verbatim.
       resp = await llmComplete({ ...req, messages,
-        retryStreamOnError: retries === 0 ? false : req.retryStreamOnError,
         jsonSchema: { name: schemaName, schema: jsonSchema } })
     } catch (error) {
       const terminalUsage = error instanceof LlmStreamResponseError ? error.usage : undefined
@@ -1259,20 +1343,14 @@ async function streamKieMessages(
  */
 async function callKieMessagesCollapsed(model: LlmModelDef, req: LlmRequest): Promise<LlmResponse> {
   // No caller wants the tokens — this is the non-streaming entry point.
-  const once = () => streamKieMessages(model, req, () => {})
-  try {
-    return await once()
-  } catch (err) {
-    if (req.retryStreamOnError === false) throw err
-    // KIE's Claude stream fails transiently roughly 1 call in 5 (measured
-    // 2026-08-06: 3/4, 5/6, 6/6 across samples), almost always as a single
-    // `event: error` frame that a retry clears. This is the LAST lane — it only
-    // runs because the direct one already failed — so one extra attempt is the
-    // difference between ~80% and ~96% availability during an Anthropic
-    // incident. Bounded at one: a genuinely down proxy must still surface fast.
-    console.warn(`[llm-kie-stream-retry] ${model.id}: ${String(err).slice(0, 160)}`)
-    return once()
-  }
+  //
+  // KIE's Claude stream fails transiently roughly 1 call in 5 (measured 2026-08-06: 3/4, 5/6,
+  // 6/6 across samples), almost always as a single `event: error` frame that a retry clears.
+  // This is the LAST lane — it only runs because the direct one already failed — so one extra
+  // attempt is the difference between ~80% and ~96% availability during an Anthropic incident.
+  // An error frame that arrives AFTER `message_delta` reported usage is a billed answer and is
+  // not retried; `withTransportRetry` makes that call, not this lane.
+  return withTransportRetry(model.id, req, () => streamKieMessages(model, req, () => {}))
 }
 
 // -- Responses format (GPT family + Grok) --
@@ -1420,27 +1498,32 @@ async function callKieResponsesCollapsed(model: LlmModelDef, req: LlmRequest): P
     // which is what the probe showed clears it. `!res.text` is the honest test:
     // the responses dialect carries structured output as `output_text` too, so
     // no legitimate reply of any shape is empty here.
+    //
+    // Which ERROR it is decides whether the retry may run. A stream that closed before any
+    // `response.completed` reported nothing and cost nothing — a plain throw, retryable. One
+    // that completed WITH usage and still carried no text is the provider answering (badly)
+    // and billing for it, so it throws the usage-carrying shape and is never re-dialled: a
+    // second call would be a second charge for the same empty answer.
     if (!res.text) {
-      throw new Error(`KIE.ai responses stream ${model.id} closed without output (no text before end of stream)`)
+      const detail = `KIE.ai responses stream ${model.id} closed without output (no text before end of stream)`
+      if (res.usage) {
+        throw new LlmStreamResponseError(detail, {
+          inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens,
+          providerCost: res.providerCost, complete: res.providerCost !== undefined,
+        })
+      }
+      throw new Error(detail)
     }
     return res
   }
 
-  let res: LlmResponse
-  try {
-    res = await once()
-  } catch (err) {
-    if (err instanceof LlmStreamResponseError || req.retryStreamOnError === false || signal.aborted) throw err
-    // 1 of the 6 streaming probes produced no `response.completed` (a silent
-    // failure / error frame) after 35 s, which a retry clears — both shapes now
-    // arrive here as a throw (the error frame from parseSseStream, the silent
-    // close from the guard above). Bounded at one attempt: for a
-    // responses-format model there is no direct-vendor lane behind this, so a
-    // genuinely down endpoint must still surface fast rather than multiply the
-    // caller's wait.
-    console.warn(`[llm-kie-stream-retry] ${model.id}: ${String(err).slice(0, 160)}`)
-    res = await once()
-  }
+  // 1 of the 6 streaming probes produced no `response.completed` (a silent failure / error
+  // frame) after 35 s, which a retry clears — both shapes arrive as a throw (the error frame
+  // from parseSseStream, the silent close from the guard above). Bounded at one attempt: for a
+  // responses-format model there is no direct-vendor lane behind this, so a genuinely down
+  // endpoint must still surface fast rather than multiply the caller's wait, and the SHARED
+  // deadline is checked before a second attempt is started at all.
+  const res = await withTransportRetry(model.id, req, once, () => signal.aborted)
 
   // This lane bypasses `buildResponse`, so the media fail-open guard has to be
   // re-applied by hand — otherwise a `kieCollapseStream` model would be the one
@@ -1622,11 +1705,24 @@ async function parseSseStream(
         // requests (2026-08-06). Throwing puts a pre-token failure back on the
         // fallback path and surfaces a mid-stream one, per streamWithFallback's
         // tainted-stream rule.
+        //
+        // Which SHAPE it throws is the billing decision, and this is the only place that can
+        // make it: an error frame that arrives before any usage was reported cost nothing and
+        // is transport-retryable, while one that arrives after `message_delta` / a completed
+        // response already reported usage is a billed answer and must never be re-asked. The
+        // usage rides the throw either way so the job is charged for what it really spent.
         if (parsed.type === "error") {
           const e = parsed.error as { message?: string; type?: string } | undefined
-          throw new Error(
-            `KIE.ai ${format} stream ${modelId} returned an error event: ${e?.type ?? "unknown"}: ${e?.message ?? JSON.stringify(parsed).slice(0, 200)}`,
-          )
+          const detail =
+            `KIE.ai ${format} stream ${modelId} returned an error event: ${e?.type ?? "unknown"}: ${e?.message ?? JSON.stringify(parsed).slice(0, 200)}`
+          if (usage) {
+            const providerCost = actualUsd ?? calculateLlmCost(modelId, usage)
+            throw new LlmStreamResponseError(detail, {
+              inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
+              providerCost, complete: providerCost !== undefined,
+            })
+          }
+          throw new Error(detail)
         }
 
         actualUsd = extractActualUsd(parsed) ?? actualUsd

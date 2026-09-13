@@ -5121,7 +5121,9 @@ SDK versions with the generic `nodes.run(type, params)` overload can use the sam
 `client.scene3d.renderProAndWait(params, options?)` drive the one-operation
 node: a `source` goes in, and a single job settles with BOTH `scenePlan` (the
 exact composition) and `videoUrl` (the exported MP4), plus the revision, poster,
-`shotStills`, validation and renderer metadata. `nodes.run("pro-3d-render", …)` and
+`shotStills`, validation and renderer metadata. A run that AUTHORED also reports
+its own account of the answer — `metadata.summary`, `repairPasses` and any
+`SCENE_AUTHORING_ASSUMPTION` warnings (see below). `nodes.run("pro-3d-render", …)` and
 `nodes.runAndWait("pro-3d-render", …)` reach the same routes with the same
 typed `Pro3DRenderRunParams` / `Pro3DRenderJobOutput`.
 
@@ -5193,6 +5195,34 @@ await client.scene3d.runPro({ ...params, quoteId: quote.quoteId });
 Both run methods send an `Idempotency-Key` — a fresh one per call, or your own
 via `options.idempotencyKey`, which you should reuse when retrying a submit that
 timed out. `nodes.run` / `nodes.runAndWait` accept the same option for any node.
+
+#### What the run says about its own answer
+
+Three optional fields report what the authoring run assumed and did. Read all
+three as optional: an install without an advanced engine, and a result produced
+before these existed, simply has none.
+
+```typescript
+const summary = shot.metadata?.summary;   // what the planner says it authored
+const repairs = shot.repairPasses;        // 0 when accepted first time
+const assumptions = (shot.validation?.warnings ?? [])
+  .filter((w) => w.code === "SCENE_AUTHORING_ASSUMPTION")
+  .map((w) => w.message);
+```
+
+`SCENE_AUTHORING_ASSUMPTION` is an authoring caveat — the brief did not say, so
+the run decided — carrying the planner's assumption with any normalization the
+engine applied to it. The `SCENE_QUALITY_*` codes in the same array are the paid
+visual reviewer's findings about the scene that was built. Codes are open-ended:
+treat an unrecognized one as informational rather than an error.
+
+`repairPasses` counts repairs, never authoring passes, so `0` means "accepted
+first time", not "never authored". A render-only export authored nothing and
+omits the field entirely rather than reporting `0`; it also has no summary.
+
+The same three fields appear on a `generateAndWait` result when an advanced
+engine authored the scene. The deterministic Basic lane asks no model and
+carries none of them.
 
 `capabilities().pro` reports which engines, quality profiles, styles and aspect
 ratios this install can serve — offer controls from that, not from the full

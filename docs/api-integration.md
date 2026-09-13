@@ -2833,6 +2833,19 @@ by `shotIndex`, at no extra credit cost), an optional `sourceArtifactId`,
 `validation` (`{status, reportAssetId, warnings[]}`), `renderer` and `metadata`
 (`{width, height, fps, frames, duration}`).
 
+A run that **authored** additionally reports its own account of the answer, in
+three optional fields: `validation.warnings[]` entries coded
+`SCENE_AUTHORING_ASSUMPTION` (the planner's assumptions, with any normalization
+the engine applied), `metadata.summary` (its one-or-two-sentence description of
+what it authored — on a repaired run, of the repair), and top-level
+`repairPasses` (repairs actually run, `0` when the scene was accepted first
+time). A render-only export authored nothing: it reports no summary and omits
+`repairPasses` rather than claiming `0`. The same three fields appear on a
+`generate-3d-scene` job served by an advanced engine; the deterministic Basic
+lane carries none of them. Warning codes are open-ended — read `code` and treat
+an unrecognized one as informational. See
+[3D Render Pro](nodes/composition/pro-3d-render.md#warning-codes).
+
 Availability is per deployment. `GET /v1/3d-scene/capabilities` reports a `pro`
 block with `available` plus the engines, quality profiles, styles, aspect ratios
 and repair-pass ceiling a client may OFFER; `GET /v1/nodes` omits the type where

@@ -123,9 +123,26 @@ at the draft it kept — see [Errors](#errors).
 | `posterAssetId` | Preview poster for the result. |
 | `shotStills` | One entry per shot, ordered by `shotIndex`: `{ shotIndex, frame, assetId, url }`. `shotIndex` is 0-based in the composition's shot order and `frame` is the shot's own first frame in the composition's frame space, so a still lines up against the MP4 without re-deriving shot boundaries. Each `url` is an authenticated delivery endpoint, not a public link — the editor reads it with your session, and a run that wires a still into a model is granted its own short-lived read (see Outputs above). Absent on a result that rendered none. |
 | `sourceArtifactId` | Present when an editable native source was retained. |
-| `validation` | `{ status, reportAssetId, warnings[] }` — each warning has a `code`, a `message` and an optional `shotId`. `status` is `passed` here; a **failed** job can carry this field too, with `status: "failed"` (see [Errors](#errors)). |
+| `validation` | `{ status, reportAssetId, warnings[] }` — each warning has a `code`, a `message` and an optional `shotId`. `status` is `passed` here; a **failed** job can carry this field too, with `status: "failed"` (see [Errors](#errors)). See [Warning codes](#warning-codes) for what a `code` can be. |
 | `renderer` | Renderer identity/version the export was produced with. |
-| `metadata` | `{ width, height, fps, frames, duration }` — check these against a downstream model's video-reference limits before wiring the MP4 in. |
+| `metadata` | `{ width, height, fps, frames, duration }` — check these against a downstream model's video-reference limits before wiring the MP4 in. On a run that authored, it also carries `summary`: the planner's own one-or-two-sentence description of what it made, and on a repaired run, of the repair. Optional — a run that returned no summary is not an error. |
+| `repairPasses` | How many repair passes actually RAN, never the number of authoring passes — so a composition accepted first time reports `0`, not `1`. Optional, and **absent** rather than `0` on a render-only export, which authored nothing and had no repair budget to spend. |
+
+#### Warning codes
+
+Every entry in `validation.warnings[]` carries a `code`, and the code is what tells
+the two kinds of advisory apart. Treat an unknown code as informational rather
+than an error — the list is open-ended by design.
+
+| Code | Means |
+|---|---|
+| `SCENE_AUTHORING_ASSUMPTION` | The brief did not say, so the run decided. One entry per assumption the planner made, with any normalization the engine applied to it. These appear on a run that **authored**; a render-only export has none. |
+| `SCENE_QUALITY_BLOCKING` | The paid visual reviewer found a blocking problem with the built scene. Carries a `shotId` when the cited frames all fall inside one shot. |
+| `SCENE_QUALITY_EVIDENCE_INSUFFICIENT` | The reviewer could not establish the requested behaviour from the frames it was given. |
+
+The `SCENE_QUALITY_*` codes are findings about a scene that was built; they are
+the ones that appear on a job that failed with `SCENE_QUALITY_FAILED`. The
+complete finding set is always in the pinned validation report, not the row.
 
 ## Using the result as a video reference
 
@@ -286,8 +303,9 @@ it built is kept, and the failed job's `output_data` says where:
 | `sceneRevisionId` | The draft revision. A real, readable scene: `GET /v1/3d-scene/revisions/{revisionId}` returns its manifest. |
 | `deliveryId` | `GET /v1/3d-scene/deliveries/{jobId}` lists its retained evidence, exactly as it does for a delivered scene. |
 | `posterAssetId` | A rendered frame of the draft, read from the delivery's assets route. |
-| `validation` | `{ status: "failed", scope: "authored", reportAssetId, passes, warnings[] }` — `passes` is how many authoring passes were spent, and each warning carries a `code`, a `message` and, where the finding cites frames inside one shot, that `shotId`. |
-| `scenePlan`, `renderer`, `metadata` | The draft composition and its frame size, fps and duration. |
+| `validation` | `{ status: "failed", scope: "authored", reportAssetId, passes, warnings[] }` — `passes` is how many authoring passes were spent, and each warning carries a `code`, a `message` and, where the finding cites frames inside one shot, that `shotId`. The reviewer's findings and the run's `SCENE_AUTHORING_ASSUMPTION` entries share this one array; read the `code` to tell them apart (see [Warning codes](#warning-codes)). |
+| `repairPasses` | Repairs actually run — `passes` minus the first attempt. |
+| `scenePlan`, `renderer`, `metadata` | The draft composition and its frame size, fps and duration, plus `metadata.summary` when the planner described what it authored. |
 
 The `reportAssetId` artifact is the reviewer's full account: every finding, its
 category and severity, the frames it cites and the correction it asked for.
@@ -325,7 +343,12 @@ resolves: `GET /v1/3d-scene/deliveries/{jobId}` answers for the owner with
 reportAssetId, passes, warnings[] }`, where `phase` says which stage kept
 refusing — `build` when the compiler would not build the recipe, `planning`
 when its grammar would not admit one. Each warning is one refusal, naming the
-path in the recipe it pointed at where it gave one. The
+path in the recipe it pointed at where it gave one, alongside any
+`SCENE_AUTHORING_ASSUMPTION` entries the run made — the assumptions are about
+the authoring, which is the only thing that happened. `repairPasses` is
+reported here too. There is **no** `metadata` block and no `summary`: nothing
+compiled, so there is no composition to describe and nowhere honest to put a
+description of one. The
 report artifact holds the full set, refusal by refusal. The recipe is retained
 for re-authoring rather than offered as a download. A job that failed before
 any of that — the planner itself refused, or was never reached — has nothing

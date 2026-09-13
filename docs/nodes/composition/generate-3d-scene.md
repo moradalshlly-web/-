@@ -50,6 +50,19 @@ construction inputs; new asset selections belong to new-scene requests.
 
 `POST /v1/3d-scene/generate` returns `{ jobId }`. Poll the job; its completed `output_data.scenePlan` contains the editable scene.
 
+When an **advanced** engine authored the scene, `output_data` additionally
+reports what that run knows about its own answer. All three fields are optional
+and none of them appears on the deterministic Basic lane, which asks no model:
+
+| Field | Meaning |
+|---|---|
+| `validation.warnings[]` | Advisories about the result, each `{ code, message, shotId? }`. Entries coded `SCENE_AUTHORING_ASSUMPTION` are authoring caveats — the brief did not say, so the run decided — carrying the planner's assumption with any normalization the engine applied. |
+| `metadata.summary` | The planner's own one-or-two-sentence description of the scene it authored; on a repaired run, of the repair. A run that returned no summary is not an error. |
+| `repairPasses` | Repairs that actually ran, never the authoring-pass count: `0` when the scene was accepted first time. |
+
+Read them as optional — a result from a deployment without an advanced engine,
+or one produced before these existed, simply has none.
+
 ```typescript
 const scene = await client.nodes.runAndWait("generate-3d-scene", {
   prompt: "A red suitcase rolls behind a central pillar and reappears. Dolly right over four seconds.",

@@ -1546,6 +1546,20 @@ export interface PluginLlmRequest {
    * passes `"direct"` explicitly — the multimodal variant defaults to it.
    */
   requireLane?: "direct" | "kie"
+  /**
+   * Allow ONE transport retry when the provider call fails before reporting any usage —
+   * a connection error, a 5xx, an error frame or a silent close with no tokens. Defaults to
+   * TRUE; pass `false` to see the first failure immediately.
+   *
+   * Additive-optional, and INERT until the plugin repo mirrors the field in its own
+   * `contract.ts`. It exists because `maxRetries` cannot express this: that option counts
+   * VALIDATION retries — re-asking a provider that already answered and billed — which is
+   * exactly why a structured plugin call sets it to 0. A failure that reported no usage cost
+   * nothing, so it is a different question and gets a different lever. Mirrors
+   * `LlmRequest.retryStreamOnError` (`lib/llm-client.ts`); a call that DID report usage is
+   * never retried whatever this says.
+   */
+  retryStreamOnError?: boolean
 }
 
 /**
@@ -1656,6 +1670,20 @@ export interface PluginLlmMultimodalRequest {
    * tokens-per-second)`. See `LlmRequest.minPromptTokens` in llm-client.ts.
    */
   minPromptTokens?: number
+  /**
+   * Allow ONE transport retry when the provider call fails before reporting any usage —
+   * a connection error, a 5xx, an error frame or a silent close with no tokens. Defaults to
+   * TRUE; pass `false` to see the first failure immediately.
+   *
+   * Additive-optional, and INERT until the plugin repo mirrors the field in its own
+   * `contract.ts`. It exists because `maxRetries` cannot express this: that option counts
+   * VALIDATION retries — re-asking a provider that already answered and billed — which is
+   * exactly why a structured plugin call sets it to 0. A failure that reported no usage cost
+   * nothing, so it is a different question and gets a different lever. Mirrors
+   * `LlmRequest.retryStreamOnError` (`lib/llm-client.ts`); a call that DID report usage is
+   * never retried whatever this says.
+   */
+  retryStreamOnError?: boolean
 }
 
 export interface PluginLlmMeteredUsage {

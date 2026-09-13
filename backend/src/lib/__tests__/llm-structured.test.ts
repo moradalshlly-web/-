@@ -44,26 +44,112 @@ describe("llmCompleteStructured", () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it.each(["transport", "error-frame", "silent-close"])(
-    "does not restart Astra's underlying stream after %s when retries are disabled", async (failure) => {
-      const { llmCompleteStructured, StructuredLlmError } = await import("../llm-client.js")
-      fetchMock.mockImplementation(() => {
-        if (failure === "transport") return Promise.reject(new Error("socket closed"))
-        return Promise.resolve(streamResponse(failure === "error-frame"
-          ? ['event: error\ndata: {"error":{"message":"upstream failed"}}\n\n']
-          : ['data: {"type":"response.created","response":{"id":"response-1"}}\n\n', 'data: [DONE]\n\n']))
-      })
-      const result = llmCompleteStructured(
+  // ---------------------------------------------------------------------------
+  // Transport retry vs validation retry
+  //
+  // `maxRetries` counts VALIDATION retries: re-asking a provider that already answered, and
+  // paying again for a better-shaped answer. The Scene3D planner sets it to 0 deliberately —
+  // it will not re-buy a wrong answer. Between 2026-09-08 and 2026-09-13 that ALSO disabled
+  // the transport retry, so the planner had none: measured 2026-09-13, a
+  // `503 {"type":"server_error"}` and an `upstream_error … "The server is currently being
+  // maintained"` frame, both with NO usage, each ended a paid job outright.
+  //
+  // The rule that replaced the coupling is one line: a call that reported usage is never
+  // retried; one that reported none cost nothing and gets exactly one more attempt.
+  // ---------------------------------------------------------------------------
+
+  /** The failures the provider produced tonight, plus the two shapes that reach the same place. */
+  const noUsageFailure: Record<string, () => Promise<Response>> = {
+    "connection error": () => Promise.reject(new Error("socket closed")),
+    "503 before any stream": () => Promise.resolve(
+      new Response('{"type":"server_error","message":"Service temporarily unavailable"}',
+        { status: 503, headers: { "Content-Type": "application/json" } }),
+    ),
+    "error event with no usage": () => Promise.resolve(streamResponse([
+      'data: {"type":"error","error":{"type":"upstream_error","message":"The server is currently being maintained"}}\n\n',
+    ])),
+    "silent close": () => Promise.resolve(streamResponse([
+      'data: {"type":"response.created","response":{"id":"response-1"}}\n\n', 'data: [DONE]\n\n',
+    ])),
+  }
+
+  const astraOk = () => streamResponse([
+    'data: {"type":"response.output_text.delta","delta":"{\\"prompt\\":\\"a sunset\\"}"}\n\n',
+    'data: {"type":"response.completed","response":{"usage":{"input_tokens":9,"output_tokens":4}}}\n\n',
+  ])
+
+  it.each(Object.keys(noUsageFailure))(
+    "retries ONCE after a %s — no usage was reported, so nothing was paid for", async (failure) => {
+      const { llmCompleteStructured } = await import("../llm-client.js")
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+      fetchMock
+        .mockImplementationOnce(noUsageFailure[failure])
+        .mockImplementation(() => Promise.resolve(astraOk()))
+
+      const result = await llmCompleteStructured(
         { modelId: "gpt-6-astra", system: "", messages: [{ role: "user", content: "scene" }] },
         schema, { maxRetries: 0 },
       )
-      await expect(result).rejects.toBeInstanceOf(StructuredLlmError)
-      await expect(result).rejects.toMatchObject({ usage: {
-        inputTokens: 0, outputTokens: 0, complete: false,
-      } })
-      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      expect(result.output).toEqual({ prompt: "a sunset" })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      // Observable, not silent: the reason and which attempt it is.
+      const line = warn.mock.calls.map((c) => String(c[0])).find((l) => l.includes("[llm-kie-stream-retry]"))
+      expect(line).toContain("gpt-6-astra attempt 2/2")
+      expect(line).toContain("before any usage was reported")
+      warn.mockRestore()
     },
   )
+
+  it("never retries a failure that REPORTED usage — that would be a second bill", async () => {
+    const { llmCompleteStructured, StructuredLlmError } = await import("../llm-client.js")
+    // `response.completed` with usage and no text: the provider answered (badly) and charged
+    // for answering. Before the usage-carrying throw, this was a real double-pay path — the
+    // empty-output guard threw a plain Error and the retry re-dialled a call already billed.
+    fetchMock.mockImplementation(() => Promise.resolve(streamResponse([
+      'data: {"type":"response.completed","response":{"usage":{"input_tokens":120,"output_tokens":0}}}\n\n',
+    ])))
+
+    const result = llmCompleteStructured(
+      { modelId: "gpt-6-astra", system: "", messages: [{ role: "user", content: "scene" }] },
+      schema, { maxRetries: 0 },
+    )
+
+    await expect(result).rejects.toBeInstanceOf(StructuredLlmError)
+    // The spend survives the failure: the job is billed for what it really used.
+    await expect(result).rejects.toMatchObject({ usage: { inputTokens: 120, outputTokens: 0 } })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("surfaces the second failure unchanged when the retry fails too", async () => {
+    const { llmCompleteStructured, StructuredLlmError } = await import("../llm-client.js")
+    fetchMock.mockImplementation(noUsageFailure["503 before any stream"])
+
+    const result = llmCompleteStructured(
+      { modelId: "gpt-6-astra", system: "", messages: [{ role: "user", content: "scene" }] },
+      schema, { maxRetries: 0 },
+    )
+
+    // No retry-exhausted wrapper: the provider's own reason is what the caller reads.
+    await expect(result).rejects.toBeInstanceOf(StructuredLlmError)
+    await expect(result).rejects.toThrow(/503/)
+    await expect(result).rejects.toMatchObject({ usage: { inputTokens: 0, outputTokens: 0, complete: false } })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("honours the explicit opt-out: retryStreamOnError false fails on the first attempt", async () => {
+    const { llmCompleteStructured, StructuredLlmError } = await import("../llm-client.js")
+    fetchMock.mockImplementation(noUsageFailure["connection error"])
+
+    const result = llmCompleteStructured(
+      { modelId: "gpt-6-astra", system: "", messages: [{ role: "user", content: "scene" }],
+        retryStreamOnError: false },
+      schema, { maxRetries: 0 },
+    )
+
+    await expect(result).rejects.toBeInstanceOf(StructuredLlmError)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 
   it("finishes a completed Astra response without waiting for the socket to close", async () => {
     const { llmCompleteStructured } = await import("../llm-client.js")
@@ -346,6 +432,30 @@ describe("llmCompleteStructured", () => {
         ),
       ).rejects.toThrow()
       expect(anthropicCreate).not.toHaveBeenCalled()
+      // Twice, not once: KIE's `{"code":500}` envelope reports no usage, so the transport
+      // retry is free and runs even at `maxRetries: 0`. What must NOT happen is a retry LOOP
+      // on garbage or a fabricated result — both still hold.
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    // The Claude lane is where an error frame can arrive AFTER usage: `message_delta` reports
+    // it mid-stream, unlike the responses dialect where usage rides the terminal event. So
+    // this is the shape that would have double-paid, and the one place that can tell is
+    // `parseSseStream` — it knows whether any usage arrived before the frame did.
+    it("does not retry a messages-lane error frame that arrives after usage was reported", async () => {
+      const { llmCompleteStructured, StructuredLlmError } = await import("../llm-client.js")
+      fetchMock.mockImplementation(() => Promise.resolve(streamResponse([
+        `data: ${JSON.stringify({ type: "message_delta", usage: { input_tokens: 400, output_tokens: 12 } })}\n`,
+        `data: ${JSON.stringify({ type: "error", error: { type: "upstream_error", message: "The server is currently being maintained" } })}\n`,
+      ])))
+
+      const result = llmCompleteStructured(
+        { modelId: "claude-opus-4.7", system: "sys", messages: [{ role: "user", content: "x" }] },
+        schema, { schemaName: "out", maxRetries: 0 },
+      )
+
+      await expect(result).rejects.toBeInstanceOf(StructuredLlmError)
+      await expect(result).rejects.toMatchObject({ usage: { inputTokens: 400, outputTokens: 12 } })
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
   })
