@@ -55,7 +55,9 @@ describe("llmCompleteStructured", () => {
   // maintained"` frame, both with NO usage, each ended a paid job outright.
   //
   // The rule that replaced the coupling is one line: a call that reported usage is never
-  // retried; one that reported none cost nothing and gets exactly one more attempt.
+  // retried; one that reported none cost nothing and is re-dialed on a bounded ladder
+  // (round 7g widened it from one 400 ms attempt to 400 / 2 000 / 6 000 ms, after measuring
+  // both attempts of a 400 ms pair 503 two seconds apart on staging job a37e5a64).
   // ---------------------------------------------------------------------------
 
   /** The failures the provider produced tonight, plus the two shapes that reach the same place. */
@@ -79,7 +81,7 @@ describe("llmCompleteStructured", () => {
   ])
 
   it.each(Object.keys(noUsageFailure))(
-    "retries ONCE after a %s — no usage was reported, so nothing was paid for", async (failure) => {
+    "re-dials after a %s — no usage was reported, so nothing was paid for", async (failure) => {
       const { llmCompleteStructured } = await import("../llm-client.js")
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
       fetchMock
@@ -95,7 +97,7 @@ describe("llmCompleteStructured", () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
       // Observable, not silent: the reason and which attempt it is.
       const line = warn.mock.calls.map((c) => String(c[0])).find((l) => l.includes("[llm-kie-stream-retry]"))
-      expect(line).toContain("gpt-6-astra attempt 2/2")
+      expect(line).toContain("gpt-6-astra attempt 2/4 in 400 ms")
       expect(line).toContain("before any usage was reported")
       warn.mockRestore()
     },
@@ -121,20 +123,31 @@ describe("llmCompleteStructured", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it("surfaces the second failure unchanged when the retry fails too", async () => {
+  it("surfaces the LAST failure unchanged when every attempt on the ladder fails", async () => {
     const { llmCompleteStructured, StructuredLlmError } = await import("../llm-client.js")
     fetchMock.mockImplementation(noUsageFailure["503 before any stream"])
 
-    const result = llmCompleteStructured(
-      { modelId: "gpt-6-astra", system: "", messages: [{ role: "user", content: "scene" }] },
-      schema, { maxRetries: 0 },
-    )
+    vi.useFakeTimers()
+    let result: Promise<unknown>
+    try {
+      result = llmCompleteStructured(
+        { modelId: "gpt-6-astra", system: "", messages: [{ role: "user", content: "scene" }] },
+        schema, { maxRetries: 0 },
+      )
+      const settled = result.catch(() => {})
+      // Drive the whole 400 / 2 000 / 6 000 ms ladder without sitting out 8.4 s.
+      await vi.advanceTimersByTimeAsync(20_000)
+      await settled
+    } finally {
+      vi.useRealTimers()
+    }
 
     // No retry-exhausted wrapper: the provider's own reason is what the caller reads.
     await expect(result).rejects.toBeInstanceOf(StructuredLlmError)
     await expect(result).rejects.toThrow(/503/)
     await expect(result).rejects.toMatchObject({ usage: { inputTokens: 0, outputTokens: 0, complete: false } })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // Four attempts, and still one failure: the ladder clears a flap, never an outage.
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
   it("honours the explicit opt-out: retryStreamOnError false fails on the first attempt", async () => {
@@ -424,18 +437,24 @@ describe("llmCompleteStructured", () => {
       // With no direct lane configured there is no backstop, so the error must
       // reach the caller instead of degrading into a retry loop on garbage.
       fetchMock.mockResolvedValue(streamResponse(['{"code":500,"msg":"maintenance"}']))
-      await expect(
-        llmCompleteStructured(
+      vi.useFakeTimers()
+      try {
+        const call = llmCompleteStructured(
           { modelId: "claude-opus-4.7", system: "sys", messages: [{ role: "user", content: "x" }] },
           schema,
           { schemaName: "out", maxRetries: 0 },
-        ),
-      ).rejects.toThrow()
+        )
+        const assertion = expect(call).rejects.toThrow()
+        await vi.advanceTimersByTimeAsync(20_000)
+        await assertion
+      } finally {
+        vi.useRealTimers()
+      }
       expect(anthropicCreate).not.toHaveBeenCalled()
-      // Twice, not once: KIE's `{"code":500}` envelope reports no usage, so the transport
-      // retry is free and runs even at `maxRetries: 0`. What must NOT happen is a retry LOOP
-      // on garbage or a fabricated result — both still hold.
-      expect(fetchMock).toHaveBeenCalledTimes(2)
+      // Four times, not once: KIE's `{"code":500}` envelope reports no usage, so the transport
+      // ladder is free and runs even at `maxRetries: 0`. What must NOT happen is an UNBOUNDED
+      // retry loop on garbage or a fabricated result — both still hold.
+      expect(fetchMock).toHaveBeenCalledTimes(4)
     })
 
     // The Claude lane is where an error frame can arrive AFTER usage: `message_delta` reports

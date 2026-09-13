@@ -169,12 +169,19 @@ describe("preferKie routing (claude-sonnet-5 / claude-opus-4.8)", () => {
     createSpy.mockReset().mockRejectedValue(new Error("anthropic down"))
     vi.spyOn(console, "warn").mockImplementation(() => {})
     fetchMock.mockResolvedValue(streamResponse(['{"code":500,"msg":"maintenance"}']))
-    await expect(
-      llmComplete({ modelId: "claude-opus-5", system: "", messages: [{ role: "user", content: "hi" }] }),
-    ).rejects.toThrow()
-    // One initial attempt + exactly one retry — a genuinely down proxy must
-    // still fail fast rather than loop.
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    vi.useFakeTimers()
+    try {
+      const call = llmComplete({ modelId: "claude-opus-5", system: "", messages: [{ role: "user", content: "hi" }] })
+      const assertion = expect(call).rejects.toThrow()
+      // Drive the 400 / 2 000 / 6 000 ms transport ladder without sitting it out.
+      await vi.advanceTimersByTimeAsync(20_000)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+    // One initial attempt plus the bounded ladder — a genuinely down proxy still
+    // fails inside seconds rather than looping.
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
   it("falls back to direct Anthropic when KIE errors", async () => {
