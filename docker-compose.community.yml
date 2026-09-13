@@ -111,7 +111,12 @@ services:
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-nodaro-community-default-jwt-secret-change-me-please}
 
   minio:
-    image: minio/minio:latest
+    # MinIO publishes its images on quay.io. The Docker Hub repository minio/minio was
+    # withdrawn (pull access denied from 2026-09-12; https://hub.docker.com/v2/repositories/minio/minio/
+    # answers 404), which made every fresh community install and the nightly probe fail
+    # before the stack booted. Pinned to a release, not :latest, so an upstream change
+    # cannot break a self-hoster's next `docker compose pull` without a change here.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
