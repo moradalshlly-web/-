@@ -1628,6 +1628,117 @@ async function streamAnthropicDirect(
 // SSE stream parser
 // ---------------------------------------------------------------------------
 
+/**
+ * The authoritative answer text a `responses` terminal frame states outright.
+ *
+ * The responses dialect says the answer TWICE: once as a long run of
+ * `response.output_text.delta` fragments, and once verbatim inside
+ * `response.completed` (`response.output[].content[].text`) and
+ * `response.output_text.done` (`text`). Measured on KIE `codex/v1/responses`
+ * with gpt-6-astra (2026-09-14, 56 frames for a 104-character answer): the
+ * deltas are ONE TO THREE CHARACTERS each, so a single lost frame is a single
+ * lost character — exactly the corruption the Scene3D planner kept being
+ * blamed for (`"seed":370◀c dropped▶a086`, `[-0.4,-0.6,0.8◀] dropped▶}}`).
+ *
+ * Concatenated in arrival order, because a multi-part answer states each part
+ * separately and the deltas concatenate the same way. Returns undefined — not
+ * "" — when the frame states no text at all, so "the provider said the answer
+ * is empty" stays distinguishable from "the provider never said".
+ */
+function responsesFrameText(resp: Record<string, unknown> | undefined): string | undefined {
+  const output = resp?.output as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(output)) return undefined
+  let text: string | undefined
+  for (const item of output) {
+    const content = item?.content as Array<Record<string, unknown>> | undefined
+    if (!Array.isArray(content)) continue
+    for (const block of content) {
+      if (block?.type !== "output_text") continue
+      const t = block.text
+      if (typeof t === "string") text = (text ?? "") + t
+    }
+  }
+  return text
+}
+
+/** First index at which two strings differ, or -1 when they are identical. */
+function firstDivergence(a: string, b: string): number {
+  const n = Math.min(a.length, b.length)
+  for (let i = 0; i < n; i++) if (a[i] !== b[i]) return i
+  return a.length === b.length ? -1 : n
+}
+
+/**
+ * Decide what a `responses` stream actually delivered — the one place that can.
+ *
+ * Three verdicts, in the order they are checked:
+ *
+ * 1. **The provider stated the text and it disagrees with the deltas.** The
+ *    statement wins and the divergence is logged. A delta frame that never
+ *    arrived (ours or KIE's relay) is repaired here instead of reaching the
+ *    caller as a one-character-corrupt document, which is indistinguishable
+ *    from a model that writes bad JSON and was charged to the brief every time
+ *    it happened.
+ * 2. **The stream ended with no terminal sentinel** — no `response.completed`,
+ *    no `[DONE]`. That is a CUT CONNECTION, not an answer: returning the bytes
+ *    that did arrive is what turned a truncated 14,414-character draft into a
+ *    "planner output invalid" verdict (job 0671503e, 2026-09-13). It throws a
+ *    plain Error, which carries no usage, so `transportRetryable` re-dials it.
+ * 3. **A `sequence_number` gap with nothing authoritative to repair it.** Every
+ *    responses frame carries a globally contiguous `sequence_number` (verified
+ *    0..55 with no gaps on a clean live stream); a gap is positive proof a
+ *    frame was lost. Also a plain Error — transport, retryable, never the
+ *    planner's fault.
+ *
+ * Exported for the byte-boundary/integrity suite; not part of the module's API.
+ */
+export function reconcileResponsesStreamText(opts: {
+  modelId: string
+  streamedText: string
+  authoritativeText: string | undefined
+  sawStreamEnd: boolean
+  sequenceAnomaly: boolean
+}): string {
+  const { modelId, streamedText, authoritativeText, sawStreamEnd, sequenceAnomaly } = opts
+
+  // Logged whether or not it is repairable: this lane had NO telemetry at all,
+  // so how often KIE's relay loses a frame was unknowable — which is why three
+  // rounds of one-character corruption could not be attributed either way.
+  if (sequenceAnomaly) {
+    console.warn(
+      `[llm-kie-stream-gap] ${modelId} SSE sequence_number was not contiguous — a frame was lost or reordered`,
+    )
+  }
+
+  if (authoritativeText !== undefined) {
+    if (authoritativeText !== streamedText) {
+      console.warn(
+        `[llm-kie-stream-mismatch] ${modelId} delta stream disagrees with the provider's stated answer: ` +
+          `streamed ${streamedText.length} chars, stated ${authoritativeText.length} chars, ` +
+          `first divergence at ${firstDivergence(streamedText, authoritativeText)} — using the stated answer`,
+      )
+    }
+    return authoritativeText
+  }
+
+  if (!sawStreamEnd) {
+    throw new Error(
+      `KIE.ai responses stream ${modelId} ended without a terminal event ` +
+        `(no response.completed, no [DONE]) after ${streamedText.length} chars — the connection was cut mid-answer`,
+    )
+  }
+
+  if (sequenceAnomaly) {
+    throw new Error(
+      `KIE.ai responses stream ${modelId} lost or reordered an SSE frame ` +
+        `(sequence_number gap) and the stream stated no authoritative text to repair it from ` +
+        `— the ${streamedText.length}-char answer is incomplete`,
+    )
+  }
+
+  return streamedText
+}
+
 async function parseSseStream(
   response: Response,
   modelId: string,
@@ -1653,6 +1764,16 @@ async function parseSseStream(
   let actualUsd: number | undefined
   let buffer = ""
   let firstChunk = true
+  // --- `responses` stream integrity (see reconcileResponsesStreamText) -------
+  /** A terminal sentinel was seen: `response.completed`, or the `[DONE]` line. */
+  let sawStreamEnd = false
+  /** The provider's own statement of the answer, from `response.completed` (whole
+   *  answer) or, failing that, the `response.output_text.done` parts in order. */
+  let completedText: string | undefined
+  let donePartsText: string | undefined
+  /** A `sequence_number` that was not `previous + 1` — a lost or reordered frame. */
+  let sequenceAnomaly = false
+  let lastSequence: number | undefined
 
   try {
     readEvents: while (true) {
@@ -1683,15 +1804,32 @@ async function parseSseStream(
       buffer = lines.pop() ?? ""
 
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue
-        const payload = line.slice(6).trim()
-        if (payload === "[DONE]") continue
+        // The space after `data:` is OPTIONAL in the SSE spec. KIE sends one
+        // today; a relay that stopped would make every frame invisible here and
+        // the stream would return "" as a successful answer. `.trim()` then
+        // absorbs both the optional space and a `\r\n` line ending.
+        if (!line.startsWith("data:")) continue
+        const payload = line.slice(5).trim()
+        if (payload === "[DONE]") {
+          sawStreamEnd = true
+          continue
+        }
 
         let parsed: Record<string, unknown>
         try {
           parsed = JSON.parse(payload)
         } catch {
           continue
+        }
+
+        // Every responses frame carries a globally contiguous `sequence_number`
+        // (measured 0..55, no gaps, on a clean live stream). Tracked for ALL
+        // formats because it costs nothing and is absent everywhere else, so a
+        // dialect that grows one is covered the day it does.
+        const sequence = parsed.sequence_number
+        if (typeof sequence === "number" && Number.isFinite(sequence)) {
+          if (lastSequence !== undefined && sequence !== lastSequence + 1) sequenceAnomaly = true
+          lastSequence = sequence
         }
 
         // An SSE `event: error` frame carries `{"type":"error","error":{...}}`.
@@ -1766,6 +1904,13 @@ async function parseSseStream(
               onToken(text)
             }
           }
+          // The provider restating one finished content part verbatim. Kept as
+          // the fallback authority for a stream that is cut after the parts are
+          // done but before `response.completed`.
+          if (eventType === "response.output_text.done") {
+            const text = parsed.text
+            if (typeof text === "string") donePartsText = (donePartsText ?? "") + text
+          }
           if (eventType === "response.completed" || eventType === "response.incomplete" || eventType === "response.failed") {
             const resp = parsed.response as Record<string, unknown> | undefined
             const u = resp?.usage as Record<string, number> | undefined
@@ -1773,6 +1918,10 @@ async function parseSseStream(
               usage = { inputTokens: u.input_tokens ?? 0, outputTokens: u.output_tokens ?? 0 }
             }
             actualUsd = extractActualUsd(resp ?? {}) ?? actualUsd
+            if (eventType === "response.completed") {
+              sawStreamEnd = true
+              completedText = responsesFrameText(resp)
+            }
             if (eventType !== "response.completed") {
               const providerCost = actualUsd ?? (usage ? calculateLlmCost(modelId, usage) : undefined)
               // The provider's own reason, not just the event name. `response.incomplete`
@@ -1801,6 +1950,22 @@ async function parseSseStream(
     }
   } finally {
     reader.cancel().catch(() => {})
+  }
+
+  // The delta run is a RECONSTRUCTION; the terminal frames are the provider's
+  // own statement of the answer. Where they disagree the statement wins, and a
+  // stream that stated nothing and never terminated is a cut connection rather
+  // than a short answer. Scoped to `responses` because it is the only dialect
+  // that restates the text — the Claude `messages` and chat-completions lanes
+  // carry deltas only, and have their own end-of-stream contracts.
+  if (format === "responses") {
+    fullText = reconcileResponsesStreamText({
+      modelId,
+      streamedText: fullText,
+      authoritativeText: completedText ?? donePartsText,
+      sawStreamEnd,
+      sequenceAnomaly,
+    })
   }
 
   return {
