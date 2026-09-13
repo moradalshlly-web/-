@@ -8,7 +8,9 @@
  *
  * Anchor model: `sync-lipsync-v3` → fal endpoint `fal-ai/sync-lipsync/v3`
  * (video+audio → video; dub existing footage). Verified schema:
- *   video_url (req), audio_url (req), sync_mode (cut_off|loop|bounce|silence|remap).
+ *   video_url (req), audio_url (req), sync_mode (cut_off|loop|bounce|silence|remap),
+ *   options.active_speaker_detection { auto_detect, v3 } (the only sync-3 option that
+ *   is not managed natively — see fal's Sync3GenerationOptions).
  */
 
 import { runFalRequest, extractFalUrl } from "./client.js"
@@ -41,6 +43,15 @@ export interface FalLipSyncParams {
    * `buildLipSyncCreditId`, so `provider_cost` is never written as $0.
    */
   audioDurationSec?: number
+  /**
+   * Active speaker detection — the ONE sync-3 option that is not managed natively
+   * (temperature / occlusion / reasoning are ignored by sync-3). `true` asks fal for
+   * sync.so's auto-detect with the v3 detector, so a multi-person clip animates
+   * whoever is speaking instead of one arbitrary face. Off by default upstream,
+   * and absent here ⇒ no `options` key at all (today's request, byte for byte).
+   * The route already accepts `activeSpeaker`; this is where it reaches fal.
+   */
+  activeSpeaker?: boolean
 }
 
 /**
@@ -65,6 +76,9 @@ export async function falLipSync(
     [cfg.videoParam]: videoUrl,
     [cfg.audioParam]: audioUrl,
     ...(params.syncMode ? { sync_mode: params.syncMode } : {}),
+    ...(params.activeSpeaker
+      ? { options: { active_speaker_detection: { auto_detect: true, v3: true } } }
+      : {}),
   }
 
   const { output } = await runFalRequest({

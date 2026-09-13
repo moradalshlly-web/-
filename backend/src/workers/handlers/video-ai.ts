@@ -789,14 +789,15 @@ const handleLipSync: HandlerFn = async function handleLipSync(job, ctx) {
     // fal.ai path (sync-lipsync-v3) — video+audio → video dubbing via the fal
     // queue API. faceUrl can be a video OR an image; the worker already accepts
     // both. audioDurationSec drives per-second credit bucketing (reserved at the
-    // route); here it only feeds the anomaly/display cost.
+    // route); here it only feeds the anomaly/display cost. activeSpeaker → fal
+    // options.active_speaker_detection (auto-detect, v3) — see falLipSync.
     const faceUrl = videoUrl || imageUrl
     if (!faceUrl) throw new Error("Lip-sync requires a video or image input")
     const out = await falLipSync(
       resolvedProvider,
       faceUrl,
       audioUrl,
-      { syncMode, audioDurationSec },
+      { syncMode, audioDurationSec, activeSpeaker },
       { onTaskCreated: lipSyncOnTaskCreated },
     )
     resultUrl = out.videoUrl

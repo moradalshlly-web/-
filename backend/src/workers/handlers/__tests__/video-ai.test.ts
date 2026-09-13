@@ -539,6 +539,26 @@ describe("lip-sync handler", () => {
     expect(mocks.mockFinalizeJobWithMedia).toHaveBeenCalled()
   })
 
+  it("fal branch forwards activeSpeaker from job.data (the route accepts it; the v3 path must not drop it)", async () => {
+    const job = makeJob("lip-sync", {
+      provider: "sync-lipsync-v3",
+      videoUrl: "https://clip.mp4",
+      audioUrl: "https://speech.mp3",
+      syncMode: "cut_off",
+      audioDurationSec: 14,
+      activeSpeaker: true,
+    })
+    await handler(job as never, makeCtx())
+
+    expect(mocks.mockFalLipSync).toHaveBeenCalledWith(
+      "sync-lipsync-v3",
+      "https://clip.mp4",
+      "https://speech.mp3",
+      { syncMode: "cut_off", audioDurationSec: 14, activeSpeaker: true },
+      expect.objectContaining({ onTaskCreated: expect.any(Function) }),
+    )
+  })
+
   it("fal branch falls back to imageUrl when no videoUrl is provided", async () => {
     const job = makeJob("lip-sync", {
       provider: "sync-lipsync-v3",
