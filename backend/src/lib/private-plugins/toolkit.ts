@@ -1419,6 +1419,10 @@ export function buildToolkit(): PluginToolkit {
             // and film-studio doctrine, which keep the registry's cost-aware
             // routing. Only a caller that must not touch KIE pins a lane.
             requireLane: req.requireLane,
+            // ON unless the caller opts out: a failure that reported no usage cost nothing,
+            // so re-dialling it once is free. Independent of `opts.maxRetries`, which counts
+            // re-asking a provider that already answered — and billed.
+            retryStreamOnError: req.retryStreamOnError,
           },
           schema as ZodType<T>,
           opts,
@@ -1457,6 +1461,8 @@ export function buildToolkit(): PluginToolkit {
             // Media fail-open guard — only the caller knows how much media it
             // sent, so the floor rides the request. See the contract docstring.
             minPromptTokens: req.minPromptTokens,
+            // See the text-only sibling above: transport retry, not validation retry.
+            retryStreamOnError: req.retryStreamOnError,
           },
           schema as ZodType<T>,
           opts,

@@ -55,18 +55,24 @@ import {
   type Scene3DPlanV1,
   type Scene3DSemanticIssue,
 } from "./scene3d.js"
+import type { Scene3DAuthoringDelivery } from "./scene3d-delivery-notes.js"
 
 /** THE plan type. Narrow with `isScene3DPlanV1` / `isScene3DPlanV2` before
  *  reading version-specific fields. */
 export type Scene3DPlan = Scene3DPlanV1 | Scene3DPlanV2
 
-export interface Scene3DJobOutputV2 {
+/**
+ * An advanced (engine-authored) scene job's output. The three
+ * {@link Scene3DAuthoringDelivery} fields are additive and optional — a result from a
+ * deployment without an advanced engine, or from one that predates them, simply has none.
+ */
+export interface Scene3DJobOutputV2 extends Scene3DAuthoringDelivery {
   scenePlan: Scene3DPlanV2
   changeSummary?: string
 }
 
 /** Job output when either version may come back. */
-export interface Scene3DJobOutputAny {
+export interface Scene3DJobOutputAny extends Scene3DAuthoringDelivery {
   scenePlan: Scene3DPlan
   changeSummary?: string
 }

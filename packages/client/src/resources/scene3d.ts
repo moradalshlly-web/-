@@ -122,8 +122,10 @@ export class Scene3DResource {
    *
    * Resolves with the settled result — `videoUrl` (the MP4) and `scenePlan`
    * (the exact composition it was rendered from), plus the revision, poster,
-   * validation and renderer metadata. Re-render that same `scenePlan` later
-   * with {@link render}, or with a `{kind:'scene'}` source; that costs no
+   * validation and renderer metadata. A run that AUTHORED also reports its own
+   * account of the answer — `metadata.summary`, `repairPasses`, and any
+   * `SCENE_AUTHORING_ASSUMPTION` warnings. Re-render that same `scenePlan`
+   * later with {@link render}, or with a `{kind:'scene'}` source; that costs no
    * authoring.
    */
   async renderProAndWait(

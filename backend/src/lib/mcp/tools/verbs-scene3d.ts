@@ -48,6 +48,8 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
     title: "Generate 3D Scene",
     description: "Create an editable animated 3D clay scene from a prompt and optional image/video references. " +
       "Returns a job_id; get_job returns output_data.scenePlan when completed. " +
+      "An advanced engine also reports metadata.summary, repairPasses (0 when accepted first time) and " +
+      "SCENE_AUTHORING_ASSUMPTION entries in validation.warnings; all three optional. " +
       "Use edit_3d_scene to change the scene and render_3d_scene to export MP4. " +
       "Scene generation does not generate a photorealistic video.",
     inputSchema: {
@@ -131,6 +133,8 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
         "render-only export that costs no authoring, WITH edit_prompt it revises the scene first. " +
         "source.kind='local-export' uses a completed export from a paired desktop Blender, where that is available. " +
         "The tool quotes and submits with the same parameters and returns a job_id. " +
+        "A run that authored also reports metadata.summary, repairPasses and SCENE_AUTHORING_ASSUMPTION " +
+        "warnings; a render-only export reports none of the three. " +
         "Use generate_3d_scene for an editable preview without the MP4 export.",
       inputSchema: {
         source: z.discriminatedUnion("kind", [

@@ -11,6 +11,14 @@ These tools expose the same scene authoring and rendering operations as the canv
 
 Each returns a job ID. Use `get_job` or `wait_for_job` to retrieve the completed result. Generation/edit jobs return `output_data.scenePlan`; rendering returns a video URL.
 
+A scene authored by an advanced engine also reports what the run assumed and
+did: `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION` (the
+planner's assumptions), `metadata.summary` (its own description of what it
+authored) and `repairPasses` (repairs actually run — `0` when the scene was
+accepted first time). All three are optional; the Basic lane carries none of
+them, and a render-only export reports no summary and omits `repairPasses`
+rather than claiming `0` about a run that never authored.
+
 Generate and edit accept `engine` (`basic`, `blender-cloud`, or `blender-local`),
 `accepted_scene_schema_versions`, `local_connection_id`, and
 `max_repair_passes`. Optional engines must be available on the deployment;

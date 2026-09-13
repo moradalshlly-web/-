@@ -1071,6 +1071,9 @@ export * from "./scene3d-v2.js"
 export * from "./scene3d-v2-plan.js"
 export * from "./scene3d-v2-resources.js"
 export * from "./scene3d-camera-track.js"
+// --- What an authoring run says about its own answer: assumptions, summary,
+//     repair count. Additive and optional on every Scene3D authoring lane. ---
+export * from "./scene3d-delivery-notes.js"
 // --- 3D Render Pro: one durable operation, scene + video in one result ---
 export * from "./pro-3d-render.js"
 // --- Scene3D render pricing: which frame-size tier a render settles at.

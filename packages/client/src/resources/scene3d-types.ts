@@ -182,8 +182,23 @@ export interface RenderScene3DParams extends Record<string, unknown> {
   nodeId?: string
 }
 
-/** Preserve the shared wire contract while allowing additive job metadata. */
+/**
+ * Preserve the shared wire contract while allowing additive job metadata.
+ *
+ * A scene authored by an ADVANCED engine additionally reports what the run knows about its own
+ * answer, all three optional and all three absent on the deterministic Basic lane:
+ * `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION` (the planner's
+ * assumptions), `metadata.summary` (its description of what it authored), and `repairPasses`
+ * (repairs actually run — `0` when the scene was accepted first time).
+ */
 export type Scene3DJobOutput = Readonly<Scene3DWireJobOutput> & Readonly<Record<string, unknown>>
 
-/** The settled 3D Render Pro result, plus any additive job metadata. */
+/**
+ * The settled 3D Render Pro result, plus any additive job metadata.
+ *
+ * On a run that AUTHORED, three fields report the run's own account of its answer:
+ * `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION`, `metadata.summary`, and
+ * `repairPasses` (`0` when accepted first time). A render-only export authored nothing, so it
+ * carries no summary and omits `repairPasses` rather than claiming `0`.
+ */
 export type Pro3DRenderJobOutput = Readonly<Pro3DRenderWireOutput> & Readonly<Record<string, unknown>>

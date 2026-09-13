@@ -265,6 +265,16 @@ export interface Pro3DRenderCapabilities {
 // Result
 // ---------------------------------------------------------------------------
 
+/**
+ * One advisory about a delivered composition.
+ *
+ * `code` is open-ended — an unknown one is shown, never refused — and it is what tells the two
+ * KINDS of advisory apart without knowing anything about the engine that produced them:
+ * `SCENE_AUTHORING_ASSUMPTION` (exported as `SCENE3D_AUTHORING_ASSUMPTION_CODE`) is an authoring
+ * caveat, "the brief did not say, so the run decided", carrying the planner's own assumption
+ * with any normalization the engine applied to it; a `SCENE_QUALITY_*` code is the paid visual
+ * reviewer's finding about the scene that was built.
+ */
 export interface Pro3DRenderValidationWarning {
   code: string
   message: string
@@ -294,6 +304,13 @@ export interface Pro3DRenderResultMetadata {
   fps: number
   frames: number
   duration: number
+  /**
+   * The planner's own one-or-two-sentence description of what it authored — on a repaired run,
+   * of the REPAIR it made, which is the pass that was actually published. Optional and
+   * routinely absent: a model that returns no summary is not an error, and a render-only export
+   * authored nothing to describe.
+   */
+  summary?: string
 }
 
 /**
@@ -331,6 +348,13 @@ export interface Pro3DRenderJobOutput {
   }
   renderer: string
   metadata: Pro3DRenderResultMetadata
+  /**
+   * Repair passes actually RUN — never the number of authoring passes, so a composition
+   * accepted first time reports `0` rather than `1`. Optional and ABSENT (not `0`) on the
+   * render-only lane, which authored nothing and had no repair budget to spend: reporting a
+   * count there would be a claim about a run that never happened.
+   */
+  repairPasses?: number
   /** Short, user-safe note about what this revision contains. Never diagnostics. */
   changeSummary?: string
 }
@@ -387,8 +411,10 @@ export const pro3DRenderJobOutputSchema = z
         fps: z.number().positive(),
         frames: z.number().int().positive(),
         duration: z.number().positive(),
+        summary: z.string().optional(),
       })
       .passthrough(),
+    repairPasses: z.number().int().min(0).optional(),
     changeSummary: z.string().optional(),
   })
   .passthrough()

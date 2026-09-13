@@ -24,6 +24,10 @@ export async function completeStructuredMetered<T>(
       reasoningEffort: req.reasoningEffort as LlmReasoningEffort | undefined,
       timeoutMs: req.timeoutMs, requireLane: req.requireLane,
       minPromptTokens: req.minPromptTokens,
+      // Transport retry stays ON unless the caller turns it off. `maxRetries: 0` below is a
+      // refusal to re-PAY for a wrong answer, not a refusal to re-dial a call that reported
+      // no usage and cost nothing — two different questions, two different levers.
+      retryStreamOnError: req.retryStreamOnError,
     }, schema as ZodType<T>, { ...opts, maxRetries: opts?.maxRetries ?? 0 })
     return { ok: true, output: result.output, usage: {
       inputTokens: result.inputTokens, outputTokens: result.outputTokens,
