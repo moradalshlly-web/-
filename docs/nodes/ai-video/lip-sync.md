@@ -52,15 +52,16 @@ It can also **dub an existing video**: HeyGen Lipsync Precision, Sync Lipsync 2 
 
 ### Sync Lipsync v3 options
 
-`sync-lipsync-v3` is the fal.ai-hosted sync.so v3 model. It exposes only the sync-mode lever.
+`sync-lipsync-v3` is the fal.ai-hosted sync.so sync-3 model. Expressiveness, obstruction handling and frame reasoning are managed natively by the model (its `temperature` is ignored), so it exposes two levers:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| Sync Mode | Select | loop | Behavior when audio/video durations differ: `loop`, `bounce`, `cut_off`, `silence`, `remap` |
+| Sync Mode | Select | cut_off | Behavior when audio/video durations differ: `loop`, `bounce`, `cut_off`, `silence`, `remap` |
+| Active Speaker Detection | Toggle | Off | Lip-sync whoever is speaking in the clip (sync.so's auto-detect, v3 detector). Turn it on for videos with more than one person on screen. |
 
 ### Volcengine Lip Sync options
 
-`volcengine-lipsync` is the KIE-hosted Volcengine video-to-video dubbing model. It re-syncs an existing clip's lips to a new vocal track and is the cheapest modern dubbing option (2 CR/s). Output length follows the audio (the source video is trimmed if longer, looped if shorter).
+`volcengine-lipsync` is the KIE-hosted Volcengine video-to-video dubbing model. It re-syncs an existing clip's lips to a new vocal track and is the cheapest modern dubbing option (20 CR/s). Output length follows the audio (the source video is trimmed if longer, looped if shorter).
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -106,9 +107,9 @@ Kling AI Avatar and OmniHuman 1.5 bill per-second. Credit reservation buckets to
 
 | Provider | Per-second | 15s | 30s | 1min | 2min | 5min |
 |----------|-----------:|----:|----:|-----:|-----:|-----:|
-| `kling-avatar` (720p) | 2 CR/s | 30 | 60 | 120 | 240 | 600 |
-| `kling-avatar-pro` (1080p) | 4 CR/s | 60 | 120 | 240 | 480 | 1,200 |
-| `omnihuman-1-5` (720p/1080p) | ~6.75 CR/s | 102 | 203 | 405 | — | — |
+| `kling-avatar` (720p) | 20 CR/s | 300 | 600 | 1,200 | 2,400 | 6,000 |
+| `kling-avatar-pro` (1080p) | 40 CR/s | 600 | 1,200 | 2,400 | 4,800 | 12,000 |
+| `omnihuman-1-5` (720p/1080p) | ~67.5 CR/s | 1,020 | 2,030 | 4,050 | — | — |
 
 `omnihuman-1-5` is capped at 60s of audio (longer is auto-trimmed), so only the 15s / 30s / 60s tiers apply. Resolution (720p vs 1080p) does not change the price.
 
@@ -116,10 +117,10 @@ HeyGen Lipsync Precision, Sync Lipsync 2 Pro, and Sync Lipsync v3 also bill per 
 
 | Provider | 15s | 30s | 1min | 2min | 5min |
 |----------|----:|----:|-----:|-----:|-----:|
-| `volcengine-lipsync` | 30 | 60 | 120 | 240 | 600 |
-| `heygen-lipsync-precision` | 51 | 101 | 201 | 401 | 1,001 |
-| `lipsync-2-pro` | 63 | 125 | 250 | 500 | 1,249 |
-| `sync-lipsync-v3` | 100 | 200 | 400 | 800 | 2,000 |
+| `volcengine-lipsync` | 300 | 600 | 1,200 | 2,400 | 6,000 |
+| `heygen-lipsync-precision` | 510 | 1,010 | 2,010 | 4,010 | 10,010 |
+| `lipsync-2-pro` | 630 | 1,250 | 2,500 | 5,000 | 12,490 |
+| `sync-lipsync-v3` | 1,000 | 2,000 | 4,000 | 8,000 | 20,000 |
 
 The credit chip updates once the audio is wired (the node probes its duration). When the duration is unknown, the 5-minute tier is reserved.
 

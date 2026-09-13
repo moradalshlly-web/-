@@ -101,6 +101,29 @@ describe("falLipSync", () => {
     expect(out.cost).toBeCloseTo(0.13333 * 300, 5)
   })
 
+  it("activeSpeaker: true → options.active_speaker_detection { auto_detect, v3 } (sync_mode stays top-level)", async () => {
+    await falLipSync("sync-lipsync-v3", "https://x/v.mp4", "https://x/a.mp3", {
+      syncMode: "cut_off",
+      audioDurationSec: 12,
+      activeSpeaker: true,
+    })
+    const arg = mockRunFalRequest.mock.calls[0][0]
+    expect(arg.input).toEqual({
+      video_url: "https://x/v.mp4",
+      audio_url: "https://x/a.mp3",
+      sync_mode: "cut_off",
+      options: { active_speaker_detection: { auto_detect: true, v3: true } },
+    })
+  })
+
+  it("activeSpeaker false / absent → NO options key (bit-identical to today's request)", async () => {
+    await falLipSync("sync-lipsync-v3", "https://x/v.mp4", "https://x/a.mp3", { activeSpeaker: false })
+    expect(mockRunFalRequest.mock.calls[0][0].input).not.toHaveProperty("options")
+
+    await falLipSync("sync-lipsync-v3", "https://x/v.mp4", "https://x/a.mp3", {})
+    expect(mockRunFalRequest.mock.calls[1][0].input).not.toHaveProperty("options")
+  })
+
   it("throws for an unknown provider", async () => {
     await expect(
       falLipSync("not-a-fal-model", "https://x/v.mp4", "https://x/a.mp3", {}),

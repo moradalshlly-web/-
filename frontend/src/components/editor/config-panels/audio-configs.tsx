@@ -1772,14 +1772,20 @@ export function LipSyncConfig({ data, onUpdate, sources, fieldMappings, onMapFie
         </div>
       )}
 
-      {/* Lipsync 2 Pro-only params (fal's Sync Lipsync v3 only takes sync_mode) */}
+      {/* Temperature — Lipsync 2 Pro only (sync-3 manages expressiveness natively and ignores it). */}
       {provider === "lipsync-2-pro" && (
+        <div>
+          <Label>{t("audiocfg.temperature")} ({(data.temperature ?? 0.5).toFixed(1)})</Label>
+          <Slider min={0} max={1} step={0.1} value={[data.temperature ?? 0.5]} onValueChange={(vals) => onUpdate({ temperature: vals[0] })} />
+          <p className="text-xs text-muted-foreground mt-1">{t("audiocfg.hintExpressiveLipSync")}</p>
+        </div>
+      )}
+
+      {/* Active Speaker Detection — the sync.so family (Lipsync 2 Pro on Replicate, Sync
+          Lipsync v3 on fal). Both bind data.activeSpeaker; the v3 path forwards it as
+          fal's options.active_speaker_detection (auto-detect, v3). */}
+      {(provider === "lipsync-2-pro" || provider === "sync-lipsync-v3") && (
         <>
-          <div>
-            <Label>{t("audiocfg.temperature")} ({(data.temperature ?? 0.5).toFixed(1)})</Label>
-            <Slider min={0} max={1} step={0.1} value={[data.temperature ?? 0.5]} onValueChange={(vals) => onUpdate({ temperature: vals[0] })} />
-            <p className="text-xs text-muted-foreground mt-1">{t("audiocfg.hintExpressiveLipSync")}</p>
-          </div>
           <div className="flex items-center justify-between">
             <Label>{t("audiocfg.activeSpeakerDetection")}</Label>
             <Switch checked={data.activeSpeaker ?? false} onCheckedChange={(v) => onUpdate({ activeSpeaker: v })} />

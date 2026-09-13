@@ -1141,20 +1141,20 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // Kling AI Avatar 2.0 (May 2026) supports up to 5min audio, billed per-second
   // by KIE at 8 cr/sec (Standard, 720p) and 16 cr/sec (Pro, 1080p).
   // Composite identifiers `<provider>:<bucket>s` map to ceil(bucket × Nodaro-rate).
-  // Nodaro rates: 2 cr/sec Standard, 4 cr/sec Pro (matches pre-upgrade ~14s flat).
+  // Nodaro rates: 20 cr/sec Standard, 40 cr/sec Pro (matches pre-upgrade ~14s flat).
   // Bare keys remain for back-compat — callers without audioDurationSec hit them.
   "kling-avatar": 280,             // legacy default ~14s
-  "kling-avatar:15s": 300,         // 15s × 2 cr/sec
-  "kling-avatar:30s": 600,         // 30s × 2 cr/sec
-  "kling-avatar:60s": 1200,        // 60s × 2 cr/sec
-  "kling-avatar:120s": 2400,       // 120s × 2 cr/sec
-  "kling-avatar:300s": 6000,       // 300s × 2 cr/sec — 5-min ceiling
+  "kling-avatar:15s": 300,         // 15s × 20 cr/sec
+  "kling-avatar:30s": 600,         // 30s × 20 cr/sec
+  "kling-avatar:60s": 1200,        // 60s × 20 cr/sec
+  "kling-avatar:120s": 2400,       // 120s × 20 cr/sec
+  "kling-avatar:300s": 6000,       // 300s × 20 cr/sec — 5-min ceiling
   "kling-avatar-pro": 560,         // legacy default ~14s
-  "kling-avatar-pro:15s": 600,     // 15s × 4 cr/sec
-  "kling-avatar-pro:30s": 1200,    // 30s × 4 cr/sec
-  "kling-avatar-pro:60s": 2400,    // 60s × 4 cr/sec
-  "kling-avatar-pro:120s": 4800,   // 120s × 4 cr/sec
-  "kling-avatar-pro:300s": 12000,  // 300s × 4 cr/sec — 5-min ceiling
+  "kling-avatar-pro:15s": 600,     // 15s × 40 cr/sec
+  "kling-avatar-pro:30s": 1200,    // 30s × 40 cr/sec
+  "kling-avatar-pro:60s": 2400,    // 60s × 40 cr/sec
+  "kling-avatar-pro:120s": 4800,   // 120s × 40 cr/sec
+  "kling-avatar-pro:300s": 12000,  // 300s × 40 cr/sec — 5-min ceiling
   // OmniHuman 1.5 — /sec → ceil(27×s/4). Bare = worst-case 60s
   // (reserved on unknown-duration workflow runs; reconciled down by the worker).
   "omnihuman-1-5": 4050,
@@ -1190,7 +1190,7 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // Volcengine video-to-video lip sync (KIE). (/sec) — identical
   // to kling-avatar — billed per output second, bucketed via buildLipSyncCreditId.
   // Base (matches kling-avatar + the per-second lip-sync family): credits =
-  // = 2 cr/sec. lip-sync sets no meteredCost, so
+  // = 20 cr/sec. lip-sync sets no meteredCost, so
   // the reserved bucket is committed verbatim as the charge.
   "volcengine-lipsync": 6000,             // bare = 300s ceiling
   "volcengine-lipsync:15s": 300,          // 15s ×
