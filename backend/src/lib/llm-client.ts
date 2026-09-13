@@ -582,10 +582,34 @@ class LlmStreamResponseError extends Error {
   }
 }
 
-/** One short pause before the single transport retry, so a wobbling proxy is not hit
- *  instantly twice. Deliberately small: the retry exists to clear a FAST failure, and it sits
- *  inside the caller's own deadline. */
-const LLM_TRANSPORT_RETRY_DELAY_MS = 400
+/**
+ * The transport-retry ladder: the pause before each EXTRA attempt at a failure that cost
+ * nothing. Its length is the number of extra attempts (so 3 entries = 4 attempts in all).
+ *
+ * MEASURED 2026-09-14 (round 7g) against staging, KIE `codex/v1/responses` serving
+ * `gpt-6-astra`: 4 of 21 POSTs in one four-hour window — 19% — came back
+ * `503 {"error":{"type":"server_error","message":"Service temporarily unavailable"}}` in one to
+ * three seconds, carrying no usage, on requests that were otherwise identical to the 17 that
+ * answered. It is not a property of the request: the same 503 ended the 1.8 KB table brief's
+ * job (ddb9251d) AND the 257-character suitcase brief's job (48595da9), the registry's own
+ * 2026-09-06 probe measured 1 failure in 6 on this lane with a TINY body, and two of round 7g's
+ * own eight probes 503'd on their first POST — one at 98,683 chars (the smallest request of the
+ * round) and one at 165,000 (the largest), both answered by a retry 400 ms later. A request
+ * rejected for its size does not become acceptable 400 ms later.
+ *
+ * ONE extra attempt at 400 ms was measured to be too short: staging job a37e5a64's planner call
+ * 503'd, paused the 400 ms, and 503'd again — the pair 2 s apart — and the job died having
+ * already paid for the authoring pass before it. So the ladder steps out past a short flap
+ * instead of hitting the same wobble twice: 400 ms clears an instant one, 2 s and 6 s clear a
+ * several-second one. 8.4 s is the whole added wait in the worst case, against a caller (the
+ * Scene3D planner) whose own deadline is 360 s and whose job dies outright on the first
+ * unanswered call.
+ *
+ * It does NOT try to ride out a real outage — minutes of `server_error` still surface, which is
+ * the behaviour the Scene3D loop deliberately treats as terminal rather than burning three
+ * queue attempts on.
+ */
+const LLM_TRANSPORT_RETRY_DELAYS_MS: readonly number[] = [400, 2_000, 6_000]
 
 /**
  * May this failure be retried at the TRANSPORT level — i.e. did it cost nothing?
@@ -613,14 +637,21 @@ function transportRetryable(err: unknown, req: LlmRequest): boolean {
 }
 
 /**
- * Run `once`, and on a failure that cost nothing run it exactly one more time.
+ * Run `once`, and on a failure that cost nothing run it again — up to
+ * {@link LLM_TRANSPORT_RETRY_DELAYS_MS}`.length` more times, pausing longer before each.
  *
- * Bounded at one extra attempt on purpose: a genuinely down endpoint must still surface fast
- * rather than multiply the caller's wait. The second attempt's error propagates unchanged — no
- * retry-exhausted wrapper, so the provider's own reason is what the caller and the logs see.
+ * Bounded on purpose, and bounded TWICE: by the ladder's length, and by the caller's own
+ * `timeoutMs` — no further attempt is STARTED once the elapsed time plus the next pause would
+ * pass the deadline this call entered with. That second bound is the one that makes a longer
+ * ladder safe on the lanes whose `once()` arms its own per-attempt `AbortSignal.timeout`: a
+ * slow failure spends the caller's budget and then stops, instead of buying itself another full
+ * timeout per attempt the way a fixed count alone would.
  *
- * `abandoned` lets a lane that shares ONE deadline across both attempts (the responses lane)
- * stop rather than start a second attempt the caller no longer has time for.
+ * The LAST attempt's error propagates unchanged — no retry-exhausted wrapper, so the provider's
+ * own reason is what the caller and the logs see.
+ *
+ * `abandoned` lets a lane that shares ONE deadline across every attempt (the responses lane)
+ * stop rather than start an attempt the caller no longer has time for.
  */
 async function withTransportRetry<T>(
   modelId: string,
@@ -628,17 +659,24 @@ async function withTransportRetry<T>(
   once: () => Promise<T>,
   abandoned: () => boolean = () => false,
 ): Promise<T> {
-  try {
-    return await once()
-  } catch (err) {
-    if (!transportRetryable(err, req) || abandoned()) throw err
-    console.warn(
-      `[llm-kie-stream-retry] ${modelId} attempt 2/2 — first attempt failed before any usage was reported: ` +
-        String(err).slice(0, 160),
-    )
-    await new Promise((resolve) => setTimeout(resolve, LLM_TRANSPORT_RETRY_DELAY_MS))
-    if (abandoned()) throw err
-    return once()
+  // Read once, at entry: the ladder is bounded by the budget the CALL was given, not by a
+  // fresh budget per attempt.
+  const deadline = Date.now() + effectiveTimeout(req)
+  const total = LLM_TRANSPORT_RETRY_DELAYS_MS.length + 1
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await once()
+    } catch (err) {
+      if (attempt > LLM_TRANSPORT_RETRY_DELAYS_MS.length || !transportRetryable(err, req) || abandoned()) throw err
+      const pause = LLM_TRANSPORT_RETRY_DELAYS_MS[attempt - 1]
+      if (Date.now() + pause >= deadline) throw err
+      console.warn(
+        `[llm-kie-stream-retry] ${modelId} attempt ${attempt + 1}/${total} in ${pause} ms — ` +
+          `attempt ${attempt} failed before any usage was reported: ${String(err).slice(0, 160)}`,
+      )
+      await new Promise((resolve) => setTimeout(resolve, pause))
+      if (abandoned()) throw err
+    }
   }
 }
 

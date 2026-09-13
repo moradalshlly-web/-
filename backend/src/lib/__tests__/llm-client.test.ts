@@ -394,15 +394,23 @@ describe("KIE error envelope handling (regression: empty output for Gemini/GPT)"
     // claude-haiku-4.5 has directFallbackModel set but ANTHROPIC_API_KEY is mocked undefined,
     // so it falls through to KIE messages path.
     // Fresh Response per call: this path is served over the collapsed stream and
-    // retries once, and a single Response's body can only be read one time.
+    // re-dials the transport ladder, and a single Response's body can only be
+    // read one time. Fake timers so the test does not sit out the 8.4 s of
+    // backoff the ladder spends before it gives up.
     fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ code: 500, msg: "maintenance" })))
-    await expect(
-      llmComplete({
+    vi.useFakeTimers()
+    try {
+      const call = llmComplete({
         modelId: "claude-haiku-4.5",
         system: "",
         messages: [{ role: "user", content: "hi" }],
-      }),
-    ).rejects.toThrow(/code 500/)
+      })
+      const assertion = expect(call).rejects.toThrow(/code 500/)
+      await vi.advanceTimersByTimeAsync(20_000)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("stream chat-completions throws when first chunk is `{code:500}` JSON envelope", async () => {
@@ -735,7 +743,7 @@ describe("kieCollapseStream: gpt-6-astra served over the streaming wire", () => 
     expect(warnings.some((w) => w.startsWith("[llm-kie-stream-retry] gpt-6-astra"))).toBe(true)
   })
 
-  it("throws — never returns an empty success — when both streams close with no output", async () => {
+  it("throws — never returns an empty success — when every stream closes with no output", async () => {
     const { llmComplete } = await import("../llm-client.js")
     // A fresh Response per call: a body can only be read once.
     fetchMock.mockImplementation(() =>
@@ -744,10 +752,17 @@ describe("kieCollapseStream: gpt-6-astra served over the streaming wire", () => 
       ),
     )
 
-    await expect(
-      llmComplete({ modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }] }),
-    ).rejects.toThrow(/closed without output/)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    vi.useFakeTimers()
+    try {
+      const call = llmComplete({ modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }] })
+      const assertion = expect(call).rejects.toThrow(/closed without output/)
+      // Drive the whole 400 / 2 000 / 6 000 ms ladder without waiting for it.
+      await vi.advanceTimersByTimeAsync(20_000)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
   it("retries exactly once after a rejected fetch, then succeeds", async () => {
@@ -762,17 +777,81 @@ describe("kieCollapseStream: gpt-6-astra served over the streaming wire", () => 
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it("throws after two failed streams — the retry is bounded at one", async () => {
+  it("throws after four failed streams — the ladder is bounded at three extra attempts", async () => {
     const { llmComplete } = await import("../llm-client.js")
     // Bounded on purpose: nothing sits behind this lane for a responses-format
     // model (no direct-vendor fallback), so a genuinely down endpoint has to
-    // surface fast instead of multiplying the caller's wait.
+    // surface rather than be ridden out. 8.4 s of total pause is the price of
+    // clearing the several-second wobble measured on this lane (round 7g); a
+    // real outage still ends the call.
+    fetchMock.mockRejectedValue(new Error("socket hang up"))
+
+    vi.useFakeTimers()
+    try {
+      const call = llmComplete({ modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }] })
+      const assertion = expect(call).rejects.toThrow(/socket hang up/)
+      await vi.advanceTimersByTimeAsync(20_000)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  // MEASURED 2026-09-14 (round 7g), staging job a37e5a64: the planner's call to
+  // KIE `codex/v1/responses` came back `503 {"error":{"type":"server_error",
+  // "message":"Service temporarily unavailable"}}`, the round-5i retry paused
+  // 400 ms, and the SECOND attempt 503'd too — the pair about two seconds apart.
+  // The job died there, having already paid for the authoring pass before it.
+  // One extra attempt at 400 ms is the shape that was measured to fail; the
+  // ladder steps past the flap instead of hitting the same wobble twice.
+  it("clears a 503 flap that the single 400 ms retry could not — answers on the third attempt", async () => {
+    const { llmComplete } = await import("../llm-client.js")
+    const unavailable = () =>
+      Promise.resolve(
+        new Response('{"error":{"type":"server_error","message":"Service temporarily unavailable"}}', {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+    fetchMock
+      .mockImplementationOnce(unavailable)
+      .mockImplementationOnce(unavailable)
+      .mockImplementation(() => Promise.resolve(responsesSse("third try", { input_tokens: 3, output_tokens: 2 })))
+
+    vi.useFakeTimers()
+    let res: Awaited<ReturnType<typeof llmComplete>>
+    try {
+      const call = llmComplete({ modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }] })
+      await vi.advanceTimersByTimeAsync(20_000)
+      res = await call
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(res.text).toBe("third try")
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    // Each extra attempt names its own number and its own pause, so the next
+    // reader counts attempts from the log instead of inferring them.
+    expect(warnings.some((w) => w.includes("[llm-kie-stream-retry] gpt-6-astra attempt 2/4 in 400 ms"))).toBe(true)
+    expect(warnings.some((w) => w.includes("[llm-kie-stream-retry] gpt-6-astra attempt 3/4 in 2000 ms"))).toBe(true)
+  })
+
+  // The second bound, and the one that makes a longer ladder safe: the ladder
+  // may not outlive the deadline the CALL entered with. Without it a fixed
+  // attempt count buys a slow failure another full timeout per attempt.
+  it("starts no extra attempt the caller's own timeout cannot hold", async () => {
+    const { llmComplete } = await import("../llm-client.js")
     fetchMock.mockRejectedValue(new Error("socket hang up"))
 
     await expect(
-      llmComplete({ modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }] }),
+      llmComplete({
+        modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }], timeoutMs: 50,
+      }),
     ).rejects.toThrow(/socket hang up/)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // 50 ms of budget cannot hold even the first 400 ms pause, so the first
+    // failure is the caller's answer.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it("leaves gpt-5.6-sol on the non-streaming lane — the FLAG drives dispatch, not the format", async () => {
