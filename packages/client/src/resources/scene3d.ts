@@ -156,7 +156,10 @@ export class Scene3DResource {
    * (the exact composition it was rendered from), plus the revision, poster,
    * validation and renderer metadata. A run that AUTHORED also reports its own
    * account of the answer — `metadata.summary`, `repairPasses`,
-   * `admissionRetries`, and any `SCENE_AUTHORING_ASSUMPTION` warnings. A
+   * `admissionRetries`, `mechanicalPasses` (repairs the engine applied from
+   * the compiler's own remedy with no planner call, counted APART from
+   * `repairPasses` on their own quoted allowance), `restoredAssertions`, and
+   * any `SCENE_AUTHORING_ASSUMPTION` warnings. A
    * completed result whose `metadata.review` is present is an ADVISORY
    * delivery: the scene passed every mandatory assertion, the visual reviewer
    * still objected, and each objection is also a `SCENE_REVIEW_REFUSED`

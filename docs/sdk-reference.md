@@ -5149,7 +5149,8 @@ node: a `source` goes in, and a single job settles with BOTH `scenePlan` (the
 exact composition) and `videoUrl` (the exported MP4), plus the revision, poster,
 `shotStills`, validation and renderer metadata. A run that AUTHORED also reports
 its own account of the answer — `metadata.summary`, `repairPasses`,
-`admissionRetries` and any `SCENE_AUTHORING_ASSUMPTION` warnings (see below), plus
+`admissionRetries`, `mechanicalPasses`, `restoredAssertions` and any
+`SCENE_AUTHORING_ASSUMPTION` warnings (see below), plus
 `metadata.review` when the visual reviewer refused the scene that was delivered.
 `nodes.run("pro-3d-render", …)` and
 `nodes.runAndWait("pro-3d-render", …)` reach the same routes with the same
@@ -5234,6 +5235,8 @@ these existed, simply has none.
 const summary = shot.metadata?.summary;   // what the planner says it authored
 const repairs = shot.repairPasses;        // 0 when accepted first time
 const retries = shot.admissionRetries;    // pre-build planner retries
+const mechanical = shot.mechanicalPasses; // own allowance, apart from repairPasses
+const restored = shot.restoredAssertions; // assertions put back after an answer re-shaped them
 const assumptions = (shot.validation?.warnings ?? [])
   .filter((w) => w.code === "SCENE_AUTHORING_ASSUMPTION")
   .map((w) => w.message);
@@ -5247,9 +5250,35 @@ informational rather than an error.
 `repairPasses` counts repairs, never authoring passes, so `0` means "accepted
 first time", not "never authored". `admissionRetries` counts something else and
 is never folded into it: a recipe the compiler would not admit, re-asked of the
-planner with no build and no repair pass spent. A render-only export authored
-nothing and omits both counts entirely rather than reporting `0`; it also has no
-summary.
+planner with no build and no repair pass spent.
+
+`mechanicalPasses` is counted **apart** from `repairPasses` too, for the same
+kind of reason: when a mandatory finding that refused a build carries the
+compiler's own structured remedy, the engine applies that remedy and rebuilds
+with no planner call — and those passes buy their own quoted allowance (a
+`mechanical` line, up to 2, released when unspent) instead of spending one of
+your repairs. So the two counts are independent, and a run may legitimately
+report more mechanical passes than repairs. Each adds a `REMEDY_AUTO_APPLIED`
+warning naming the assertion that refused the build, the change applied, and the
+measurement before it.
+
+There is **one** exception, and the quote is what discriminates it: a run quoted
+before that allowance existed carries no `mechanical` quote line, and there the
+pass charged a repair, making the count a subset of `repairPasses`. The result
+reports the same field either way, so read the quote you were given rather than
+deriving the accounting from the two numbers.
+
+`restoredAssertions` lists mandatory assertions the engine put back after a
+planner answer re-shaped one the feedback had not named — each `{op, path,
+value?, assertionId, reason}`, and each also an `ASSERTION_RESTORED` warning. A
+repair is invited to change what the feedback names; an assertion outside that
+invitation is restored to its last admitted form and the run carries on, rather
+than being refused over a value the engine already held.
+
+A render-only export authored nothing and omits the counts entirely rather than
+reporting `0`; it also has no summary. Absent is not `0` for `mechanicalPasses`
+in particular: an engine that does not report it looks the same as a run that
+took none, which is not a claim that the planner authored every repair.
 
 The same fields appear on a `generateAndWait` result when an advanced engine
 authored the scene. The deterministic Basic lane asks no model and carries none

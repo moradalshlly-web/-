@@ -226,8 +226,12 @@ export interface RenderScene3DParams extends Record<string, unknown> {
  * answer, every field optional and all of them absent on the deterministic Basic lane:
  * `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION` (the planner's
  * assumptions), `metadata.summary` (its description of what it authored), `repairPasses`
- * (repairs actually run — `0` when the scene was accepted first time) and `admissionRetries`
- * (pre-build planner retries, which spend no repair pass).
+ * (repairs actually run — `0` when the scene was accepted first time), `admissionRetries`
+ * (pre-build planner retries, which spend no repair pass), `mechanicalPasses` (repairs the engine
+ * applied from the compiler's own remedy with no planner call, counted APART from `repairPasses`
+ * on their own quoted allowance, each with a `REMEDY_AUTO_APPLIED` warning) and
+ * `restoredAssertions` (mandatory assertions put back after a planner answer re-shaped one the
+ * feedback had not named, each a `ASSERTION_RESTORED` warning).
  *
  * A scene the visual reviewer refused but that passed every mandatory assertion is delivered
  * ADVISORY: the job completes, and `metadata.review` carries the verdict alongside one
@@ -242,9 +246,15 @@ export type Scene3DJobOutput = Readonly<Scene3DWireJobOutput> & Readonly<Record<
  *
  * On a run that AUTHORED, the result reports the run's own account of its answer:
  * `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION`, `metadata.summary`,
- * `repairPasses` (`0` when accepted first time) and `admissionRetries` (pre-build planner
- * retries, which spend no repair pass). A render-only export authored nothing, so it carries no
- * summary and omits both counts rather than claiming `0`.
+ * `repairPasses` (`0` when accepted first time), `admissionRetries` (pre-build planner retries,
+ * which spend no repair pass), `mechanicalPasses` (repairs the engine authored itself from the
+ * compiler's own remedy, counted APART from `repairPasses` because they buy their own quoted
+ * allowance rather than spending one of your repairs) and `restoredAssertions`. A render-only
+ * export authored nothing, so it carries no summary and omits the counts rather than claiming `0`.
+ *
+ * The one case where `mechanicalPasses` IS a subset of `repairPasses` is a run quoted before that
+ * allowance existed — its quote carries no `mechanical` line. The discriminant is the quote, not
+ * the result, so read the quote you were given rather than deriving it from the two counts.
  *
  * A completed result may also be an ADVISORY delivery — every mandatory assertion passed, the
  * visual reviewer still objected, and the scene was published once the repair budget was spent.

@@ -1,11 +1,15 @@
 import { describe, expect, expectTypeOf, it } from "vitest"
 import {
+  SCENE3D_ASSERTION_RESTORED_CODE,
+  SCENE3D_REMEDY_AUTO_APPLIED_CODE,
   SCENE3D_REVIEW_REFUSED_CODE,
   scene3DReviewVerdictOf,
+  type Scene3DAuthoringDelivery,
   type Scene3DAuthoringValidation,
   type Scene3DReviewVerdict,
 } from "../scene3d-delivery-notes.js"
-import { pro3DRenderReviewVerdictSchema } from "../pro-3d-render.js"
+import { pro3DRenderJobOutputSchema, pro3DRenderReviewVerdictSchema } from "../pro-3d-render.js"
+import { FIXTURE_FPS, FIXTURE_FRAMES, FIXTURE_HEIGHT, FIXTURE_WIDTH, planV2 } from "./scene3d-v2-fixtures.js"
 
 /**
  * The advisory delivery is the one Scene3D outcome a caller CANNOT infer from the fields it
@@ -118,5 +122,140 @@ describe("Scene3DAuthoringValidation.sourceRetained", () => {
       reportAssetId: "report-3", sourceRetained: false, warnings: [],
     }
     expect(refused.sourceRetained).toBe(false)
+  })
+})
+
+/**
+ * `mechanicalPasses` is counted APART from `repairPasses` — mechanical passes buy their own
+ * allowance (a `mechanical` quote line, released when unspent) instead of spending one of the
+ * caller's repairs. The trap this pins is that there is NO arithmetic relation between the two
+ * numbers to lean on: a run may report more mechanical passes than repairs, and the older
+ * accounting (where the count WAS a subset) is still reachable on a result quoted before the
+ * allowance existed. The discriminant for which accounting applies is the QUOTE, and the result
+ * does not carry it — so any reader deriving the relation from these two numbers is guessing.
+ */
+describe("Scene3DAuthoringDelivery.mechanicalPasses", () => {
+  it("is a typed optional that carries no arithmetic relation to repairPasses", () => {
+    // Two mechanical passes on a run that spent ONE repair: impossible under the old subset
+    // reading, ordinary under its own allowance. This is the case a `<=` assertion would reject.
+    const delivery: Scene3DAuthoringDelivery = {
+      repairPasses: 1,
+      mechanicalPasses: 2,
+      validation: {
+        status: "passed",
+        reportAssetId: "report-1",
+        warnings: [{
+          code: SCENE3D_REMEDY_AUTO_APPLIED_CODE,
+          message: "applied 1 remedy op for cyanVisibility: replace /camera/shots/1/lens/focalLengthMm = 30.8",
+        }],
+      },
+    }
+    expectTypeOf(delivery.mechanicalPasses).toEqualTypeOf<number | undefined>()
+    expect(delivery.mechanicalPasses).toBe(2)
+    expect(delivery.repairPasses).toBe(1)
+    expect(delivery.validation?.warnings?.[0]?.code).toBe("REMEDY_AUTO_APPLIED")
+  })
+
+  it("is absent, not zero, on a run that took none — and absent is not evidence of none", () => {
+    // An engine that does not report the count is indistinguishable from a run that took none,
+    // which is why no reader may default it to 0 and then claim the planner authored every repair.
+    const planned: Scene3DAuthoringDelivery = { repairPasses: 1 }
+    expect(planned.mechanicalPasses).toBeUndefined()
+  })
+})
+
+/**
+ * The answer-side restore. A repair may change what the feedback names; when an answer re-shapes a
+ * mandatory assertion it was NOT invited to touch, the engine puts that assertion back rather than
+ * refusing the answer and spending a retry to be told to restore a value it already held.
+ */
+describe("Scene3DAuthoringDelivery.restoredAssertions", () => {
+  it("carries the edit that put one back, beside its ASSERTION_RESTORED warning", () => {
+    const delivery: Scene3DAuthoringDelivery = {
+      restoredAssertions: [{
+        op: "replace",
+        path: "/assertions/cyanEndVisibility",
+        value: { kind: "visibility", minCoverage: 0.08 },
+        assertionId: "cyanEndVisibility",
+        reason: "the repair re-shaped a mandatory assertion the feedback does not name",
+      }],
+      validation: {
+        status: "passed",
+        reportAssetId: "report-2",
+        warnings: [{ code: SCENE3D_ASSERTION_RESTORED_CODE, message: "restored cyanEndVisibility" }],
+      },
+    }
+    expect(delivery.restoredAssertions?.[0]?.assertionId).toBe("cyanEndVisibility")
+    // `value` is deliberately `unknown` — a restored assertion holds whatever it holds, and
+    // narrowing it here would make the type wrong the first time an assertion shape changes.
+    expectTypeOf(delivery.restoredAssertions![0]!.value).toEqualTypeOf<unknown>()
+    expect(delivery.validation?.warnings?.[0]?.code).toBe("ASSERTION_RESTORED")
+  })
+})
+
+/**
+ * The reader schema is `.passthrough()`, so the field already ARRIVED before it was declared. What
+ * declaring it buys is the refusal below: a negative or fractional count is a malformed result, and
+ * an untyped passthrough key would have carried it to a caller unexamined.
+ */
+describe("pro3DRenderJobOutputSchema — mechanicalPasses", () => {
+  // A REAL plan, from the shared fixture: a hand-rolled stub would fail `scenePlan` first and make
+  // every refusal below pass for the wrong reason, proving nothing about this field.
+  const base = {
+    videoUrl: "https://cdn.example/scene.mp4",
+    scenePlan: planV2(),
+    sceneRevisionId: "rev-1",
+    posterAssetId: "poster-1",
+    validation: { status: "passed" as const, reportAssetId: "report-1", warnings: [] },
+    renderer: "blender",
+    metadata: {
+      width: FIXTURE_WIDTH, height: FIXTURE_HEIGHT, fps: FIXTURE_FPS,
+      frames: FIXTURE_FRAMES, duration: FIXTURE_FRAMES / FIXTURE_FPS,
+    },
+  }
+
+  it("the fixture itself parses, so a refusal below is about mechanicalPasses and nothing else", () => {
+    expect(pro3DRenderJobOutputSchema.safeParse(base).success).toBe(true)
+  })
+
+  it("parses the count the engine emits, beside the repair count it is part of", () => {
+    const parsed = pro3DRenderJobOutputSchema.safeParse({ ...base, repairPasses: 2, mechanicalPasses: 1 })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.mechanicalPasses).toBe(1)
+  })
+
+  it("refuses a count that cannot describe passes that were run", () => {
+    expect(pro3DRenderJobOutputSchema.safeParse({ ...base, mechanicalPasses: -1 }).success).toBe(false)
+    expect(pro3DRenderJobOutputSchema.safeParse({ ...base, mechanicalPasses: 1.5 }).success).toBe(false)
+  })
+
+  it("does not tie mechanicalPasses to repairPasses — more mechanical than repairs parses", () => {
+    const parsed = pro3DRenderJobOutputSchema.safeParse({ ...base, repairPasses: 1, mechanicalPasses: 2 })
+    expect(parsed.success).toBe(true)
+  })
+
+  it("parses a restored assertion, keeping an unknown value and unknown extra keys", () => {
+    const parsed = pro3DRenderJobOutputSchema.safeParse({
+      ...base,
+      restoredAssertions: [{
+        op: "replace", path: "/assertions/a1", value: { minCoverage: 0.08 },
+        assertionId: "a1", reason: "not named by the feedback", frames: [0, 4],
+      }],
+    })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.restoredAssertions?.[0]?.assertionId).toBe("a1")
+  })
+
+  it("keeps an entry whose value is absent, and refuses one that names nothing", () => {
+    // A removal carries no value; that entry is still a real restore.
+    expect(pro3DRenderJobOutputSchema.safeParse({
+      ...base,
+      restoredAssertions: [{ op: "remove", path: "/assertions/a1", assertionId: "a1", reason: "r" }],
+    }).success).toBe(true)
+    // No assertionId: the entry cannot say WHAT was restored, so it is not a restore.
+    expect(pro3DRenderJobOutputSchema.safeParse({
+      ...base,
+      restoredAssertions: [{ op: "replace", path: "/assertions/a1", reason: "r" }],
+    }).success).toBe(false)
   })
 })

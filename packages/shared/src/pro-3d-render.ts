@@ -35,7 +35,7 @@ import { z } from "zod"
 import { SCENE3D_LIMITS, type Scene3DReference } from "./scene3d.js"
 import { scene3DAnyPlanSchema, type Scene3DPlan } from "./scene3d-v2-plan.js"
 import { scene3DInputAssetsSchema, type Scene3DInputAsset } from "./scene3d-input-assets.js"
-import type { Scene3DReviewVerdict } from "./scene3d-delivery-notes.js"
+import type { Scene3DRestoredAssertion, Scene3DReviewVerdict } from "./scene3d-delivery-notes.js"
 
 /** Canvas/API/MCP node type. */
 export const PRO3D_RENDER_NODE_TYPE = "pro-3d-render"
@@ -372,6 +372,31 @@ export interface Pro3DRenderJobOutput {
    * a build, so no repair pass went with it. Optional, and absent on a run that needed none.
    */
   admissionRetries?: number
+  /**
+   * Repairs the engine authored ITSELF, by applying the compiler's own structured remedy instead
+   * of asking the planner.
+   *
+   * Counted APART from {@link repairPasses} and never folded into it, the same way
+   * {@link admissionRetries} is: these passes have their own quoted allowance — a `mechanical`
+   * line on the quote, released when unspent — rather than spending one of the caller's repairs.
+   * The identity the pricing keeps is
+   * `buildPasses === authoringPasses + repairPasses + mechanicalPasses`.
+   *
+   * ONE exception, discriminated by the QUOTE and not by this result: a run quoted before that
+   * allowance existed has no `mechanical` quote line, and there the pass charged a repair, making
+   * the count a subset of `repairPasses`. Read the quote you were given rather than inferring the
+   * accounting from the counts.
+   *
+   * Optional, and absent both on a run that needed none and on an engine that does not report it.
+   */
+  mechanicalPasses?: number
+  /**
+   * Mandatory assertions the engine put BACK after a planner answer re-shaped one the feedback
+   * had not named — restored to the last admitted recipe's exact form so the run continues
+   * instead of refusing over a value the engine already held. Each is also an
+   * `ASSERTION_RESTORED` warning. Optional; absent on a run that restored nothing.
+   */
+  restoredAssertions?: Scene3DRestoredAssertion[]
   /** Short, user-safe note about what this revision contains. Never diagnostics. */
   changeSummary?: string
 }
@@ -459,6 +484,24 @@ export const pro3DRenderJobOutputSchema = z
       .passthrough(),
     repairPasses: z.number().int().min(0).optional(),
     admissionRetries: z.number().int().min(0).optional(),
+    mechanicalPasses: z.number().int().min(0).optional(),
+    // Tolerant like the review verdict above, and for the same reason: this rides a result that
+    // already has a real MP4, so a malformed entry must never blank a video the platform rendered
+    // and charged for. The identity fields are required because an entry without them names
+    // nothing; `value` is unknown because a restored assertion holds whatever it holds.
+    restoredAssertions: z
+      .array(
+        z
+          .object({
+            op: z.string(),
+            path: z.string(),
+            value: z.unknown().optional(),
+            assertionId: z.string(),
+            reason: z.string(),
+          })
+          .passthrough(),
+      )
+      .optional(),
     changeSummary: z.string().optional(),
   })
   .passthrough()
