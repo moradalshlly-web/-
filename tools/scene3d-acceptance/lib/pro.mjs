@@ -159,6 +159,7 @@ export function summarizeProOutput(output) {
           warnings: Array.isArray(output.validation.warnings) ? output.validation.warnings : [],
         }
       : null,
+    review: reviewEvidence(output),
     changeSummary: typeof output.changeSummary === "string" ? output.changeSummary : null,
     changeSummarySha: typeof output.changeSummary === "string" ? shortHash(output.changeSummary) : null,
     plan: summarizePlan(output.scenePlan),
@@ -167,25 +168,102 @@ export function summarizeProOutput(output) {
 }
 
 /**
- * Everything the run can HONESTLY say about repair passes.
+ * Everything the run can HONESTLY say about the passes it spent.
  *
  * The published result contract carries no repair counter, so this reports
  * what exists — the budget that was requested, the budget the quote priced,
  * and any repair-shaped key the runtime attached — and says `null` when the
  * answer is not knowable, rather than inferring one from warnings.
+ *
+ * `admissionRetries` is read BESIDE the repair count and never folded into it.
+ * They are different spends: a repair pass re-authors AND re-builds a scene the
+ * reviewer rejected, while an admission retry re-asks the planner for a recipe
+ * the compiler would not admit — no build, no repair pass. Adding them together
+ * would overstate what the run paid for, and a `null` here means the runtime did
+ * not report one, never that there were none.
  */
 export function repairEvidence({ output, quote, requested }) {
   const quoteLines = (quote?.breakdown ?? []).filter((line) => /repair/i.test(`${line.code ?? ""} ${line.label ?? ""}`))
+  // The admission allowance is its own quote line (`code: "admission"`), and it is
+  // deliberately NOT caught by the /repair/ filter above: its label says "planner
+  // only" and never the word "repair", because it buys a planner call with no
+  // build. A run that spends none of it is charged for none — the line is a
+  // ceiling that raises maxCredits and is released at settlement.
+  const admissionLines = (quote?.breakdown ?? []).filter((line) => line?.code === "admission")
   const reportedKey = ["repairPasses", "repairPassesUsed", "repairs", "passes"].find(
     (key) => output && typeof output === "object" && output[key] !== undefined,
   )
+  const admission = output && typeof output === "object" ? output.admissionRetries : undefined
   return {
     requested: typeof requested === "number" ? requested : null,
     quotedRepairLines: quoteLines,
     reportedByOutput: reportedKey ? { key: reportedKey, value: output[reportedKey] } : null,
     ranAPass: reportedKey ? Boolean(output[reportedKey]) : null,
+    quotedAdmissionLines: admissionLines,
+    admissionRetries: Number.isInteger(admission) ? admission : null,
+    admissionEvidence: Number.isInteger(admission)
+      ? "the completed output reports it, counted apart from the repair passes"
+      : "the completed output does not report an admission-retry count; absent is not zero",
     evidence: reportedKey
       ? "the completed output reports it"
       : "the completed output does not report a repair count; not inferred from warnings",
   }
+}
+
+/**
+ * The visual reviewer's verdict on a result that was DELIVERED anyway, or `null`.
+ *
+ * Read by raw property access rather than through `@nodaro/shared`: every static
+ * import in this harness must be relative or `node:`, and the shape is small
+ * enough that a dynamic import would cost more than it explains. The app-side
+ * reader this mirrors is `scene3DReviewVerdictOf` in
+ * `packages/shared/src/scene3d-delivery-notes.ts`; keep the two honest together.
+ *
+ * The discriminant is `metadata.review`, and it has to be, because the two
+ * obvious alternatives are both WRONG on a real advisory delivery:
+ *
+ *  - `validation.status` is `"passed"` — every mandatory assertion did pass, which
+ *    is exactly why the scene was delivered instead of withheld;
+ *  - the `SCENE_REVIEW_REFUSED` warning count can be ZERO — a refusal that named
+ *    nothing actionable is still a refusal, and is the shape most worth catching.
+ */
+export function reviewEvidence(output) {
+  const review = output && typeof output === "object" ? output.metadata?.review : undefined
+  if (!review || typeof review !== "object" || review.verdict !== "refused") return null
+  const objections = (Array.isArray(review.objections) ? review.objections : [])
+    .filter((o) => o && typeof o === "object" && typeof o.what === "string" && o.what)
+    .map((o) => ({
+      category: typeof o.category === "string" && o.category ? o.category : "unsupported",
+      what: o.what,
+      correction: typeof o.correction === "string" && o.correction ? o.correction : null,
+      frames: (Array.isArray(o.frames) ? o.frames : []).filter((f) => Number.isSafeInteger(f) && f >= 0),
+    }))
+  const warnings = output.validation?.warnings
+  return {
+    verdict: "refused",
+    objectionCount: objections.length,
+    objections,
+    observed: typeof review.observed === "string" && review.observed ? review.observed : null,
+    refusedWarningCount: Array.isArray(warnings)
+      ? warnings.filter((w) => w?.code === "SCENE_REVIEW_REFUSED").length
+      : null,
+  }
+}
+
+/**
+ * The outcome this harness reports for a settled job — one string, so a ledger
+ * can tell the three endings apart without re-deriving the rule.
+ *
+ * `completed-advisory` is a REAL completion: the video exists, the credits
+ * committed, and every mandatory assertion passed. It is named apart from
+ * `completed` because it is not a clean acceptance, and a probe that reported it
+ * as one would quietly turn the reviewer's veto into silence.
+ */
+export function deliveryOutcome({ terminalStatus, output }) {
+  return terminalStatus === "completed" && reviewEvidence(output) ? "completed-advisory" : terminalStatus
+}
+
+/** The two outcomes that mean "the run delivered a scene". */
+export function isDelivered(outcome) {
+  return outcome === "completed" || outcome === "completed-advisory"
 }

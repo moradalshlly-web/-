@@ -18,7 +18,7 @@ import { applyDeterministicEdit } from "../lib/edit.mjs"
 import { resolvePrompt } from "../lib/harness.mjs"
 import { shortHash } from "../lib/parity.mjs"
 import { followJob, phaseTimings, readJobRecord } from "../lib/poll.mjs"
-import { authoringLines, promptSourceParams, quoteAndRun, renderOnlyParams, repairEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
+import { authoringLines, deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, renderOnlyParams, repairEvidence, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
 
 export const NAME = "authoring"
 
@@ -91,7 +91,19 @@ export async function main(ctx) {
   receipt.measurements.validation = summary?.validation ?? null
   ctx.save()
 
-  const completed = ctx.assert("authoring run completed", { expected: "completed", actual: follow.terminalStatus })
+  // The critic's veto is advisory once the repair budget is spent, so a scene it
+  // refused still arrives `completed` with a real MP4. That IS a delivery and the
+  // assertion holds, but it is not a clean acceptance — `completed-advisory` is
+  // reported as its own outcome so a ledger never reads the two as the same run.
+  const review = reviewEvidence(output)
+  if (review) ctx.advisory(review, "authoring")
+  const outcome = deliveryOutcome({ terminalStatus: follow.terminalStatus, output })
+  const completed = ctx.assert("authoring run delivered a scene", {
+    expected: "completed | completed-advisory",
+    actual: outcome,
+    pass: isDelivered(outcome),
+    detail: review ? `the visual reviewer refused this scene: ${review.objectionCount} objection(s)` : undefined,
+  })
   if (!completed) {
     ctx.note(`authoring failed: ${job?.error_message ?? "no error message"}`)
     return
@@ -199,12 +211,21 @@ export async function main(ctx) {
       onTransition: (t) => ctx.log(`  render-only ${t.status}${t.phase ? `/${t.phase}` : ""} @${Math.round(t.elapsedMs / 1000)}s`),
     })
     const renderJob = await readJobRecord(client, renderJobId)
-    const renderSummary = summarizeProOutput(renderFollow.output ?? renderJob?.output_data ?? null)
+    const renderOutput = renderFollow.output ?? renderJob?.output_data ?? null
+    const renderSummary = summarizeProOutput(renderOutput)
     receipt.timings.renderOnly = phaseTimings(renderJob, renderFollow)
     receipt.outputs.renderOnly = renderSummary
     ctx.recordJob({ jobId: renderJobId, role: "render-only", terminalStatus: renderFollow.terminalStatus, credits: renderJob?.credits ?? null, creditStatus: renderJob?.credit_status ?? null })
     ctx.save()
-    ctx.assert("render-only run completed", { expected: "completed", actual: renderFollow.terminalStatus })
+    // A render-only export authors nothing and is never reviewed, so this is
+    // `completed` in practice. Read through the same funnel anyway: the day the
+    // lane does carry a verdict, this probe reports it instead of hiding it.
+    const renderOutcome = deliveryOutcome({ terminalStatus: renderFollow.terminalStatus, output: renderOutput })
+    ctx.assert("render-only run completed", {
+      expected: "completed | completed-advisory",
+      actual: renderOutcome,
+      pass: isDelivered(renderOutcome),
+    })
     ctx.assert("render-only exported the same revision", { expected: revisionId, actual: renderSummary?.sceneRevisionId ?? null })
     ctx.assert("render-only published a video", { expected: "a video url", actual: renderSummary?.videoUrl ? hostOf(renderSummary.videoUrl) : null, pass: Boolean(renderSummary?.videoUrl) })
   }

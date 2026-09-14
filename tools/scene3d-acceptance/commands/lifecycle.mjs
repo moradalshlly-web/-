@@ -20,7 +20,7 @@ import { HarnessError, idempotencyKeyFor, makeClient, readBalance, readCapabilit
 import { resolvePrompt } from "../lib/harness.mjs"
 import { shortHash } from "../lib/parity.mjs"
 import { followJob, phaseTimings, readJobRecord } from "../lib/poll.mjs"
-import { promptSourceParams, quoteAndRun, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
+import { deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
 
 export const NAME = "lifecycle"
 
@@ -140,7 +140,18 @@ export async function main(ctx) {
       pass: !receipt.outputs.job?.videoUrl,
     })
   } else {
-    ctx.assert("the uninterrupted run completed", { expected: "completed", actual: follow.terminalStatus })
+    const review = reviewEvidence(output)
+    if (review) ctx.advisory(review, "lifecycle")
+    // The lifecycle contract is unchanged by an advisory delivery: one terminal
+    // state, no late change, credits committed. What changes is the NAME of the
+    // ending, and this probe reports it rather than flattening it to `completed`.
+    const outcome = deliveryOutcome({ terminalStatus: follow.terminalStatus, output })
+    ctx.assert("the uninterrupted run completed", {
+      expected: "completed | completed-advisory",
+      actual: outcome,
+      pass: isDelivered(outcome),
+      detail: review ? `the visual reviewer refused this scene: ${review.objectionCount} objection(s)` : undefined,
+    })
     ctx.assert("credits committed", { expected: "committed", actual: job?.credit_status ?? null })
   }
 }

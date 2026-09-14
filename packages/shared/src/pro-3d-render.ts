@@ -35,6 +35,7 @@ import { z } from "zod"
 import { SCENE3D_LIMITS, type Scene3DReference } from "./scene3d.js"
 import { scene3DAnyPlanSchema, type Scene3DPlan } from "./scene3d-v2-plan.js"
 import { scene3DInputAssetsSchema, type Scene3DInputAsset } from "./scene3d-input-assets.js"
+import type { Scene3DReviewVerdict } from "./scene3d-delivery-notes.js"
 
 /** Canvas/API/MCP node type. */
 export const PRO3D_RENDER_NODE_TYPE = "pro-3d-render"
@@ -272,8 +273,10 @@ export interface Pro3DRenderCapabilities {
  * KINDS of advisory apart without knowing anything about the engine that produced them:
  * `SCENE_AUTHORING_ASSUMPTION` (exported as `SCENE3D_AUTHORING_ASSUMPTION_CODE`) is an authoring
  * caveat, "the brief did not say, so the run decided", carrying the planner's own assumption
- * with any normalization the engine applied to it; a `SCENE_QUALITY_*` code is the paid visual
- * reviewer's finding about the scene that was built.
+ * with any normalization the engine applied to it; `SCENE_REVIEW_REFUSED` (exported as
+ * `SCENE3D_REVIEW_REFUSED_CODE`) is one objection the paid visual reviewer raised against a
+ * scene this job DELIVERED anyway; a `SCENE_QUALITY_*` code is that same reviewer's finding on
+ * a job that FAILED, where the finding is the reason there is no video.
  */
 export interface Pro3DRenderValidationWarning {
   code: string
@@ -311,6 +314,14 @@ export interface Pro3DRenderResultMetadata {
    * authored nothing to describe.
    */
   summary?: string
+  /**
+   * The visual reviewer's verdict, present ONLY on an ADVISORY delivery: a scene whose every
+   * mandatory assertion passed, delivered once the repair budget was spent and the reviewer
+   * still objected. `validation.status` is `"passed"` on such a result, so this field's
+   * presence — not the status, and not the warning count — is what tells the two apart.
+   * Use {@link scene3DReviewVerdictOf} rather than reading it by hand.
+   */
+  review?: Scene3DReviewVerdict
 }
 
 /**
@@ -355,6 +366,12 @@ export interface Pro3DRenderJobOutput {
    * count there would be a claim about a run that never happened.
    */
   repairPasses?: number
+  /**
+   * Pre-build planner retries, counted apart from {@link repairPasses} because they spent a
+   * different thing: a recipe the compiler would not ADMIT is re-asked of the planner without
+   * a build, so no repair pass went with it. Optional, and absent on a run that needed none.
+   */
+  admissionRetries?: number
   /** Short, user-safe note about what this revision contains. Never diagnostics. */
   changeSummary?: string
 }
@@ -371,6 +388,31 @@ export interface Pro3DRenderJobOutput {
  * them to satisfy the schema; a runtime that has not produced them yet simply
  * does not parse as complete, which is the honest answer.
  */
+/**
+ * The advisory reviewer's verdict, read tolerantly.
+ *
+ * Every member below is permissive on purpose: this schema is OPTIONAL inside a result that is
+ * otherwise complete, and a delivered scene with a real MP4 must never fail to parse — and so
+ * blank a video the platform already rendered and charged for — over a malformed advisory. An
+ * objection that arrives without frames parses with none; an unknown key is kept.
+ */
+export const pro3DRenderReviewVerdictSchema = z
+  .object({
+    verdict: z.literal("refused"),
+    objections: z.array(
+      z
+        .object({
+          category: z.string(),
+          what: z.string(),
+          correction: z.string().optional(),
+          frames: z.array(z.number().int().min(0)).default([]),
+        })
+        .passthrough(),
+    ),
+    observed: z.string().optional(),
+  })
+  .passthrough()
+
 export const pro3DRenderShotStillSchema = z
   .object({
     shotIndex: z.number().int().min(0),
@@ -412,9 +454,11 @@ export const pro3DRenderJobOutputSchema = z
         frames: z.number().int().positive(),
         duration: z.number().positive(),
         summary: z.string().optional(),
+        review: pro3DRenderReviewVerdictSchema.optional(),
       })
       .passthrough(),
     repairPasses: z.number().int().min(0).optional(),
+    admissionRetries: z.number().int().min(0).optional(),
     changeSummary: z.string().optional(),
   })
   .passthrough()

@@ -17,7 +17,7 @@ import { HarnessError, idempotencyKeyFor, makeClient, readBalance, readCapabilit
 import { resolvePrompt } from "../lib/harness.mjs"
 import { shortHash } from "../lib/parity.mjs"
 import { followJob, phaseTimings, readJobRecord } from "../lib/poll.mjs"
-import { summarizePlan } from "../lib/pro.mjs"
+import { deliveryOutcome, isDelivered, reviewEvidence, summarizePlan } from "../lib/pro.mjs"
 
 export const NAME = "blender-cloud-v2"
 export const ENGINE = "blender-cloud"
@@ -73,7 +73,7 @@ export async function main(ctx) {
     type: "generate-3d-scene",
     params: generateParams,
   })
-  if (!ctx.assert("generate-3d-scene completed on blender-cloud", { expected: "completed", actual: generated.terminalStatus, detail: generated.errorMessage ?? undefined })) return
+  if (!assertDelivered(ctx, "generate-3d-scene delivered a scene on blender-cloud", generated)) return
   const generatedPlan = generated.output?.scenePlan ?? null
   receipt.outputs.generate = { plan: summarizePlan(generatedPlan), changeSummary: generated.output?.changeSummary ?? null }
   ctx.save()
@@ -104,7 +104,7 @@ export async function main(ctx) {
   const editedPlan = edited.output?.scenePlan ?? null
   receipt.outputs.edit = { plan: summarizePlan(editedPlan), changeSummary: edited.output?.changeSummary ?? null }
   ctx.save()
-  ctx.assert("edit-3d-scene completed on blender-cloud", { expected: "completed", actual: edited.terminalStatus, detail: edited.errorMessage ?? undefined })
+  assertDelivered(ctx, "edit-3d-scene delivered a scene on blender-cloud", edited)
   ctx.assert("the edit produced a new revision", {
     expected: `something other than ${generatedPlan.revisionId}`,
     actual: editedPlan?.revisionId ?? null,
@@ -130,7 +130,7 @@ export async function main(ctx) {
       thumbnailUrl: rendered.output?.thumbnailUrl ?? null,
     }
     ctx.save()
-    ctx.assert("render-video completed for the edited revision", { expected: "completed", actual: rendered.terminalStatus, detail: rendered.errorMessage ?? undefined })
+    assertDelivered(ctx, "render-video delivered the edited revision", rendered)
     ctx.assert("the render published a video", {
       expected: "a video url",
       actual: receipt.outputs.render.videoHost,
@@ -158,13 +158,34 @@ async function runNodeStep(ctx, client, { role, type, params }) {
   const job = await readJobRecord(client, jobId)
   receipt.timings[role] = phaseTimings(job, follow)
   ctx.recordJob({ jobId, role, terminalStatus: follow.terminalStatus, credits: job?.credits ?? null, creditStatus: job?.credit_status ?? null, errorMessage: job?.error_message ?? null, errorHint: job?.error_hint ?? null })
+  const output = follow.output ?? job?.output_data ?? null
+  // ONE place reads the reviewer's verdict for all three steps. Every step here can
+  // author, so every step can end `completed-advisory` — the scene was delivered
+  // over the reviewer's objection once the repair budget was spent — and a per-step
+  // copy of this rule is how the three would drift apart.
+  const review = reviewEvidence(output)
+  if (review) ctx.advisory(review, role)
   ctx.save()
   return {
     jobId,
     terminalStatus: follow.terminalStatus,
-    output: follow.output ?? job?.output_data ?? null,
+    outcome: deliveryOutcome({ terminalStatus: follow.terminalStatus, output }),
+    review,
+    output,
     errorMessage: job?.error_message ?? null,
   }
+}
+
+/** The assertion every step makes about its own ending, in the vocabulary above. */
+function assertDelivered(ctx, name, step) {
+  return ctx.assert(name, {
+    expected: "completed | completed-advisory",
+    actual: step.outcome,
+    pass: isDelivered(step.outcome),
+    detail: step.review
+      ? `the visual reviewer refused this scene: ${step.review.objectionCount} objection(s)`
+      : step.errorMessage ?? undefined,
+  })
 }
 
 function hostOf(url) {

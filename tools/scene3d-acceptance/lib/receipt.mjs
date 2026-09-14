@@ -41,6 +41,8 @@ export function createReceipt({ subcommand, runId, baseUrl, inputs = {}, notes =
     jobs: [],
     credits: { balanceBefore: null, balanceAfter: null, committed: null, transactions: [] },
     timings: {},
+    // A clean acceptance until a run says otherwise. See `markAdvisory`.
+    advisory: false,
     measurements: {},
     outputs: {},
     assertions: [],
@@ -101,6 +103,27 @@ export function addNote(receipt, note) {
  * maintained flag, which is how a harness ends up reporting a pass it did not
  * measure. A run with no assertions at all is NOT a pass.
  */
+/**
+ * Record that a run DELIVERED a scene the visual reviewer refused.
+ *
+ * Deliberately a flag beside the verdict rather than a new receipt status or a
+ * failing assertion. An advisory delivery is a real, paid, usable result — the
+ * video exists and every mandatory assertion passed — so the probe still passes
+ * and still exits 0. What would be dishonest is reporting it as a CLEAN
+ * acceptance, which is what `advisory` and `measurements.review` prevent: an
+ * existing ledger that only reads `pass` and the exit code keeps working, and one
+ * that wants the stricter reading has a field to key on.
+ */
+export function markAdvisory(receipt, review, role = null) {
+  receipt.advisory = true
+  // The run's verdict, in the slot a single-delivery probe reads. A probe that
+  // delivers more than once also keeps them apart by role, so "which step was
+  // refused" survives into the receipt instead of the last one overwriting it.
+  receipt.measurements.review = review
+  if (role) receipt.measurements.reviews = { ...(receipt.measurements.reviews ?? {}), [role]: review }
+  return receipt
+}
+
 export function finalize(receipt, { status } = {}) {
   const allPassed = receipt.assertions.length > 0 && receipt.assertions.every((a) => a.pass)
   receipt.pass = allPassed
@@ -120,6 +143,7 @@ export function validateReceipt(receipt) {
   }
   if (!RECEIPT_STATUSES.includes(receipt.status)) issues.push(`unknown status ${receipt.status}`)
   if (!Array.isArray(receipt.jobs)) issues.push("jobs is not an array")
+  if ("advisory" in receipt && typeof receipt.advisory !== "boolean") issues.push("advisory is not a boolean")
   if (!Array.isArray(receipt.assertions)) issues.push("assertions is not an array")
   for (const [i, a] of (receipt.assertions ?? []).entries()) {
     if (!a || typeof a.name !== "string") issues.push(`assertion ${i} has no name`)

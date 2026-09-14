@@ -84,9 +84,59 @@ git -C "$PLANNING" show origin/main:<path/to/table-prompt.txt> \
 | `2` | the harness itself broke (bad arguments, transport, a thrown error) |
 | `3` | this deployment cannot serve what the probe measures — nothing was run |
 
+There is deliberately **no fourth code for an advisory delivery**. See below.
+
 Add `--dry-run` to any command to print the exact request bodies and exit
 without touching the network or spending anything. Add `--help` for the full
 option list.
+
+## `completed-advisory` — a delivery the reviewer refused
+
+The visual reviewer's refusal drives a repair for as long as the repair budget
+lasts. Once that budget is spent, a scene whose every **mandatory** assertion
+passed is delivered rather than withheld: the job reaches `completed`, the MP4
+is real, and the credits commit. The refusal rides along on the result as
+`metadata.review` (`{ verdict: "refused", objections[], observed? }`) plus one
+`validation.warnings[]` entry coded `SCENE_REVIEW_REFUSED` per objection.
+
+Every probe that asserts a run delivered therefore accepts **two** endings, and
+names which one it got:
+
+| Outcome | Meaning |
+|---|---|
+| `completed` | a clean acceptance — no reviewer objection on the result |
+| `completed-advisory` | delivered, and the visual reviewer refused it |
+
+**The exit code stays `0` for both.** An advisory delivery is a real, paid,
+usable result, and failing the probe over one would make an existing ledger read
+a working platform as broken. What the receipt does instead is say so
+explicitly:
+
+| Field | Meaning |
+|---|---|
+| `advisory` | `true` when any delivery in the run was refused by the reviewer. `false` otherwise — it is present on every receipt, so its absence means an older harness wrote the file, not that the run was clean. |
+| `measurements.review` | the verdict: `verdict`, `objectionCount`, `objections[]` (each `{ category, what, correction, frames }`), `observed`, and `refusedWarningCount`. |
+| `measurements.reviews` | the same, keyed by step, for a probe that delivers more than once (`blender-cloud-v2`). |
+
+The summary line carries it too:
+
+```
+[authoring] PASSED — COMPLETED (advisory review: 3 objections) — 12/12 assertions — receipt …
+```
+
+Two traps this encodes, because both are easy to get wrong:
+
+- **`validation.status` is still `passed`** on an advisory delivery — the
+  mandatory assertions *did* pass, which is precisely why the scene was
+  delivered. Testing the status finds nothing.
+- **the objection count can be `0`.** A refusal that named nothing actionable is
+  still a refusal, and is the shape most worth catching. Counting
+  `SCENE_REVIEW_REFUSED` warnings therefore also finds nothing; the presence of
+  `metadata.review` is the only reliable test.
+
+A run that ends `failed` is unchanged: a mandatory assertion failed, or the
+compiler refused the recipe, and the retained draft is in the failed job's own
+`output_data`.
 
 ## Staging first
 
@@ -167,7 +217,10 @@ presigned URL's signature), the quote (`maxCredits`, the full `breakdown`,
 per-phase timings from the **job's own timestamps**, credits and credit status,
 output URLs by host, every assertion with expected/actual, and the verdict —
 which is the conjunction of the assertions, never a separately maintained flag.
-A run with no assertions is not a pass.
+A run with no assertions is not a pass. `advisory` and `measurements.review`
+record a delivery the visual reviewer refused (see
+[`completed-advisory`](#completed-advisory--a-delivery-the-reviewer-refused));
+they never change the verdict or the exit code.
 
 Receipts are safe to commit: they are secret-scanned before every write, and
 the write is refused rather than truncated if anything credential-shaped is
@@ -185,10 +238,10 @@ A receipt that does not exist is a run that has not happened.
 
 | Probe | Asserts | SDK surface |
 |---|---|---|
-| `authoring` | completion; scene plan **schemaVersion 2**; `sceneRevisionId`, `posterAssetId`, `validation.reportAssetId`, `renderer`, `metadata` present and matching the request; credits committed. Then a deterministic edit that **charges nothing** and mints a new revision, and a **render-only** re-run whose quote carries **no authoring line** and costs less than authoring. Records `validation.status`/warnings and the repair evidence. | `scene3d.capabilities`, `scene3d.quotePro`, `scene3d.runPro`, `scene3d.applyEdits` (v2) or `nodes.run("edit-3d-scene")` (v1), `jobs.getStatus`, `jobs.get`, `credits.balance` |
+| `authoring` | completion; scene plan **schemaVersion 2**; `sceneRevisionId`, `posterAssetId`, `validation.reportAssetId`, `renderer`, `metadata` present and matching the request; credits committed. Then a deterministic edit that **charges nothing** and mints a new revision, and a **render-only** re-run whose quote carries **no authoring line** and costs less than authoring. Records `validation.status`/warnings, the repair evidence (repair passes and, beside them, `admissionRetries` — pre-build planner retries, which spend no repair pass — plus the quote's `repair` and `admission` allowance lines, kept apart) and any advisory reviewer verdict. | `scene3d.capabilities`, `scene3d.quotePro`, `scene3d.runPro`, `scene3d.applyEdits` (v2) or `nodes.run("edit-3d-scene")` (v1), `jobs.getStatus`, `jobs.get`, `credits.balance` |
 | `lifecycle` | one terminal state and no late change during a grace window; with `--cancel-at`: the trigger **fired**, the job ended cancelled or honestly failed, the reservation reads `refunded`, and **no output was published**. `--observe <jobId>` attaches to an existing job and checks single settlement + no duplicate delivery. | `scene3d.capabilities`, `scene3d.quotePro`, `scene3d.runPro`, `jobs.getStatus`, `jobs.cancel`, `jobs.get`, `credits.balance` |
 | `table-fixture` | 1680×720, 24 fps, 720 frames; hard cuts at 360/432/492 as **spikes, not ramps** (the boundary must dominate both neighbours, with no blended frame); shot 1's two orbit fly-behinds; shot 2 blue shoulder + cyan subject; shot 3 yellow shoulder + red subject; shot 4 green foreground throughout with purple→cyan by the end. Records camera sway vs subject breathing as a heuristic. | `scene3d.capabilities`, `scene3d.quotePro`, `scene3d.runPro`, `jobs.getStatus`, `jobs.get`, `credits.balance` (+ ffmpeg/ffprobe) |
-| `blender-cloud-v2` | `generate-3d-scene` with `engine: "blender-cloud"` and `acceptedSceneSchemaVersions: [2]` completes with a **retained v2 revision** carrying engine provenance; `edit-3d-scene` on the same engine produces a new revision naming its parent; `render-video` exports that revision to an MP4. | `nodes.run("generate-3d-scene" \| "edit-3d-scene" \| "render-video")`, `scene3d.capabilities`, `jobs.getStatus`, `jobs.get`, `credits.balance` |
+| `blender-cloud-v2` | `generate-3d-scene` with `engine: "blender-cloud"` and `acceptedSceneSchemaVersions: [2]` completes with a **retained v2 revision** carrying engine provenance; `edit-3d-scene` on the same engine produces a new revision naming its parent; `render-video` exports that revision to an MP4. Each of the three steps accepts `completed-advisory` and records the verdict under its own role. | `nodes.run("generate-3d-scene" \| "edit-3d-scene" \| "render-video")`, `scene3d.capabilities`, `jobs.getStatus`, `jobs.get`, `credits.balance` |
 | `seedance-ab` | arm B is arm A **plus the scoping line**; both arms complete; the **server-stored** `input_data` of the two jobs differs only in `prompt`, `userPrompt` and `referenceVideoUrls`; only arm B carries a reference video. The red-segmentation timing (central absence window, visible-at-end) is recorded as a comparison table — supporting evidence, not a verdict. | `nodes.run("generate-video")`, `jobs.getStatus`, `jobs.get` (for `input_data` parity), `credits.balance` (+ ffmpeg/ffprobe) |
 | `benchmark` | every run completed and reported its own server timestamps. Produces per-run phase timings, per-repeat wall clock and p50/p95 over queue/work/total, plus a `server` block left **empty** for the builder-side metrics a client cannot see. | `scene3d.capabilities`, `scene3d.quotePro`, `scene3d.runPro`, `jobs.getStatus`, `jobs.get`, `credits.balance` |
 
