@@ -49,7 +49,12 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
     description: "Create an editable animated 3D clay scene from a prompt and optional image/video references. " +
       "Returns a job_id; get_job returns output_data.scenePlan when completed. " +
       "An advanced engine also reports metadata.summary, repairPasses (0 when accepted first time), " +
-      "admissionRetries and SCENE_AUTHORING_ASSUMPTION warnings; all optional. metadata.review means the " +
+      "admissionRetries, mechanicalPasses and SCENE_AUTHORING_ASSUMPTION warnings; all optional. " +
+      "mechanicalPasses counts repairs the engine applied from the compiler's own remedy with no planner " +
+"call, counted APART from repairPasses on their own quoted allowance - not a subset of it - each a " +
+      "REMEDY_AUTO_APPLIED warning. restoredAssertions lists mandatory assertions the engine put back " +
+      "after an answer re-shaped one the feedback did not name, each an ASSERTION_RESTORED warning. " +
+      "metadata.review means the " +
       "scene was delivered over the reviewer's objection - the job still completed - with one " +
       "SCENE_REVIEW_REFUSED warning per objection. " +
       "A FAILED advanced job can still carry output_data: sceneRevisionId when it kept the draft it built, " +
@@ -138,8 +143,13 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
         "render-only export that costs no authoring, WITH edit_prompt it revises the scene first. " +
         "source.kind='local-export' uses a completed export from a paired desktop Blender, where that is available. " +
         "The tool quotes and submits with the same parameters and returns a job_id. " +
-        "A run that authored also reports metadata.summary, repairPasses, admissionRetries and " +
-        "SCENE_AUTHORING_ASSUMPTION warnings; a render-only export reports none. metadata.review means the " +
+        "A run that authored also reports metadata.summary, repairPasses, admissionRetries, " +
+        "mechanicalPasses and SCENE_AUTHORING_ASSUMPTION warnings; a render-only export reports none. " +
+        "mechanicalPasses counts repairs the engine applied from the compiler's own remedy with no planner " +
+"call, counted APART from repairPasses on their own quoted allowance - not a subset of it - each a " +
+        "REMEDY_AUTO_APPLIED warning. restoredAssertions lists mandatory assertions the engine put back " +
+        "after an answer re-shaped one the feedback did not name, each an ASSERTION_RESTORED warning. " +
+        "metadata.review means the " +
         "scene was delivered over the reviewer's objection - the job still completed - with one " +
         "SCENE_REVIEW_REFUSED warning per objection. " +
         "A job that FAILED with SCENE_QUALITY_FAILED still carries a deliveryId: when it built a scene, " +

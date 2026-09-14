@@ -132,6 +132,8 @@ reviewer still objected — which adds `metadata.review`; see
 | `metadata.review` | Present **only** on an advisory delivery: `{ verdict: "refused", objections[], observed? }`, the visual reviewer's verdict on a scene that was delivered anyway. Each objection is `{ category, what, correction?, frames[] }` — `what` is the finding itself, `correction` the recipe-level change it asked for where it named one, and `frames` the frames it cited. There is no `severity`: only blocking findings become objections. `objections` may be **empty**, which reports a refusal that named nothing actionable. Absent on every other result, including a clean one. |
 | `repairPasses` | How many repair passes actually RAN, never the number of authoring passes — so a composition accepted first time reports `0`, not `1`. Optional, and **absent** rather than `0` on a render-only export, which authored nothing and had no repair budget to spend. |
 | `admissionRetries` | Pre-build planner retries: a recipe the compiler would not admit is re-asked of the planner, with no build and no repair pass spent. Counted apart from `repairPasses` and never folded into it — they buy different things. Optional, and absent on a run that needed none. |
+| `mechanicalPasses` | Repairs the engine applied **itself**, from the compiler's own structured remedy, with no planner call. Counted **apart** from `repairPasses` and never folded into it: these passes spend their own quoted allowance — the `mechanical` line, up to 2, released when unspent — rather than one of your repairs, so a run may report more mechanical passes than repairs. The pass identity the pricing keeps is `buildPasses = authoringPasses + repairPasses + mechanicalPasses`. Each one also adds a `REMEDY_AUTO_APPLIED` warning. Optional, and absent both when the run took none and on an engine that does not report it. See [The mechanical-pass allowance](#the-mechanical-pass-allowance). |
+| `restoredAssertions` | Mandatory assertions the engine put **back** after a planner answer re-shaped one the feedback had not named — restored to the last admitted recipe's exact form so the run continues instead of refusing over a value the engine already held. Each entry is `{op, path, value?, assertionId, reason}` and also an `ASSERTION_RESTORED` warning. Optional; absent on a run that restored nothing. |
 
 #### Warning codes
 
@@ -143,6 +145,8 @@ than an error — the list is open-ended by design.
 |---|---|
 | `SCENE_AUTHORING_ASSUMPTION` | The brief did not say, so the run decided. One entry per assumption the planner made, with any normalization the engine applied to it. These appear on a run that **authored**; a render-only export has none. |
 | `SCENE_REVIEW_REFUSED` | One objection the visual reviewer raised against a scene this job **delivered anyway**. One entry per objection, carrying a `shotId` when every frame it cites falls inside one shot. The whole verdict, including any objection the row could not fit, is in `metadata.review`. |
+| `REMEDY_AUTO_APPLIED` | One remedy the engine applied **itself** on a mechanical repair pass, rather than asking the planner for a fix. Names the mandatory assertion that refused the build, the change that was applied, and the measurement before it. One entry per remedy; the count of such passes is `mechanicalPasses`. |
+| `ASSERTION_RESTORED` | One mandatory assertion the engine put **back** after a planner answer re-shaped it without being asked to. A repair may change what the feedback names; an assertion outside that invitation is restored to its last admitted form and the run continues. Names the assertion, the edit that restored it and why. Counted by `restoredAssertions`. |
 | `SCENE_QUALITY_BLOCKING` | The paid visual reviewer found a blocking problem with the built scene. Carries a `shotId` when the cited frames all fall inside one shot. |
 | `SCENE_QUALITY_EVIDENCE_INSUFFICIENT` | The reviewer could not establish the requested behaviour from the frames it was given. |
 
@@ -380,6 +384,8 @@ kept, and the failed job's `output_data` says where:
 | `validation` | `{ status: "failed", scope: "authored", reportAssetId, passes, warnings[] }` — `passes` is how many authoring passes were spent, and each warning carries a `code`, a `message` and, where the finding cites frames inside one shot, that `shotId`. The reviewer's findings and the run's `SCENE_AUTHORING_ASSUMPTION` entries share this one array; read the `code` to tell them apart (see [Warning codes](#warning-codes)). |
 | `repairPasses` | Repairs actually run — `passes` minus the first attempt. |
 | `admissionRetries` | Pre-build planner retries, counted apart from the repairs. Reported here too, and absent when the run needed none. |
+| `mechanicalPasses` | Repairs the engine applied from the compiler's own remedy with no planner call — counted apart from `repairPasses`, on their own allowance. Reported here too, and absent when the run took none. |
+| `restoredAssertions` | Mandatory assertions put back after an answer re-shaped one the feedback did not name. Reported here too, and absent when the run restored none. |
 | `scenePlan`, `renderer`, `metadata` | The draft composition and its frame size, fps and duration, plus `metadata.summary` when the planner described what it authored. |
 
 The `reportAssetId` artifact is the reviewer's full account: every finding, its
@@ -431,8 +437,9 @@ refusing — `build` when the compiler would not build the recipe, `planning`
 when its grammar would not admit one. Each warning is one refusal, naming the
 path in the recipe it pointed at where it gave one, alongside any
 `SCENE_AUTHORING_ASSUMPTION` entries the run made — the assumptions are about
-the authoring, which is the only thing that happened. `repairPasses` and
-`admissionRetries` are reported here too. There is **no** `metadata` block and no `summary`: nothing
+the authoring, which is the only thing that happened. `repairPasses`,
+`admissionRetries`, `mechanicalPasses` and `restoredAssertions` are reported
+here too. There is **no** `metadata` block and no `summary`: nothing
 compiled, so there is no composition to describe and nowhere honest to put a
 description of one. The
 report artifact holds the full set, refusal by refusal. A job that failed before
@@ -484,6 +491,7 @@ another build, so it has a budget of its own and a line of its own on the quote:
 | `code` | `label` |
 |---|---|
 | `admission` | `Admission retries (up to 3, planner only)` |
+| `mechanical` | `Mechanical passes (up to 2, no planner)` |
 
 Three things to know about it when you show a quote:
 
@@ -501,8 +509,47 @@ Three things to know about it when you show a quote:
 
 The completed result reports what was actually spent as top-level
 `admissionRetries`, counted apart from `repairPasses` and never folded into it.
+
 The same allowance and the same line appear on
 [Generate 3D Scene](generate-3d-scene.md) when an advanced engine authors it.
+
+### The mechanical-pass allowance
+
+Some of the compiler's refusals arrive with the fix attached: a structured
+remedy naming the exact edit that answers the finding. Applying it needs a
+**build** and the visual review that reads the result, but **no planner call at
+all** — nobody is asked to re-author anything. That is a third distinct
+purchase, so it too has a budget of its own and a line of its own:
+
+| `code` | `label` |
+|---|---|
+| `mechanical` | `Mechanical passes (up to 2, no planner)` |
+
+- **It is an allowance, not a charge**, exactly like the admission line: the
+  ceiling raises `maxCredits` and anything unspent is released at settlement. A
+  run that never needs one pays for none.
+- **It is priced at the build-pass unit**, because a build is what it buys. The
+  pass identity stays true — `buildPasses = authoringPasses + repairPasses +
+  mechanicalPasses` — and the quote **splits** that number across two lines: the
+  `build` line covers `authoring + repair`, the `mechanical` line covers the
+  rest, both at the same unit. The credits are what one line at that unit always
+  cost; what the split adds is a ceiling the run cannot cross by spending the
+  other half.
+- **It does not spend your repairs.** That is the point of the line. The two
+  repair passes you were quoted stay available for findings the compiler could
+  not write an edit for.
+
+The completed result reports what was actually spent as top-level
+`mechanicalPasses`, counted **apart** from `repairPasses` and never folded into
+it. Because the two budgets are independent, a run may legitimately report more
+mechanical passes than repairs.
+
+**One exception, and the quote is what tells you.** A run quoted *before* this
+line existed has no `mechanical` line on its quote, and it kept the older
+accounting: the pass charged a repair, so there `mechanicalPasses` is a subset
+of `repairPasses`. The result reports the same field either way and cannot tell
+you which applies — so, as everywhere else here, read the quote you were given
+rather than deriving the accounting from the counts.
 
 ### Frame size
 

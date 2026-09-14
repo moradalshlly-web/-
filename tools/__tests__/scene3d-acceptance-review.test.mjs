@@ -35,6 +35,7 @@ function advisoryOutput(overrides = {}) {
     },
     repairPasses: 2,
     admissionRetries: 1,
+    mechanicalPasses: 1,
     ...overrides,
   }
 }
@@ -125,6 +126,39 @@ describe("repairEvidence records admission retries beside repair passes", () => 
     assert.match(evidence.admissionEvidence, /counted apart/)
   })
 
+  it("reads the mechanical passes APART from the repair count when the quote priced them", () => {
+    const quote = { breakdown: [
+      { code: "repair", label: "Repair passes (up to 2)", credits: 120 },
+      { code: "mechanical", label: "Mechanical passes (up to 2, no planner)", credits: 60 },
+    ] }
+    const evidence = repairEvidence({ output: advisoryOutput(), quote, requested: 2 })
+    assert.equal(evidence.mechanicalPasses, 1)
+    assert.deepEqual(evidence.quotedMechanicalLines.map((l) => l.code), ["mechanical"])
+    assert.match(evidence.mechanicalEvidence, /APART from the repair passes/)
+  })
+
+  it("says the OLDER accounting applies when the quote carried no mechanical line", () => {
+    // The discriminant is the quote, not the result: the same output means a subset of
+    // repairPasses on a run quoted before the allowance existed. Reporting one rule for
+    // both would misstate what half the runs actually spent.
+    const legacy = { breakdown: [{ code: "repair", label: "Repair passes (up to 2)", credits: 120 }] }
+    const evidence = repairEvidence({ output: advisoryOutput(), quote: legacy, requested: 2 })
+    assert.deepEqual(evidence.quotedMechanicalLines, [])
+    assert.match(evidence.mechanicalEvidence, /subset of it/)
+  })
+
+  it("selects the repair allowance by CODE, so a sibling label saying 'repair' is not swept in", () => {
+    // The old filter tested /repair/i over `${code} ${label}`. A line labelled
+    // "Mechanical repairs ..." would have been counted as part of the repair allowance.
+    const quote = { breakdown: [
+      { code: "repair", label: "Repair passes (up to 2)", credits: 120 },
+      { code: "mechanical", label: "Mechanical repairs (up to 2, no planner)", credits: 60 },
+    ] }
+    const evidence = repairEvidence({ output: advisoryOutput(), quote, requested: 2 })
+    assert.deepEqual(evidence.quotedRepairLines.map((l) => l.code), ["repair"])
+    assert.deepEqual(evidence.quotedMechanicalLines.map((l) => l.code), ["mechanical"])
+  })
+
   it("keeps the admission quote line apart from the repair lines", () => {
     const quote = { breakdown: [
       { code: "repair", label: "Repair passes (up to 2)", credits: 120 },
@@ -148,6 +182,24 @@ describe("repairEvidence records admission retries beside repair passes", () => 
     const absent = repairEvidence({ output: { repairPasses: 1 }, quote: null, requested: 2 })
     assert.equal(absent.admissionRetries, null)
     assert.match(absent.admissionEvidence, /absent is not zero/)
+  })
+
+  it("reports zero mechanical passes as zero, and a missing count as null", () => {
+    // Absent is what every engine older than the mechanical pass reports, so it must
+    // not read as "the planner authored every repair" — that is a different claim.
+    assert.equal(repairEvidence({ output: advisoryOutput({ mechanicalPasses: 0 }), quote: null, requested: 2 }).mechanicalPasses, 0)
+    const absent = repairEvidence({ output: { repairPasses: 1 }, quote: null, requested: 2 })
+    assert.equal(absent.mechanicalPasses, null)
+    assert.match(absent.mechanicalEvidence, /absent is not zero/)
+  })
+
+  it("does not tie the mechanical count to the repair count", () => {
+    // Under its own allowance a run can spend more mechanical passes than repairs.
+    // Any assertion of `mechanical <= repair` would reject a legitimate run.
+    const quote = { breakdown: [{ code: "mechanical", label: "Mechanical passes (up to 2, no planner)", credits: 60 }] }
+    const evidence = repairEvidence({ output: advisoryOutput({ repairPasses: 1, mechanicalPasses: 2 }), quote, requested: 2 })
+    assert.equal(evidence.reportedByOutput.value, 1)
+    assert.equal(evidence.mechanicalPasses, 2)
   })
 })
 

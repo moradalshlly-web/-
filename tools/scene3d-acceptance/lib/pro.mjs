@@ -181,29 +181,61 @@ export function summarizeProOutput(output) {
  * the compiler would not admit — no build, no repair pass. Adding them together
  * would overstate what the run paid for, and a `null` here means the runtime did
  * not report one, never that there were none.
+ *
+ * `mechanicalPasses` is read the same way — APART from the repair count — because
+ * a mechanical pass buys its own allowance rather than one of the caller's repairs:
+ * a mandatory finding carrying the compiler's own structured remedy is answered by
+ * applying it and rebuilding, with no planner call, against a `mechanical` line on
+ * the quote that is released when unspent.
+ *
+ * Which accounting a given run used is decided by the QUOTE, not by the result, and
+ * this is the one reader that HAS both — so it says which rather than leaving the
+ * caller to guess. A run quoted before that line existed kept the older accounting,
+ * where the pass charged a repair and the count was a subset of it. Deriving the
+ * answer from the two numbers is not possible in either direction: under the
+ * allowance a run can report more mechanical passes than repairs.
+ *
+ * `null` means the runtime did not report one — including every engine that does not
+ * — and never that the planner authored every repair.
  */
 export function repairEvidence({ output, quote, requested }) {
-  const quoteLines = (quote?.breakdown ?? []).filter((line) => /repair/i.test(`${line.code ?? ""} ${line.label ?? ""}`))
-  // The admission allowance is its own quote line (`code: "admission"`), and it is
-  // deliberately NOT caught by the /repair/ filter above: its label says "planner
-  // only" and never the word "repair", because it buys a planner call with no
-  // build. A run that spends none of it is charged for none — the line is a
-  // ceiling that raises maxCredits and is released at settlement.
+  // Keyed on `code`, never a substring of the label. The label is display copy and
+  // the deployment is free to reword it; the code is the contract. This used to be
+  // a /repair/i test over `${code} ${label}`, which would have swept up any sibling
+  // allowance whose label happened to contain the word — the admission line escaped
+  // it only because its wording never says "repair", which is a property of a
+  // sentence rather than a guarantee. Matching the code cannot drift that way.
+  const quoteLines = (quote?.breakdown ?? []).filter((line) => line?.code === "repair")
+  // The two sibling allowances, each its own line and each a CEILING: unspent credit
+  // is released at settlement. `admission` buys a planner call with no build;
+  // `mechanical` buys a build (and the review that reads it) with no planner call.
   const admissionLines = (quote?.breakdown ?? []).filter((line) => line?.code === "admission")
+  const mechanicalLines = (quote?.breakdown ?? []).filter((line) => line?.code === "mechanical")
   const reportedKey = ["repairPasses", "repairPassesUsed", "repairs", "passes"].find(
     (key) => output && typeof output === "object" && output[key] !== undefined,
   )
   const admission = output && typeof output === "object" ? output.admissionRetries : undefined
+  const mechanical = output && typeof output === "object" ? output.mechanicalPasses : undefined
   return {
     requested: typeof requested === "number" ? requested : null,
     quotedRepairLines: quoteLines,
     reportedByOutput: reportedKey ? { key: reportedKey, value: output[reportedKey] } : null,
     ranAPass: reportedKey ? Boolean(output[reportedKey]) : null,
     quotedAdmissionLines: admissionLines,
+    quotedMechanicalLines: mechanicalLines,
     admissionRetries: Number.isInteger(admission) ? admission : null,
     admissionEvidence: Number.isInteger(admission)
       ? "the completed output reports it, counted apart from the repair passes"
       : "the completed output does not report an admission-retry count; absent is not zero",
+    mechanicalPasses: Number.isInteger(mechanical) ? mechanical : null,
+    // The quote is the discriminant, so this says WHICH accounting the run used
+    // instead of asserting one. Without a `mechanical` line the run was quoted
+    // before the allowance existed and the older subset accounting applies.
+    mechanicalEvidence: !Number.isInteger(mechanical)
+      ? "the completed output does not report a mechanical-pass count; absent is not zero"
+      : mechanicalLines.length > 0
+        ? "the completed output reports it, counted APART from the repair passes — its own quoted allowance, released when unspent"
+        : "the completed output reports it, but the quote carried no `mechanical` line: this run kept the older accounting, where the pass charged a repair and the count is a subset of it",
     evidence: reportedKey
       ? "the completed output reports it"
       : "the completed output does not report a repair count; not inferred from warnings",

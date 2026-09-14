@@ -13,6 +13,10 @@
  * | the planner's one-or-two-sentence description of what it authored (on a repaired run, of the REPAIR) | `metadata.summary` | string |
  * | repair passes actually RUN — never the authoring-pass count | `repairPasses` | top-level number |
  * | pre-build planner retries that did NOT spend a repair pass | `admissionRetries` | top-level number |
+ * | repairs the engine applied from the compiler's OWN remedy, on their own quoted allowance | `mechanicalPasses` | top-level number, counted APART from `repairPasses` |
+ * | the per-remedy account of what one of those applied | `validation.warnings[]` | one entry per remedy, `code` = {@link SCENE3D_REMEDY_AUTO_APPLIED_CODE} |
+ * | mandatory assertions the engine put BACK after a planner answer re-shaped them | `restoredAssertions` | array of {@link Scene3DRestoredAssertion} |
+ * | the per-assertion account of one of those restores | `validation.warnings[]` | one entry per restore, `code` = {@link SCENE3D_ASSERTION_RESTORED_CODE} |
  * | the visual reviewer's refusal of a scene that was delivered anyway | `metadata.review` + `validation.warnings[]` | {@link Scene3DReviewVerdict}, plus one entry per objection coded {@link SCENE3D_REVIEW_REFUSED_CODE} |
  *
  * Every one of them is OPTIONAL, and absent is a first-class answer:
@@ -27,6 +31,20 @@
  * - `repairPasses` is `0`, not absent, on a run that was accepted first time;
  * - `admissionRetries` is absent on a run that never had one, and counts only the pre-build
  *   planner retries — a slip the compiler would not admit, re-asked without spending a repair;
+ * - `mechanicalPasses` is counted APART from `repairPasses`, the same way `admissionRetries` is,
+ *   because it buys a different thing and is BOUGHT differently: a mandatory finding that carries
+ *   the compiler's own structured remedy is answered by applying that remedy and rebuilding, with
+ *   no planner call, and those passes have their own quoted allowance — a `mechanical` line on the
+ *   quote, released when unspent — rather than spending one of the caller's repairs. So they are
+ *   never folded into `repairPasses`, and the pass identity the pricing keeps is
+ *   `buildPasses === authoringPasses + repairPasses + mechanicalPasses`. Absent on a run that took
+ *   none and on an engine that does not report it, so absent is never evidence that the planner
+ *   authored every repair;
+ * - the ONE exception is a run quoted BEFORE that allowance existed. Its quote carries no
+ *   `mechanical` line, and there the older accounting still holds: the pass charged a repair, so
+ *   the count is a SUBSET of `repairPasses` rather than a sibling of it. The discriminant is the
+ *   quote, not the result — the result reports the same field either way — so a reader that must
+ *   know which accounting applies reads the quote it was given rather than inferring one;
  * - `review` is present ONLY on an advisory delivery (below). A scene the reviewer accepted, or
  *   never looked at, carries no `review` at all — absent means "nothing to report", never "passed
  *   silently".
@@ -61,9 +79,11 @@ export const SCENE3D_AUTHORING_ASSUMPTION_CODE = "SCENE_AUTHORING_ASSUMPTION"
 export interface Scene3DDeliveryWarning {
   /**
    * `SCENE_AUTHORING_ASSUMPTION` for an authoring caveat; `SCENE_REVIEW_REFUSED` for one
-   * objection the reviewer raised against a scene that was DELIVERED anyway; a
-   * `SCENE_QUALITY_*` code for a reviewer finding on a job that FAILED. Open-ended on
-   * purpose — an unknown code is shown, never refused.
+   * objection the reviewer raised against a scene that was DELIVERED anyway;
+   * `REMEDY_AUTO_APPLIED` for one remedy the engine applied itself on a mechanical repair;
+   * `ASSERTION_RESTORED` for one mandatory assertion it put back after a planner answer
+   * re-shaped it; a `SCENE_QUALITY_*` code for a reviewer finding on a job that FAILED.
+   * Open-ended on purpose — an unknown code is shown, never refused.
    */
   code: string
   message: string
@@ -137,6 +157,40 @@ export interface Scene3DAuthoringDelivery {
    * that authored nothing.
    */
   admissionRetries?: number
+  /**
+   * Repairs the engine authored ITSELF, from the compiler's own structured remedy, without asking
+   * the planner.
+   *
+   * Counted APART from {@link repairPasses} and never folded into it — the same way
+   * {@link admissionRetries} is — because these passes have their own quoted allowance: a
+   * `mechanical` line on the quote, bounded and released when unspent, rather than one of the
+   * caller's repairs. The pass identity the pricing keeps is
+   * `buildPasses === authoringPasses + repairPasses + mechanicalPasses`.
+   *
+   * ONE exception, and the discriminant is the QUOTE rather than this result: a run quoted before
+   * that allowance existed carries no `mechanical` quote line, and there the older accounting
+   * still holds — the pass charged a repair, so the count is a subset of {@link repairPasses}.
+   * The result reports the same field either way, so a reader that must know which accounting
+   * applies reads the quote it was given rather than inferring one from the counts.
+   *
+   * Absent on a run that took none, on a lane that authored nothing, and on an engine that does
+   * not report it — so absent means "not reported", never "the planner authored every repair".
+   */
+  mechanicalPasses?: number
+  /**
+   * Mandatory assertions the engine put BACK, each because a planner answer re-shaped one the
+   * feedback had not named.
+   *
+   * A repair is invited to change what the feedback names and nothing else. When an answer
+   * re-shapes a mandatory assertion outside that invitation, the engine restores it to the last
+   * admitted recipe's exact form and carries on, instead of refusing the answer and spending a
+   * retry to be told to put back a value it already held. An assertion the feedback DOES name is
+   * left alone — re-shaping one you were invited to re-shape is a disagreement, not a slip.
+   *
+   * Each entry is also one `ASSERTION_RESTORED` warning. Absent on a run that restored nothing
+   * and on an engine that does not report it; `[]` is possible and means the same thing.
+   */
+  restoredAssertions?: Scene3DRestoredAssertion[]
 }
 
 /**
@@ -149,6 +203,48 @@ export interface Scene3DAuthoringDelivery {
  * `shotId` when every frame the objection cites falls inside one shot.
  */
 export const SCENE3D_REVIEW_REFUSED_CODE = "SCENE_REVIEW_REFUSED"
+
+/**
+ * The `code` on a `validation.warnings[]` entry that records one remedy the engine applied ITSELF
+ * — a mechanical repair, counted by {@link Scene3DAuthoringDelivery.mechanicalPasses}.
+ *
+ * Written down here for the same reason the other two codes are: so a consumer that wants to tell
+ * "the platform fixed this from the compiler's own instruction" apart from "the planner was asked"
+ * has one place to read the string from, rather than spelling it at each call site. The entry
+ * names the assertion that refused the build, the ops applied, and the measurement before them.
+ */
+export const SCENE3D_REMEDY_AUTO_APPLIED_CODE = "REMEDY_AUTO_APPLIED"
+
+/**
+ * The `code` on a `validation.warnings[]` entry that records one mandatory assertion the engine
+ * RESTORED after a planner answer re-shaped it without being asked to.
+ *
+ * Distinct from {@link SCENE3D_REMEDY_AUTO_APPLIED_CODE}: that one says the engine changed the
+ * SCENE to satisfy an assertion, this one says it changed the ANSWER back to leave an assertion
+ * as it was. Both appear on runs that completed normally — neither is a failure.
+ */
+export const SCENE3D_ASSERTION_RESTORED_CODE = "ASSERTION_RESTORED"
+
+/**
+ * One mandatory assertion put back to its last admitted form, with the edit that did it.
+ *
+ * Read tolerantly and declared loosely on purpose: `op` and `path` describe an edit in the
+ * engine's own vocabulary rather than a format this package pins, and `value` is whatever the
+ * restored assertion holds — a number, a string, an object — so it is `unknown` rather than
+ * narrowed to whatever today's assertions happen to use.
+ */
+export interface Scene3DRestoredAssertion {
+  /** The edit applied to put it back, in the engine's vocabulary (e.g. `"replace"`). */
+  op: string
+  /** Where in the recipe it was put back. */
+  path: string
+  /** The restored value. Absent for an edit that carries none, such as a removal. */
+  value?: unknown
+  /** The assertion's own id, the same one the refusal would have named. */
+  assertionId: string
+  /** Why it was restored, in the engine's words. Open-ended; shown, never matched on. */
+  reason: string
+}
 
 /**
  * One thing the visual reviewer wanted changed, with the frames it was looking at.

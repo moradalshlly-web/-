@@ -15,10 +15,21 @@ A scene authored by an advanced engine also reports what the run assumed and
 did: `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION` (the
 planner's assumptions), `metadata.summary` (its own description of what it
 authored), `repairPasses` (repairs actually run — `0` when the scene was
-accepted first time) and `admissionRetries` (pre-build planner retries, which
-spend no repair pass). All are optional; the Basic lane carries none of them,
-and a render-only export reports no summary and omits both counts rather than
-claiming `0` about a run that never authored.
+accepted first time), `admissionRetries` (pre-build planner retries, which
+spend no repair pass), `mechanicalPasses` (repairs the engine applied from
+the compiler's own remedy with no planner call, each with a
+`REMEDY_AUTO_APPLIED` warning) and `restoredAssertions` (mandatory assertions
+put back after an answer re-shaped one the feedback did not name, each an
+`ASSERTION_RESTORED` warning). All are optional; the Basic lane carries none of
+them, and a render-only export reports no summary and omits the counts rather
+than claiming `0` about a run that never authored.
+
+`mechanicalPasses` is counted **apart** from `repairPasses`, not inside it:
+those passes buy their own quoted allowance (a `mechanical` line, released when
+unspent) instead of spending one of the caller's repairs, so a run can report
+more mechanical passes than repairs. The exception is a run quoted before that
+line existed, where the pass charged a repair and the count is a subset — and
+the quote, not the result, is what says which.
 
 A completed scene job may also be an **advisory delivery**: the repair budget
 was spent, every mandatory check passed, and the visual review still objected,

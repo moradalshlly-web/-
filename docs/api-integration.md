@@ -2841,8 +2841,21 @@ what it authored — on a repaired run, of the repair), top-level `repairPasses`
 (repairs actually run, `0` when the scene was accepted first time) and top-level
 `admissionRetries` (pre-build planner retries — a recipe the compiler would not
 admit, re-asked with no build and no repair pass spent, counted apart from
-`repairPasses` and never folded into it). A render-only export authored nothing:
-it reports no summary and omits both counts rather than claiming `0`. The same
+`repairPasses` and never folded into it), top-level `mechanicalPasses` (repairs
+the engine applied itself from the compiler's own remedy with no planner call,
+counted **apart** from `repairPasses` because they spend their own quoted
+allowance rather than one of your repairs; each also carries a
+`REMEDY_AUTO_APPLIED` warning naming the assertion and the change) and
+`restoredAssertions` (mandatory assertions put back after a planner answer
+re-shaped one the feedback had not named — `{op, path, value?, assertionId,
+reason}`, each also an `ASSERTION_RESTORED` warning). A render-only export
+authored nothing: it reports no summary and omits the counts rather than
+claiming `0`.
+
+The one case where `mechanicalPasses` **is** a subset of `repairPasses` is a run
+quoted before that allowance existed, whose quote carries no `mechanical` line.
+The discriminant is the quote, not the result — read the quote you were given
+rather than deriving the accounting from the two counts. The same
 fields appear on a `generate-3d-scene` job served by an advanced engine; the
 deterministic Basic lane carries none of them. Warning codes are open-ended —
 read `code` and treat an unrecognized one as informational. See

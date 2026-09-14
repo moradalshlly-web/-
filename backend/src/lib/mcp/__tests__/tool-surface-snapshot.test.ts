@@ -162,6 +162,26 @@ const SCENE3D_ADVISORY_REVIEW_BYTES = 170
 // Measured by this suite: 349_290 total − 349_044 base = 246 B, which preserves
 // the same 85 B of headroom the list had before.
 const SCENE3D_RETAINED_FAILURE_BYTES = 246
+//
+// RAISED 2026-09-14 by the MECHANICAL pass allowance and nothing else. When a
+// mandatory finding that refused a build carries the compiler's own structured
+// remedy, the engine applies it and rebuilds with no planner call, on its OWN
+// quoted allowance; the run reports `mechanicalPasses` beside `repairPasses` /
+// `admissionRetries`, and `restoredAssertions` for mandatory assertions it put
+// back after an answer re-shaped one the feedback did not name. Two clauses an
+// agent cannot infer: that `mechanicalPasses` is counted APART from the repair
+// count (so a run may report MORE mechanical passes than repairs, and adding or
+// bounding them is wrong either way), and that `restoredAssertions` exists at
+// all — without it an ASSERTION_RESTORED warning reads as an unexplained code on
+// a clean result. Said once per tool, on `generate_3d_scene` and
+// `pro_3d_render`. Measured by this suite: 349_692 total - 349_290 base = 402 B,
+// all of it on `generate_3d_scene`: `pro_3d_render` carries the same clauses and
+// costs NOTHING here, because it registers only where an advanced engine is
+// installed and so is not in this list at all. No tool was added, so the fixture
+// does NOT move, and neither tool is near the per-tool budget (the largest
+// definition in the list is `generate_video` at 8_130 B). The 85 B of headroom
+// the list had before is therefore exactly the headroom it has after.
+const SCENE3D_MECHANICAL_PASSES_BYTES = 402
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -174,7 +194,8 @@ export const TOOL_WIRE_BUDGET = {
     VIDEO_REFERENCE_CAPTIONS_BYTES +
     SUNO_V6_FAMILY_BYTES +
     SCENE3D_ADVISORY_REVIEW_BYTES +
-    SCENE3D_RETAINED_FAILURE_BYTES,
+    SCENE3D_RETAINED_FAILURE_BYTES +
+    SCENE3D_MECHANICAL_PASSES_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }
