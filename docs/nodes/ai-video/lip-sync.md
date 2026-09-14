@@ -146,3 +146,10 @@ InfiniTalk and Hailuo Avatar use flat per-call pricing (see admin → Models).
 - Connect a Text to Speech node upstream for a fully automated text-to-talking-head pipeline
 - Per-second pricing means short clips are cheap — the legacy 14s assumption no longer applies. Watch the editor's credit chip; it updates once the audio is wired.
 - Portrait quality matters more than resolution — a sharp 720p face photo works better than a blurry 4K image
+
+### Provider cost reporting
+
+For Lipsync 2 Pro, the recorded provider-cost estimate uses the finished video's
+measured duration and the provider's output-second rate. It does not use GPU
+runtime. If the output duration cannot be read, provider cost remains unknown.
+Credits still use the duration tier displayed before generation.

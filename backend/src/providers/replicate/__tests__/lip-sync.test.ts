@@ -66,6 +66,8 @@ vi.mock("../client.js", () => ({
   },
 }))
 
+vi.mock("../../video/ffmpeg-utils.js", () => ({ getVideoStreamDuration: vi.fn(async () => 29.133333) }))
+
 import { replicateLipSync } from "../lip-sync.js"
 
 beforeEach(() => {
@@ -472,4 +474,10 @@ describe("replicateLipSync — return shape", () => {
       /timed out/,
     )
   })
+})
+
+it("prices Lipsync 2 Pro by output duration, not prediction runtime", async () => {
+  const result = await replicateLipSync("lipsync-2-pro", FACE, AUDIO)
+  expect(result.cost).toBeCloseTo(29.133333 * 0.08325, 6)
+  expect(result.cost).not.toBe(0.0125)
 })

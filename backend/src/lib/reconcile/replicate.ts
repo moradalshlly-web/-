@@ -1,3 +1,4 @@
+import { replicateOutputCost } from "../../providers/replicate/output-cost.js"
 import { config } from "../config.js"
 import { supabase } from "../supabase.js"
 import { markJobFailed, FAILABLE_STATUSES } from "../job-failure.js"
@@ -389,6 +390,8 @@ export async function reconcileReplicateJob(row: ReplicateJobRow, opts?: Reconci
     // applied by finalize post-completion (audit P0.3 — see kie.ts twin).
     const loopTrimAddon = loopTrimAddonForReconcile(row.job_type, row.input_data ?? null)
 
+    const outputCost = row.job_type === "lip-sync"
+      ? await replicateOutputCost(String(row.input_data?.provider ?? ""), urls[0]!) : null
     await finalizeJobWithMedia({
       jobId: row.id,
       jobType: row.job_type,
@@ -397,7 +400,8 @@ export async function reconcileReplicateJob(row: ReplicateJobRow, opts?: Reconci
       result: {
         url: urls[0]!,
         extraUrls: urls.slice(1),
-        cost: null,
+        cost: outputCost,
+        ...(outputCost !== null ? { displayCost: outputCost } : {}),
         providerUsed: "replicate",
         providerMs,
       },
