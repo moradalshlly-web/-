@@ -62,18 +62,22 @@ and none of them appears on the deterministic Basic lane, which asks no model:
 | `admissionRetries` | Pre-build planner retries actually spent: a recipe the compiler would not admit is re-asked of the planner, with no build and no repair pass spent. Counted apart from `repairPasses`, never folded into it, and absent when the run needed none. Where the deployment quotes it, the allowance is a separate `admission` line on the quote — `Admission retries (up to 3, planner only)`, a ceiling whose unspent part is released at settlement. See [3D Render Pro](pro-3d-render.md#the-admission-retry-allowance). |
 | `mechanicalPasses` | Repairs the engine applied **itself**, from the compiler's own structured remedy, with no planner call. Counted **apart** from `repairPasses` and never folded into it: these passes spend their own quoted allowance — the `mechanical` line, up to 2, released when unspent — rather than one of your repairs, so a run may report more mechanical passes than repairs. The pass identity the pricing keeps is `buildPasses = authoringPasses + repairPasses + mechanicalPasses`. Each one also adds a `REMEDY_AUTO_APPLIED` warning. Optional, and absent both when the run took none and on an engine that does not report it. See [The mechanical-pass allowance](pro-3d-render.md#the-mechanical-pass-allowance). |
 | `restoredAssertions` | Mandatory assertions the engine put **back** after a planner answer re-shaped one the feedback had not named — restored to the last admitted recipe's exact form so the run continues instead of refusing over a value the engine already held. Each entry is `{op, path, value?, assertionId, reason}` and also an `ASSERTION_RESTORED` warning. Optional; absent on a run that restored nothing. |
-| `metadata.review` | Present **only** on an *advisory delivery* — a scene that passed every mandatory check, whose visual review still objected once the repair budget was spent. `{ verdict: "refused", objections[], observed? }`, with each objection `{ category, what, correction?, frames[] }`. Each objection is also a `SCENE_REVIEW_REFUSED` entry in `validation.warnings[]`. |
+| `metadata.review` | Present **only** on a delivery the visual review did not approve, and `verdict` says which way. `{ verdict: "refused", objections[], observed? }` — a scene that passed every mandatory check, whose review still objected once the repair budget was spent; each objection `{ category, what, correction?, frames[] }` is also a `SCENE_REVIEW_REFUSED` entry in `validation.warnings[]`. `{ verdict: "unavailable", reason: "provider", attempts, objections[], observed? }` — the review never reached its provider in `attempts` asks, so **nobody judged the scene**; `validation.warnings[]` leads with a `SCENE_REVIEW_UNAVAILABLE` entry, and any objections under it are review batches that answered before the outage rather than a verdict. |
 
 Read them as optional — a result from a deployment without an advanced engine,
 or one produced before these existed, simply has none.
 
-**An advisory delivery is a completed job.** When the repair budget is spent and
-only the visual review still objects to a scene whose mandatory checks all
-passed, the scene is delivered rather than withheld: the job completes and
-`metadata.review` carries the refusal. `validation.status` stays `passed` there
-(the mandatory checks *did* pass) and the objection list may be empty, so test
-for `metadata.review` itself rather than for the status or the warning count.
-See [3D Render Pro](pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed)
+**A delivery the review did not approve is still a completed job.** A scene whose
+mandatory checks all passed is delivered rather than withheld in two cases: the
+repair budget is spent and only the visual review still objects, or the review
+never reached its provider at all and nobody could judge the scene. The job
+completes either way and `metadata.review` carries a `verdict` saying which.
+`validation.status` stays `passed` there (the mandatory checks *did* pass) and
+the objection list may be empty, so test for `metadata.review` itself rather
+than for the status or the warning count — and read `verdict` before describing
+it, because a message about a refusal on a scene nobody reviewed invents an
+opinion that does not exist. See
+[3D Render Pro](pro-3d-render.md#when-a-scene-that-passed-is-delivered-unapproved)
 for the full shape and what to do with one.
 
 **A FAILED advanced job can still carry a result.** When the repair budget runs

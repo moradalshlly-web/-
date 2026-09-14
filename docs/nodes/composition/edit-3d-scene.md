@@ -53,6 +53,19 @@ are on [Generate 3D Scene](generate-3d-scene.md#api-and-sdk); this node's failur
 report them identically, including how a refused draft reaches the canvas from a
 single-node Run, a workflow Run and a reload.
 
+A **completed** instruction edit reports the same authoring fields a generate
+does, because it runs the same authoring lane: `repairPasses`, `admissionRetries`,
+`mechanicalPasses`, `restoredAssertions`, `SCENE_AUTHORING_ASSUMPTION` warnings —
+and `metadata.review` when the edited scene passed every mandatory check but did
+not get the visual review's approval, either because the review objected
+(`verdict: "refused"`) or because it never reached its provider and nobody judged
+the scene (`verdict: "unavailable"`). `validation.status` is `passed` on both, so
+test for `metadata.review` and branch on `verdict` rather than reading the status.
+The full shape is on
+[Generate 3D Scene](generate-3d-scene.md#api-and-sdk) and
+[3D Render Pro](pro-3d-render.md#when-a-scene-that-passed-is-delivered-unapproved).
+Deterministic operations call no model and carry none of this.
+
 An MP4 is not an editable scene. To work from video alone, provide it as a reference to Generate 3D Scene and inspect the reconstructed result.
 
 LLM edits are model-priced on Cloud; use the model-cost API for current pricing. Deterministic operations have no LLM charge. Rendering is a separate operation.

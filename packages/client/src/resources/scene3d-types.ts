@@ -233,11 +233,18 @@ export interface RenderScene3DParams extends Record<string, unknown> {
  * `restoredAssertions` (mandatory assertions put back after a planner answer re-shaped one the
  * feedback had not named, each a `ASSERTION_RESTORED` warning).
  *
- * A scene the visual reviewer refused but that passed every mandatory assertion is delivered
- * ADVISORY: the job completes, and `metadata.review` carries the verdict alongside one
- * `SCENE_REVIEW_REFUSED` warning per objection. `validation.status` stays `"passed"` there, so
- * `metadata.review` being present is the only reliable test — use `scene3DReviewVerdictOf` from
- * `@nodaro/shared` rather than reading it by hand.
+ * A scene that passed every mandatory assertion but did not get the visual reviewer's approval
+ * is delivered anyway, and `metadata.review` carries a verdict saying why. `verdict: "refused"`
+ * is the ADVISORY delivery — the reviewer objected once the repair budget was spent — with one
+ * `SCENE_REVIEW_REFUSED` warning per objection. `verdict: "unavailable"` is the UNREVIEWED
+ * delivery: the review never reached its provider after `attempts` asks, so nobody judged the
+ * scene, and `validation.warnings[]` LEADS with `SCENE_REVIEW_UNAVAILABLE` (any objections under
+ * it came from review batches that answered before the outage, and are not the whole verdict).
+ *
+ * `validation.status` stays `"passed"` on both, so `metadata.review` being present is the only
+ * reliable test — use `scene3DReviewVerdictOf` from `@nodaro/shared` rather than reading it by
+ * hand, and `scene3DReviewNote` rather than writing the sentence yourself: a message that says
+ * the reviewer refused a scene nobody reviewed invents an opinion.
  */
 export type Scene3DJobOutput = Readonly<Scene3DWireJobOutput> & Readonly<Record<string, unknown>>
 
@@ -256,11 +263,18 @@ export type Scene3DJobOutput = Readonly<Scene3DWireJobOutput> & Readonly<Record<
  * allowance existed — its quote carries no `mechanical` line. The discriminant is the quote, not
  * the result, so read the quote you were given rather than deriving it from the two counts.
  *
- * A completed result may also be an ADVISORY delivery — every mandatory assertion passed, the
- * visual reviewer still objected, and the scene was published once the repair budget was spent.
- * Then `metadata.review` holds the verdict (`{ verdict: "refused", objections[], observed? }`)
- * and `validation.warnings[]` holds one `SCENE_REVIEW_REFUSED` entry per objection.
- * `validation.status` is `"passed"` on such a result, so test for `metadata.review` — via
- * `scene3DReviewVerdictOf` from `@nodaro/shared` — rather than for the status or the warnings.
+ * A completed result may also be published without the visual reviewer's approval, and then
+ * `metadata.review` holds a verdict saying which way. `{ verdict: "refused", objections[],
+ * observed? }` is the ADVISORY delivery: every mandatory assertion passed, the reviewer still
+ * objected, and the scene was published once the repair budget was spent, with one
+ * `SCENE_REVIEW_REFUSED` warning per objection. `{ verdict: "unavailable", reason: "provider",
+ * attempts, objections[], observed? }` is the UNREVIEWED delivery: the review never reached its
+ * provider in `attempts` asks, so the assertion-passing scene was delivered with no verdict on
+ * it and `validation.warnings[]` LEADS with `SCENE_REVIEW_UNAVAILABLE`. Objections on that arm
+ * are whatever review batches answered before the outage — real, but not the whole verdict.
+ *
+ * `validation.status` is `"passed"` on both, so test for `metadata.review` — via
+ * `scene3DReviewVerdictOf` from `@nodaro/shared` — rather than for the status or the warnings,
+ * and render it with `scene3DReviewNote` rather than assuming a refusal.
  */
 export type Pro3DRenderJobOutput = Readonly<Pro3DRenderWireOutput> & Readonly<Record<string, unknown>>

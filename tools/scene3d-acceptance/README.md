@@ -84,55 +84,73 @@ git -C "$PLANNING" show origin/main:<path/to/table-prompt.txt> \
 | `2` | the harness itself broke (bad arguments, transport, a thrown error) |
 | `3` | this deployment cannot serve what the probe measures — nothing was run |
 
-There is deliberately **no fourth code for an advisory delivery**. See below.
+There is deliberately **no fourth code for a delivery the reviewer did not
+approve**. See below.
 
 Add `--dry-run` to any command to print the exact request bodies and exit
 without touching the network or spending anything. Add `--help` for the full
 option list.
 
-## `completed-advisory` — a delivery the reviewer refused
+## `completed-advisory` — a delivery the reviewer did not approve
 
-The visual reviewer's refusal drives a repair for as long as the repair budget
-lasts. Once that budget is spent, a scene whose every **mandatory** assertion
-passed is delivered rather than withheld: the job reaches `completed`, the MP4
-is real, and the credits commit. The refusal rides along on the result as
-`metadata.review` (`{ verdict: "refused", objections[], observed? }`) plus one
-`validation.warnings[]` entry coded `SCENE_REVIEW_REFUSED` per objection.
+A scene whose every **mandatory** assertion passed can reach the caller without
+the visual reviewer's approval, in two ways:
 
+- **it refused.** The refusal drives a repair for as long as the repair budget
+  lasts; once that budget is spent the scene is delivered rather than withheld.
+  `metadata.review` is `{ verdict: "refused", objections[], observed? }`, plus
+  one `validation.warnings[]` entry coded `SCENE_REVIEW_REFUSED` per objection.
+- **nobody could ask it.** The review's own provider never answered. A repair
+  cannot help — a repair answers an objection, and an outage raises none — so
+  the review is asked once more after a bounded pause and, if it is still
+  unreachable, the scene is delivered unreviewed. `metadata.review` is
+  `{ verdict: "unavailable", reason: "provider", attempts, objections[],
+  observed? }`, and `validation.warnings[]` **leads** with one
+  `SCENE_REVIEW_UNAVAILABLE` entry.
+
+Either way the job reaches `completed`, the MP4 is real, and the credits commit.
 Every probe that asserts a run delivered therefore accepts **two** endings, and
 names which one it got:
 
 | Outcome | Meaning |
 |---|---|
-| `completed` | a clean acceptance — no reviewer objection on the result |
-| `completed-advisory` | delivered, and the visual reviewer refused it |
+| `completed` | a clean acceptance — the reviewer looked and raised nothing |
+| `completed-advisory` | delivered without the reviewer's approval; `measurements.review.verdict` says which way |
 
-**The exit code stays `0` for both.** An advisory delivery is a real, paid,
-usable result, and failing the probe over one would make an existing ledger read
-a working platform as broken. What the receipt does instead is say so
-explicitly:
+There is deliberately **no third outcome** for the unreviewed delivery: to a
+ledger it is the same kind of thing — paid, playable, not clean — and a new
+string would break every caller that switches on this one.
+
+**The exit code stays `0` for both.** Either delivery is a real, paid, usable
+result, and failing the probe over one would make an existing ledger read a
+working platform as broken. What the receipt does instead is say so explicitly:
 
 | Field | Meaning |
 |---|---|
-| `advisory` | `true` when any delivery in the run was refused by the reviewer. `false` otherwise — it is present on every receipt, so its absence means an older harness wrote the file, not that the run was clean. |
-| `measurements.review` | the verdict: `verdict`, `objectionCount`, `objections[]` (each `{ category, what, correction, frames }`), `observed`, and `refusedWarningCount`. |
+| `advisory` | `true` when any delivery in the run lacked the reviewer's approval — refused **or** unreviewed. `false` otherwise — it is present on every receipt, so its absence means an older harness wrote the file, not that the run was clean. |
+| `measurements.review` | the verdict: `verdict` (`"refused"` or `"unavailable"`), `objectionCount`, `objections[]` (each `{ category, what, correction, frames }`), `observed`, `refusedWarningCount`, and a `reviewEvidenceSentence` saying which accounting this run used. On the `"unavailable"` arm it also carries `reason`, `attempts` (how many times the review was asked) and `unavailableWarningCount`. |
 | `measurements.reviews` | the same, keyed by step, for a probe that delivers more than once (`blender-cloud-v2`). |
 
-The summary line carries it too:
+The summary line carries it too, and says which:
 
 ```
 [authoring] PASSED — COMPLETED (advisory review: 3 objections) — 12/12 assertions — receipt …
+[authoring] PASSED — COMPLETED (review UNAVAILABLE after 2 attempts) — 12/12 assertions — receipt …
 ```
 
-Two traps this encodes, because both are easy to get wrong:
+Three traps this encodes, because all three are easy to get wrong:
 
-- **`validation.status` is still `passed`** on an advisory delivery — the
-  mandatory assertions *did* pass, which is precisely why the scene was
-  delivered. Testing the status finds nothing.
+- **`validation.status` is still `passed`** on either delivery — the mandatory
+  assertions *did* pass, which is precisely why the scene was delivered. Testing
+  the status finds nothing.
 - **the objection count can be `0`.** A refusal that named nothing actionable is
   still a refusal, and is the shape most worth catching. Counting
   `SCENE_REVIEW_REFUSED` warnings therefore also finds nothing; the presence of
   `metadata.review` is the only reliable test.
+- **objections under an `"unavailable"` verdict are not the verdict.** A review
+  is batched, and those are whichever batches answered before the provider went
+  away. Reading `objections: []` there as approval is the same mistake as
+  reading a refusal's silence as approval — one step further out.
 
 A run that ends `failed` is unchanged: a mandatory assertion failed, or the
 compiler refused the recipe, and the retained draft is in the failed job's own

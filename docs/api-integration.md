@@ -2861,21 +2861,40 @@ deterministic Basic lane carries none of them. Warning codes are open-ended —
 read `code` and treat an unrecognized one as informational. See
 [3D Render Pro](nodes/composition/pro-3d-render.md#warning-codes).
 
-A **completed** authoring job may be an *advisory delivery*: the repair budget
-was spent, every mandatory check passed, and the visual review still objected,
-so the scene was delivered with the refusal attached rather than withheld. Then
-`metadata.review` is `{ verdict: "refused", objections[], observed? }` — each
-objection `{ category, what, correction?, frames[] }`, with no `severity` field
-because only blocking findings become objections — and `validation.warnings[]`
-carries one `SCENE_REVIEW_REFUSED` entry per objection, tagged with a `shotId`
-where the cited frames fall inside one shot. Two readings that look right and
-are not: `validation.status` is still `passed` on such a result (the mandatory
-checks *did* pass), and `objections` may be **empty**, which reports a refusal
-that named nothing actionable. Test for `metadata.review` itself. A visual
-refusal alone no longer fails the job; `SCENE_QUALITY_FAILED` now means a
-mandatory check failed or the compiler refused the recipe, and the retained
-draft is on the failed job. See
-[When the reviewer refuses a scene that passed](nodes/composition/pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed).
+A **completed** authoring job may have been delivered **without the visual
+review's approval**, in which case `metadata.review` carries a verdict and
+`verdict` says which of two ways.
+
+`{ verdict: "refused", objections[], observed? }` — the repair budget was spent,
+every mandatory check passed, and the review still objected, so the scene was
+delivered with the refusal attached rather than withheld. Each objection is
+`{ category, what, correction?, frames[] }`, with no `severity` field because
+only blocking findings become objections, and `validation.warnings[]` carries
+one `SCENE_REVIEW_REFUSED` entry per objection, tagged with a `shotId` where the
+cited frames fall inside one shot.
+
+`{ verdict: "unavailable", reason: "provider", attempts, objections[],
+observed? }` — the review never reached its provider. A repair cannot answer an
+outage, so instead of spending one the run asks again after a bounded pause and,
+if it is still unreachable, delivers the assertion-passing scene unreviewed:
+**nobody judged it**. `attempts` is how many times the review was asked.
+`validation.warnings[]` **leads** with one `SCENE_REVIEW_UNAVAILABLE` entry,
+then one `SCENE_REVIEW_REFUSED` per surviving objection — a review is batched,
+so objections on this arm are whichever batches answered before the outage and
+are **not** a verdict on the scene. The unanswered review is unbilled; the
+delivery bills as the refused one does.
+
+Three readings that look right and are not: `validation.status` is still
+`passed` on both (the mandatory checks *did* pass); `objections` may be
+**empty**, which reports a refusal that named nothing actionable; and an empty
+`objections` under an `unavailable` verdict is not approval, it is silence. Test
+for `metadata.review` itself, then branch on `verdict`. A visual refusal alone
+no longer fails the job; `SCENE_QUALITY_FAILED` now means a mandatory check
+failed or the compiler refused the recipe, and the retained draft is on the
+failed job — where a deployment does not deliver unapproved scenes, an
+unreviewed one is retained there too, with `SCENE_REVIEW_UNAVAILABLE` leading
+its warnings and no `metadata` block to carry a verdict. See
+[When a scene that passed is delivered unapproved](nodes/composition/pro-3d-render.md#when-a-scene-that-passed-is-delivered-unapproved).
 
 **A FAILED node in a workflow run carries what its run retained.** In
 `GET /v1/workflow-executions/:id` and on its SSE stream, a node's entry in

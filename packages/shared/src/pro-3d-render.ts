@@ -275,8 +275,11 @@ export interface Pro3DRenderCapabilities {
  * caveat, "the brief did not say, so the run decided", carrying the planner's own assumption
  * with any normalization the engine applied to it; `SCENE_REVIEW_REFUSED` (exported as
  * `SCENE3D_REVIEW_REFUSED_CODE`) is one objection the paid visual reviewer raised against a
- * scene this job DELIVERED anyway; a `SCENE_QUALITY_*` code is that same reviewer's finding on
- * a job that FAILED, where the finding is the reason there is no video.
+ * scene this job DELIVERED anyway; `SCENE_REVIEW_UNAVAILABLE` (exported as
+ * `SCENE3D_REVIEW_UNAVAILABLE_CODE`) says that reviewer never answered at all, so the scene was
+ * delivered — or, with the advisory policy off, retained — with no verdict on it, and it LEADS
+ * the array because it qualifies every line under it; a `SCENE_QUALITY_*` code is that same
+ * reviewer's finding on a job that FAILED, where the finding is the reason there is no video.
  */
 export interface Pro3DRenderValidationWarning {
   code: string
@@ -315,11 +318,16 @@ export interface Pro3DRenderResultMetadata {
    */
   summary?: string
   /**
-   * The visual reviewer's verdict, present ONLY on an ADVISORY delivery: a scene whose every
-   * mandatory assertion passed, delivered once the repair budget was spent and the reviewer
-   * still objected. `validation.status` is `"passed"` on such a result, so this field's
-   * presence — not the status, and not the warning count — is what tells the two apart.
-   * Use {@link scene3DReviewVerdictOf} rather than reading it by hand.
+   * The visual reviewer's verdict, present ONLY on a delivery it did not APPROVE — a scene whose
+   * every mandatory assertion passed, published either once the repair budget was spent and the
+   * reviewer still objected (`verdict: "refused"`), or with no verdict at all because the review
+   * never reached its provider (`verdict: "unavailable"`, with `attempts` saying how many times
+   * it was asked). `validation.status` is `"passed"` on both, so this field's presence — not the
+   * status, and not the warning count — is what tells them from a clean result.
+   *
+   * Use {@link scene3DReviewVerdictOf} rather than reading it by hand, and
+   * {@link scene3DReviewNote} rather than writing the sentence for it: a banner that says "the
+   * reviewer refused this scene" about one NO reviewer saw invents an opinion.
    */
   review?: Scene3DReviewVerdict
 }
@@ -414,29 +422,51 @@ export interface Pro3DRenderJobOutput {
  * does not parse as complete, which is the honest answer.
  */
 /**
- * The advisory reviewer's verdict, read tolerantly.
+ * The visual reviewer's verdict on a delivery it did not approve, read tolerantly.
  *
  * Every member below is permissive on purpose: this schema is OPTIONAL inside a result that is
  * otherwise complete, and a delivered scene with a real MP4 must never fail to parse — and so
  * blank a video the platform already rendered and charged for — over a malformed advisory. An
  * objection that arrives without frames parses with none; an unknown key is kept.
+ *
+ * That tolerance is exactly what a narrow `verdict` would have thrown away. Declared as
+ * `z.literal("refused")` the schema refused the whole result of an UNREVIEWED delivery — a real,
+ * paid, playable scene — over a discriminant it had never been taught, which is the one failure
+ * mode the rest of this block is written to avoid. `reason` and `attempts` are therefore
+ * permissive in the same direction, and with `.catch` rather than `.default`: a value that is
+ * absent AND one that is malformed both fall back, because the caller's alternative is losing a
+ * delivered MP4 over a count that only ever decides a sentence. `attempts` falls back to `1` —
+ * the review was asked at least once, or there would be no verdict to read — and `reason` to
+ * `"provider"`, the only cause that exists. `verdict` is the one member that stays strict: it is
+ * the discriminant, and guessing it is how a scene nobody reviewed gets reported as refused.
  */
-export const pro3DRenderReviewVerdictSchema = z
-  .object({
-    verdict: z.literal("refused"),
-    objections: z.array(
-      z
-        .object({
-          category: z.string(),
-          what: z.string(),
-          correction: z.string().optional(),
-          frames: z.array(z.number().int().min(0)).default([]),
-        })
-        .passthrough(),
-    ),
-    observed: z.string().optional(),
-  })
-  .passthrough()
+const pro3DRenderReviewFindingsShape = {
+  objections: z.array(
+    z
+      .object({
+        category: z.string(),
+        what: z.string(),
+        correction: z.string().optional(),
+        frames: z.array(z.number().int().min(0)).default([]),
+      })
+      .passthrough(),
+  ),
+  observed: z.string().optional(),
+}
+
+export const pro3DRenderReviewVerdictSchema = z.union([
+  z
+    .object({ verdict: z.literal("refused"), ...pro3DRenderReviewFindingsShape })
+    .passthrough(),
+  z
+    .object({
+      verdict: z.literal("unavailable"),
+      reason: z.literal("provider").catch("provider"),
+      attempts: z.number().int().min(1).catch(1),
+      ...pro3DRenderReviewFindingsShape,
+    })
+    .passthrough(),
+])
 
 export const pro3DRenderShotStillSchema = z
   .object({
@@ -479,7 +509,15 @@ export const pro3DRenderJobOutputSchema = z
         frames: z.number().int().positive(),
         duration: z.number().positive(),
         summary: z.string().optional(),
-        review: pro3DRenderReviewVerdictSchema.optional(),
+        /**
+         * Degrades to absent rather than refusing the RESULT, which is the whole lesson of the
+         * verdict this round added. A narrow `verdict` here did not merely mis-read an unreviewed
+         * delivery — it failed `isPro3DRenderJobOutput` for the entire job, blanking a real,
+         * paid, playable MP4 over an advisory field. A verdict a future engine invents must cost
+         * at most itself; the `SCENE_REVIEW_*` entry in `validation.warnings[]` still arrives
+         * either way, because that array has no code enum.
+         */
+        review: pro3DRenderReviewVerdictSchema.optional().catch(undefined),
       })
       .passthrough(),
     repairPasses: z.number().int().min(0).optional(),

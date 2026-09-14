@@ -262,13 +262,19 @@ export function runScene3DJob({ nodeId, start, source, ctx, label, context, extr
                 const errMsg = job.error_message ?? `${label} failed`;
                 // A FAILED run can still have retained a draft.
                 //
-                // `SCENE_QUALITY_FAILED` after an exhausted repair budget is the one refusal
+                // `SCENE_QUALITY_FAILED` after an exhausted repair budget is the refusal
                 // that published a real, renderable scene revision on the way to failing: the
                 // planner produced a recipe, the compiler accepted it, the builder exported
                 // it, and the visual reviewer said it does not yet match the brief. 3D Render
                 // Pro has kept that draft since the retention work landed, and since plugins
                 // round 10f the Basic preview lane keeps it too — the same `scenePlan` /
                 // `sceneRevisionId` / `validation.status: "failed"` shape, on the same job row.
+                //
+                // It is no longer the ONLY one: a run whose visual review never reached its
+                // provider retains the same shape under `SCENE_REVIEW_UNAVAILABLE`, where the
+                // deployment does not deliver unreviewed scenes. This branch keys on the
+                // retained OUTPUT and never on the error code, so that cost nothing — and
+                // keeping it that way is what makes the next such code free too.
                 //
                 // This branch used to read `job.error_message` and nothing else, so every one
                 // of those drafts was dropped on the floor by the only code path that could

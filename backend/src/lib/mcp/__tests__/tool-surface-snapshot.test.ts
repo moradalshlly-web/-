@@ -182,6 +182,26 @@ const SCENE3D_RETAINED_FAILURE_BYTES = 246
 // definition in the list is `generate_video` at 8_130 B). The 85 B of headroom
 // the list had before is therefore exactly the headroom it has after.
 const SCENE3D_MECHANICAL_PASSES_BYTES = 402
+
+// RAISED 2026-09-14 by the second way a scene reaches a caller WITHOUT the
+// visual reviewer's approval. `metadata.review` used to mean one thing — the
+// reviewer objected and the scene shipped anyway — so the description could
+// name the consequence and skip the field. It now carries a `verdict` that is
+// `refused` OR `unavailable`, the second meaning the review's provider never
+// answered and NOBODY judged the scene, and an agent cannot infer either of
+// those from the result: the job completed, the video is real, and
+// `validation.status` is still `passed`. Told to read `verdict` rather than
+// assume, because the failure this prevents is an agent reporting a refusal
+// nobody made — and told that objections under an `unavailable` verdict are
+// partial review batches, not the verdict, or an empty list there reads as
+// approval. Said once per tool, on `generate_3d_scene` and `pro_3d_render`.
+// Measured by this suite: 349_994 total - 349_692 base = 302 B, all of it on
+// `generate_3d_scene`: `pro_3d_render` carries the same clause and costs
+// NOTHING here, because it registers only where an advanced engine is installed
+// and so is not in this list at all. No tool was added, so the fixture does NOT
+// move, and neither tool is near the per-tool budget. The 85 B of headroom the
+// list had before is exactly the headroom it has after.
+const SCENE3D_REVIEW_UNAVAILABLE_BYTES = 302
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -195,7 +215,8 @@ export const TOOL_WIRE_BUDGET = {
     SUNO_V6_FAMILY_BYTES +
     SCENE3D_ADVISORY_REVIEW_BYTES +
     SCENE3D_RETAINED_FAILURE_BYTES +
-    SCENE3D_MECHANICAL_PASSES_BYTES,
+    SCENE3D_MECHANICAL_PASSES_BYTES +
+    SCENE3D_REVIEW_UNAVAILABLE_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

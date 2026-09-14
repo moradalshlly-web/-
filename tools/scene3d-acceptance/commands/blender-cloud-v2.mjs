@@ -17,7 +17,7 @@ import { HarnessError, idempotencyKeyFor, makeClient, readBalance, readCapabilit
 import { resolvePrompt } from "../lib/harness.mjs"
 import { shortHash } from "../lib/parity.mjs"
 import { followJob, phaseTimings, readJobRecord } from "../lib/poll.mjs"
-import { deliveryOutcome, isDelivered, reviewEvidence, summarizePlan } from "../lib/pro.mjs"
+import { deliveryOutcome, isDelivered, reviewDetail, reviewEvidence, summarizePlan } from "../lib/pro.mjs"
 
 export const NAME = "blender-cloud-v2"
 export const ENGINE = "blender-cloud"
@@ -182,9 +182,7 @@ function assertDelivered(ctx, name, step) {
     expected: "completed | completed-advisory",
     actual: step.outcome,
     pass: isDelivered(step.outcome),
-    detail: step.review
-      ? `the visual reviewer refused this scene: ${step.review.objectionCount} objection(s)`
-      : step.errorMessage ?? undefined,
+    detail: reviewDetail(step.review) ?? step.errorMessage ?? undefined,
   })
 }
 

@@ -11,6 +11,10 @@ import type { NodeOutput } from "./types.js"
  * accepted it, the builder exported it, and `jobs.output_data` carries the
  * draft (`scenePlan`, `sceneRevisionId`, `deliveryId`, `posterAssetId`,
  * `validation`, `metadata.review`). That revision was billed and published.
+ * A run whose visual review never reached its provider retains the same shape
+ * under `SCENE_REVIEW_UNAVAILABLE`, minus the `metadata` block — a scene NOBODY
+ * judged, whose `validation.warnings[]` leads with that code instead. Neither
+ * error code appears below, which is why the second one needed no change.
  * Until this existed, every emitter of a failed node state built a fresh
  * object with `status`, `error` and nothing else, so the draft reached no
  * client — the canvas showed a bare refusal for a scene it had paid for.

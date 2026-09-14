@@ -104,15 +104,20 @@ export function addNote(receipt, note) {
  * measure. A run with no assertions at all is NOT a pass.
  */
 /**
- * Record that a run DELIVERED a scene the visual reviewer refused.
+ * Record that a run DELIVERED a scene the visual reviewer did not approve —
+ * because it refused the scene, or because it never answered at all.
  *
  * Deliberately a flag beside the verdict rather than a new receipt status or a
- * failing assertion. An advisory delivery is a real, paid, usable result — the
- * video exists and every mandatory assertion passed — so the probe still passes
- * and still exits 0. What would be dishonest is reporting it as a CLEAN
- * acceptance, which is what `advisory` and `measurements.review` prevent: an
- * existing ledger that only reads `pass` and the exit code keeps working, and one
- * that wants the stricter reading has a field to key on.
+ * failing assertion. Either delivery is a real, paid, usable result — the video
+ * exists and every mandatory assertion passed — so the probe still passes and
+ * still exits 0. What would be dishonest is reporting it as a CLEAN acceptance,
+ * which is what `advisory` and `measurements.review` prevent: an existing ledger
+ * that only reads `pass` and the exit code keeps working, and one that wants the
+ * stricter reading has a field to key on.
+ *
+ * The flag stays ONE boolean across both. `measurements.review.verdict` is where
+ * a reader learns which — splitting the flag would silently exclude unreviewed
+ * deliveries from every ledger already filtering on `advisory === true`.
  */
 export function markAdvisory(receipt, review, role = null) {
   receipt.advisory = true

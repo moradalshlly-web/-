@@ -18,7 +18,7 @@ import { applyDeterministicEdit } from "../lib/edit.mjs"
 import { resolvePrompt } from "../lib/harness.mjs"
 import { shortHash } from "../lib/parity.mjs"
 import { followJob, phaseTimings, readJobRecord } from "../lib/poll.mjs"
-import { authoringLines, deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, renderOnlyParams, repairEvidence, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
+import { authoringLines, deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, renderOnlyParams, repairEvidence, reviewDetail, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
 
 export const NAME = "authoring"
 
@@ -92,9 +92,11 @@ export async function main(ctx) {
   ctx.save()
 
   // The critic's veto is advisory once the repair budget is spent, so a scene it
-  // refused still arrives `completed` with a real MP4. That IS a delivery and the
-  // assertion holds, but it is not a clean acceptance — `completed-advisory` is
-  // reported as its own outcome so a ledger never reads the two as the same run.
+  // refused still arrives `completed` with a real MP4 — and so does one its provider
+  // never answered about, which is delivered unreviewed rather than thrown away.
+  // Both ARE deliveries and the assertion holds, but neither is a clean acceptance:
+  // `completed-advisory` is reported as its own outcome so a ledger never reads them
+  // as the same run, and the detail says WHICH so it never reads them as each other.
   const review = reviewEvidence(output)
   if (review) ctx.advisory(review, "authoring")
   const outcome = deliveryOutcome({ terminalStatus: follow.terminalStatus, output })
@@ -102,7 +104,7 @@ export async function main(ctx) {
     expected: "completed | completed-advisory",
     actual: outcome,
     pass: isDelivered(outcome),
-    detail: review ? `the visual reviewer refused this scene: ${review.objectionCount} objection(s)` : undefined,
+    detail: reviewDetail(review),
   })
   if (!completed) {
     ctx.note(`authoring failed: ${job?.error_message ?? "no error message"}`)
