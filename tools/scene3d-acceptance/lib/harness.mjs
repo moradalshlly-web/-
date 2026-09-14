@@ -19,7 +19,7 @@ import { join } from "node:path"
 import { parseSubcommandArgs, usage } from "./args.mjs"
 import { HarnessError, newRunId } from "./client.mjs"
 import { shortHash } from "./parity.mjs"
-import { addNote, assert as recordAssertion, createReceipt, finalize, recordJob, writeReceipt } from "./receipt.mjs"
+import { addNote, assert as recordAssertion, createReceipt, finalize, markAdvisory, recordJob, writeReceipt } from "./receipt.mjs"
 
 /** Flags whose VALUE is content the receipt records by digest, not verbatim. */
 const REDACTED_VALUE_FLAGS = new Set(["--prompt", "--scoping-line", "--edit-prompt"])
@@ -118,6 +118,13 @@ export async function runSubcommand(name, argv, main) {
       return verdict
     },
     recordJob: (job) => { const merged = recordJob(receipt, job); save(); return merged },
+    // A delivery the visual reviewer refused. Still a pass, still exit 0 — but named.
+    advisory: (review, role = null) => {
+      markAdvisory(receipt, review, role)
+      log(`ADVISORY review — the scene was delivered over ${review.objectionCount} objection${review.objectionCount === 1 ? "" : "s"}`)
+      save()
+      return review
+    },
     workDir: () => {
       const dir = join(outDir, `work-${name}-${runId}`)
       mkdirSync(dir, { recursive: true })
@@ -135,7 +142,7 @@ export async function runSubcommand(name, argv, main) {
     }
     finalize(receipt)
     const path = save()
-    log(`${receipt.pass ? "PASSED" : "FAILED"} — ${receipt.assertions.filter((a) => a.pass).length}/${receipt.assertions.length} assertions — receipt ${path}`)
+    log(`${receipt.pass ? "PASSED" : "FAILED"}${advisoryClause(receipt)} — ${receipt.assertions.filter((a) => a.pass).length}/${receipt.assertions.length} assertions — receipt ${path}`)
     return receipt.pass ? EXIT.pass : EXIT.fail
   } catch (error) {
     const unavailable = error instanceof HarnessError && error.code === "capability_unavailable"
@@ -151,6 +158,22 @@ export async function runSubcommand(name, argv, main) {
     }
     return unavailable ? EXIT.unavailable : EXIT.error
   }
+}
+
+/**
+ * The advisory half of the summary line, or nothing.
+ *
+ * The run PASSED — every assertion held and the exit code is 0 — and it still
+ * delivered a scene the reviewer refused. Both facts belong on the one line an
+ * operator reads, because either alone is misleading.
+ */
+function advisoryClause(receipt) {
+  if (!receipt.advisory) return ""
+  const reviews = receipt.measurements?.reviews
+  const count = reviews
+    ? Object.values(reviews).reduce((n, r) => n + (r?.objectionCount ?? 0), 0)
+    : receipt.measurements?.review?.objectionCount ?? 0
+  return ` — COMPLETED (advisory review: ${count} objection${count === 1 ? "" : "s"})`
 }
 
 /** Wire a subcommand module up as a process. Used by the dispatcher. */

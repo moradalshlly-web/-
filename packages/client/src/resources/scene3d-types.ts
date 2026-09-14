@@ -186,19 +186,34 @@ export interface RenderScene3DParams extends Record<string, unknown> {
  * Preserve the shared wire contract while allowing additive job metadata.
  *
  * A scene authored by an ADVANCED engine additionally reports what the run knows about its own
- * answer, all three optional and all three absent on the deterministic Basic lane:
+ * answer, every field optional and all of them absent on the deterministic Basic lane:
  * `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION` (the planner's
- * assumptions), `metadata.summary` (its description of what it authored), and `repairPasses`
- * (repairs actually run — `0` when the scene was accepted first time).
+ * assumptions), `metadata.summary` (its description of what it authored), `repairPasses`
+ * (repairs actually run — `0` when the scene was accepted first time) and `admissionRetries`
+ * (pre-build planner retries, which spend no repair pass).
+ *
+ * A scene the visual reviewer refused but that passed every mandatory assertion is delivered
+ * ADVISORY: the job completes, and `metadata.review` carries the verdict alongside one
+ * `SCENE_REVIEW_REFUSED` warning per objection. `validation.status` stays `"passed"` there, so
+ * `metadata.review` being present is the only reliable test — use `scene3DReviewVerdictOf` from
+ * `@nodaro/shared` rather than reading it by hand.
  */
 export type Scene3DJobOutput = Readonly<Scene3DWireJobOutput> & Readonly<Record<string, unknown>>
 
 /**
  * The settled 3D Render Pro result, plus any additive job metadata.
  *
- * On a run that AUTHORED, three fields report the run's own account of its answer:
- * `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION`, `metadata.summary`, and
- * `repairPasses` (`0` when accepted first time). A render-only export authored nothing, so it
- * carries no summary and omits `repairPasses` rather than claiming `0`.
+ * On a run that AUTHORED, the result reports the run's own account of its answer:
+ * `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION`, `metadata.summary`,
+ * `repairPasses` (`0` when accepted first time) and `admissionRetries` (pre-build planner
+ * retries, which spend no repair pass). A render-only export authored nothing, so it carries no
+ * summary and omits both counts rather than claiming `0`.
+ *
+ * A completed result may also be an ADVISORY delivery — every mandatory assertion passed, the
+ * visual reviewer still objected, and the scene was published once the repair budget was spent.
+ * Then `metadata.review` holds the verdict (`{ verdict: "refused", objections[], observed? }`)
+ * and `validation.warnings[]` holds one `SCENE_REVIEW_REFUSED` entry per objection.
+ * `validation.status` is `"passed"` on such a result, so test for `metadata.review` — via
+ * `scene3DReviewVerdictOf` from `@nodaro/shared` — rather than for the status or the warnings.
  */
 export type Pro3DRenderJobOutput = Readonly<Pro3DRenderWireOutput> & Readonly<Record<string, unknown>>

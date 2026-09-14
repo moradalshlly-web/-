@@ -5122,8 +5122,10 @@ SDK versions with the generic `nodes.run(type, params)` overload can use the sam
 node: a `source` goes in, and a single job settles with BOTH `scenePlan` (the
 exact composition) and `videoUrl` (the exported MP4), plus the revision, poster,
 `shotStills`, validation and renderer metadata. A run that AUTHORED also reports
-its own account of the answer — `metadata.summary`, `repairPasses` and any
-`SCENE_AUTHORING_ASSUMPTION` warnings (see below). `nodes.run("pro-3d-render", …)` and
+its own account of the answer — `metadata.summary`, `repairPasses`,
+`admissionRetries` and any `SCENE_AUTHORING_ASSUMPTION` warnings (see below), plus
+`metadata.review` when the visual reviewer refused the scene that was delivered.
+`nodes.run("pro-3d-render", …)` and
 `nodes.runAndWait("pro-3d-render", …)` reach the same routes with the same
 typed `Pro3DRenderRunParams` / `Pro3DRenderJobOutput`.
 
@@ -5198,13 +5200,14 @@ timed out. `nodes.run` / `nodes.runAndWait` accept the same option for any node.
 
 #### What the run says about its own answer
 
-Three optional fields report what the authoring run assumed and did. Read all
-three as optional: an install without an advanced engine, and a result produced
-before these existed, simply has none.
+These fields report what the authoring run assumed and did. Read every one as
+optional: an install without an advanced engine, and a result produced before
+these existed, simply has none.
 
 ```typescript
 const summary = shot.metadata?.summary;   // what the planner says it authored
 const repairs = shot.repairPasses;        // 0 when accepted first time
+const retries = shot.admissionRetries;    // pre-build planner retries
 const assumptions = (shot.validation?.warnings ?? [])
   .filter((w) => w.code === "SCENE_AUTHORING_ASSUMPTION")
   .map((w) => w.message);
@@ -5212,17 +5215,59 @@ const assumptions = (shot.validation?.warnings ?? [])
 
 `SCENE_AUTHORING_ASSUMPTION` is an authoring caveat — the brief did not say, so
 the run decided — carrying the planner's assumption with any normalization the
-engine applied to it. The `SCENE_QUALITY_*` codes in the same array are the paid
-visual reviewer's findings about the scene that was built. Codes are open-ended:
-treat an unrecognized one as informational rather than an error.
+engine applied to it. Codes are open-ended: treat an unrecognized one as
+informational rather than an error.
 
 `repairPasses` counts repairs, never authoring passes, so `0` means "accepted
-first time", not "never authored". A render-only export authored nothing and
-omits the field entirely rather than reporting `0`; it also has no summary.
+first time", not "never authored". `admissionRetries` counts something else and
+is never folded into it: a recipe the compiler would not admit, re-asked of the
+planner with no build and no repair pass spent. A render-only export authored
+nothing and omits both counts entirely rather than reporting `0`; it also has no
+summary.
 
-The same three fields appear on a `generateAndWait` result when an advanced
-engine authored the scene. The deterministic Basic lane asks no model and
-carries none of them.
+The same fields appear on a `generateAndWait` result when an advanced engine
+authored the scene. The deterministic Basic lane asks no model and carries none
+of them.
+
+#### A delivery the visual reviewer refused
+
+A **completed** result may be an *advisory delivery*: the repair budget was
+spent, every mandatory check passed, and the visual reviewer still objected, so
+the scene was delivered with the refusal attached. The video is real and the
+credits committed.
+
+```typescript
+import { scene3DReviewVerdictOf } from "@nodaro/shared";
+
+const review = scene3DReviewVerdictOf(shot);
+if (review) {
+  for (const objection of review.objections) {
+    // category, what, correction?, frames[]
+    console.log(objection.category, objection.what, objection.correction);
+  }
+}
+```
+
+Each objection is `{ category, what, correction?, frames }` — `what` is the
+finding, `correction` the recipe-level change it asked for where it named one.
+There is no `severity`: only blocking findings become objections. `observed` is
+the reviewer's account of what it found *correct*, never a substitute for an
+objection. Every objection also arrives as a `SCENE_REVIEW_REFUSED` entry in
+`validation.warnings[]`, tagged with a `shotId` where its cited frames fall
+inside one shot.
+
+Two readings that look right and are not, which is why the helper exists:
+
+- **`validation.status` is still `"passed"`.** The mandatory checks *did* pass —
+  that is why the scene was delivered rather than withheld.
+- **`objections` may be empty.** A refusal that named nothing actionable is
+  still a refusal, so counting `SCENE_REVIEW_REFUSED` warnings misses it.
+
+A visual refusal on its own no longer fails the job. `SCENE_QUALITY_FAILED` now
+means a mandatory check failed or the compiler refused the recipe; the
+`SCENE_QUALITY_*` warning codes belong to that failed result, and its retained
+draft is described in
+[3D Render Pro](nodes/composition/pro-3d-render.md#scene_quality_failed-keeps-the-scene-it-built).
 
 `capabilities().pro` reports which engines, quality profiles, styles and aspect
 ratios this install can serve — offer controls from that, not from the full

@@ -51,7 +51,7 @@ construction inputs; new asset selections belong to new-scene requests.
 `POST /v1/3d-scene/generate` returns `{ jobId }`. Poll the job; its completed `output_data.scenePlan` contains the editable scene.
 
 When an **advanced** engine authored the scene, `output_data` additionally
-reports what that run knows about its own answer. All three fields are optional
+reports what that run knows about its own answer. Every field below is optional
 and none of them appears on the deterministic Basic lane, which asks no model:
 
 | Field | Meaning |
@@ -59,9 +59,20 @@ and none of them appears on the deterministic Basic lane, which asks no model:
 | `validation.warnings[]` | Advisories about the result, each `{ code, message, shotId? }`. Entries coded `SCENE_AUTHORING_ASSUMPTION` are authoring caveats — the brief did not say, so the run decided — carrying the planner's assumption with any normalization the engine applied. |
 | `metadata.summary` | The planner's own one-or-two-sentence description of the scene it authored; on a repaired run, of the repair. A run that returned no summary is not an error. |
 | `repairPasses` | Repairs that actually ran, never the authoring-pass count: `0` when the scene was accepted first time. |
+| `admissionRetries` | Pre-build planner retries actually spent: a recipe the compiler would not admit is re-asked of the planner, with no build and no repair pass spent. Counted apart from `repairPasses`, never folded into it, and absent when the run needed none. Where the deployment quotes it, the allowance is a separate `admission` line on the quote — `Admission retries (up to 3, planner only)`, a ceiling whose unspent part is released at settlement. See [3D Render Pro](pro-3d-render.md#the-admission-retry-allowance). |
+| `metadata.review` | Present **only** on an *advisory delivery* — a scene that passed every mandatory check, whose visual review still objected once the repair budget was spent. `{ verdict: "refused", objections[], observed? }`, with each objection `{ category, what, correction?, frames[] }`. Each objection is also a `SCENE_REVIEW_REFUSED` entry in `validation.warnings[]`. |
 
 Read them as optional — a result from a deployment without an advanced engine,
 or one produced before these existed, simply has none.
+
+**An advisory delivery is a completed job.** When the repair budget is spent and
+only the visual review still objects to a scene whose mandatory checks all
+passed, the scene is delivered rather than withheld: the job completes and
+`metadata.review` carries the refusal. `validation.status` stays `passed` there
+(the mandatory checks *did* pass) and the objection list may be empty, so test
+for `metadata.review` itself rather than for the status or the warning count.
+See [3D Render Pro](pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed)
+for the full shape and what to do with one.
 
 ```typescript
 const scene = await client.nodes.runAndWait("generate-3d-scene", {

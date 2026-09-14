@@ -25,7 +25,7 @@ import { evaluateTableFixture, motionSeries, TABLE_CUTS, TABLE_DIMENSIONS, TABLE
 import { resolvePrompt } from "../lib/harness.mjs"
 import { shortHash } from "../lib/parity.mjs"
 import { followJob, phaseTimings, readJobRecord } from "../lib/poll.mjs"
-import { promptSourceParams, quoteAndRun, repairEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
+import { deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, repairEvidence, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
 import { analysisSize, meanAbsDiff, probeVideo, resolveFfmpeg, resolveFfprobe, streamFrames, swayAndTremor } from "../lib/video.mjs"
 
 export const NAME = "table-fixture"
@@ -96,8 +96,21 @@ export async function main(ctx) {
     ctx.recordJob({ jobId, role: "table-fixture", terminalStatus: follow.terminalStatus, credits: job?.credits ?? null, creditStatus: job?.credit_status ?? null, errorMessage: job?.error_message ?? null })
     ctx.save()
 
-    if (!ctx.assert("the table fixture rendered", { expected: "completed", actual: follow.terminalStatus, detail: job?.error_message ?? undefined })) return
+    // A scene the critic refused is still delivered once the repair budget is spent,
+    // and every measurement below still runs against it — the pixels are what this
+    // probe is here to measure, and they exist either way.
+    const review = reviewEvidence(output)
+    if (review) ctx.advisory(review, "table-fixture")
+    const outcome = deliveryOutcome({ terminalStatus: follow.terminalStatus, output })
+    if (!ctx.assert("the table fixture rendered", {
+      expected: "completed | completed-advisory",
+      actual: outcome,
+      pass: isDelivered(outcome),
+      detail: review ? `the visual reviewer refused this scene: ${review.objectionCount} objection(s)` : job?.error_message ?? undefined,
+    })) return
     ctx.assert("credits committed", { expected: "committed", actual: job?.credit_status ?? null })
+    // `passed` on an advisory delivery too: the mandatory assertions DID pass, which
+    // is exactly why the scene was delivered. The refusal is in `metadata.review`.
     ctx.assert("validation status passed", { expected: "passed", actual: summary?.validation?.status ?? null })
     if (!summary?.videoUrl) {
       ctx.assert("a video url was published", { expected: "a video url", actual: null, pass: false })

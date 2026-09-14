@@ -14,10 +14,21 @@ Each returns a job ID. Use `get_job` or `wait_for_job` to retrieve the completed
 A scene authored by an advanced engine also reports what the run assumed and
 did: `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION` (the
 planner's assumptions), `metadata.summary` (its own description of what it
-authored) and `repairPasses` (repairs actually run — `0` when the scene was
-accepted first time). All three are optional; the Basic lane carries none of
-them, and a render-only export reports no summary and omits `repairPasses`
-rather than claiming `0` about a run that never authored.
+authored), `repairPasses` (repairs actually run — `0` when the scene was
+accepted first time) and `admissionRetries` (pre-build planner retries, which
+spend no repair pass). All are optional; the Basic lane carries none of them,
+and a render-only export reports no summary and omits both counts rather than
+claiming `0` about a run that never authored.
+
+A completed scene job may also be an **advisory delivery**: the repair budget
+was spent, every mandatory check passed, and the visual review still objected,
+so the scene was delivered with the refusal attached. Then `metadata.review` is
+`{ verdict: "refused", objections[], observed? }` and `validation.warnings[]`
+carries one `SCENE_REVIEW_REFUSED` entry per objection. `validation.status` is
+still `passed` on such a result and the objection list may be empty, so the
+presence of `metadata.review` is the test — not the status, and not the warning
+count. See
+[3D Render Pro](../nodes/composition/pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed).
 
 Generate and edit accept `engine` (`basic`, `blender-cloud`, or `blender-local`),
 `accepted_scene_schema_versions`, `local_connection_id`, and

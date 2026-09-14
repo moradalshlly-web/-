@@ -132,6 +132,21 @@ const VIDEO_REFERENCE_CAPTIONS_BYTES = 422
 // measuring; the remainder is the enum widening, which is the contract, not
 // prose.
 const SUNO_V6_FAMILY_BYTES = 499
+//
+// RAISED 2026-09-14 by the Scene3D advisory-delivery contract and nothing else.
+// Two fields the delivery already carried became sayable: `admissionRetries`
+// (pre-build planner retries, which spend no repair pass) and `metadata.review`
+// (the visual reviewer's refusal of a scene the run DELIVERED anyway, once the
+// repair budget was spent and every mandatory assertion had passed). The second
+// is the one an agent cannot infer: the job COMPLETES and `validation.status` is
+// still `passed`, so without the sentence a `SCENE_REVIEW_REFUSED` warning reads
+// as an unexplained code on a clean result. Said once per tool, in one clause
+// each, on `generate_3d_scene` and `pro_3d_render`. Measured by this suite:
+// 349_044 total − 348_874 base = 170 B. No tool was added, so the fixture does
+// NOT move, and neither tool is near the per-tool budget (the largest definition
+// in the list is `generate_video` at 8_130 B). The 85 B of headroom the list had
+// before is therefore exactly the headroom it has after.
+const SCENE3D_ADVISORY_REVIEW_BYTES = 170
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -142,7 +157,8 @@ export const TOOL_WIRE_BUDGET = {
     LANDING_CONTRACT_BYTES +
     GPT_IMAGE_2_5_MODELS_BYTES +
     VIDEO_REFERENCE_CAPTIONS_BYTES +
-    SUNO_V6_FAMILY_BYTES,
+    SUNO_V6_FAMILY_BYTES +
+    SCENE3D_ADVISORY_REVIEW_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

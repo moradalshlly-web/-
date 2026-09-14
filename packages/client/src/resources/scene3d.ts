@@ -123,10 +123,13 @@ export class Scene3DResource {
    * Resolves with the settled result — `videoUrl` (the MP4) and `scenePlan`
    * (the exact composition it was rendered from), plus the revision, poster,
    * validation and renderer metadata. A run that AUTHORED also reports its own
-   * account of the answer — `metadata.summary`, `repairPasses`, and any
-   * `SCENE_AUTHORING_ASSUMPTION` warnings. Re-render that same `scenePlan`
-   * later with {@link render}, or with a `{kind:'scene'}` source; that costs no
-   * authoring.
+   * account of the answer — `metadata.summary`, `repairPasses`,
+   * `admissionRetries`, and any `SCENE_AUTHORING_ASSUMPTION` warnings. A
+   * completed result whose `metadata.review` is present is an ADVISORY
+   * delivery: the scene passed every mandatory assertion, the visual reviewer
+   * still objected, and each objection is also a `SCENE_REVIEW_REFUSED`
+   * warning. Re-render that same `scenePlan` later with {@link render}, or with
+   * a `{kind:'scene'}` source; that costs no authoring.
    */
   async renderProAndWait(
     params: Pro3DRenderParams | Pro3DRenderRunParams,

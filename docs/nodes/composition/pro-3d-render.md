@@ -113,7 +113,10 @@ link that outlives the run is created anywhere.
 
 The completed job's `output_data` carries the fields below. A job that failed
 with `SCENE_QUALITY_FAILED` carries a smaller set of the same fields, pointing
-at the draft it kept — see [Errors](#errors).
+at the draft it kept — see [Errors](#errors). A completed job may also be an
+**advisory delivery** — the scene passed every mandatory check and the visual
+reviewer still objected — which adds `metadata.review`; see
+[When the reviewer refuses a scene that passed](#when-the-reviewer-refuses-a-scene-that-passed).
 
 | Field | Meaning |
 |---|---|
@@ -125,8 +128,10 @@ at the draft it kept — see [Errors](#errors).
 | `sourceArtifactId` | Present when an editable native source was retained. |
 | `validation` | `{ status, reportAssetId, warnings[] }` — each warning has a `code`, a `message` and an optional `shotId`. `status` is `passed` here; a **failed** job can carry this field too, with `status: "failed"` (see [Errors](#errors)). See [Warning codes](#warning-codes) for what a `code` can be. |
 | `renderer` | Renderer identity/version the export was produced with. |
-| `metadata` | `{ width, height, fps, frames, duration }` — check these against a downstream model's video-reference limits before wiring the MP4 in. On a run that authored, it also carries `summary`: the planner's own one-or-two-sentence description of what it made, and on a repaired run, of the repair. Optional — a run that returned no summary is not an error. |
+| `metadata` | `{ width, height, fps, frames, duration }` — check these against a downstream model's video-reference limits before wiring the MP4 in. On a run that authored, it also carries `summary`: the planner's own one-or-two-sentence description of what it made, and on a repaired run, of the repair. Optional — a run that returned no summary is not an error. On an **advisory delivery** it additionally carries `review` (below). |
+| `metadata.review` | Present **only** on an advisory delivery: `{ verdict: "refused", objections[], observed? }`, the visual reviewer's verdict on a scene that was delivered anyway. Each objection is `{ category, what, correction?, frames[] }` — `what` is the finding itself, `correction` the recipe-level change it asked for where it named one, and `frames` the frames it cited. There is no `severity`: only blocking findings become objections. `objections` may be **empty**, which reports a refusal that named nothing actionable. Absent on every other result, including a clean one. |
 | `repairPasses` | How many repair passes actually RAN, never the number of authoring passes — so a composition accepted first time reports `0`, not `1`. Optional, and **absent** rather than `0` on a render-only export, which authored nothing and had no repair budget to spend. |
+| `admissionRetries` | Pre-build planner retries: a recipe the compiler would not admit is re-asked of the planner, with no build and no repair pass spent. Counted apart from `repairPasses` and never folded into it — they buy different things. Optional, and absent on a run that needed none. |
 
 #### Warning codes
 
@@ -137,12 +142,22 @@ than an error — the list is open-ended by design.
 | Code | Means |
 |---|---|
 | `SCENE_AUTHORING_ASSUMPTION` | The brief did not say, so the run decided. One entry per assumption the planner made, with any normalization the engine applied to it. These appear on a run that **authored**; a render-only export has none. |
+| `SCENE_REVIEW_REFUSED` | One objection the visual reviewer raised against a scene this job **delivered anyway**. One entry per objection, carrying a `shotId` when every frame it cites falls inside one shot. The whole verdict, including any objection the row could not fit, is in `metadata.review`. |
 | `SCENE_QUALITY_BLOCKING` | The paid visual reviewer found a blocking problem with the built scene. Carries a `shotId` when the cited frames all fall inside one shot. |
 | `SCENE_QUALITY_EVIDENCE_INSUFFICIENT` | The reviewer could not establish the requested behaviour from the frames it was given. |
 
-The `SCENE_QUALITY_*` codes are findings about a scene that was built; they are
-the ones that appear on a job that failed with `SCENE_QUALITY_FAILED`. The
-complete finding set is always in the pinned validation report, not the row.
+The reviewer's findings reach you under **two** different codes, and which one
+you get says what happened to the scene:
+
+- `SCENE_QUALITY_BLOCKING` / `SCENE_QUALITY_EVIDENCE_INSUFFICIENT` appear on a
+  job that **failed** with `SCENE_QUALITY_FAILED`. The finding is the reason
+  there is no video.
+- `SCENE_REVIEW_REFUSED` appears on a job that **completed**. The video is real
+  and the finding is advice about it. A review that could not establish the
+  requested behaviour arrives here as an objection with `category: "evidence"`
+  rather than under its own code.
+
+The complete finding set is always in the pinned validation report, not the row.
 
 ## Using the result as a video reference
 
@@ -291,12 +306,71 @@ Work already completed before the failure (an earlier repair pass, for
 example) is charged as usual; the message never promises a refund it cannot
 verify.
 
+#### When the reviewer refuses a scene that passed
+
+The visual reviewer's objection drives a correction pass for as long as the
+repair budget lasts. What happens when that budget runs out depends on what the
+run has in hand.
+
+**If the scene is there and every mandatory check passed, you get the scene.**
+The composition compiled, it exported, and each assertion the run could
+*measure* held. The only thing still objecting is the reviewer's reading of the
+rendered frames. The job **completes**: `videoUrl` is a real MP4, the credits
+commit, and the refusal is delivered alongside the scene rather than instead of
+it —
+
+| Where | What |
+|---|---|
+| `metadata.review` | the whole verdict: `{ verdict: "refused", objections[], observed? }` |
+| `validation.warnings[]` | one `SCENE_REVIEW_REFUSED` entry per objection, tagged with a `shotId` where the cited frames fall inside one shot |
+
+Two things about reading this are worth stating plainly, because the obvious
+tests both fail:
+
+- **`validation.status` is still `passed`.** The mandatory checks *did* pass —
+  that is precisely why the scene was delivered. Testing the status will not
+  find an advisory delivery.
+- **the objection list can be empty.** A refusal that named nothing actionable
+  is still a refusal, and `objections: []` reports it honestly instead of
+  hiding it. Counting `SCENE_REVIEW_REFUSED` warnings will not find that one
+  either.
+
+The presence of `metadata.review` is the reliable test:
+
+```typescript
+const review = shot.metadata?.review;
+if (review) {
+  // Delivered, and the reviewer objected. The video is usable; decide whether
+  // this particular objection matters to you.
+  for (const objection of review.objections) {
+    console.log(objection.category, objection.what, objection.correction, objection.frames);
+  }
+}
+```
+
+Each objection carries `category`, `what` (the finding itself), `correction`
+(the recipe-level change it asked for, where it named one) and `frames` (the
+frames it was looking at). There is no `severity` field — only blocking findings
+become objections, so every entry in the list is one. `observed` is the
+reviewer's account of what it found *correct*, and is never a substitute for an
+objection.
+
+**What to do with one.** The scene is a finished result: use it, or treat the
+objection as an edit brief. Submitting the same revision as a `scene` source
+**with** an `editPrompt` pays for another authoring pass from the delivered
+recipe — the `correction` on an objection is written to be usable as that
+instruction. Deterministic edits (transform, colour, visibility, shot offsets)
+apply to it like any other retained scene and cost no authoring.
+
 #### `SCENE_QUALITY_FAILED` keeps the scene it built
 
-`SCENE_QUALITY_FAILED` means the visual reviewer still found a blocking problem
-after the last correction pass the budget allowed. The job **fails** — there is
-no MP4, and `videoUrl`/`resultUrl` are absent rather than empty — but the scene
-it built is kept, and the failed job's `output_data` says where:
+`SCENE_QUALITY_FAILED` is the other ending: the run reached the end of its
+budget without a scene it could stand behind. That happens when a **mandatory**
+check failed on the last build, or when the compiler refused the recipe outright
+— not when the visual reviewer alone objected to a scene that otherwise passed,
+which is the advisory delivery above. The job **fails** — there is no MP4, and
+`videoUrl`/`resultUrl` are absent rather than empty — but the scene it built is
+kept, and the failed job's `output_data` says where:
 
 | Field | Meaning |
 |---|---|
@@ -305,6 +379,7 @@ it built is kept, and the failed job's `output_data` says where:
 | `posterAssetId` | A rendered frame of the draft, read from the delivery's assets route. |
 | `validation` | `{ status: "failed", scope: "authored", reportAssetId, passes, warnings[] }` — `passes` is how many authoring passes were spent, and each warning carries a `code`, a `message` and, where the finding cites frames inside one shot, that `shotId`. The reviewer's findings and the run's `SCENE_AUTHORING_ASSUMPTION` entries share this one array; read the `code` to tell them apart (see [Warning codes](#warning-codes)). |
 | `repairPasses` | Repairs actually run — `passes` minus the first attempt. |
+| `admissionRetries` | Pre-build planner retries, counted apart from the repairs. Reported here too, and absent when the run needed none. |
 | `scenePlan`, `renderer`, `metadata` | The draft composition and its frame size, fps and duration, plus `metadata.summary` when the planner described what it authored. |
 
 The `reportAssetId` artifact is the reviewer's full account: every finding, its
@@ -345,8 +420,8 @@ refusing — `build` when the compiler would not build the recipe, `planning`
 when its grammar would not admit one. Each warning is one refusal, naming the
 path in the recipe it pointed at where it gave one, alongside any
 `SCENE_AUTHORING_ASSUMPTION` entries the run made — the assumptions are about
-the authoring, which is the only thing that happened. `repairPasses` is
-reported here too. There is **no** `metadata` block and no `summary`: nothing
+the authoring, which is the only thing that happened. `repairPasses` and
+`admissionRetries` are reported here too. There is **no** `metadata` block and no `summary`: nothing
 compiled, so there is no composition to describe and nowhere honest to put a
 description of one. The
 report artifact holds the full set, refusal by refusal. The recipe is retained
@@ -368,6 +443,37 @@ Its price is **deployment configuration**: there is no built-in default, so the
 quote endpoint is the authority for any given request, and an install with no
 configured price refuses before reserving anything. Quote first and show
 `maxCredits` — a ceiling, not a charge.
+
+### The admission-retry allowance
+
+A run's recipe can be refused by the compiler *before* anything is built — a
+grammar slip, an edit operation that does not apply. Answering that costs one
+more planner call and nothing else: no build, no render, no visual review. It is
+a different purchase from a repair pass, which buys another planner call **and**
+another build, so it has a budget of its own and a line of its own on the quote:
+
+| `code` | `label` |
+|---|---|
+| `admission` | `Admission retries (up to 3, planner only)` |
+
+Three things to know about it when you show a quote:
+
+- **It is an allowance, not a charge.** The `quantity` on the line is the
+  ceiling the run is permitted to spend, so it raises `maxCredits`. Anything
+  unspent is released at settlement, exactly like the repair budget — a run that
+  never needs a retry pays for none.
+- **It is priced at the repair-pass unit** unless your deployment configures a
+  separate one. The line exists so the spend is nameable, not so it is priced
+  differently by default.
+- **It only appears where the deployment quotes it.** An install whose quote
+  carries no `admission` line runs as it was quoted, charging the repair budget
+  for a pre-build refusal. As everywhere else here: read the quote you were
+  given rather than computing one.
+
+The completed result reports what was actually spent as top-level
+`admissionRetries`, counted apart from `repairPasses` and never folded into it.
+The same allowance and the same line appear on
+[Generate 3D Scene](generate-3d-scene.md) when an advanced engine authors it.
 
 ### Frame size
 

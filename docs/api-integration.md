@@ -2834,17 +2834,35 @@ by `shotIndex`, at no extra credit cost), an optional `sourceArtifactId`,
 (`{width, height, fps, frames, duration}`).
 
 A run that **authored** additionally reports its own account of the answer, in
-three optional fields: `validation.warnings[]` entries coded
+optional fields: `validation.warnings[]` entries coded
 `SCENE_AUTHORING_ASSUMPTION` (the planner's assumptions, with any normalization
 the engine applied), `metadata.summary` (its one-or-two-sentence description of
-what it authored — on a repaired run, of the repair), and top-level
-`repairPasses` (repairs actually run, `0` when the scene was accepted first
-time). A render-only export authored nothing: it reports no summary and omits
-`repairPasses` rather than claiming `0`. The same three fields appear on a
-`generate-3d-scene` job served by an advanced engine; the deterministic Basic
-lane carries none of them. Warning codes are open-ended — read `code` and treat
-an unrecognized one as informational. See
+what it authored — on a repaired run, of the repair), top-level `repairPasses`
+(repairs actually run, `0` when the scene was accepted first time) and top-level
+`admissionRetries` (pre-build planner retries — a recipe the compiler would not
+admit, re-asked with no build and no repair pass spent, counted apart from
+`repairPasses` and never folded into it). A render-only export authored nothing:
+it reports no summary and omits both counts rather than claiming `0`. The same
+fields appear on a `generate-3d-scene` job served by an advanced engine; the
+deterministic Basic lane carries none of them. Warning codes are open-ended —
+read `code` and treat an unrecognized one as informational. See
 [3D Render Pro](nodes/composition/pro-3d-render.md#warning-codes).
+
+A **completed** authoring job may be an *advisory delivery*: the repair budget
+was spent, every mandatory check passed, and the visual review still objected,
+so the scene was delivered with the refusal attached rather than withheld. Then
+`metadata.review` is `{ verdict: "refused", objections[], observed? }` — each
+objection `{ category, what, correction?, frames[] }`, with no `severity` field
+because only blocking findings become objections — and `validation.warnings[]`
+carries one `SCENE_REVIEW_REFUSED` entry per objection, tagged with a `shotId`
+where the cited frames fall inside one shot. Two readings that look right and
+are not: `validation.status` is still `passed` on such a result (the mandatory
+checks *did* pass), and `objections` may be **empty**, which reports a refusal
+that named nothing actionable. Test for `metadata.review` itself. A visual
+refusal alone no longer fails the job; `SCENE_QUALITY_FAILED` now means a
+mandatory check failed or the compiler refused the recipe, and the retained
+draft is on the failed job. See
+[When the reviewer refuses a scene that passed](nodes/composition/pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed).
 
 Availability is per deployment. `GET /v1/3d-scene/capabilities` reports a `pro`
 block with `available` plus the engines, quality profiles, styles, aspect ratios
