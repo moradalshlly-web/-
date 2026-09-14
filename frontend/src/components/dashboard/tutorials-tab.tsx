@@ -1,7 +1,7 @@
 // Unified Tutorials tab — consumes the grouped GET /v1/tutorials response.
 //
 // Layout mirrors the Templates carousel on the same page: a row of filter
-// pills (All / Video Courses / Written Guides) above one or two horizontal
+// pills (All / Video Courses / Written Tutorials) above one or two horizontal
 // strips of compact cards. Category (Getting Started / Workflows /
 // Advanced) is demoted from a section heading to a chip on each card —
 // keeps the page tight when a category has only one or two tutorials.
@@ -71,7 +71,7 @@ function extractYouTubeId(url: string): string | null {
   return null
 }
 
-function videoThumbnailUrl(video: VideoTutorialItem): string {
+export function videoThumbnailUrl(video: VideoTutorialItem): string {
   if (video.thumbnailUrl) return video.thumbnailUrl
   const ytId = extractYouTubeId(video.videoUrl)
   if (ytId) return `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
@@ -222,7 +222,7 @@ function CompactFlowCard({
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
           <span className="flex items-center gap-1">
             <Zap className="h-2.5 w-2.5" fill="currentColor" />
-            Guide
+            Tutorial
           </span>
           {flow.estimatedCredits > 0 && (
             <span className="flex items-center gap-1">
@@ -244,7 +244,7 @@ function CompactFlowCard({
 // FlowTutorialItem → TemplateBrowseCard (for reuse of TemplatePreviewModal)
 // ---------------------------------------------------------------------------
 
-function flowToTemplateBrowseCard(flow: FlowTutorialItem): TemplateBrowseCard {
+export function flowToTemplateBrowseCard(flow: FlowTutorialItem): TemplateBrowseCard {
   return {
     id: flow.templateId,
     slug: flow.slug ?? "",
@@ -272,7 +272,7 @@ function flowToTemplateBrowseCard(flow: FlowTutorialItem): TemplateBrowseCard {
 // Video player dialog
 // ---------------------------------------------------------------------------
 
-function VideoPlayerDialog({
+export function VideoPlayerDialog({
   video,
   onClose,
 }: {
@@ -326,7 +326,18 @@ function VideoPlayerDialog({
 
 type FilterValue = "all" | "videos" | "flows"
 
-export function TutorialsTab() {
+interface TutorialsTabProps {
+  /**
+   * Take over what a flow tutorial's card does. By default a card opens the
+   * guided view or the snapshot preview from here — but that preview is a
+   * hand-rolled portal, which a modal Radix dialog leaves inert (the body
+   * loses pointer events while one is open), so a host that renders this
+   * catalogue inside a dialog must close it and open the preview outside.
+   */
+  readonly onSelectFlow?: (flow: FlowTutorialItem) => void
+}
+
+export function TutorialsTab({ onSelectFlow }: TutorialsTabProps = {}) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<FilterValue>("all")
   const [openVideo, setOpenVideo] = useState<VideoTutorialItem | null>(null)
@@ -339,7 +350,7 @@ export function TutorialsTab() {
   const favSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
 
   // Group the API response by type first, then by category — so each type
-  // strip (Video Courses / Written Guides) can render one compact mini-row
+  // strip (Video Courses / Written Tutorials) can render one compact mini-row
   // per category. Empty categories are dropped per type so we don't render
   // a lonely sub-header with nothing underneath.
   const { videoCategories, flowCategories, totalVideos, totalFlows } = useMemo(() => {
@@ -368,13 +379,17 @@ export function TutorialsTab() {
   // with no per-card flag to remember to set.
   const handleSelectFlow = useCallback(
     (f: FlowTutorialItem) => {
+      if (onSelectFlow) {
+        onSelectFlow(f)
+        return
+      }
       if (hasTutorial(f.slug)) {
         navigate(`/tutorials/${f.slug}`)
         return
       }
       setSelectedFlow(f)
     },
-    [navigate],
+    [navigate, onSelectFlow],
   )
 
   if (isLoading) {
@@ -405,7 +420,7 @@ export function TutorialsTab() {
       <div className="text-center py-16 text-muted-foreground">
         <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-30" />
         <p className="text-sm font-medium">No tutorials yet</p>
-        <p className="text-xs mt-1 opacity-70">Check back soon for step-by-step guides.</p>
+        <p className="text-xs mt-1 opacity-70">Check back soon for step-by-step tutorials.</p>
       </div>
     )
   }
@@ -435,7 +450,7 @@ export function TutorialsTab() {
           active={filter === "flows"}
           onClick={() => setFilter("flows")}
           icon={<Zap className="h-3 w-3" fill="currentColor" />}
-          label="Written Guides"
+          label="Written Tutorials"
           count={totalFlows}
         />
       </div>
@@ -468,7 +483,7 @@ export function TutorialsTab() {
           {showStripHeaders && (
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               <Zap className="h-3.5 w-3.5" fill="currentColor" />
-              Written Guides
+              Written Tutorials
             </h3>
           )}
           {flowCategories.map((cat) => (
@@ -495,7 +510,7 @@ export function TutorialsTab() {
       )}
       {filter === "flows" && totalFlows === 0 && (
         <p className="text-xs text-muted-foreground text-center py-8">
-          No written guides available yet.
+          No written tutorials available yet.
         </p>
       )}
 

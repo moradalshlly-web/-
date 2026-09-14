@@ -182,7 +182,7 @@ export function TutorialShell({
         </Link>
         <span className="nd-bar-divider" />
         <nav className="nd-crumb" aria-label="Breadcrumb">
-          <Link to="/projects?tab=tutorials">{breadcrumb}</Link>
+          <Link to="/projects?tab=explore">{breadcrumb}</Link>
           <span className="nd-crumb-sep">/</span>
           <span className="nd-crumb-leaf">{title}</span>
         </nav>
@@ -216,7 +216,7 @@ export function TutorialShell({
         </button>
         {/* A full-screen takeover needs an obvious way out. The logo and the
             breadcrumb both lead home too, but neither reads as "close this". */}
-        <Link to="/projects?tab=tutorials" className="nd-close" aria-label="Close tutorial" title="Close tutorial">
+        <Link to="/projects?tab=explore" className="nd-close" aria-label="Close tutorial" title="Close tutorial">
           <X className="h-4 w-4" />
         </Link>
       </header>

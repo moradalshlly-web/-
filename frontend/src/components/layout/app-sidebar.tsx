@@ -60,11 +60,11 @@ const OrgSwitcherSection = hasOrganizations()
   ? lazy(() => import("@/ee/components/org/org-switcher-section").then((m) => ({ default: m.OrgSwitcherSection })))
   : null
 import { otherNodaroApps } from "@/lib/nodaro-apps"
-import { surfaceNavHidden, surfaceBillingSelfServe, surfaceSidebarCreditCardHidden } from "@/lib/surface-selectors"
+import { surfaceNavHidden, surfaceTabs, surfaceBillingSelfServe, surfaceSidebarCreditCardHidden } from "@/lib/surface-selectors"
 import { creditUnits, creditUnitLabel } from "@/lib/credit-units"
 import { spendableCredits, type BalanceWithAllowance, type CreditAllowance } from "@/lib/spendable-credits"
 import { useBillingSurface } from "@/hooks/use-billing-surface"
-import type { NavKey } from "@/lib/surface-profile"
+import type { DashboardTabKey, NavKey } from "@/lib/surface-profile"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,13 +102,19 @@ interface NavItem {
    *  answers `deploymentPayer: false` and the probe never fires. */
   readonly payerOnly?: boolean
   /** Query string for destinations that are a tab rather than a route, e.g.
-   *  Tutorials lives at /projects?tab=tutorials. Also disambiguates the active
+   *  Tutorials lives at /projects?tab=explore. Also disambiguates the active
    *  state from the plain item on the same path. */
   readonly search?: string
   /** Kept in the list but not rendered. Hidden rather than deleted so turning
    *  one back on is a one-word change and the route itself still works for
    *  anyone holding a direct link. */
   readonly hidden?: boolean
+  /** The home-screen section this entry is the doorway to. A deployment that
+   *  leaves the key out of `dashboard.tabs` hides the section AND this entry —
+   *  Templates, Tutorials and MiniApps used to be reachable only through the
+   *  home screen's discovery strip, which that whitelist governs, so a narrowed
+   *  deployment keeps exactly the surface it had. */
+  readonly dashboardKey?: DashboardTabKey
 }
 
 interface NavSection {
@@ -121,11 +127,12 @@ const NAV_SECTIONS: readonly NavSection[] = [
     label: "nav.section.workspace",
     items: [
       { href: "/projects", label: "nav.projects", icon: FolderOpen },
-      { href: "/projects", search: "?tab=tutorials", label: "nav.tutorials", icon: GraduationCap },
-      { href: "/apps", label: "nav.miniapps", icon: Rocket, hidden: true },
-      { href: "/templates", label: "nav.templates", icon: LayoutTemplate, hidden: true },
-      { href: "/video-director", label: "nav.videoDirector", icon: Clapperboard, hidden: true },
+      { href: "/templates", label: "nav.templates", icon: LayoutTemplate, dashboardKey: "templates" },
+      // The tutorials live on the home screen's Explore tab (Level up).
+      { href: "/projects", search: "?tab=explore", label: "nav.tutorials", icon: GraduationCap, dashboardKey: "tutorials" },
       { href: "/explore", label: "nav.explore", icon: Compass, multiUserOnly: true },
+      { href: "/apps", label: "nav.miniapps", icon: Rocket, dashboardKey: "miniapps" },
+      { href: "/video-director", label: "nav.videoDirector", icon: Clapperboard, hidden: true },
     ]
   },
   {
@@ -151,7 +158,7 @@ const NAV_SECTIONS: readonly NavSection[] = [
   },
 ]
 
-const NAV_ITEMS: readonly NavItem[] = NAV_SECTIONS.flatMap(s => s.items)
+export const NAV_ITEMS: readonly NavItem[] = NAV_SECTIONS.flatMap(s => s.items)
 
 /** Sidebar items whose visibility a deployment surface profile can hide (B1). */
 const NAV_HREF_TO_SURFACE_KEY: Partial<Record<string, NavKey>> = {
@@ -163,10 +170,15 @@ const NAV_HREF_TO_SURFACE_KEY: Partial<Record<string, NavKey>> = {
   "/integrations": "integrations",
 }
 
-/** True when the deployment surface profile hides this item's nav entry. */
-function isNavItemSurfaceHidden(item: NavItem): boolean {
+/**
+ * True when the deployment surface profile hides this item's nav entry —
+ * through `nav.hide`, or through a `dashboard.tabs` whitelist that leaves out
+ * the section the entry leads to (see `dashboardKey`). Exported for the test.
+ */
+export function isNavItemSurfaceHidden(item: NavItem): boolean {
   const key = NAV_HREF_TO_SURFACE_KEY[item.href]
-  return key ? surfaceNavHidden(key) : false
+  if (key && surfaceNavHidden(key)) return true
+  return item.dashboardKey !== undefined && surfaceTabs([item.dashboardKey]).length === 0
 }
 
 function formatRenewalTime(periodEnd: string): string | null {

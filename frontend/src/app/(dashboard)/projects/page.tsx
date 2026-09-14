@@ -1,150 +1,49 @@
-import { useState, useMemo, useEffect, useRef, useCallback, lazy, Suspense } from "react"
-import { CreditCost } from "@/components/ui/credit-cost"
-import { useNavigate, Link, useSearchParams } from "react-router-dom"
-import { Plus, Search, Loader2, BarChart3, BookOpen, LayoutTemplate, ArrowRight, Sparkles, ChevronLeft, ChevronRight, LayoutGrid, List, ChevronDown, ChevronUp, FolderPlus } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
-import { cn } from "@/lib/utils"
-import { CachedImage } from "@/components/ui/cached-image"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { useProjectsStore } from "@/hooks/use-projects-store"
-import { useWorkflowSearch } from "@/hooks/use-workflow-search"
-import { useProjects, useAllProjects } from "@/hooks/queries/use-projects-queries"
-import { isStudioProject } from "@/lib/studio"
-import { ProjectCard } from "@/components/dashboard/project-card"
+import { useCallback, useEffect, useState } from "react"
+import { Navigate, useSearchParams } from "react-router-dom"
 import { CopilotHomeSlot } from "@/components/dashboard/copilot-home-slot"
-import { StatsOverview } from "@/components/dashboard/stats-overview"
-import { WorkflowThumbnail } from "@/components/dashboard/workflow-thumbnail"
-import { MyWorkflowsView } from "@/components/dashboard/my-workflows-view"
-import { StudioWorkflowsView } from "@/components/dashboard/studio-workflows-view"
-import { FlagshipApps } from "@/components/dashboard/flagship-apps"
-import { ProviderSetupCallout } from "@/components/dashboard/provider-setup-callout"
 import { MoveWorkflowDialog } from "@/components/dashboard/move-workflow-dialog"
-import { UserFilter, type UserFilterValue } from "@/components/user-filter"
-import { useAuth } from "@/hooks/use-auth"
-import { createClient } from "@/lib/supabase"
-import { browseApps, browseTemplates, type TemplateBrowseCard, type AppBrowseCard } from "@/lib/api"
-import { useTemplateFavorites, useToggleTemplateFavoriteMutation } from "@/hooks/queries/use-template-marketplace-queries"
+import { ProviderSetupCallout } from "@/components/dashboard/provider-setup-callout"
+import { ContinueTab } from "@/components/dashboard/home/continue-tab"
+import { ExploreTab } from "@/components/dashboard/home/explore-tab"
+import { HomeHeader } from "@/components/dashboard/home/home-header"
+import {
+  EXPLORE_SECTION_KEYS,
+  HOME_PANEL_ID,
+  MINIAPPS_KEY,
+  STATISTICS_KEY,
+  homeTabId,
+  resolveHomeTab,
+  type HomeTab,
+} from "@/components/dashboard/home/home-tabs"
+import type { UserFilterUser } from "@/components/user-filter"
 import { useAllAdminUsersLite } from "@/ee/hooks/queries/use-admin-queries"
-import { PreviewVideo } from "@/components/ui/preview-video"
-import { TutorialsTab } from "@/components/dashboard/tutorials-tab"
-
-// Lazy: pulls in the React Flow node registry + markdown — keep it out of the
-// initial landing chunk so it loads only when a template/app preview opens.
-const TemplatePreviewModal = lazy(() =>
-  import("@/components/templates/template-preview-modal").then((m) => ({
-    default: m.TemplatePreviewModal,
-  })),
-)
-import { useAppSettings } from "@/hooks/queries/use-app-settings-queries"
-import { queryClient } from "@/lib/query-client"
-import { queryKeys } from "@/lib/query-keys"
-import { getActiveWorkspaceId } from "@/lib/workspace-context"
-import { toast } from "sonner"
-import { useT } from "@/lib/i18n"
-import { useLocaleStore } from "@/lib/locale-store"
-import { projectNameMap } from "@/lib/project-display-name"
-import { useAppDir } from "@/lib/locale-store"
-import { surfaceTabs } from "@/lib/surface-selectors"
-import { UPPER_DASHBOARD_TABS, resolveActiveUpperTab, type UpperDashboardTab } from "../dashboard-upper-tabs"
+import { useAuth } from "@/hooks/use-auth"
+import { useCreateWorkflow } from "@/hooks/use-create-workflow"
 import type { MyWorkflow } from "@/hooks/queries/use-my-workflows-queries"
+import { useT } from "@/lib/i18n"
+import { surfaceNavHidden, surfaceTabs } from "@/lib/surface-selectors"
 
-function TemplatesCarousel() {
-  const tr = useT()
-  const navigate = useNavigate()
-  const [previewTemplate, setPreviewTemplate] = useState<TemplateBrowseCard | null>(null)
-  const { data: myProjects = [] } = useProjects()
-  const { data: browseData, isLoading } = useQuery({
-    queryKey: ["template-carousel"],
-    queryFn: () => browseTemplates({ sort: "popular", limit: 6 }),
-    staleTime: 60_000,
-  })
-  const { data: favoriteIds = [] } = useTemplateFavorites()
-  const favSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
-  const favMutation = useToggleTemplateFavoriteMutation()
+const VIEW_ALL_STORAGE_KEY = "nodaro-admin-view-all-projects"
+const NO_USERS: ReadonlyArray<UserFilterUser> = []
 
-  const templates = browseData?.data ?? []
-
-  if (isLoading) {
-    return (
-      <div className="px-3 pb-3">
-        <div className="grid grid-cols-3 gap-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="aspect-video rounded-lg bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
-          ))}
-        </div>
-      </div>
-    )
+function readStoredViewAll(): boolean {
+  try {
+    return localStorage.getItem(VIEW_ALL_STORAGE_KEY) === "true"
+  } catch {
+    return false
   }
-
-  if (templates.length === 0) {
-    return (
-      <div className="text-center py-10 text-muted-foreground">
-        <LayoutTemplate className="h-8 w-8 mx-auto mb-2 opacity-30" />
-        <p className="text-xs font-medium">{tr("dash.noTemplates")}</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="px-3 pb-3">
-      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-        {templates.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className="relative flex-shrink-0 w-48 rounded-lg overflow-hidden border border-border hover:border-zinc-400 transition-colors group cursor-pointer text-left"
-            onClick={() => setPreviewTemplate(t)}
-          >
-            <div className="aspect-video bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 overflow-hidden">
-              {t.previewMediaUrl ? (
-                t.previewMediaType === "video" ? (
-                  <PreviewVideo src={t.previewMediaUrl} className="w-full h-full object-cover" />
-                ) : (
-                  <CachedImage src={t.previewMediaUrl} alt={t.name} className="w-full h-full object-cover" loading="lazy" thumbnail />
-                )
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <LayoutTemplate className="h-6 w-6 text-zinc-300 dark:text-zinc-600" />
-                </div>
-              )}
-            </div>
-            <div className="p-2">
-              <p className="text-xs font-medium text-foreground truncate">{t.name}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{t.nodeCount} nodes<CreditCost credits={t.estimatedCredits} prefix=" · " /></p>
-            </div>
-          </button>
-        ))}
-        {/* "See all" link card */}
-        <button
-          type="button"
-          className="flex-shrink-0 w-48 rounded-lg border border-dashed border-border hover:border-zinc-400 transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
-          onClick={() => navigate("/templates")}
-        >
-          <span className="text-xs font-medium">{tr("dash.seeAllTemplatesArrow")}</span>
-        </button>
-      </div>
-
-      {previewTemplate && (
-        <Suspense fallback={null}>
-          <TemplatePreviewModal
-            template={previewTemplate}
-            onClose={() => setPreviewTemplate(null)}
-            isFavorited={favSet.has(previewTemplate.id)}
-            onToggleFavorite={(id) => favMutation.mutate({ templateId: id })}
-            projects={myProjects.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }))}
-          />
-        </Suspense>
-      )}
-    </div>
-  )
 }
 
+/**
+ * The home screen: a greeting, the Continue / Explore tabs and the New Workflow
+ * pill above one content panel. The tabs themselves, their sections and the
+ * data they show live in components/dashboard/home/.
+ */
 export default function ProjectsPage() {
   const t = useT()
   const { isAdmin, user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { createWorkflow, isCreating } = useCreateWorkflow()
 
   const greeting = (() => {
     const hour = new Date().getHours()
@@ -152,763 +51,111 @@ export default function ProjectsPage() {
     if (hour < 18) return t("dash.goodAfternoon")
     return t("dash.goodEvening")
   })()
-
   const displayName = user?.user_metadata?.full_name?.split(" ")[0]
     ?? user?.email?.split("@")[0]
     ?? ""
-  const [viewAll, setViewAll] = useState(() => {
-    if (!isAdmin) return false
-    return localStorage.getItem("nodaro-admin-view-all-projects") === "true"
-  })
-  const [userFilter, setUserFilter] = useState<UserFilterValue>({ kind: "all" })
 
-  const handleViewAllChange = (checked: boolean) => {
-    setViewAll(checked)
-    localStorage.setItem("nodaro-admin-view-all-projects", String(checked))
-    if (!checked) setUserFilter({ kind: "all" })
-  }
-
-  const { data: myProjects = [], isLoading: myLoading } = useProjects()
-  const { data: allData, isLoading: allLoading } = useAllProjects(isAdmin && viewAll)
-  const { data: liteUsers = [] } = useAllAdminUsersLite({ enabled: isAdmin && viewAll })
-  const userById = useMemo(
-    () => new Map(liteUsers.map((u) => [u.id, u])),
-    [liteUsers],
-  )
-
+  // The admin "All users" switch lives here, not in the Continue tab: the user
+  // list it needs comes from an ee/ hook, and this page is the allowlisted place
+  // core reaches it (tools/check-ee-imports.mjs).
+  const [viewAll, setViewAll] = useState(() => isAdmin && readStoredViewAll())
   const showAll = isAdmin && viewAll
-  const projects = showAll ? (allData?.projects ?? []) : myProjects
-  const currentUserId = allData?.currentUserId
-  const loading = showAll ? allLoading : myLoading
-
-  const createProject = useProjectsStore((s) => s.createProject)
-  const deleteProject = useProjectsStore((s) => s.deleteProject)
-  const updateProject = useProjectsStore((s) => s.updateProject)
-
-  const navigate = useNavigate()
-
-  const handleRenameProject = async (id: string, newName: string) => {
-    await updateProject(id, { name: newName })
-  }
-
-  const handleCreateProject = async () => {
-    const project = await createProject("Untitled Project")
-    if (project) {
-      navigate(`/projects/${project.id}`)
+  const { data: adminUsers = NO_USERS } = useAllAdminUsersLite({ enabled: showAll })
+  const handleViewAllChange = useCallback((checked: boolean) => {
+    setViewAll(checked)
+    try {
+      localStorage.setItem(VIEW_ALL_STORAGE_KEY, String(checked))
+    } catch {
+      // storage blocked — the switch still applies for this visit
     }
-  }
+  }, [])
 
-  // `isCreating` drives the spinner on the dashboard button + the empty-state
-  // CTA inside MyWorkflowsView. The editor chunk is lazy-loaded so the first
-  // navigation can take a few seconds — without immediate feedback the click
-  // looks like a no-op.
-  const [isCreating, setIsCreating] = useState(false)
-
-  // Quick-create: resolve the caller's default project (lazy-create when
-  // missing) and insert an empty workflow. The URL still embeds the projectId
-  // so the editor's existing save() path keeps working unchanged.
-  //
-  // The default project itself is created by `ensure_default_project()` (RPC
-  // from migration 116) on the first call. If the RPC isn't there yet — e.g.,
-  // the migration hasn't applied to this environment — we degrade gracefully:
-  // find or create a regular project named "My Recent Flows" so the user is
-  // never stuck. Once the migration applies, `ensure_default_project()` takes
-  // over and the partial unique index keeps things singleton.
-  const handleCreateWorkflow = async () => {
-    if (isCreating) return
-    setIsCreating(true)
-    const supabase = createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      toast.error("Please sign in to create a workflow.")
-      setIsCreating(false)
-      return
-    }
-
-    let projectId: string | null = null
-
-    const { data: rpcId, error: rpcErr } = await supabase
-      .rpc("ensure_default_project")
-
-    if (!rpcErr && typeof rpcId === "string") {
-      projectId = rpcId
-    } else {
-      // Fallback path — RPC missing (migration not applied yet) or RLS denied.
-      // Find or create a regular "My Recent Flows" project under the caller.
-      const fallbackName = "My Recent Flows"
-      const { data: existing } = await supabase
-        .from("projects")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("name", fallbackName)
-        .limit(1)
-        .maybeSingle()
-
-      if (existing?.id) {
-        projectId = existing.id as string
-      } else {
-        const { data: created, error: createErr } = await supabase
-          .from("projects")
-          .insert({
-            user_id: user.id,
-            name: fallbackName,
-            description: "Auto-created workspace for new workflows",
-            // Lands in the scope the person is working in. The row policy
-            // decides whether they may: admins always, members only when
-            // the workspace allows it — the same rule the REST route runs.
-            workspace_id: getActiveWorkspaceId(),
-          })
-          .select("id")
-          .single()
-        if (createErr || !created) {
-          toast.error(`Could not create workflow: ${createErr?.message ?? rpcErr?.message ?? "unknown error"}`)
-          setIsCreating(false)
-          return
-        }
-        projectId = created.id as string
-      }
-    }
-
-    const { data: wf, error: wfErr } = await supabase
-      .from("workflows")
-      .insert({
-        project_id: projectId,
-        user_id: user.id,
-        name: "Untitled Workflow",
-      })
-      .select("id, project_id")
-      .single()
-
-    if (wfErr || !wf) {
-      toast.error(`Could not create workflow: ${wfErr?.message ?? "unknown error"}`)
-      setIsCreating(false)
-      return
-    }
-
-    queryClient.invalidateQueries({ queryKey: queryKeys.projects.all })
-    queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all })
-    // `isCreating` stays true through navigation so the spinner persists
-    // while the editor chunk is downloading. The page unmounts on navigate.
-    navigate(`/projects/${wf.project_id}/workflows/${wf.id}`)
-  }
-
-  // Move-to-project dialog state. Driven by the action menu inside the
-  // workflow card in MyWorkflowsView.
+  // Driven by the action menu on a workflow card.
   const [moveTarget, setMoveTarget] = useState<MyWorkflow | null>(null)
-  const handleMoveWorkflow = (workflow: MyWorkflow) => {
-    setMoveTarget(workflow)
-  }
 
-  // Lower-half tab — defaults to the flat workflow list. URL takes precedence
-  // over localStorage; both feed the same setter so deep links stay stable.
-  type WorkspaceTab = "workflows" | "projects" | "studio"
-  const initialWorkspaceTab: WorkspaceTab = (() => {
-    if (typeof window === "undefined") return "workflows"
-    const url = new URLSearchParams(window.location.search).get("tab")
-    if (url === "projects" || url === "workflows" || url === "studio") return url
-    const stored = localStorage.getItem("nodaro-dashboard-workspace-tab")
-    if (stored === "projects" || stored === "studio") return stored
-    return "workflows"
-  })()
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>(initialWorkspaceTab)
+  // The URL is the single source of truth for which tab is open, NOT local
+  // state seeded from it: going from ?tab=explore back to a plain /projects
+  // (the sidebar's Projects item) does not remount this page, so seeded state
+  // would keep the old tab open. The last tab is deliberately not restored from
+  // storage for the same reason — Projects must always land on Continue.
+  const exploreVisible = surfaceTabs(EXPLORE_SECTION_KEYS).length > 0
+  const resolution = resolveHomeTab(searchParams.get("tab"), {
+    exploreVisible,
+    // Same two gates as the sidebar's MiniApps entry.
+    appsPageVisible: !surfaceNavHidden("apps") && surfaceTabs([MINIAPPS_KEY]).length > 0,
+    statisticsVisible: surfaceTabs([STATISTICS_KEY]).length > 0,
+  })
+  const activeTab = resolution.tab
+  const canonicalParam = resolution.canonicalParam
+
+  // An old ?tab= link is rewritten in place (replace, not push), so the sidebar
+  // highlights the right entry and the back button never walks through aliases.
   useEffect(() => {
-    localStorage.setItem("nodaro-dashboard-workspace-tab", workspaceTab)
-  }, [workspaceTab])
-
-  // B1: a deployment surface profile can narrow which dashboard tabs show —
-  // all three workspace tabs are DashboardTabKeys, so a whitelist can hide the
-  // Studio list too. surfaceTabs returns the code default unless a profile
-  // whitelists a subset; a whitelist naming NO workspace tab falls back to the
-  // full code default (S4, mirrors surfaceAuthMethods) so the strip can never
-  // go blank. effectiveWorkspaceTab guards against a stored/URL tab that the
-  // profile has since hidden (which would blank the view).
-  const allowedDashTabs = surfaceTabs(["workflows", "projects", "studio"] as const)
-  const allWorkspaceTabDefs = [
-    { id: "workflows", label: t("dash.myWorkflows") },
-    { id: "projects", label: t("dash.myProjects") },
-    { id: "studio", label: t("dash.studioWorkflows") },
-  ] as const
-  const narrowedWorkspaceTabDefs = allWorkspaceTabDefs.filter((tab) => allowedDashTabs.includes(tab.id))
-  const workspaceTabDefs = narrowedWorkspaceTabDefs.length ? narrowedWorkspaceTabDefs : allWorkspaceTabDefs
-  const effectiveWorkspaceTab: WorkspaceTab = workspaceTabDefs.some((tb) => tb.id === workspaceTab)
-    ? workspaceTab
-    : (workspaceTabDefs[0]?.id ?? "workflows")
-
-  // The create button lives with the list it creates into: it follows the ACTIVE
-  // workspace tab (New Workflow on the flat list, New Project on the project
-  // grid). Keyed off effectiveWorkspaceTab — never the raw stored/URL tab — so a
-  // tab a surface profile has hidden can't render a button for a list that isn't
-  // shown. Studio is a read-only view with no create action, so it offers none.
-  const workspaceCreateAction =
-    effectiveWorkspaceTab === "workflows"
-      ? {
-          label: isCreating ? t("dash.creating") : t("dash.newWorkflow"),
-          icon: <Plus className="h-4 w-4 sm:me-1" />,
-          onClick: handleCreateWorkflow,
-          disabled: isCreating,
-          busy: isCreating,
-        }
-      : effectiveWorkspaceTab === "projects"
-        ? {
-            label: t("dash.newProject"),
-            icon: <FolderPlus className="h-4 w-4 sm:me-1" />,
-            onClick: handleCreateProject,
-            disabled: false,
-            busy: false,
-          }
-        : null
-
-  const [search, setSearch] = useState("")
-
-  const filteredProjects = useMemo(() => {
-    return projects.filter((p) => {
-      const matchesUser = (() => {
-        if (userFilter.kind === "all") return true
-        if (userFilter.kind === "exclude_admins") {
-          const role = userById.get(p.userId ?? "")?.role
-          return role !== "admin" && role !== "super_admin"
-        }
-        return p.userId === userFilter.id
-      })()
-      if (!matchesUser) return false
-      if (!search) return true
-      return (
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (showAll && p.ownerEmail?.toLowerCase().includes(search.toLowerCase()))
-      )
-    })
-  }, [projects, search, showAll, userFilter, userById])
-
-  const userOptions = useMemo(() => {
-    if (!showAll) return []
-    const ownerIds = new Set(projects.map((p) => p.userId).filter(Boolean) as string[])
-    return liteUsers.filter((u) => ownerIds.has(u.id))
-  }, [projects, showAll, liteUsers])
-
-  const locale = useLocaleStore((s) => s.locale)
-  const projectMap = useMemo(() => projectNameMap(projects, locale), [projects, locale])
-  const { results: workflowResults, loading: workflowSearchLoading } = useWorkflowSearch(search, projectMap)
-
-  const isSearching = search.length >= 2
-
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [sortBy, setSortBy] = useState<"updated" | "created" | "name">("updated")
-  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc")
-
-  const handleSort = (col: "updated" | "created" | "name") => {
-    if (sortBy === col) {
-      setSortDir((d) => (d === "desc" ? "asc" : "desc"))
-    } else {
-      setSortBy(col)
-      setSortDir("desc")
-    }
-  }
-
-  const sortedProjects = useMemo(() => {
-    return [...filteredProjects].sort((a, b) => {
-      let result = 0
-      if (sortBy === "name") result = a.name.localeCompare(b.name)
-      else if (sortBy === "created") result = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      else result = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      return sortDir === "asc" ? -result : result
-    })
-  }, [filteredProjects, sortBy, sortDir])
-
-  type Tab = UpperDashboardTab
-
-  // The URL is the single source of truth for which tab is open, NOT a piece of
-  // local state seeded from it. Seeding once looked simpler but broke the moment
-  // the sidebar started linking to a tab: going from ?tab=tutorials back to a
-  // plain /projects does not remount this page, so the old tab just stayed open
-  // and Projects appeared not to do anything. Deriving it means every route into
-  // this page — sidebar, breadcrumb, back button, a pasted link — agrees.
-  // An unknown value falls back to Apps.
-  const [searchParams, setSearchParams] = useSearchParams()
-  const requestedTab = searchParams.get("tab")
-  // B1: the deployment surface profile can narrow the app-discovery strip.
-  // Empty profile → all tabs (code default); a whitelist → its intersection,
-  // in whitelist order. When the profile hides every upper tab the strip and
-  // its panels do not render (visibleUpperTabs is empty, activeTab undefined).
-  const visibleUpperTabs = surfaceTabs(UPPER_DASHBOARD_TABS)
-  const activeTab = resolveActiveUpperTab(visibleUpperTabs, requestedTab)
+    if (canonicalParam === undefined) return
+    const next = new URLSearchParams(searchParams)
+    if (canonicalParam === null) next.delete("tab")
+    else next.set("tab", canonicalParam)
+    setSearchParams(next, { replace: true })
+  }, [canonicalParam, searchParams, setSearchParams])
 
   // Tab clicks replace rather than push: a tab is a view of one page, so the
   // back button should leave the page rather than walk the tabs.
-  const setActiveTab = useCallback(
-    (tab: Tab) => {
+  const selectTab = useCallback(
+    (tab: HomeTab) => {
       const next = new URLSearchParams(searchParams)
-      if (tab === "apps") next.delete("tab")
+      if (tab === "continue") next.delete("tab")
       else next.set("tab", tab)
       setSearchParams(next, { replace: true })
     },
     [searchParams, setSearchParams],
   )
 
-  const TAB_DEFS: Record<Tab, { label: string; icon: React.ReactNode }> = {
-    apps: { label: t("dash.apps"), icon: <LayoutGrid className="h-3.5 w-3.5" /> },
-    miniapps: { label: t("dash.miniapps"), icon: <LayoutTemplate className="h-3.5 w-3.5" /> },
-    templates: { label: t("dash.templates"), icon: <BookOpen className="h-3.5 w-3.5" /> },
-    tutorials: { label: t("dash.tutorials"), icon: <BookOpen className="h-3.5 w-3.5" /> },
-    statistics: { label: t("dash.statistics"), icon: <BarChart3 className="h-3.5 w-3.5" /> },
-  }
-  const tabs = visibleUpperTabs.map((id) => ({ id, ...TAB_DEFS[id] }))
-
-  const CARD_SCROLL_PX = 210
-
-  const { data: appSettings } = useAppSettings()
-  const videoAutoplay = appSettings?.carousel_video_autoplay ?? true
-  const featuredAppIds = appSettings?.featured_app_ids ?? []
-  const appsLimit = appSettings?.featured_apps_limit ?? 20
-  const autoScrollMs = (appSettings?.apps_auto_scroll_seconds ?? 4) * 1000
-
-  // Featured apps for the Apps tab — fetch max to allow admin limit to work without refetch
-  const { data: featuredAppsData, isLoading: featuredAppsLoading } = useQuery({
-    queryKey: ["featured-apps"],
-    queryFn: () => browseApps({ sort: "popular", limit: 50, publishType: "app" }),
-    staleTime: 60_000,
-    enabled: activeTab === "miniapps",
-  })
-  const shuffledAppsRef = useRef<{ key: unknown; cacheKey: string; apps: AppBrowseCard[] }>({ key: null, cacheKey: "", apps: [] })
-  const cacheKey = `${featuredAppIds.join(",")}_${appsLimit}`
-  if (featuredAppsData && (featuredAppsData !== shuffledAppsRef.current.key || cacheKey !== shuffledAppsRef.current.cacheKey)) {
-    let apps = [...featuredAppsData.data]
-    if (featuredAppIds.length > 0) {
-      const curated = featuredAppIds.map((id) => apps.find((a) => a.id === id)).filter(Boolean) as AppBrowseCard[]
-      const curatedIds = new Set(featuredAppIds)
-      const rest = apps.filter((a) => !curatedIds.has(a.id))
-      for (let i = rest.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[rest[i], rest[j]] = [rest[j], rest[i]]
-      }
-      apps = [...curated, ...rest]
-    } else {
-      for (let i = apps.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[apps[i], apps[j]] = [apps[j], apps[i]]
-      }
-    }
-    shuffledAppsRef.current = { key: featuredAppsData, cacheKey, apps: apps.slice(0, appsLimit) }
-  }
-  const featuredApps = shuffledAppsRef.current.apps
-
-  const appsScrollRef = useRef<HTMLDivElement>(null)
-  const [canScrollBack, setCanScrollBack] = useState(false)
-  const [canScrollForward, setCanScrollForward] = useState(false)
-  const isHoveringApps = useRef(false)
-  const isRtl = useAppDir() === "rtl"
-
-  const updateScrollState = useCallback(() => {
-    const el = appsScrollRef.current
-    if (!el) return
-    // RTL: scrollLeft runs 0 → negative; abs() = distance from the start edge
-    // in both directions.
-    const scrolled = Math.abs(el.scrollLeft)
-    setCanScrollBack(scrolled > 0)
-    setCanScrollForward(scrolled + el.clientWidth < el.scrollWidth - 1)
-  }, [])
-
-  useEffect(() => {
-    if (featuredApps.length === 0) return
-    const frame = requestAnimationFrame(updateScrollState)
-    const el = appsScrollRef.current
-    if (!el) return () => cancelAnimationFrame(frame)
-    const observer = new ResizeObserver(updateScrollState)
-    observer.observe(el)
-    return () => {
-      cancelAnimationFrame(frame)
-      observer.disconnect()
-    }
-  }, [featuredApps.length, updateScrollState])
-
-  useEffect(() => {
-    if (featuredApps.length <= 1 || activeTab !== "miniapps" || autoScrollMs === 0) return
-    const timer = setInterval(() => {
-      const el = appsScrollRef.current
-      if (!el || isHoveringApps.current) return
-      const atEnd = Math.abs(el.scrollLeft) + el.clientWidth >= el.scrollWidth - 1
-      if (atEnd) {
-        el.scrollTo({ left: 0, behavior: "smooth" })   // 0 = start edge in both directions
-      } else {
-        el.scrollBy({ left: (isRtl ? -1 : 1) * CARD_SCROLL_PX, behavior: "smooth" })
-      }
-    }, autoScrollMs)
-    return () => clearInterval(timer)
-  }, [featuredApps.length, activeTab, autoScrollMs, isRtl])
-
-  const scrollAppsBack = useCallback(() => {
-    appsScrollRef.current?.scrollBy({ left: (isRtl ? 1 : -1) * CARD_SCROLL_PX, behavior: "smooth" })
-  }, [isRtl])
-  const scrollAppsForward = useCallback(() => {
-    appsScrollRef.current?.scrollBy({ left: (isRtl ? -1 : 1) * CARD_SCROLL_PX, behavior: "smooth" })
-  }, [isRtl])
+  if (resolution.redirectTo) return <Navigate to={resolution.redirectTo} replace />
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="@container flex h-full min-h-0 flex-col bg-[var(--home-bg)] ps-9 text-[var(--home-fg)] @max-[760px]:ps-5">
       {/* Community: "this install can't generate yet" until a key or the
           connection exists — dismissible, per user (#706). Renders null on cloud. */}
-      <ProviderSetupCallout userId={user?.id} />
-      <div className="flex items-center justify-between mb-4 sm:mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {greeting}{displayName ? `, ${displayName}` : ""}
-        </h1>
-        {/* The create action moved down to the workspace tab strip, where it sits
-            directly above the list it creates into and switches label by tab
-            (New Workflow / New Project). Only the admin "All users" toggle stays
-            in the header. */}
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <Switch
-              id="view-all-projects"
-              checked={viewAll}
-              onCheckedChange={handleViewAllChange}
-            />
-            <Label htmlFor="view-all-projects" className="text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
-              {t("exec.allUsers")}
-            </Label>
-          </div>
-        )}
+      <div className="pe-5 pt-4 empty:hidden">
+        <ProviderSetupCallout userId={user?.id} />
       </div>
 
-      {/* Unified container with pill tabs inside. Hidden entirely (not just
-          empty) when the surface profile whitelists none of the upper
-          app-discovery tabs; unset profile → all tabs, so this is byte-identical. */}
-      {visibleUpperTabs.length > 0 && (
-      <div className="mb-6 rounded-xl bg-muted/50 overflow-hidden group/apps">
-        {/* Header: tabs + see all link */}
-        <div className="flex items-center justify-between p-2">
-          <div className="flex items-center gap-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-md transition-colors",
-                  activeTab === tab.id
-                    ? "bg-background text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {activeTab === "miniapps" && (
-            <button
-              type="button"
-              onClick={() => navigate("/apps")}
-              className="flex items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {t("dash.seeAllMiniApps")} <ArrowRight className={cn("h-3 w-3", isRtl && "rotate-180")} />
-            </button>
-          )}
-          {activeTab === "templates" && (
-            <button
-              type="button"
-              onClick={() => navigate("/templates")}
-              className="flex items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {t("dash.seeAllTemplates")} <ArrowRight className={cn("h-3 w-3", isRtl && "rotate-180")} />
-            </button>
-          )}
-        </div>
+      <HomeHeader
+        greeting={`${greeting}${displayName ? `, ${displayName}` : ""}`}
+        activeTab={activeTab}
+        exploreVisible={exploreVisible}
+        onSelectTab={selectTab}
+        onNewWorkflow={createWorkflow}
+        isCreating={isCreating}
+      />
 
-        {/* Tab content */}
-        {activeTab === "apps" && <FlagshipApps />}
-        {activeTab === "miniapps" && (
-          <div className="relative">
-            {featuredAppsLoading ? (
-              <div className="flex gap-2 px-2 pb-2">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="shrink-0 w-[200px] animate-pulse">
-                    <div className="aspect-square bg-muted rounded-lg" />
-                  </div>
-                ))}
-              </div>
-            ) : featuredApps.length > 0 ? (
-              <>
-                <div
-                  ref={appsScrollRef}
-                  onScroll={updateScrollState}
-                  onMouseEnter={() => { isHoveringApps.current = true }}
-                  onMouseLeave={() => { isHoveringApps.current = false }}
-                  className="flex gap-2 px-2 pb-2 overflow-x-auto"
-                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                >
-                  {featuredApps.map((app) => (
-                    <button
-                      key={app.id}
-                      type="button"
-                      onClick={() => navigate(`/app/${app.slug}`)}
-                      className="shrink-0 w-[200px] text-left group/thumb"
-                    >
-                      <div className="relative aspect-square rounded-lg overflow-hidden bg-muted">
-                        {app.previewMediaUrl ? (
-                          app.previewMediaType === "video" ? (
-                            <PreviewVideo
-                              src={app.previewMediaUrl}
-                              autoplay={videoAutoplay}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <CachedImage src={app.previewMediaUrl} alt={app.name} className="w-full h-full object-cover" loading="lazy" thumbnail />
-                          )
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Sparkles className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                        )}
-                        {/* Name overlay */}
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2.5 pb-2 pt-6">
-                          <p className="text-xs font-medium text-white truncate">{app.name}</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-
-                  {/* See all card */}
-                  <button
-                    type="button"
-                    onClick={() => navigate("/apps")}
-                    className="shrink-0 w-[200px] text-left"
-                  >
-                    <div className="aspect-square rounded-lg overflow-hidden bg-muted/50 flex flex-col items-center justify-center gap-2 hover:bg-muted transition-colors">
-                      <ArrowRight className={cn("h-5 w-5 text-muted-foreground", isRtl && "rotate-180")} />
-                      <p className="text-xs font-medium text-muted-foreground">{t("dash.seeAllMiniApps")}</p>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Scroll arrows */}
-                {canScrollBack && (
-                  <button
-                    type="button"
-                    onClick={scrollAppsBack}
-                    className="absolute start-1 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/90 text-foreground shadow-md hover:bg-background transition-colors"
-                  >
-                    {isRtl ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                  </button>
-                )}
-                {canScrollForward && (
-                  <button
-                    type="button"
-                    onClick={scrollAppsForward}
-                    className="absolute end-1 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/90 text-foreground shadow-md hover:bg-background transition-colors"
-                  >
-                    {isRtl ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  </button>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-10 text-muted-foreground">
-                <LayoutTemplate className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p className="text-xs font-medium">{t("dash.noMiniApps")}</p>
-              </div>
-            )}
-          </div>
+      <section
+        id={HOME_PANEL_ID}
+        role="tabpanel"
+        aria-labelledby={homeTabId(activeTab)}
+        className="home-panel min-h-0 flex-1 overflow-y-auto rounded-ss-[18px] border-s border-t border-[var(--home-line)] bg-[var(--home-panel)] px-9 pt-[26px] @max-[760px]:px-5 @max-[760px]:pt-[22px]"
+      >
+        {activeTab === "explore" ? (
+          <ExploreTab />
+        ) : (
+          <ContinueTab
+            isAdmin={isAdmin}
+            viewAll={viewAll}
+            onViewAllChange={handleViewAllChange}
+            adminUsers={adminUsers}
+            onCreateWorkflow={createWorkflow}
+            isCreating={isCreating}
+            onMoveWorkflow={setMoveTarget}
+          />
         )}
 
-        {activeTab === "statistics" && (
-          <div className="px-3 pb-3">
-            <StatsOverview />
-          </div>
-        )}
-
-        {activeTab === "templates" && (
-          <TemplatesCarousel />
-        )}
-
-        {activeTab === "tutorials" && (
-          <TutorialsTab />
-        )}
-      </div>
-      )}
-
-      {/* Workspace tab strip — flat workflow list (default) vs. project
-          organization. The create button is right-aligned in this same row so it
-          sits directly above the list it creates into, and its label follows the
-          active tab (workspaceCreateAction). */}
-      <div className="flex items-center justify-between gap-2 mb-3 border-b border-border">
-        <div className="flex items-center gap-1">
-          {workspaceTabDefs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setWorkspaceTab(tab.id)}
-              className={cn(
-                "px-3 py-2 text-sm font-medium -mb-px border-b-2 transition-colors",
-                effectiveWorkspaceTab === tab.id
-                  ? "border-foreground text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        {workspaceCreateAction && (
-          <Button
-            size="sm"
-            className="mb-2"
-            onClick={workspaceCreateAction.onClick}
-            disabled={workspaceCreateAction.disabled}
-            aria-label={workspaceCreateAction.label}
-          >
-            {workspaceCreateAction.busy ? (
-              <Loader2 className="h-4 w-4 sm:me-1 animate-spin" />
-            ) : (
-              workspaceCreateAction.icon
-            )}
-            <span className="hidden sm:inline">{workspaceCreateAction.label}</span>
-          </Button>
-        )}
-      </div>
-
-      {effectiveWorkspaceTab === "workflows" && (
-        <MyWorkflowsView
-          onCreateWorkflow={handleCreateWorkflow}
-          onMoveWorkflow={handleMoveWorkflow}
-          isCreating={isCreating}
-        />
-      )}
-
-      {effectiveWorkspaceTab === "studio" && <StudioWorkflowsView showAll={showAll} />}
-
-      {effectiveWorkspaceTab === "projects" && (
-      <>
-      {/* My Projects heading + view toggle + search */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-muted-foreground">{t("dash.myProjects")}</h2>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              className={cn("p-1 rounded transition-colors", viewMode === "grid" ? "text-foreground" : "text-muted-foreground/50 hover:text-muted-foreground")}
-              aria-label={t("dash.gridView")}
-            >
-              <LayoutGrid className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={cn("p-1 rounded transition-colors", viewMode === "list" ? "text-foreground" : "text-muted-foreground/50 hover:text-muted-foreground")}
-              aria-label={t("dash.listView")}
-            >
-              <List className="h-5 w-5" />
-            </button>
-          </div>
-          {showAll && userOptions.length > 0 && (
-            <UserFilter
-              users={userOptions}
-              value={userFilter}
-              onChange={setUserFilter}
-            />
-          )}
-          <div className="relative w-48">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={showAll ? t("dash.searchProjectsUsers") : t("dash.searchProjectsPlaceholder")}
-              aria-label={t("dash.searchProjects")}
-              className="ps-8 h-8 text-sm w-full"
-            />
-          </div>
-        </div>
-      </div>
-
-      {isSearching && workflowResults.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">{t("dash.workflows")}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {workflowResults.map((wf) => (
-              <Link
-                key={wf.id}
-                to={`/projects/${wf.projectId}/workflows/${wf.id}`}
-                className="group rounded-lg border bg-card hover:bg-accent/30 transition-colors overflow-hidden"
-              >
-                <WorkflowThumbnail thumbnailUrl={wf.thumbnailUrl} nodeTypes={wf.nodeTypes} />
-                <div className="px-3 py-2">
-                  <p className="text-sm font-medium truncate">{wf.name}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">
-                    {wf.projectName} &middot; {new Date(wf.updatedAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-          {workflowSearchLoading && (
-            <div className="flex justify-center py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : sortedProjects.length === 0 && (!isSearching || workflowResults.length === 0) ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <p className="text-sm">
-            {projects.length === 0
-              ? t("dash.noProjectsYet")
-              : t("dash.noResults")}
-          </p>
-        </div>
-      ) : (
-        <>
-          {viewMode === "list" && (
-            <div className="flex items-center gap-3 px-3 mb-1 pb-1 border-b border-border">
-              <div className="w-5 flex-shrink-0" />
-              <span className="text-[11px] text-muted-foreground flex-1">{t("dash.name")}</span>
-              <button
-                type="button"
-                onClick={() => handleSort("updated")}
-                className={cn(
-                  "w-32 text-right text-[11px] hidden sm:flex items-center justify-end gap-0.5 transition-colors",
-                  sortBy === "updated" ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t("dash.lastModified")}
-                {sortBy === "updated" && (sortDir === "desc" ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />)}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSort("created")}
-                className={cn(
-                  "w-32 text-right text-[11px] hidden md:flex items-center justify-end gap-0.5 transition-colors",
-                  sortBy === "created" ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t("dash.created")}
-                {sortBy === "created" && (sortDir === "desc" ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />)}
-              </button>
-              <div className="w-7 flex-shrink-0" />
-            </div>
-          )}
-          <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" : "flex flex-col gap-1"}>
-            {sortedProjects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                onDelete={deleteProject}
-                onRename={handleRenameProject}
-                showOwner={showAll}
-                isOwn={showAll && project.userId === currentUserId}
-                viewMode={viewMode}
-                readOnly={isStudioProject(project)}
-              />
-            ))}
-          </div>
-        </>
-      )}
-      </>
-      )}
+        {/* The one control on this page that MAKES something, rather than
+            listing what already exists. A fixed dock at the bottom of the
+            viewport, so it goes LAST — and inside the scrolling panel, where
+            its spacer keeps the dock off the final row of cards. Renders
+            nothing without credits. */}
+        <CopilotHomeSlot />
+      </section>
 
       <MoveWorkflowDialog
         open={moveTarget !== null}
@@ -917,12 +164,6 @@ export default function ProjectsPage() {
         workflowName={moveTarget?.name ?? null}
         currentProjectId={moveTarget?.projectId ?? null}
       />
-
-      {/* The one control on this page that MAKES something, rather than listing
-          what already exists. A fixed dock at the bottom of the viewport, so it
-          goes LAST: what it puts in the flow here is the spacer that keeps it
-          off the final row of cards. Renders nothing without credits. */}
-      <CopilotHomeSlot />
     </div>
   )
 }

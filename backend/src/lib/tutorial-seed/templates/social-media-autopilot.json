@@ -3,7 +3,7 @@
   "name": "Social Media Autopilot",
   "description": "Paste an idea. Get a published Instagram carousel — ten slides, an image each, a caption, posted.",
   "markdownDescription": null,
-  "category": "social-media",
+  "category": "automations",
   "outputTypes": [
     "image"
   ],

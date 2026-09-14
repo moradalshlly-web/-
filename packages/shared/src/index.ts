@@ -1013,6 +1013,9 @@ export * from "./reference-sheet/index.js"
 // --- Reference Board (templates + provider constant) ---
 export * from "./reference-board-templates.js"
 
+// --- Marketplace template categories (the eight use cases) ---
+export * from "./template-categories.js"
+
 // --- Model tree (derive node targets + product-line grouping for the Models tab) ---
 export * from "./model-tree.js"
 

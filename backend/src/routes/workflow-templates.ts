@@ -3,7 +3,14 @@ import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 import { supabase } from "../lib/supabase.js"
 import { estimateWorkflowCredits } from "../ee/billing/credits.js"
-import { getNodeResult, getOutputType } from "@nodaro/shared"
+import {
+  DEFAULT_TEMPLATE_CATEGORY,
+  TEMPLATE_CATEGORIES,
+  getNodeResult,
+  getOutputType,
+  normalizeTemplateCategory,
+  templateCategoryStoredValues,
+} from "@nodaro/shared"
 import { sanitizeSlugBase, generateSlug, getCreatorDisplayName } from "../lib/marketplace-helpers.js"
 import { copyToTemplatePreview } from "../lib/storage.js"
 import { requireAdmin } from "../ee/middleware/require-admin.js"
@@ -17,10 +24,11 @@ import { toAccessRow } from "../lib/workflow-route-access.js"
 // Constants
 // ---------------------------------------------------------------------------
 
-const VALID_CATEGORIES = [
-  "image-generation", "video-production", "audio-music", "content-writing",
-  "social-media", "data-processing", "multi-step", "other",
-] as const
+// The category enum is TEMPLATE_CATEGORIES (@nodaro/shared) — the eight use
+// cases, shared with the Templates page. Rows still carrying a value from the
+// previous taxonomy read as their new home (normalizeTemplateCategory) and a
+// filter matches them too (templateCategoryStoredValues) until migration 423
+// has rewritten them.
 
 const VALID_OUTPUT_TYPES = ["image", "video", "audio", "text"] as const
 const VALID_COMPLEXITIES = ["simple", "intermediate", "advanced"] as const
@@ -109,6 +117,26 @@ function detectMediaTypeFromUrl(url: string): "image" | "video" {
   return /\.(mp4|webm|mov|m4v)(?:[?#]|$)/i.test(url) ? "video" : "image"
 }
 
+/**
+ * A browse cursor for the count-keyed sorts is `<count>:<created_at>`. Only
+ * the FIRST colon separates the two — the ISO timestamp carries its own, and
+ * `split(":")` used to hand back `2026-01-15T00` for `…T00:12:34Z`, so the
+ * next page compared against midnight and skipped every same-count card
+ * created earlier that day.
+ */
+function parseCompositeCursor(cursor: string): { count: number; date: string } | null {
+  const separator = cursor.indexOf(":")
+  if (separator === -1) return null
+  const count = Number(cursor.slice(0, separator))
+  const date = cursor.slice(separator + 1)
+  // The date is spliced into a PostgREST `or(...)` expression, so it must be
+  // exactly a timestamp — anything else is dropped (first page) rather than
+  // handed to the database, which would answer with a 500.
+  return Number.isFinite(count) && ISO_TIMESTAMP.test(date) && !Number.isNaN(Date.parse(date)) ? { count, date } : null
+}
+
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/
+
 /** Read listed_in[] from a row defensively (handles legacy rows missing the column). */
 function readListedIn(row: Record<string, unknown>): string[] {
   const v = row.listed_in
@@ -146,7 +174,7 @@ function toCamelCase(row: Record<string, unknown>) {
     tutorialCategoryId: row.tutorial_category_id ?? null,
     tutorialSortOrder: row.tutorial_sort_order ?? 0,
     estimatedCredits: row.estimated_credits,
-    category: row.category ?? "other",
+    category: normalizeTemplateCategory(row.category as string | null | undefined),
     outputTypes: row.output_types ?? [],
     tags: row.tags ?? [],
     nodeTypesUsed: row.node_types_used ?? [],
@@ -170,7 +198,7 @@ function toBrowseCard(row: Record<string, unknown>) {
     name: row.name,
     description: row.description,
     estimatedCredits: row.estimated_credits,
-    category: row.category ?? "other",
+    category: normalizeTemplateCategory(row.category as string | null | undefined),
     outputTypes: row.output_types ?? [],
     tags: row.tags ?? [],
     nodeTypesUsed: row.node_types_used ?? [],
@@ -197,7 +225,7 @@ const publishBodySchema = z.object({
   description: z.string().max(500).optional(),
   markdownDescription: z.string().max(5000).optional(),
   slug: z.string().min(1).max(50).optional(),
-  category: z.enum(VALID_CATEGORIES).optional(),
+  category: z.enum(TEMPLATE_CATEGORIES).optional(),
   outputTypes: z.array(z.enum(VALID_OUTPUT_TYPES)).max(4).optional(),
   tags: z.array(z.string().max(30)).max(10).optional(),
   previewMediaUrl: z.string().url().optional(),
@@ -213,7 +241,7 @@ const updateBodySchema = z.object({
   markdownDescription: z.string().max(5000).optional(),
   isActive: z.boolean().optional(),
   isListed: z.boolean().optional(),
-  category: z.enum(VALID_CATEGORIES).optional(),
+  category: z.enum(TEMPLATE_CATEGORIES).optional(),
   outputTypes: z.array(z.enum(VALID_OUTPUT_TYPES)).max(4).optional(),
   tags: z.array(z.string().max(30)).max(10).optional(),
   previewMediaUrl: z.string().url().nullable().optional(),
@@ -221,16 +249,18 @@ const updateBodySchema = z.object({
 })
 
 const browseQuerySchema = z.object({
-  cursor: z.string().optional(),
+  cursor: z.string().max(80).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
-  category: z.enum(VALID_CATEGORIES).optional(),
+  category: z.enum(TEMPLATE_CATEGORIES).optional(),
   outputType: z.enum(VALID_OUTPUT_TYPES).optional(),
   tag: z.string().max(30).optional(),
   search: z.string().max(100).optional(),
-  sort: z.enum(["popular", "newest", "most-favorited"]).optional().default("popular"),
+  sort: z.enum(["popular", "newest", "most-favorited", "cheapest"]).optional().default("popular"),
   nodeType: z.string().optional(),
   provider: z.string().optional(),
   complexity: z.enum(VALID_COMPLEXITIES).optional(),
+  /** Only the caller's favorited templates — needs a signed-in caller. */
+  favoritesOnly: z.enum(["true", "false"]).optional(),
 })
 
 const cloneBodySchema = z.object({
@@ -265,7 +295,22 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.flatten() })
     }
 
-    const { cursor, limit, category, outputType, tag, search, sort, nodeType, provider, complexity } = parsed.data
+    const { cursor, limit, category, outputType, tag, search, sort, nodeType, provider, complexity, favoritesOnly } = parsed.data
+
+    // The Favorites view: the caller's own favorites, narrowed by the same
+    // filters as any other browse. Private to the caller, so never cached.
+    let favoriteIds: string[] | null = null
+    if (favoritesOnly === "true") {
+      if (!req.userId) return reply.status(401).send({ error: { code: "unauthorized", message: "Authentication required" } })
+      const { data: favorites, error: favoritesError } = await supabase
+        .from("template_favorites")
+        .select("template_id")
+        .eq("user_id", req.userId)
+      if (favoritesError) return sendInternalError(reply, req, favoritesError, "Failed to browse templates")
+      favoriteIds = (favorites ?? []).map((f: { template_id: string }) => f.template_id)
+      reply.header("Cache-Control", "private, no-store")
+      if (favoriteIds.length === 0) return reply.send({ data: [], nextCursor: null })
+    }
 
     // Card-only columns (no snapshot_nodes/edges/settings)
     const selectCols = "id, slug, name, description, estimated_credits, category, output_types, tags, node_types_used, providers_used, node_count, complexity, preview_media_url, preview_media_type, creator_id, creator_display_name, clone_count, favorite_count, created_at"
@@ -278,12 +323,13 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
       .limit(limit + 1) // fetch one extra to detect next page
 
     // Filters
-    if (category) query = query.eq("category", category)
+    if (category) query = query.in("category", templateCategoryStoredValues(category))
     if (outputType) query = query.contains("output_types", [outputType])
     if (tag) query = query.contains("tags", [tag])
     if (nodeType) query = query.contains("node_types_used", [nodeType])
     if (provider) query = query.contains("providers_used", [provider])
     if (complexity) query = query.eq("complexity", complexity)
+    if (favoriteIds) query = query.in("id", favoriteIds)
 
     // Full-text search
     if (search) {
@@ -292,23 +338,23 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
     }
 
     // Sort + cursor
+    const after = cursor ? parseCompositeCursor(cursor) : null
     if (sort === "popular") {
       query = query.order("clone_count", { ascending: false }).order("created_at", { ascending: false })
-      if (cursor) {
-        const [countStr, dateStr] = cursor.split(":")
-        const countVal = Number(countStr)
-        if (!isNaN(countVal) && dateStr) {
-          query = query.or(`clone_count.lt.${countVal},and(clone_count.eq.${countVal},created_at.lt.${dateStr})`)
-        }
+      if (after) {
+        query = query.or(`clone_count.lt.${after.count},and(clone_count.eq.${after.count},created_at.lt.${after.date})`)
       }
     } else if (sort === "most-favorited") {
       query = query.order("favorite_count", { ascending: false }).order("created_at", { ascending: false })
-      if (cursor) {
-        const [countStr, dateStr] = cursor.split(":")
-        const countVal = Number(countStr)
-        if (!isNaN(countVal) && dateStr) {
-          query = query.or(`favorite_count.lt.${countVal},and(favorite_count.eq.${countVal},created_at.lt.${dateStr})`)
-        }
+      if (after) {
+        query = query.or(`favorite_count.lt.${after.count},and(favorite_count.eq.${after.count},created_at.lt.${after.date})`)
+      }
+    } else if (sort === "cheapest") {
+      // Fewest credits per run first; the next page continues PAST the last
+      // card — more credits, or the same credits and older.
+      query = query.order("estimated_credits", { ascending: true }).order("created_at", { ascending: false })
+      if (after) {
+        query = query.or(`estimated_credits.gt.${after.count},and(estimated_credits.eq.${after.count},created_at.lt.${after.date})`)
       }
     } else {
       // newest
@@ -334,12 +380,14 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
         nextCursor = `${last.clone_count}:${last.created_at}`
       } else if (sort === "most-favorited") {
         nextCursor = `${last.favorite_count}:${last.created_at}`
+      } else if (sort === "cheapest") {
+        nextCursor = `${last.estimated_credits}:${last.created_at}`
       } else {
         nextCursor = last.created_at as string
       }
     }
 
-    reply.header("Cache-Control", "public, max-age=30, stale-while-revalidate=86400")
+    if (!favoriteIds) reply.header("Cache-Control", "public, max-age=30, stale-while-revalidate=86400")
     return reply.send({
       data: items.map((r: unknown) => toBrowseCard(r as Record<string, unknown>)),
       nextCursor,
@@ -460,7 +508,7 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
         node_count: nodeCount,
         complexity,
         estimated_credits: estimatedCredits,
-        category: category ?? "other",
+        category: category ?? DEFAULT_TEMPLATE_CATEGORY,
         output_types: outputTypes ?? [],
         tags: tags ?? [],
         // preview_media_url / preview_media_type are set below conditionally:
@@ -557,7 +605,7 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
           node_count: nodeCount,
           complexity,
           estimated_credits: estimatedCredits,
-          category: category ?? "other",
+          category: category ?? DEFAULT_TEMPLATE_CATEGORY,
           output_types: outputTypes ?? [],
           tags: tags ?? [],
           preview_media_url: durablePreviewUrl,

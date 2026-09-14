@@ -9,7 +9,7 @@ REST-first; the included visual editor is one of many possible clients.
 ## Quickstart by goal
 
 - **Self-host Nodaro for my team** → [Community Edition Quickstart](./community-edition-quickstart.md)
-- **Learn the editor with guided tutorials** (dashboard Tutorials tab; self-host installs seed a starter set on first boot) → [Tutorials](./tutorials.md)
+- **Learn the editor with guided tutorials** (the Tutorials list under Level up on the home screen's Explore tab; self-host installs seed a starter set on first boot) → [Tutorials](./tutorials.md)
 - **Use Nodaro Cloud models from my self-hosted instance** → [Community Cloud-Connect](./community-cloud-connect.md)
 - **Build a server-side integration** → [API Integration](./api-integration.md) → [OAuth Flow](./oauth-flow.md)
 - **Let a trusted external identity provider sign users in** (LibreChat-style assertion exchange, or Supabase-native OIDC/SAML) → [External SSO](./sso.md)

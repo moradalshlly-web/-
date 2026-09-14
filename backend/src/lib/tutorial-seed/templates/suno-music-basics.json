@@ -3,7 +3,7 @@
   "name": "Getting Started with Suno Music Nodes",
   "description": "You do not write a song description. You pick options, and the nodes write it for you.",
   "markdownDescription": null,
-  "category": "audio-music",
+  "category": "social-creatives",
   "outputTypes": [
     "audio"
   ],

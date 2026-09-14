@@ -58,7 +58,9 @@ export function EditableNodeLabel({ label, icon, onSave, onIconClick }: Editable
 
   return (
     <div
-      className={`absolute -top-6 left-1 flex items-center gap-2 text-[11px] ${NODE_TITLE_TYPOGRAPHY} text-foreground/70 dark:text-white/70 ${editing ? "nopan nodrag nowheel" : "select-none"}`}
+      // `node-title-label` is a hook for the read-only template still, which
+      // hides the compensated titles at thumbnail scale (globals.css).
+      className={`node-title-label absolute -top-6 left-1 flex items-center gap-2 text-[11px] ${NODE_TITLE_TYPOGRAPHY} text-foreground/70 dark:text-white/70 ${editing ? "nopan nodrag nowheel" : "select-none"}`}
       style={{ transform: `scale(${compensateScale})`, transformOrigin: "0 100%" }}
     >
       <button

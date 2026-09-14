@@ -3,7 +3,7 @@
   "name": "Get started with image editing",
   "description": "One image, nine independent edits. Every edit reads the same original, so nothing stacks and nothing degrades.",
   "markdownDescription": null,
-  "category": "image-generation",
+  "category": "product-imagery",
   "outputTypes": [
     "image"
   ],

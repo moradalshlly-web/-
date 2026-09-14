@@ -518,16 +518,24 @@ serving the full surface. Unset = the full default surface. The profile can only
 optional; each array empty = "keep the default"):
 
 - `nav.hide`: `["gallery","explore","pricing","templates","apps","community","integrations"]`
-- `dashboard.tabs`: one ordered whitelist governing **both** dashboard tab groups —
-  the workspace strip (`workflows`, `projects`, `studio`) and the app-discovery
-  strip (`apps`, `miniapps`, `templates`, `tutorials`, `statistics`). Each group
-  renders the intersection of this list with its own tabs, in the list's order.
-  An app-discovery strip whose intersection is empty is not rendered at all; the
-  workspace strip instead falls back to all of its tabs when the list names none
-  of them (the dashboard's main list can never go blank). So list every tab you
-  want to keep across both strips — e.g. `["workflows","projects","statistics","tutorials"]`
-  keeps the flat-workflows and projects workspace tabs (hiding the Studio list)
-  and trims the app-discovery strip to Statistics and Tutorials. Full key set:
+- `dashboard.tabs`: one ordered whitelist of the home screen's sections. The
+  workspace filter on the **Continue** tab (`workflows`, `projects`, `studio`)
+  renders the intersection of this list with its three lists, in the list's
+  order, and falls back to all three when the list names none of them (the home
+  screen's main list can never go blank). Every other key gates one section —
+  and, for the three that also have a sidebar entry, that entry too: `apps` the
+  Nodaro apps band on **Continue**; `templates` the "Start from a template" row
+  on **Explore** and the Templates sidebar entry; `tutorials` the "Level up"
+  tutorials on **Explore** and the Tutorials sidebar entry (the Explore tab is
+  not rendered when neither `templates` nor `tutorials` is kept); `miniapps`
+  the MiniApps sidebar entry; `statistics` the stats overview on the Executions
+  page. The Templates and MiniApps sidebar entries are new — a whitelist that
+  leaves their keys out keeps them hidden, so a narrowed deployment upgrades to
+  exactly the surface it had; `nav.hide` still applies on top. So list every
+  section you want to keep — e.g. `["workflows","projects","statistics","tutorials"]`
+  keeps the flat-workflows and projects lists (hiding the Studio list), the
+  tutorials and the Executions stats, and drops the Nodaro apps band, the
+  template row and the Templates and MiniApps sidebar entries. Full key set:
   `["workflows","projects","apps","miniapps","templates","tutorials","statistics","gallery","studio"]`
 - `nodes.deny` / `models.deny`: node types / model ids to remove everywhere — the
   picker, `GET /v1/nodes`, `GET /v1/models`, the MCP tools, and at run time (a

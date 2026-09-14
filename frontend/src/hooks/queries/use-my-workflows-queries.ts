@@ -19,6 +19,11 @@ export interface MyWorkflow {
    * placeholder treats that exactly like an empty flow.
    */
   readonly nodeTypes: readonly string[] | null
+  /**
+   * The seeded Welcome Demo (`settings.demoSeed`, stamped by
+   * POST /v1/onboarding/seed-demo) — a finished flow the user did not build.
+   */
+  readonly isDemoSeed: boolean
   readonly createdAt: string
   readonly updatedAt: string
   /** Set only by the admin "all users" Studio view; the owner's email. */
@@ -32,6 +37,9 @@ interface DbWorkflowRow {
   readonly name: string
   readonly thumbnail_url: string | null
   readonly cover_node_types?: string[] | null
+  // `settings->>demoSeed`: a JSON `->>` read comes back as TEXT ("true"), never
+  // a boolean, and is null on every workflow the user made.
+  readonly demo_seed?: string | null
   readonly created_at: string
   readonly updated_at: string
   // PostgREST embedded selection: { ...projects(id, name, is_default?) }.
@@ -56,13 +64,20 @@ function toMyWorkflow(row: DbWorkflowRow): MyWorkflow {
     name: row.name,
     thumbnailUrl: row.thumbnail_url,
     nodeTypes: row.cover_node_types ?? null,
+    isDemoSeed: row.demo_seed === "true",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
+/**
+ * `demo_seed:settings->>demoSeed` reads the one marker the demo seeder stamps
+ * (`settings.demoSeed`, backend `lib/demo-workflow.ts`) without pulling the
+ * whole settings object. `settings` has existed since migration 001, so the
+ * JSON read belongs on every rung of the ladder below.
+ */
 const WORKFLOW_COLS =
-  "id, project_id, folder_id, name, thumbnail_url, cover_node_types, created_at, updated_at"
+  "id, project_id, folder_id, name, thumbnail_url, cover_node_types, demo_seed:settings->>demoSeed, created_at, updated_at"
 
 /**
  * The same list without `cover_node_types` (migration 337). Selecting a column
@@ -71,7 +86,7 @@ const WORKFLOW_COLS =
  * covers simply fall back to the empty-flow default there.
  */
 const WORKFLOW_COLS_LEGACY =
-  "id, project_id, folder_id, name, thumbnail_url, created_at, updated_at"
+  "id, project_id, folder_id, name, thumbnail_url, demo_seed:settings->>demoSeed, created_at, updated_at"
 
 /**
  * Column sets from richest to poorest.
@@ -256,6 +271,7 @@ export function useAllStudioWorkflows(enabled: boolean) {
           // falls back to the empty-flow cover — honest for a view of other
           // people's work, which is not a place to pick covers anyway.
           nodeTypes: null,
+          isDemoSeed: false,
           createdAt: row.createdAt as string,
           updatedAt: row.updatedAt as string,
           ownerEmail: (row.ownerEmail as string | null) ?? null,

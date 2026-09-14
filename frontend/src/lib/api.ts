@@ -8268,7 +8268,7 @@ export async function browseTemplates(params: {
   outputType?: string
   tag?: string
   search?: string
-  sort?: "popular" | "newest" | "most-favorited"
+  sort?: "popular" | "newest" | "most-favorited" | "cheapest"
   nodeType?: string
   provider?: string
   complexity?: string

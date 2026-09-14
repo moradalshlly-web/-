@@ -3,7 +3,7 @@
   "name": "Camera Coverage — one frame, ten angles",
   "description": "One reference frame in, ten shots of the same scene out. A director's coverage plan — wide, medium, close-up, over-the-shoulder, reverse — with only the camera changing.",
   "markdownDescription": null,
-  "category": "image-generation",
+  "category": "product-imagery",
   "outputTypes": [
     "image"
   ],

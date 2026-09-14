@@ -220,6 +220,198 @@
   --copilot-fail: #EF4444;
 }
 
+/* Home (Projects) screen — the "Notched Header Tabs" handoff. Its own surface
+   ramp (bg → panel → card → raised), for the same reason --copilot-* carries
+   one: the stock --card/--muted steps do not match the design. Light values
+   from the handoff's light theme, dark from its dark theme. The accent stays
+   the brand --primary rather than the mock's pink. */
+:root {
+  --home-bg: #efeff1;
+  --home-panel: #ffffff;
+  --home-card: #fafafb;
+  --home-raised: #f1f1f4;
+  --home-raised-2: #e7e7ec;
+  --home-line: #e2e2e8;
+  --home-line-2: #e7e7ec;
+  --home-fg: #17171c;
+  --home-fg-2: #3d3d47;
+  --home-muted: #6f6f7c;
+  --home-dim: #9a9aa6;
+  --home-strong: #111116;
+  --home-stripe-a: #f0f0f3;
+  --home-stripe-b: #f7f7f9;
+  --home-accent-hover: color-mix(in oklab, var(--primary) 85%, white);
+  --home-scrim: rgba(20, 20, 30, 0.5);
+  --home-dots: radial-gradient(#d9d9e0 1px, transparent 1px);
+}
+
+.dark {
+  --home-bg: #08080b;
+  --home-panel: #111116;
+  --home-card: #0e0e12;
+  --home-raised: #16161d;
+  --home-raised-2: #1c1c25;
+  --home-line: #22222b;
+  --home-line-2: #1f1f27;
+  --home-fg: #e9e9ef;
+  --home-fg-2: #b6b6c4;
+  --home-muted: #8a8a99;
+  --home-dim: #6c6c7a;
+  --home-strong: #ffffff;
+  --home-stripe-a: #15151c;
+  --home-stripe-b: #111116;
+  --home-scrim: rgba(0, 0, 0, 0.7);
+  --home-dots: radial-gradient(#26262f 1px, transparent 1px);
+}
+
+/* Inside the content panel the stock shadcn surface tokens point at the home
+   ramp, so the components it reuses (workflow cards, inputs, the project grid)
+   take the design's colours without a fork of each one. Portals (menus,
+   dialogs) render outside the panel and keep the app palette. */
+.home-panel {
+  --background: var(--home-panel);
+  --foreground: var(--home-fg);
+  --card: var(--home-card);
+  --card-foreground: var(--home-fg);
+  --muted: var(--home-raised);
+  --muted-foreground: var(--home-muted);
+  --accent: var(--home-raised);
+  --secondary: var(--home-raised);
+  --border: var(--home-line-2);
+  --input: var(--home-line-2);
+}
+
+/* The active header tab's inverted corners: an 18px square either side of its
+   foot, painted panel-coloured outside a quarter circle with a 1px border ring,
+   so the tab and the panel read as one surface. The two corners mirror each
+   other, so the pair needs no RTL variant. */
+.home-tab-active::before,
+.home-tab-active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.home-tab-active::before {
+  left: -18px;
+  background: radial-gradient(circle at 0 0, transparent 17.5px, var(--home-line) 18px, var(--home-panel) 19px);
+}
+.home-tab-active::after {
+  right: -18px;
+  background: radial-gradient(circle at 100% 0, transparent 17.5px, var(--home-line) 18px, var(--home-panel) 19px);
+}
+
+/* Placeholder surface for a cover that has no media. */
+.home-stripes {
+  background: repeating-linear-gradient(135deg, var(--home-stripe-a) 0 8px, var(--home-stripe-b) 8px 16px);
+}
+
+/* Horizontal card rows scroll by drag, wheel or the ‹ › buttons — no bar. */
+.home-row-scroll {
+  scrollbar-width: none;
+}
+.home-row-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* The Templates page paints the home ramp straight onto the page — there is
+   no notched panel — so the stock surface tokens point at the ramp here too. */
+.templates-page {
+  --background: var(--home-bg);
+  --foreground: var(--home-fg);
+  --card: var(--home-card);
+  --card-foreground: var(--home-fg);
+  --muted: var(--home-raised);
+  --muted-foreground: var(--home-muted);
+  --accent: var(--home-raised);
+  --secondary: var(--home-raised);
+  --border: var(--home-line-2);
+  --input: var(--home-line-2);
+}
+
+/* The handoff's dot grid (hero banner, detail hero, canvas preview). */
+.templates-dots {
+  background-image: var(--home-dots);
+  background-size: var(--templates-dot-gap, 18px) var(--templates-dot-gap, 18px);
+}
+
+/* A template rendered through the real node components must stay inert: the
+   pane pans and zooms, but a node's run strip, buttons and inputs can never act
+   on it. The canvas fades in only once its nodes are measured and framed. */
+.templates-canvas .react-flow__node,
+.templates-canvas .react-flow__edge {
+  pointer-events: none !important;
+}
+.templates-canvas .react-flow {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.templates-canvas[data-ready="true"] .react-flow {
+  opacity: 1;
+}
+/* A card's favorite heart: on a hover-capable device it appears on hover or
+   focus (and stays once pressed); on touch it is simply always there, because
+   an invisible-but-tappable button is a trap, not a design. */
+@media (hover: hover) {
+  .templates-fav:not([aria-pressed="true"]) {
+    opacity: 0;
+  }
+  .group:hover .templates-fav,
+  .group:focus-within .templates-fav,
+  .templates-fav:focus-visible {
+    opacity: 1;
+  }
+}
+
+/* The detail modal's hero is a still: nothing in it reacts to the pointer. */
+.templates-canvas-still .react-flow {
+  pointer-events: none;
+}
+/* The still is a thumbnail of the whole flow. Node titles are scaled back up
+   to a readable size whenever the canvas is zoomed far out (see
+   editable-node-label.tsx), and at thumbnail scale they pile onto each other
+   and bury the shape the still exists to show — so the still leaves them out.
+   The interactive preview keeps them, as the editor does. */
+.templates-canvas-still .node-title-label {
+  display: none;
+}
+
+/* The Clone panel on the canvas preview: a 1px gradient border, a soft glow
+   in the corner and the accent-to-pink CTA, in the brand accent. */
+.templates-clone-panel {
+  padding: 1px;
+  border-radius: 18px;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--primary) 70%, transparent),
+    rgba(108, 92, 255, 0.35) 45%,
+    var(--home-line) 80%
+  );
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 0 60px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+.templates-clone-glow {
+  position: absolute;
+  top: -60px;
+  inset-inline-end: -60px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 28%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.templates-clone-cta {
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, white));
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.templates-clone-cta:hover {
+  filter: brightness(1.08);
+}
+.templates-preview-cta {
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
 /* Prevent mobile pull-to-refresh — must be outside @layer to avoid being overridden */
 html, body {
   overscroll-behavior-y: contain;

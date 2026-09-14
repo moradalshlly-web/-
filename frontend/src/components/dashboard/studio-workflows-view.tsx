@@ -13,6 +13,11 @@ import {
 interface StudioWorkflowsViewProps {
   /** Admin "All users" switch is on — show every user's Studio workflows. */
   readonly showAll: boolean
+  /**
+   * Controlled search text — the home screen's Jump back in field. When set,
+   * the view renders no heading row of its own.
+   */
+  readonly search?: string
 }
 
 /**
@@ -22,7 +27,7 @@ interface StudioWorkflowsViewProps {
  * owner email shown). Cards open the in-app editor (read-only for Studio
  * projects, as elsewhere).
  */
-export function StudioWorkflowsView({ showAll }: StudioWorkflowsViewProps) {
+export function StudioWorkflowsView({ showAll, search: controlledSearch }: StudioWorkflowsViewProps) {
   const projectDisplayName = useProjectDisplayName()
   const mine = useMyStudioWorkflows()
   const all = useAllStudioWorkflows(showAll)
@@ -30,7 +35,8 @@ export function StudioWorkflowsView({ showAll }: StudioWorkflowsViewProps) {
   const workflows: MyWorkflow[] = showAll ? (all.data?.data ?? []) : (mine.data ?? [])
   const isLoading = showAll ? all.isLoading : mine.isLoading
 
-  const [search, setSearch] = useState("")
+  const [ownSearch, setOwnSearch] = useState("")
+  const search = controlledSearch ?? ownSearch
   const filtered = useMemo(() => {
     if (!search.trim()) return workflows
     const needle = search.toLowerCase()
@@ -63,38 +69,40 @@ export function StudioWorkflowsView({ showAll }: StudioWorkflowsViewProps) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          {showAll ? "Studio Workflows — all users" : "Studio Workflows"}
-        </h2>
-        <div className="relative w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Studio workflows..."
-            aria-label="Search Studio workflows"
-            className="pl-8 h-8 text-sm w-full"
-          />
+      {controlledSearch === undefined && (
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            {showAll ? "Studio Workflows — all users" : "Studio Workflows"}
+          </h2>
+          <div className="relative w-48">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={ownSearch}
+              onChange={(e) => setOwnSearch(e.target.value)}
+              placeholder="Search Studio workflows..."
+              aria-label="Search Studio workflows"
+              className="ps-8 h-8 text-sm w-full"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-sm">No workflows match your search.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3.5">
           {filtered.map((wf) => (
             <Link
               key={wf.id}
               to={`/projects/${wf.projectId}/workflows/${wf.id}`}
-              className="group relative rounded-lg border bg-card hover:bg-accent/30 transition-colors overflow-hidden block"
+              className="group relative rounded-xl border bg-card hover:bg-accent/30 transition-colors overflow-hidden block"
             >
               <WorkflowThumbnail thumbnailUrl={wf.thumbnailUrl} nodeTypes={wf.nodeTypes} />
-              <div className="px-3 py-2">
-                <p className="text-sm font-medium truncate">{wf.name}</p>
-                <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+              <div className="px-3 py-2.5">
+                <p className="text-[13px] font-semibold truncate">{wf.name}</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground truncate flex items-center gap-1">
                   {showAll && wf.ownerEmail && (
                     <>
                       <span className="truncate">{wf.ownerEmail}</span>

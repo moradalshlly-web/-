@@ -13,8 +13,8 @@ vi.mock("@/hooks/queries/use-my-workflows-queries", () => ({
   useMyWorkflows: () => ({
     isLoading: false,
     data: [
-      { id: "w1", name: "Flow A", projectId: "p1", projectName: "My Recent Flows", projectIsDefault: true, thumbnailUrl: null, nodeTypes: null, updatedAt: "2026-09-01T00:00:00Z", createdAt: "2026-09-01T00:00:00Z" },
-      { id: "w2", name: "Flow B", projectId: "p2", projectName: "My Recent Flows", projectIsDefault: false, thumbnailUrl: null, nodeTypes: null, updatedAt: "2026-09-01T00:00:00Z", createdAt: "2026-09-01T00:00:00Z" },
+      { id: "w1", name: "Flow A", projectId: "p1", projectName: "My Recent Flows", projectIsDefault: true, thumbnailUrl: null, nodeTypes: null, isDemoSeed: false, updatedAt: "2026-09-01T00:00:00Z", createdAt: "2026-09-01T00:00:00Z" },
+      { id: "w2", name: "Flow B", projectId: "p2", projectName: "My Recent Flows", projectIsDefault: false, thumbnailUrl: null, nodeTypes: null, isDemoSeed: false, updatedAt: "2026-09-01T00:00:00Z", createdAt: "2026-09-01T00:00:00Z" },
     ],
   }),
 }))

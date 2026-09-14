@@ -44,6 +44,9 @@ import { TriggerBadge } from "@/components/library/triggers/TriggerBadge"
 import { ExecutionDetailModal } from "@/components/editor/execution-detail-modal"
 import { useBackToClose } from "@/hooks/use-back-to-close"
 import { getJobStatus, type GlobalExecution } from "@/lib/api"
+import { StatsOverview } from "@/components/dashboard/stats-overview"
+import { STATISTICS_KEY } from "@/components/dashboard/home/home-tabs"
+import { surfaceTabs } from "@/lib/surface-selectors"
 
 // Backend job/execution status → localized label key. Single source of truth so
 // every status badge reads the same translations the status filter dropdown does
@@ -234,6 +237,10 @@ export default function ExecutionsPage() {
           </div>
         </div>
       </div>
+
+      {/* The stats overview moved here from the home screen's old discovery
+          strip; the deployment's `statistics` dashboard key still gates it. */}
+      {surfaceTabs([STATISTICS_KEY]).length > 0 && <StatsOverview className="mb-6" />}
 
       {/* Content */}
       {isLoading && executions.length === 0 ? (

@@ -193,7 +193,7 @@ Each card shows: name, creator, credit cost, I/O type pills (e.g., `image + text
 
 - Category (reuse app categories)
 - Output type (image, video, audio, text)
-- Sort: popular / newest / most-favorited
+- Sort: popular / newest / most-favorited / cheapest (fewest estimated credits per run first)
 - Search with 300ms debounce
 
 ### Backend

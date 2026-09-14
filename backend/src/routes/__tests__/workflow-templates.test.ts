@@ -338,6 +338,157 @@ describe("extractNodeTypes — normalizes legacy aliases (facet-drift guard)", (
   })
 })
 
+// ---------------------------------------------------------------------------
+// Browse sorts: every sort keys its cursor off the columns it orders by, so a
+// page boundary never repeats or skips a card. "cheapest" is the Templates
+// page's "Fewest credits" — ascending credits, newest first within a tie.
+// ---------------------------------------------------------------------------
+
+/**
+ * Mock: a chainable browse query that records every `.order()` / `.or()` and
+ * resolves to `rows` when awaited (the route awaits the builder itself).
+ */
+function mockBrowseQuery(rows: Array<Record<string, unknown>>) {
+  const calls = { order: [] as unknown[][], or: [] as string[], in: [] as unknown[][] }
+  const builder: Record<string, unknown> = {}
+  for (const method of ["select", "contains", "eq", "limit", "textSearch", "lt", "order", "or", "in"]) {
+    builder[method] = vi.fn().mockImplementation((...args: unknown[]) => {
+      if (method === "order") calls.order.push(args)
+      if (method === "or") calls.or.push(String(args[0]))
+      if (method === "in") calls.in.push(args)
+      return builder
+    })
+  }
+  builder.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+    Promise.resolve({ data: rows, error: null }).then(resolve, reject)
+  return { builder: builder as never, calls }
+}
+
+describe("GET /v1/templates/browse — sort=cheapest", () => {
+  const cheap = { id: "t1", slug: "cheap", name: "Cheap", estimated_credits: 80, created_at: "2026-02-01T00:00:00Z" }
+  const dearer = { id: "t2", slug: "dearer", name: "Dearer", estimated_credits: 120, created_at: "2026-03-01T00:00:00Z" }
+
+  it("orders by estimated credits ascending, then newest, and continues past the cursor", async () => {
+    const { builder, calls } = mockBrowseQuery([cheap, dearer])
+    vi.mocked(supabase.from).mockReturnValue(builder)
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/templates/browse?sort=cheapest&limit=1&cursor=60:2026-01-15T00:00:00Z",
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(calls.order).toEqual([
+      ["estimated_credits", { ascending: true }],
+      ["created_at", { ascending: false }],
+    ])
+    expect(calls.or).toEqual(["estimated_credits.gt.60,and(estimated_credits.eq.60,created_at.lt.2026-01-15T00:00:00Z)"])
+    const body = res.json()
+    expect(body.data.map((c: { slug: string }) => c.slug)).toEqual(["cheap"])
+    // The cursor names the last card's credits + date — the columns the sort keys on.
+    expect(body.nextCursor).toBe("80:2026-02-01T00:00:00Z")
+  })
+
+  it("keeps the whole timestamp of a popular-sort cursor (only the first colon separates the pair)", async () => {
+    const { builder, calls } = mockBrowseQuery([dearer])
+    vi.mocked(supabase.from).mockReturnValue(builder)
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/templates/browse?sort=popular&cursor=7:2026-01-15T10:20:30.123Z",
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(calls.or).toEqual(["clone_count.lt.7,and(clone_count.eq.7,created_at.lt.2026-01-15T10:20:30.123Z)"])
+  })
+
+  it("drops a cursor whose date is not a timestamp instead of splicing it into the filter", async () => {
+    const { builder, calls } = mockBrowseQuery([dearer])
+    vi.mocked(supabase.from).mockReturnValue(builder)
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/templates/browse?sort=popular&cursor=${encodeURIComponent("7:2026-01-15T00:00:00Z),or(is_active.eq.false")}`,
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(calls.or).toEqual([])
+  })
+
+  it("filters a category by every stored value that reads as it, and answers with the current one", async () => {
+    // A row the category migration has not rewritten yet still carries the old value.
+    const legacyRow = { ...dearer, category: "video-production" }
+    const { builder, calls } = mockBrowseQuery([legacyRow])
+    vi.mocked(supabase.from).mockReturnValue(builder)
+
+    const res = await app.inject({ method: "GET", url: "/v1/templates/browse?category=video-ads" })
+
+    expect(res.statusCode).toBe(200)
+    expect(calls.in).toEqual([["category", ["video-ads", "video-production"]]])
+    expect(res.json().data[0].category).toBe("video-ads")
+  })
+
+  it("rejects a category from the previous taxonomy — the client sends the current eight", async () => {
+    const res = await app.inject({ method: "GET", url: "/v1/templates/browse?category=video-production" })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it("rejects a sort the route does not know", async () => {
+    const res = await app.inject({ method: "GET", url: "/v1/templates/browse?sort=fanciest" })
+    expect(res.statusCode).toBe(400)
+  })
+})
+
+describe("GET /v1/templates/browse — favoritesOnly", () => {
+  const card = { id: "t2", slug: "fav", name: "Fav", estimated_credits: 10, created_at: "2026-03-01T00:00:00Z" }
+
+  function mockFavorites(templateIds: string[]) {
+    const eq = vi.fn().mockResolvedValue({ data: templateIds.map((template_id) => ({ template_id })), error: null })
+    const select = vi.fn().mockReturnValue({ eq })
+    return { select } as never
+  }
+
+  it("needs a signed-in caller", async () => {
+    const res = await app.inject({ method: "GET", url: "/v1/templates/browse?favoritesOnly=true" })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it("narrows the browse to the caller's favorites and never caches it", async () => {
+    const { builder, calls } = mockBrowseQuery([card])
+    vi.mocked(supabase.from).mockImplementation((table: string) =>
+      table === "template_favorites" ? mockFavorites(["t2", "t9"]) : builder,
+    )
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/templates/browse?favoritesOnly=true",
+      headers: { "x-user-id": TEST_USER_ID },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(calls.in).toEqual([["id", ["t2", "t9"]]])
+    expect(res.json().data.map((c: { slug: string }) => c.slug)).toEqual(["fav"])
+    expect(res.headers["cache-control"]).toBe("private, no-store")
+  })
+
+  it("answers an empty list without touching the templates table when nothing is favorited", async () => {
+    const { builder } = mockBrowseQuery([card])
+    vi.mocked(supabase.from).mockImplementation((table: string) =>
+      table === "template_favorites" ? mockFavorites([]) : builder,
+    )
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/templates/browse?favoritesOnly=true",
+      headers: { "x-user-id": TEST_USER_ID },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ data: [], nextCursor: null })
+    expect(vi.mocked(supabase.from)).not.toHaveBeenCalledWith("workflow_templates")
+  })
+})
+
 describe("POST /v1/templates/:slug/clone — baked demo outputs survive the clone", () => {
   const TEST_PROJECT_ID = "00000000-0000-4000-8000-000000000030"
   // A snapshot node with baked results — exactly what a tutorial template ships
