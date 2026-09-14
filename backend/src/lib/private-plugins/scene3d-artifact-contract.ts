@@ -96,9 +96,14 @@ export interface PluginSceneDeliveryPublish extends PluginSceneArtifactScope {
  * that keeps them reachable at all.
  *
  * `revisionId` is the attempt identity the artifacts were reserved under, not a published
- * scene: it binds the pins to this parent's own upload reservations. The recipe is retained,
- * never published — `source-json` is a private checkpoint kind, so the delivery routes
- * neither list it nor serve its bytes.
+ * scene: it binds the pins to this parent's own upload reservations.
+ *
+ * The recipe is RETAINED AND REACHABLE, and only on this lane: the delivery routes list a
+ * `source-json` pinned by a `refused-authoring` delivery and serve its bytes to a reader with
+ * `edit`. Everywhere else `source-json` stays a private checkpoint — a delivered scene's own
+ * recipe is pinned by the revision, and neither revision read lane lists checkpoint kinds. The
+ * difference is not a relaxation: a refused run has no revision, no poster and no `.blend`, so
+ * the recipe and the refusal report are the entirety of what its owner paid for.
  */
 export interface PluginSceneRefusedDeliveryPublish extends PluginSceneArtifactScope {
   source: { kind: "refused-authoring" }

@@ -16,6 +16,18 @@
  *  - when the node has moved on to another run, it still files the arriving
  *    revision in history (it was paid for) but writes none of the run-state
  *    keys that now belong to the newer run.
+ *
+ * A FAILED job goes through the same two rules. `SCENE_QUALITY_FAILED` retains the draft it
+ * built — a real revision, renderable and editable — so the verdict and the scene arrive
+ * together: the node fails, with its reason, AND holds what the run produced.
+ *
+ * TWO OTHER LANES still drop it, and neither can be fixed from here:
+ *
+ *  - the RELOAD path (`reconcileCompletedSingleNodeJobs`) lists COMPLETED executions only, so a
+ *    refusal that settles while the tab is closed arrives with no draft;
+ *  - the DAG path (`run-handlers.ts :: applyNodeStates`) writes only status and error on a
+ *    failed node, and the orchestrator's `NodeExecutionState.output` is populated for completed
+ *    nodes alone — so a refused draft in a WORKFLOW run needs an SSE-contract change first.
  */
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { guardedToast, getJobStatusLeanForNode, RUN_START_RESET } from "./poll-job";
@@ -166,7 +178,10 @@ export function runScene3DJob({ nodeId, start, source, ctx, label, context, extr
               // DO keep a scene it produced, in history only.
               if (shouldAbandonNode(nodeId, jobId)) {
                 ctx.untrackInterval(poll);
-                if (job.status === "completed" && incoming) archive(incoming, changeSummary, jobId);
+                // `failed` counts here too: a refused run that RETAINED its draft was billed
+                // for that scene exactly as a completed one is, and a node that has moved on
+                // must not be the reason it is thrown away. A cancelled job never carries one.
+                if (job.status !== "cancelled" && incoming) archive(incoming, changeSummary, jobId);
                 resolve("");
                 return;
               }
@@ -243,14 +258,53 @@ export function runScene3DJob({ nodeId, start, source, ctx, label, context, extr
               } else {
                 ctx.untrackInterval(poll);
                 const errMsg = job.error_message ?? `${label} failed`;
+                // A FAILED run can still have retained a draft.
+                //
+                // `SCENE_QUALITY_FAILED` after an exhausted repair budget is the one refusal
+                // that published a real, renderable scene revision on the way to failing: the
+                // planner produced a recipe, the compiler accepted it, the builder exported
+                // it, and the visual reviewer said it does not yet match the brief. 3D Render
+                // Pro has kept that draft since the retention work landed, and since plugins
+                // round 10f the Basic preview lane keeps it too — the same `scenePlan` /
+                // `sceneRevisionId` / `validation.status: "failed"` shape, on the same job row.
+                //
+                // This branch used to read `job.error_message` and nothing else, so every one
+                // of those drafts was dropped on the floor by the only code path that could
+                // have put it on the canvas: billed, published, addressable by the artifact
+                // routes, and invisible. Keeping it costs nothing and changes no verdict —
+                // the node still fails, with the reason it failed for. The revision goes
+                // through the SAME completion guard a successful one does, so a manual edit
+                // made while the run was in flight still wins and the draft is parked into
+                // history rather than overwriting it.
+                //
+                // The media half is deliberately NOT applied: a failed run has no MP4, and
+                // `extraCompletionPatch` exists to write one.
+                const liveData = readLive();
+                const retained = incoming
+                  ? resolveSceneCompletion({
+                      current: liveData.scenePlan as Record<string, unknown> | undefined,
+                      baseRevisionId,
+                      incoming,
+                      changeSummary,
+                      history: liveData.sceneHistory as Scene3DRevisionEntry[] | undefined,
+                      source,
+                      context,
+                      jobId,
+                    })
+                  : undefined;
                 updateNodeData(nodeId, {
+                  ...(retained?.patch ?? {}),
                   executionStatus: "failed",
                   errorMessage: errMsg,
                   currentJobId: undefined,
                   currentJobProgress: undefined,
                   sceneJobBaseRevisionId: undefined,
                 });
-                guardedToast.error(`${label} failed`, { description: errMsg });
+                guardedToast.error(`${label} failed`, {
+                  description: retained
+                    ? `${errMsg} — the draft scene it built was kept. Open the panel to review it.`
+                    : errMsg,
+                });
                 reject(new Error(errMsg));
               }
             } catch (err) {

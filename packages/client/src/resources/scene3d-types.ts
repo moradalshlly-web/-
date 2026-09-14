@@ -9,13 +9,50 @@ export interface RetainedScene3DEditParams {
 }
 export interface RetainedScene3DEditResult { scenePlan: Scene3DPlanV2; changeSummary: string }
 
+/**
+ * The kind of bytes a delivery descriptor names, and the usage it is pinned under.
+ *
+ * PAIRED, not two free enums: the platform refuses a pin whose usage is not the one its kind is
+ * defined to have, and a client that checks only one of the two would accept a mis-pinned
+ * artifact the server would then refuse. {@link SCENE3D_DELIVERY_ASSET_USAGE} is the map both
+ * halves are read from.
+ */
+export const SCENE3D_DELIVERY_ASSET_USAGE = {
+  poster: "poster",
+  "validation-report": "validation",
+  "shot-still": "shot-still",
+  /** The recipe a run that never compiled was refused for. See {@link Scene3DDeliveryAsset}. */
+  "source-json": "checkpoint",
+} as const
+
+export type Scene3DDeliveryAssetKind = keyof typeof SCENE3D_DELIVERY_ASSET_USAGE
+
+/**
+ * One artifact a delivery pins, as a descriptor: opaque ids and digests only.
+ *
+ * Four kinds, and two of them are conditional:
+ *
+ * - `poster` and `validation-report` are on every delivery;
+ * - `shot-still` appears once per shot on a render that produced a contact sheet, and carries
+ *   its own shot identity (`shotIndex`, `frame`, and the frame size);
+ * - `source-json` appears on ONE shape only — a `refused-authoring` delivery, published by a
+ *   3D Render Pro run whose recipe the compiler refused on every pass. It is the planner's last
+ *   admitted recipe, and it is the only thing such a run leaves that names what was attempted.
+ *   Reading it needs `edit` on the job's workflow (the same access the `.blend` export costs);
+ *   a reader with less simply does not see the descriptor.
+ */
 export interface Scene3DDeliveryAsset {
   assetId: string
-  kind: "poster" | "validation-report"
-  usage: "poster" | "validation"
+  kind: Scene3DDeliveryAssetKind
+  usage: (typeof SCENE3D_DELIVERY_ASSET_USAGE)[Scene3DDeliveryAssetKind]
   byteLength: number
   sha256: string
   viaRevisionId: string | null
+  /** Set on a `shot-still` and absent on every other kind — never `null`. */
+  shotIndex?: number
+  frame?: number
+  width?: number
+  height?: number
 }
 
 /** Export evidence is retained separately from the immutable scene it rendered. */

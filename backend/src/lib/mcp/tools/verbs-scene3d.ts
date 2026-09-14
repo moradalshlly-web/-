@@ -52,6 +52,9 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
       "admissionRetries and SCENE_AUTHORING_ASSUMPTION warnings; all optional. metadata.review means the " +
       "scene was delivered over the reviewer's objection - the job still completed - with one " +
       "SCENE_REVIEW_REFUSED warning per objection. " +
+      "A FAILED advanced job can still carry output_data: sceneRevisionId when it kept the draft it built, " +
+      "and validation.sourceRetained when nothing compiled and only the recipe was kept - fetch either " +
+      "through GET /v1/3d-scene/deliveries/{deliveryId}. " +
       "Use edit_3d_scene to change the scene and render_3d_scene to export MP4. " +
       "Scene generation does not generate a photorealistic video.",
     inputSchema: {
@@ -139,6 +142,9 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
         "SCENE_AUTHORING_ASSUMPTION warnings; a render-only export reports none. metadata.review means the " +
         "scene was delivered over the reviewer's objection - the job still completed - with one " +
         "SCENE_REVIEW_REFUSED warning per objection. " +
+        "A job that FAILED with SCENE_QUALITY_FAILED still carries a deliveryId: when it built a scene, " +
+        "sceneRevisionId names that draft; when the compiler refused the recipe on every pass, " +
+        "validation.sourceRetained says the recipe is retrievable from GET /v1/3d-scene/deliveries/{deliveryId}. " +
         "Use generate_3d_scene for an editable preview without the MP4 export.",
       inputSchema: {
         source: z.discriminatedUnion("kind", [

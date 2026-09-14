@@ -2,6 +2,32 @@ import type { Scene3DArtifactPublishInput, Scene3DPinnedArtifact } from "./types
 
 export const SCENE3D_DELIVERY_KINDS = ["poster", "validation-report", "shot-still"] as const
 export type Scene3DDeliveryKind = (typeof SCENE3D_DELIVERY_KINDS)[number]
+
+/**
+ * The retained recipe of a run that never compiled — the ONE checkpoint kind a delivery serves.
+ *
+ * It is deliberately not a member of {@link SCENE3D_DELIVERY_KINDS}. Only a `refused-authoring`
+ * delivery ever pins a `source-json` (`scene3d_publish_delivery` refuses the kind outright, so
+ * the paid lane cannot acquire one), and a flat widening would say the opposite: that any
+ * delivery may hand back any checkpoint. The gate below is therefore a conjunction of three
+ * facts, not a list membership — the kind, the source kind that produced it, and the access a
+ * caller holds.
+ *
+ * Why it is served at all: when the compiler refuses a recipe on every pass there is no
+ * revision, no poster and no `.blend`. The recipe and the refusal report ARE the run's whole
+ * output, and retaining the recipe while refusing to hand it back left the owner with a
+ * sentence and nothing to act on (measured on staging jobs 9e8b79ee and 58aa5006, 2026-09-11).
+ * A delivered scene's own recipe stays private exactly as before: it is pinned by the REVISION,
+ * and neither revision read lane lists `checkpoint` kinds.
+ */
+export const SCENE3D_RETAINED_RECIPE_KIND = "source-json"
+
+/**
+ * Reading the retained recipe costs `edit`, like the `.blend` export and for the same reason
+ * (`SCENE3D_SOURCE_MIN_ACCESS`): a collaborator invited to WATCH a workflow may read what a run
+ * produced, not walk off with the authoring input behind it.
+ */
+export const SCENE3D_RETAINED_RECIPE_MIN_ACCESS = "edit" as const
 /**
  * `refused-authoring` is the one source that is not a scene.
  *
@@ -68,6 +94,9 @@ export interface Scene3DDeliveryPublishInput {
  * No plan and no poster, because neither exists. `revisionId` is the attempt identity the
  * report and recipe were reserved under, which is what binds them to this parent's upload
  * intents; no revision row is read, and none is required to exist.
+ *
+ * Both artifacts are reachable afterwards: the report to anyone who can read the delivery, the
+ * recipe to a reader with `edit` — see {@link SCENE3D_RETAINED_RECIPE_KIND}.
  */
 export interface Scene3DRefusedDeliveryPublishInput {
   jobId: string
@@ -77,7 +106,8 @@ export interface Scene3DRefusedDeliveryPublishInput {
   mode: "authored"
   artifacts: Array<
     Omit<Scene3DArtifactPublishInput, "kind" | "expiresAt"> & {
-      /** Exactly one report; the recipe is optional and never user-readable. */
+      /** Exactly one report; the recipe is optional, and readable by an owner or editor
+       *  through the delivery routes — see {@link SCENE3D_RETAINED_RECIPE_KIND}. */
       kind: "validation-report" | "source-json"
     }
   >

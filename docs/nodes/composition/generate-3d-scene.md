@@ -74,6 +74,23 @@ for `metadata.review` itself rather than for the status or the warning count.
 See [3D Render Pro](pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed)
 for the full shape and what to do with one.
 
+**A FAILED advanced job can still carry a result.** When the repair budget runs
+out and a mandatory check has failed, the scene the run built is kept rather than
+discarded: the job fails, there is no completed result, and `output_data` points
+at what exists — `scenePlan` and `sceneRevisionId` for the draft itself,
+`deliveryId` for its retained evidence, `posterAssetId` for a rendered frame of
+it, and `validation` with `status: "failed"`. The draft is an ordinary scene
+revision: render it, edit it deterministically, or re-author from it. On the
+canvas the node shows the draft and the failure together.
+
+When the compiler refused the recipe on *every* pass there is no draft — nothing
+compiled, so there is no `scenePlan` and no `sceneRevisionId`. That result still
+has a `deliveryId`, and `validation.sourceRetained` says whether the recipe it
+was refused for was kept; when it was, the delivery lists a `source-json`
+descriptor you can read with `client.scene3d.retainedRecipe(jobId)`. Reading it
+needs edit access to the job's workflow and costs no credits. See
+[3D Render Pro](pro-3d-render.md#scene_quality_failed-keeps-the-scene-it-built).
+
 ```typescript
 const scene = await client.nodes.runAndWait("generate-3d-scene", {
   prompt: "A red suitcase rolls behind a central pillar and reappears. Dolly right over four seconds.",

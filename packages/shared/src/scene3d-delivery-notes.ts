@@ -22,6 +22,8 @@
  *   `repairPasses` entirely rather than claiming `0` about a run that never happened;
  * - a run whose recipe was refused on every pass has no composition to describe, so it carries
  *   the assumptions and `repairPasses` but NO `summary` and no `metadata` block to hold one;
+ *   what it DOES carry is {@link Scene3DAuthoringValidation.sourceRetained}, saying whether the
+ *   recipe it was refused for is retrievable from its delivery;
  * - `repairPasses` is `0`, not absent, on a run that was accepted first time;
  * - `admissionRetries` is absent on a run that never had one, and counts only the pre-build
  *   planner retries — a slip the compiler would not admit, re-asked without spending a repair;
@@ -79,6 +81,21 @@ export interface Scene3DDeliveryWarning {
 export interface Scene3DAuthoringValidation {
   /** Advisories about the delivered scene, including the authoring assumptions. */
   warnings?: Scene3DDeliveryWarning[]
+  /**
+   * Whether a run that never COMPILED kept its last admitted recipe.
+   *
+   * Present only on the refused-authoring shape — a job that failed with no `scenePlan` and no
+   * `sceneRevisionId`, because the compiler refused the recipe on every pass. `true` means the
+   * recipe is retrievable: `GET /v1/3d-scene/deliveries/{deliveryId}` lists a `source-json`
+   * descriptor beside the refusal report, and its bytes come back from the delivery assets
+   * route, to a caller with `edit` on the job's workflow. `false` means no pass ever cleared
+   * admission, so there is no recipe to fetch — only the report.
+   *
+   * A row-level flag rather than only a descriptor, because it answers "is there anything to
+   * fetch" without a round trip, and answers it honestly when the caller's access would hide
+   * the descriptor anyway.
+   */
+  sourceRetained?: boolean
   [key: string]: unknown
 }
 

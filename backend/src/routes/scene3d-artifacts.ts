@@ -3,6 +3,7 @@ import { z } from "zod"
 import { sendInternalError } from "../lib/http-errors.js"
 import { authorizeScene3DDelivery, authorizeScene3DDeliveryArtifact, scene3DDeliveryArtifactReadable } from "../services/scene3d-artifacts/delivery-authorize.js"
 import { loadScene3DDeliveryArtifacts } from "../services/scene3d-artifacts/delivery-db.js"
+import { SCENE3D_RETAINED_RECIPE_KIND } from "../services/scene3d-artifacts/delivery-types.js"
 import {
   Scene3DArtifactError,
   authorizeScene3DArtifact,
@@ -281,8 +282,16 @@ export async function scene3DArtifactRoutes(
     try {
       const auth = await authorizeScene3DDelivery(req.userId, params.data.jobId)
       if (!auth.ok) return notFound(reply)
-      const assets = (await loadScene3DDeliveryArtifacts(auth.delivery.jobId))
-        .filter(scene3DDeliveryArtifactReadable)
+      const pins = await loadScene3DDeliveryArtifacts(auth.delivery.jobId)
+      const currentAuth = await authorizeScene3DDelivery(req.userId, params.data.jobId)
+      if (!currentAuth.ok) return notFound(reply)
+      const delivery = currentAuth.delivery
+      // Filtered against the access read AFTER the pins, not the one read before them: a
+      // reader whose permission dropped mid-request is told what they may read NOW. The
+      // retained recipe is the only descriptor this can remove, and removing it is the same
+      // answer the byte route gives that reader.
+      const assets = pins
+        .filter((asset) => scene3DDeliveryArtifactReadable(asset, delivery, currentAuth.access))
         .map((asset) => ({ assetId: asset.artifactId, kind: asset.kind, usage: asset.usage,
           byteLength: asset.byteLength, sha256: asset.sha256, viaRevisionId: asset.viaRevisionId,
           // Only a shot still has a shot identity; the keys stay absent on the
@@ -291,9 +300,6 @@ export async function scene3DArtifactRoutes(
             ? { shotIndex: asset.shotIndex, frame: asset.frame, width: asset.width, height: asset.height }
             : {}) }))
         .sort((a, b) => (a.shotIndex ?? -1) - (b.shotIndex ?? -1))
-      const currentAuth = await authorizeScene3DDelivery(req.userId, params.data.jobId)
-      if (!currentAuth.ok) return notFound(reply)
-      const delivery = currentAuth.delivery
       // A `refused-authoring` delivery has no scene behind it — the compiler never produced a
       // plan, so no revision was published. Reporting its attempt identity as
       // `sceneRevisionId` would hand the caller a pointer that resolves to 404 on every
@@ -322,7 +328,13 @@ export async function scene3DArtifactRoutes(
       const auth = await authorizeScene3DDeliveryArtifact(actorId, jobId, assetId)
       if (!auth.ok) return notFound(reply)
       if (!store) return storageUnconfigured(reply)
-      return await serveArtifact(req, reply, store, auth.artifact, undefined,
+      // The retained recipe is the one delivery asset a caller SAVES rather than renders, so
+      // it is the one that gets a filename — the same treatment the `.blend` export gets, and
+      // for the same reason. Everything else here is a poster, a still or a report a client
+      // reads inline.
+      const filename = auth.artifact.kind === SCENE3D_RETAINED_RECIPE_KIND
+        ? `scene-recipe-${jobId}.json` : undefined
+      return await serveArtifact(req, reply, store, auth.artifact, filename,
         async () => (await authorizeScene3DDeliveryArtifact(actorId, jobId, assetId)).ok)
     } catch (error) {
       if (isScene3DArtifactError(error)) return sendArtifactError(req, reply, error)

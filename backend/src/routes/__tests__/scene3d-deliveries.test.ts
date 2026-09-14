@@ -150,11 +150,13 @@ describe("retained delivery reads", () => {
 /**
  * A Pro run whose recipe never compiled retains a delivery with no scene behind it.
  *
- * The route has to be honest about that in both directions: it must SERVE the refusal report
- * to the people the parent job belongs to (the whole point — before this, `GET
- * /v1/3d-scene/deliveries/{jobId}` answered 404 and the compiler's reasons were unreachable),
- * and it must not hand back a `sceneRevisionId` pointing at a revision that was never
- * published, nor expose the private recipe it pins only so retention keeps it.
+ * The route has to be honest about that in every direction: it must SERVE the refusal report
+ * AND the retained recipe to the people the parent job belongs to (the whole point — before
+ * this, `GET /v1/3d-scene/deliveries/{jobId}` answered 404 and the compiler's reasons were
+ * unreachable, and once it answered, the recipe the run was refused for was still dropped on
+ * the floor), it must not hand back a `sceneRevisionId` pointing at a revision that was never
+ * published, and it must charge `edit` for the recipe — a watcher reads what a run produced,
+ * never the authoring input behind it.
  */
 describe("refused authoring delivery reads", () => {
   let refused: ReturnType<typeof refusedDeliveryFixture>
@@ -174,29 +176,67 @@ describe("refused authoring delivery reads", () => {
     headers: { ...(userId ? { "x-user-id": userId } : {}) },
   })
 
-  it("serves the refusal evidence to the owner, naming no scene it never built", async () => {
+  it("serves the refusal evidence AND the retained recipe to the owner, naming no scene it never built", async () => {
     vi.mocked(workflowAccess).mockResolvedValue("own")
     const res = await read()
     expect(res.statusCode).toBe(200)
     const body = res.json()
     expect(body).toMatchObject({ deliveryId: JOB, sceneRevisionId: null,
       sourceKind: "refused-authoring", sourcePlanSha256: null, mode: "authored" })
-    // The report is the evidence; the recipe is retained, not published.
-    expect(body.assets).toHaveLength(1)
-    expect(body.assets[0]).toMatchObject({ assetId: REPORT, kind: "validation-report", usage: "validation" })
-    expect(JSON.stringify(body)).not.toContain(SOURCE_JSON)
+    // Both halves of what the run produced. The recipe is the ONLY thing a refused run leaves
+    // that its owner can act on, and it used to be listed nowhere.
+    expect(body.assets).toHaveLength(2)
+    expect(body.assets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ assetId: REPORT, kind: "validation-report", usage: "validation" }),
+      expect.objectContaining({ assetId: SOURCE_JSON, kind: "source-json", usage: "checkpoint" }),
+    ]))
+    // Descriptors only: still no bucket, no key, no URL.
+    expect(res.payload).not.toContain("scene3d/")
+    expect(res.payload).not.toContain("private-scenes")
   })
 
-  it("serves the report's bytes to the owner and never the retained recipe's", async () => {
+  it("serves the recipe's bytes as a named JSON download, uncached like every other asset", async () => {
     vi.mocked(workflowAccess).mockResolvedValue("own")
     expect((await read(`/assets/${REPORT}`)).statusCode).toBe(200)
+    const res = await read(`/assets/${SOURCE_JSON}`)
+    expect(res.statusCode).toBe(200)
+    expect(res.headers["content-type"]).toBe("application/json")
+    expect(res.headers["content-disposition"]).toBe(`attachment; filename="scene-recipe-${JOB}.json"`)
+    expect(res.headers["cache-control"]).toBe("no-store, private")
+    expect(JSON.parse(res.payload)).toMatchObject({ format: "scene3d-refused-recipe", version: 1 })
+  })
+
+  it("charges edit for the recipe, and answers 404 rather than 403 to a watcher", async () => {
+    // A collaborator who may WATCH the workflow reads the refusal report and learns nothing
+    // about whether a recipe exists: the descriptor is absent, not marked unavailable, and
+    // the byte route is not-found rather than forbidden.
+    vi.mocked(workflowAccess).mockResolvedValue("view")
+    const body = (await read()).json()
+    expect(body.access).toBe("view")
+    expect(body.assets.map((a: { assetId: string }) => a.assetId)).toEqual([REPORT])
+    expect(JSON.stringify(body)).not.toContain(SOURCE_JSON)
+    expect((await read(`/assets/${REPORT}`)).statusCode).toBe(200)
     expect((await read(`/assets/${SOURCE_JSON}`)).statusCode).toBe(404)
+    expect(refused.store.get).toHaveBeenCalledTimes(1)
   })
 
   it("is invisible to anyone else", async () => {
     vi.mocked(workflowAccess).mockResolvedValue("none")
     expect((await read("", OTHER)).statusCode).toBe(404)
     expect((await read(`/assets/${REPORT}`, OTHER)).statusCode).toBe(404)
+    expect((await read(`/assets/${SOURCE_JSON}`, OTHER)).statusCode).toBe(404)
     expect((await read("", null)).statusCode).toBe(401)
+  })
+
+  it("keeps the recipe unreadable on a delivery that is not a refused one", async () => {
+    // The gate is the SOURCE KIND, not the pin: a correctly-pinned `source-json` on a
+    // delivery that followed a paid render stays private, which is what keeps a delivered
+    // scene's own recipe out of every response even at `own`.
+    vi.mocked(workflowAccess).mockResolvedValue("own")
+    refused.db.tables.scene3d_deliveries[0].source_kind = "retained-revision"
+    refused.db.tables.scene3d_deliveries[0].source_plan_sha256 = "a".repeat(64)
+    const body = (await read()).json()
+    expect(body.assets.map((a: { assetId: string }) => a.assetId)).toEqual([REPORT])
+    expect((await read(`/assets/${SOURCE_JSON}`)).statusCode).toBe(404)
   })
 })

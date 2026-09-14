@@ -517,7 +517,8 @@ export { Scene3DResource } from "./resources/scene3d.js"
 export type { RetainedScene3DEditParams, RetainedScene3DEditResult } from "./resources/scene3d-types.js"
 
 export { type StudioDocumentJson, type StudioProductionCapabilities, type StudioKeyframeRecord, type StudioProductionRecord, type StudioProductionReply, type StudioEditInput, type StudioKeyframeGenerationInput, type StudioKeyframeAcceptanceInput, type StudioShotGenerationInput, type StudioGenerationReply } from "./resources/studio.js"
-export type { Scene3DDelivery, Scene3DDeliveryAsset } from "./resources/scene3d-types.js"
+export type { Scene3DDelivery, Scene3DDeliveryAsset, Scene3DDeliveryAssetKind } from "./resources/scene3d-types.js"
+export { SCENE3D_DELIVERY_ASSET_USAGE } from "./resources/scene3d-types.js"
 
 export { CopilotResource } from "./resources/copilot.js"
 export type {

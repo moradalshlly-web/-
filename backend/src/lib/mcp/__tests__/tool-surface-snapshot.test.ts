@@ -147,6 +147,21 @@ const SUNO_V6_FAMILY_BYTES = 499
 // in the list is `generate_video` at 8_130 B). The 85 B of headroom the list had
 // before is therefore exactly the headroom it has after.
 const SCENE3D_ADVISORY_REVIEW_BYTES = 170
+//
+// RAISED 2026-09-14 by the RETAINED-FAILURE contract and nothing else. A Scene3D
+// authoring job that FAILED can still carry `output_data`, and an agent had no
+// vocabulary for it: `sceneRevisionId` when the run kept the draft it built, and
+// `validation.sourceRetained` when nothing compiled and only the recipe was kept
+// — both fetched through `GET /v1/3d-scene/deliveries/{deliveryId}`. Without the
+// sentence, a refusal reads as "no output" and the agent re-runs it, paying for
+// the same authoring twice. Said once, on `generate_3d_scene`. `pro_3d_render`
+// carries the same clause and costs NOTHING here: it registers only where an
+// advanced engine is installed, so it is not in this list at all. No tool was
+// added, so the fixture does NOT move, and neither tool is near the per-tool
+// budget (the largest definition in the list is `generate_video` at 8_130 B).
+// Measured by this suite: 349_290 total − 349_044 base = 246 B, which preserves
+// the same 85 B of headroom the list had before.
+const SCENE3D_RETAINED_FAILURE_BYTES = 246
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -158,7 +173,8 @@ export const TOOL_WIRE_BUDGET = {
     GPT_IMAGE_2_5_MODELS_BYTES +
     VIDEO_REFERENCE_CAPTIONS_BYTES +
     SUNO_V6_FAMILY_BYTES +
-    SCENE3D_ADVISORY_REVIEW_BYTES,
+    SCENE3D_ADVISORY_REVIEW_BYTES +
+    SCENE3D_RETAINED_FAILURE_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

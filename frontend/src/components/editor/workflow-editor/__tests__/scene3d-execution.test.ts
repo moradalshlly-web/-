@@ -176,6 +176,61 @@ describe("runScene3DJob", () => {
     expect(mockNodes[0].data.scenePlan).toBeTruthy()
   })
 
+  /**
+   * `SCENE_QUALITY_FAILED` with a retained draft: the run built, reviewed and REFUSED a scene,
+   * and published it as a real revision on the way to failing. Pro has done this since the
+   * retention work; the Basic preview lane does it too since plugins round 10f. Before this,
+   * the branch read `error_message` and nothing else, so every one of those drafts — billed,
+   * published, addressable by the artifact routes — never reached the canvas.
+   */
+  it("keeps the DRAFT a refused run retained, and still fails the node", async () => {
+    seed({ scenePlan: makePlan() })
+    const draft = makePlan({ revisionId: REV_B })
+    mockGetJobStatusLean.mockResolvedValue({
+      id: "j1", status: "failed", error_message: "SCENE_QUALITY_FAILED: blocking after two repairs",
+      output_data: { scenePlan: draft, sceneRevisionId: REV_B, deliveryId: "j1",
+        posterAssetId: "poster-1", validation: { status: "failed", scope: "authored", passes: 3 } },
+    })
+    await expect(
+      drain(
+        runScene3DJob({ nodeId: "n1", source: "generate", label: "Scene generation", ctx, start: async () => ({ jobId: "j1" }) }),
+      ),
+    ).rejects.toThrow(/SCENE_QUALITY_FAILED/)
+    // The verdict is unchanged...
+    expect(mockNodes[0].data.executionStatus).toBe("failed")
+    expect(mockNodes[0].data.errorMessage).toMatch(/SCENE_QUALITY_FAILED/)
+    expect(mockNodes[0].data.sceneJobBaseRevisionId).toBeUndefined()
+    // ...and the draft it built is on the node, editable and renderable like any revision.
+    expect((mockNodes[0].data.scenePlan as Record<string, unknown>).revisionId).toBe(REV_B)
+    expect(mockNodes[0].data.sceneHistory).toEqual(
+      expect.arrayContaining([expect.objectContaining({ revisionId: REV_B, jobId: "j1" })]),
+    )
+    expect(toastError).toHaveBeenCalledWith("Scene generation failed",
+      expect.objectContaining({ description: expect.stringContaining("draft scene") }))
+  })
+
+  it("PARKS a refused run's draft when the user edited the scene mid-flight", async () => {
+    seed({ scenePlan: makePlan() })
+    const draft = makePlan({ revisionId: REV_B })
+    mockGetJobStatusLean.mockImplementation(async () => {
+      // The user restored/edited the scene while the job was in flight.
+      mockNodes[0].data.scenePlan = makePlan({ revisionId: "33333333-3333-4333-8333-333333333333" })
+      return { id: "j1", status: "failed", error_message: "refused",
+        output_data: { scenePlan: draft, validation: { status: "failed" } } }
+    })
+    await expect(
+      drain(
+        runScene3DJob({ nodeId: "n1", source: "generate", label: "Scene generation", ctx, start: async () => ({ jobId: "j1" }) }),
+      ),
+    ).rejects.toThrow("refused")
+    // The live scene is the user's, not the draft — but the draft is kept in history.
+    expect((mockNodes[0].data.scenePlan as Record<string, unknown>).revisionId)
+      .toBe("33333333-3333-4333-8333-333333333333")
+    expect(mockNodes[0].data.sceneHistory).toEqual(
+      expect.arrayContaining([expect.objectContaining({ revisionId: REV_B })]),
+    )
+  })
+
   it("fails the node when the route call itself is rejected", async () => {
     seed({ scenePlan: undefined })
     await expect(

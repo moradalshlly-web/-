@@ -63,3 +63,71 @@ describe("3D scene node transport", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("https://api.example.com/v1/render-video")
   })
 })
+
+/**
+ * A refused authoring run's retained recipe.
+ *
+ * The one output such a run has. Its recipe never compiled, so there is no revision, no poster
+ * and no `.blend`, and the delivery is the only thing that resolves. Until the descriptor was
+ * listed and its bytes served, `validation.sourceRetained: true` on the failed row pointed at
+ * something the SDK could not fetch.
+ */
+describe("retained recipe of a refused run", () => {
+  const RECIPE = { format: "scene3d-refused-recipe", version: 1, recipe: { header: { frameStart: 0 } } }
+
+  function deliverySetup(assets: unknown[]) {
+    const bytes = new TextEncoder().encode(JSON.stringify(RECIPE))
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes("/assets/")
+        ? new Response(bytes, { status: 200, headers: { "content-type": "application/json" } })
+        : ({ ok: true, status: 200, json: async () => ({
+            deliveryId: "job-1", sceneRevisionId: null, sourceKind: "refused-authoring",
+            sourcePlanSha256: null, sourceContentHash: null, sourceJobId: "job-1",
+            workflowId: null, mode: "authored", createdAt: "2026-09-14T00:00:00Z",
+            access: "own", assets,
+          }) }),
+    )
+    const client = createClient({ baseUrl: "https://api.example.com", auth: new StaticTokenAuth("t"),
+      fetch: fetchMock as unknown as typeof fetch })
+    return { client, fetchMock, bytes }
+  }
+
+  const recipeAsset = (byteLength: number) => ({ assetId: "recipe-1", kind: "source-json",
+    usage: "checkpoint", byteLength, sha256: "a".repeat(64), viaRevisionId: null })
+
+  it("fetches and parses the recipe the delivery lists", async () => {
+    const recipeBytes = new TextEncoder().encode(JSON.stringify(RECIPE)).byteLength
+    const { client, fetchMock } = deliverySetup([
+      { assetId: "report-1", kind: "validation-report", usage: "validation", byteLength: 12, sha256: "b".repeat(64), viaRevisionId: null },
+      recipeAsset(recipeBytes),
+    ])
+    await expect(client.scene3d.retainedRecipe("job-1")).resolves.toEqual(RECIPE)
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.example.com/v1/3d-scene/deliveries/job-1")
+    expect(fetchMock.mock.calls[1][0]).toBe("https://api.example.com/v1/3d-scene/deliveries/job-1/assets/recipe-1")
+  })
+
+  it("answers null — never throws — when the delivery lists no recipe", async () => {
+    // Two causes, one answer: no pass ever cleared admission, or this caller holds less than
+    // `edit` and the server did not list the descriptor for them.
+    const { client } = deliverySetup([
+      { assetId: "report-1", kind: "validation-report", usage: "validation", byteLength: 12, sha256: "b".repeat(64), viaRevisionId: null },
+    ])
+    await expect(client.scene3d.retainedRecipe("job-1")).resolves.toBeNull()
+  })
+
+  it("serves a shot still through the delivery guard, which used to refuse it", async () => {
+    // Drive-by: the route has served `shot-still` bytes since stills existed, and this guard
+    // only ever admitted a poster or a report.
+    const { client, bytes } = deliverySetup([])
+    await expect(client.scene3d.deliveryAssetBytes("job-1", { assetId: "still-1", kind: "shot-still",
+      usage: "shot-still", byteLength: bytes.byteLength, sha256: "c".repeat(64), viaRevisionId: null,
+      shotIndex: 0, frame: 0 })).resolves.toBeInstanceOf(ArrayBuffer)
+  })
+
+  it("still refuses a descriptor whose usage does not match its kind", () => {
+    const { client } = deliverySetup([])
+    expect(() => client.scene3d.deliveryAssetBytes("job-1", { assetId: "recipe-1",
+      kind: "source-json", usage: "poster" as "checkpoint", byteLength: 10, sha256: "a".repeat(64),
+      viaRevisionId: null })).toThrow(/not available/)
+  })
+})

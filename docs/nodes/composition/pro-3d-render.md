@@ -415,7 +415,7 @@ compiler's reasons for refusing it, and those are kept. `deliveryId` still
 resolves: `GET /v1/3d-scene/deliveries/{jobId}` answers for the owner with
 `sourceKind: "refused-authoring"` and `sceneRevisionId: null`, and
 `output_data.validation` is `{ status: "failed", scope: "authored", phase,
-reportAssetId, passes, warnings[] }`, where `phase` says which stage kept
+reportAssetId, passes, sourceRetained, warnings[] }`, where `phase` says which stage kept
 refusing — `build` when the compiler would not build the recipe, `planning`
 when its grammar would not admit one. Each warning is one refusal, naming the
 path in the recipe it pointed at where it gave one, alongside any
@@ -424,10 +424,28 @@ the authoring, which is the only thing that happened. `repairPasses` and
 `admissionRetries` are reported here too. There is **no** `metadata` block and no `summary`: nothing
 compiled, so there is no composition to describe and nowhere honest to put a
 description of one. The
-report artifact holds the full set, refusal by refusal. The recipe is retained
-for re-authoring rather than offered as a download. A job that failed before
+report artifact holds the full set, refusal by refusal. A job that failed before
 any of that — the planner itself refused, or was never reached — has nothing
 to keep, and its `output_data` carries none of these fields.
+
+**The recipe is kept, and you can read it.** `validation.sourceRetained` says
+whether there is one: `true` means the last recipe the compiler admitted was
+retained, `false` means no pass ever cleared admission and only the report
+exists. When it is `true`, `GET /v1/3d-scene/deliveries/{deliveryId}` lists a
+descriptor of kind `source-json` (usage `checkpoint`) beside the report, and
+`GET /v1/3d-scene/deliveries/{deliveryId}/assets/{assetId}` returns it as JSON.
+The SDK does both in one call: `client.scene3d.retainedRecipe(jobId)`, which
+answers `null` when there is nothing to fetch.
+
+Two things to know about it:
+
+- **It needs `edit` on the job's workflow**, the same access the `.blend` export
+  needs. A reader with less does not see the descriptor at all and gets a `404`
+  on the bytes, which is deliberate — there is no response that confirms a recipe
+  exists to somebody who may not read it.
+- **It is evidence, not an input.** Nothing published a revision, so there is no
+  `{kind:"scene"}` source to re-run it from: read it to see what was attempted,
+  and let it inform the prompt you send next. Reading it costs no credits.
 
 The scene instruction supports [prompt pre/post text](../../prompt-pre-post-text.md), applied by the canvas when it submits the instruction.
 

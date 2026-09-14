@@ -82,8 +82,11 @@ export function deliveryFixture() {
 export function refusedDeliveryFixture() {
   const report = Buffer.from(JSON.stringify({ format: "scene3d-delivery-validation", version: 1,
     status: "failed", phase: "build", passes: 3 }))
-  const recipe = Buffer.from(JSON.stringify({ format: "scene3d-authoring-source", version: 1,
-    recipe: { header: { frameStart: 0 } }, inputs: [] }))
+  // The envelope the REFUSED lane actually writes. Not `scene3d-authoring-source` (the accepted
+  // path's, which binds each asset to a retained copy): a refused delivery can pin exactly one
+  // report and one recipe, never those copies, so it records the asset ids by name instead.
+  const recipe = Buffer.from(JSON.stringify({ format: "scene3d-refused-recipe", version: 1,
+    recipe: { header: { frameStart: 0 } } }))
   const bytes = [report, recipe]
   const artifacts: Scene3DRefusedDeliveryPublishInput["artifacts"] = (["validation-report", "source-json"] as const)
     .map((kind, i) => {
