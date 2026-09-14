@@ -1,3 +1,5 @@
+import { getVideoStreamDuration } from "../../../providers/video/ffmpeg-utils.js"
+vi.mock("../../../providers/video/ffmpeg-utils.js", () => ({getVideoStreamDuration:vi.fn(async () => 29.133333)}))
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const mocks = vi.hoisted(() => {
@@ -202,6 +204,13 @@ describe("reconcileReplicateJob", () => {
         providerMs: 4500,
       }),
     })
+  })
+
+  it("recovers output-based lip-sync cost without using prediction time", async () => {
+    mocks.fetchMock.mockResolvedValueOnce({ok:true,json:async () => ({id:"p-1",status:"succeeded",output:"https://replicate.example/result.mp4",metrics:{predict_time:164.1}})})
+    vi.mocked(getVideoStreamDuration).mockResolvedValue(29.133333)
+    await reconcileReplicateJob({id:"j-r",provider_kind:"replicate-prediction",provider_task_id:"p-1",reconcile_attempts:0,job_type:"lip-sync",input_data:{provider:"lipsync-2-pro",audioDurationSec:29.281338}})
+    expect(mocks.finalizeMock).toHaveBeenCalledWith(expect.objectContaining({result:expect.objectContaining({cost:29.133333 * 0.08325})}))
   })
 
   it("succeeded with output array → uses first URL + extras", async () => {

@@ -407,6 +407,17 @@ on the job, and the report says `failed` too.
 Retaining costs nothing: no extra render, no extra provider call, and the
 settlement is the same one the run would have had.
 
+**On the canvas, by every route.** A refused draft reaches the node the same way
+whichever way the run was started, and survives a page reload: the single-node
+Run files it live, a full workflow Run carries it on the failed node's
+`nodeStates[nodeId].output`, and reopening the workflow re-files it from the job
+— together with the failure, which is re-asserted because a node's run status is
+not part of the saved workflow. The node shows the draft and the refusal at once;
+a scene being present never means the run passed. Whatever the route, the draft
+is filed by the same rule a successful revision is: an edit you made while the
+run was in flight still wins, and the arriving draft is kept in the node's
+revision history rather than overwriting it.
+
 **When nothing could be built at all.** If the compiler refused the recipe on
 every pass, there is no scene to keep: no revision, no poster, and no
 `sceneRevisionId` — a composition needs geometry and shots, and none was ever

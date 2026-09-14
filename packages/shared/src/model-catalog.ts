@@ -2534,6 +2534,17 @@ const AUDIO_MODELS: Record<string, ModelCatalogEntry> = {
     useCases: ["dubbing", "multilingual"],
     pricing: [{ identifier: "elevenlabs-dubbing", credits: 40, note: "per minute of the dubbed span (min 1)" }],
   },
+  "elevenlabs-dubbing-v2": {
+    id: "elevenlabs-dubbing-v2",
+    kind: "audio",
+    modes: ["dubbing"] as const,
+    family: "ElevenLabs",
+    label: "ElevenLabs Dubbing v2",
+    series: "ElevenLabs",
+    description: "Translate + dub audio or a whole video into a new language — video in, dubbed video out. Async.",
+    useCases: ["dubbing", "multilingual"],
+    pricing: [{ identifier: "elevenlabs-dubbing-v2", credits: 1100, note: "per minute of the dubbed span (min 1)" }],
+  },
   "elevenlabs-forced-alignment": {
     id: "elevenlabs-forced-alignment",
     kind: "audio",

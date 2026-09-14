@@ -20,12 +20,28 @@
  *
  * What this does
  * --------------
- * On load: list the workflow's recently-COMPLETED single-node jobs (each keyed
+ * On load: list the workflow's recently-TERMINAL single-node jobs (each keyed
  * by canvas `node_id`), and for every node that has no result yet, fetch that
  * job's `output_data` and write its single result (`videoUrl` / `imageUrl` /
  * `audioUrl`). Guarded to never overwrite a node the user already has a result
  * on or has marked completed (mirrors `applyCompletedExecutionResults`), so it's
  * idempotent and multi-tab safe.
+ *
+ * Why FAILED jobs are listed too
+ * ------------------------------
+ * A run can refuse its result and still RETAIN what it produced. A 3D-scene
+ * authoring run whose repair budget is spent and whose visual reviewer refuses
+ * the scene settles `failed` — with a real, renderable revision in
+ * `output_data`, billed and published. This lane used to ask for
+ * `status: "completed"` only, so that draft was unreachable after a reload:
+ * gone entirely when the refusal settled with the tab closed, and stripped of
+ * its VERDICT even when it had arrived live (`executionStatus` is a transient
+ * key — `errorMessage` survives the save, the failed status does not).
+ *
+ * The widening is deliberately NARROW: a failed job is a recovery candidate
+ * only for a node type whose results are revisions (`isScene3DNodeType`). No
+ * other node type retains anything on failure, and resurrecting a failure
+ * banner for one would be a regression, not a fix.
  */
 
 import { getJobStatusLean } from "./api"
@@ -48,9 +64,11 @@ interface ExecItemLike {
   readonly nodeStates?: Record<string, unknown>
 }
 
-export interface CompletedJobRef {
+/** A terminal job a node may be recovered from. */
+export interface TerminalJobRef {
   readonly nodeId: string
   readonly jobId: string
+  readonly status: "completed" | "failed"
 }
 
 export interface NodeResultUpdate {
@@ -59,22 +77,40 @@ export interface NodeResultUpdate {
 }
 
 /**
- * Pick the latest completed single-node job PER node from a
- * `listWorkflowExecutions(status:"completed")` response. Items arrive newest-
- * first, so the first occurrence of each node_id is its most recent completion.
- * Skips items with no canvas node_id (SDK/legacy rows) and non-single-node
- * items (orchestrator executions carry their own results in node_states).
+ * Pick the latest TERMINAL single-node job PER node from a
+ * `listWorkflowExecutions(status:"completed,failed")` response. Items arrive
+ * newest-first, so the first ELIGIBLE occurrence of each node_id is the run
+ * this node should reflect. Skips items with no canvas node_id (SDK/legacy
+ * rows) and non-single-node items (orchestrator executions carry their own
+ * results in node_states).
+ *
+ * EXACTLY ONE ref per node, and that is a correctness constraint rather than
+ * tidiness: `computeCompletedJobPatches` builds every patch against the SAME
+ * pre-patch snapshot, so two patches for one node would clobber each other's
+ * `sceneHistory` — the second would drop the first's revision.
+ *
+ * `acceptsFailed` decides, per node, whether a FAILED run is eligible at all.
+ * Without it a media node whose newest run failed would have that failure
+ * SHADOW the older completed run this module exists to recover: the node would
+ * claim its newest job, find no media on it, and stay empty. Only node types
+ * that retain a result on failure say yes.
  */
-export function pickLatestCompletedJobPerNode(items: readonly ExecItemLike[]): CompletedJobRef[] {
-  const byNode = new Map<string, string>()
+export function pickLatestTerminalJobPerNode(
+  items: readonly ExecItemLike[],
+  opts: { acceptsFailed?: (nodeId: string) => boolean } = {},
+): TerminalJobRef[] {
+  const byNode = new Map<string, TerminalJobRef>()
   for (const item of items) {
     if (item.triggerType !== "single-node") continue
     const st = Object.values(item.nodeStates ?? {})[0] as SoleNodeState | undefined
     const nodeId = st?.nodeId
     if (!nodeId || byNode.has(nodeId)) continue
-    byNode.set(nodeId, st?.jobId ?? item.id)
+    const status = st?.status
+    if (status !== "completed" && status !== "failed") continue
+    if (status === "failed" && !opts.acceptsFailed?.(nodeId)) continue
+    byNode.set(nodeId, { nodeId, jobId: st?.jobId ?? item.id, status })
   }
-  return [...byNode].map(([nodeId, jobId]) => ({ nodeId, jobId }))
+  return [...byNode.values()]
 }
 
 /** True when this node's result is a Scene3D plan rather than a media URL. */
@@ -231,6 +267,54 @@ export function buildScene3DRecoveryPatch(
   }
 }
 
+/**
+ * Recover a REFUSED 3D-scene authoring job onto its node after a reload.
+ *
+ * Two halves, and they are independent — which is the whole reason this is not
+ * just `buildScene3DRecoveryPatch` with a different status:
+ *
+ *  - **The draft.** Only when this revision is not already recorded. Routed
+ *    through the same `resolveSceneCompletion` guard a completed one is, so a
+ *    manual edit made while the run was in flight still wins and the draft is
+ *    parked into history rather than overwriting it. The MEDIA half is never
+ *    applied: a refused run has no MP4 (the live lane and the DAG lane follow
+ *    the same rule).
+ *  - **The verdict.** Re-asserted on EVERY reload, including one where the
+ *    draft is already in `sceneHistory` — because `executionStatus` is a
+ *    TRANSIENT runtime key (`@nodaro/shared :: TRANSIENT_RUNTIME_KEYS`) and is
+ *    stripped from the save payload. A refusal that reached the canvas live
+ *    therefore came back after a reload as a scene with no failure on it,
+ *    reading as a clean success for a run the reviewer rejected. `errorMessage`
+ *    is persisted, so it is written only when it actually differs — otherwise a
+ *    pure-transient patch keeps the load from phantom-dirtying the workflow.
+ *
+ * Returns null when the job retained nothing: a plain failure leaves the node
+ * exactly as it was.
+ */
+export function buildScene3DRetainedDraftPatch(
+  data: Record<string, unknown>,
+  output: Record<string, unknown> | null | undefined,
+  source: "generate" | "edit",
+  jobId: string,
+  errorMessage?: string | null,
+): Record<string, unknown> | null {
+  if (!output?.scenePlan) return null
+  // Plan half — null when this revision was already filed (live, or an earlier
+  // reload). The verdict below still applies.
+  //
+  // `videoUrl` is stripped rather than trusted absent: a refused run publishes
+  // no MP4, and `buildScene3DRecoveryPatch` would happily write one (plus a
+  // `generatedResults` row) if a producer ever put a stale URL on the failed
+  // row. The node would then show a video for a run that failed and feed it
+  // downstream from the `video` handle.
+  const planOnly = { ...output, videoUrl: undefined }
+  const draft = buildScene3DRecoveryPatch(data, planOnly, source, jobId)
+  const patch: Record<string, unknown> = { ...(draft ?? {}), executionStatus: "failed" }
+  const message = typeof errorMessage === "string" && errorMessage ? errorMessage : undefined
+  if (message && data.errorMessage !== message) patch.errorMessage = message
+  return patch
+}
+
 export function buildCompletedResultPatch(
   nodeType: string | undefined,
   output: Record<string, unknown> | null | undefined,
@@ -307,9 +391,13 @@ export function buildCompletedResultPatch(
  * (tests stay deterministic).
  */
 export async function computeCompletedJobPatches(
-  refs: readonly CompletedJobRef[],
+  refs: readonly TerminalJobRef[],
   nodes: readonly WorkflowNode[],
-  fetchOutput: (jobId: string) => Promise<{ status: string; output_data?: Record<string, unknown> | null } | null>,
+  fetchOutput: (jobId: string) => Promise<{
+    status: string
+    output_data?: Record<string, unknown> | null
+    error_message?: string | null
+  } | null>,
   nowIso: string,
   /** Live node data by id, re-read after each `fetchOutput` await. Omitted →
    *  the pre-fetch snapshot is used (the historical behaviour). */
@@ -317,7 +405,7 @@ export async function computeCompletedJobPatches(
 ): Promise<NodeResultUpdate[]> {
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
   const out: NodeResultUpdate[] = []
-  for (const { nodeId, jobId } of refs) {
+  for (const { nodeId, jobId, status } of refs) {
     const node = nodeById.get(nodeId)
     if (!node) continue // deleted / sub-workflow node
     const data = (node.data ?? {}) as Record<string, unknown>
@@ -329,7 +417,9 @@ export async function computeCompletedJobPatches(
     } catch {
       continue // best-effort — a lookup hiccup shouldn't block load
     }
-    if (!job || job.status !== "completed" ) continue
+    // The job must still be in the state the listing claimed — a run that has
+    // moved on since the page loaded is not this pass's business.
+    if (!job || job.status !== status) continue
 
     // Re-read the node AFTER the await. `nodes` is the snapshot taken before
     // the fetch, and a scene node is interactive the whole time this runs —
@@ -338,6 +428,26 @@ export async function computeCompletedJobPatches(
     // would overwrite exactly the edit that was made during recovery.
     const live = readLiveData?.(nodeId) ?? data
     if (readLiveData && blocksRecovery(node.type, live)) continue
+
+    if (status === "failed") {
+      // A refused run that RETAINED its draft. Scene3D only (the picker's
+      // `acceptsFailed` is the gate; this re-checks so a hand-built ref can't
+      // paint a failure onto a node type that never retains one).
+      if (!isScene3DNodeType(node.type)) continue
+      // The user hit Run again between load and here — never stamp a stale
+      // verdict over a live one.
+      const liveStatus = live.executionStatus
+      if (liveStatus === "running" || liveStatus === "pending") continue
+      const patch = buildScene3DRetainedDraftPatch(
+        live,
+        job.output_data ?? null,
+        node.type === "edit-3d-scene" ? "edit" : "generate",
+        jobId,
+        job.error_message,
+      )
+      if (patch) out.push({ nodeId, updates: patch })
+      continue
+    }
 
     const patch = buildCompletedResultPatch(node.type, job.output_data ?? null, jobId, nowIso, live)
     if (patch) out.push({ nodeId, updates: patch })
@@ -356,14 +466,24 @@ export async function reconcileCompletedSingleNodeJobs(
   updateNodeData: (nodeId: string, updates: Record<string, unknown>) => void,
   deps: {
     listCompleted: (workflowId: string) => Promise<{ data: ExecItemLike[] }>
-    fetchOutput?: (jobId: string) => Promise<{ status: string; output_data?: Record<string, unknown> | null }>
+    fetchOutput?: (jobId: string) => Promise<{
+      status: string
+      output_data?: Record<string, unknown> | null
+      error_message?: string | null
+    }>
     nowIso?: string
     readLiveData?: (nodeId: string) => Record<string, unknown> | undefined
   },
 ): Promise<void> {
   try {
     const { data: items } = await deps.listCompleted(workflowId)
-    const refs = pickLatestCompletedJobPerNode(items)
+    // A FAILED run is a recovery candidate only where a refusal can retain a
+    // result — the scene-authoring nodes. Read off the CANVAS, so an unknown
+    // node id (deleted, sub-workflow) simply says no.
+    const typeById = new Map(nodes.map((n) => [n.id, n.type]))
+    const refs = pickLatestTerminalJobPerNode(items, {
+      acceptsFailed: (nodeId) => isScene3DNodeType(typeById.get(nodeId)),
+    })
     if (refs.length === 0) return
     const fetchOutput =
       deps.fetchOutput ?? (async (jobId: string) => (await getJobStatusLean(jobId)) as { status: string; output_data?: Record<string, unknown> | null })

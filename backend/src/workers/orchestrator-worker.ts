@@ -16,6 +16,7 @@ import { supabase } from "../lib/supabase.js"
 import { payloadBillingContext } from "../lib/billing-context.js"
 import { monetizationRpcArgs } from "../services/workflow-engine/monetization-args.js"
 import { reconcileNodeStatesFromJobs } from "../lib/reconcile/node-states.js"
+import { retainedOutputOfRejection } from "../services/workflow-engine/failed-node-output.js"
 import { cancelInFlightChildJobs } from "../lib/reconcile/cancel-inflight-jobs.js"
 import { updateExecutionWithRetry } from "../lib/execution-writes.js"
 // Redis-free leaf (M-10a): the constants only, so importing THIS module never
@@ -1242,6 +1243,14 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
           // PR9: a worker safety-block verdict rides the same way (attached
           // at pollJobToCompletion's throw site, node-executor.ts).
           const errorHint = (result.reason as { errorHint?: NodeExecutionState["errorHint"] } | null)?.errorHint
+          // …and so does what a refused run RETAINED (`retainedOutputOfFailedJob`,
+          // attached at the same throw site). This object is built FRESH on every
+          // failure, so anything not copied here is gone: before `output` was
+          // listed, a 3D-scene run that published a real revision and then failed
+          // the reviewer's verdict reached the canvas as a bare error, with the
+          // billed scene nowhere on the wire. Presence never means success —
+          // `status` stays "failed" and the execution still stops here.
+          const output = retainedOutputOfRejection(result.reason)
 
           nodeStates[node.id] = {
             status: "failed",
@@ -1249,6 +1258,7 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
             error,
             ...(errorCode ? { errorCode } : {}),
             ...(errorHint ? { errorHint } : {}),
+            ...(output ? { output } : {}),
             inputs: nodeStates[node.id]?.inputs,
             jobId: nodeStates[node.id]?.jobId,
             startedAt: nodeStates[node.id]?.startedAt,

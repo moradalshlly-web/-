@@ -1,5 +1,6 @@
 import { supabase } from "../supabase.js"
 import type { NodeExecutionState } from "../../services/workflow-engine/types.js"
+import { retainedOutputOfFailedJob } from "../../services/workflow-engine/failed-node-output.js"
 
 /**
  * Reconcile a workflow_executions.node_states map against the actual `jobs`
@@ -73,7 +74,10 @@ export async function reconcileNodeStatesFromJobs(
   type Agg = {
     completed?: { jobId: string }
     cancelled?: { jobId: string; error?: string }
-    failed?: { jobId: string; error?: string }
+    /** `outputData` is the failed row's `jobs.output_data`: a refused run can
+     *  RETAIN what it produced, and this lane rebuilds a node state from
+     *  scratch after a crash, so anything not carried here is lost for good. */
+    failed?: { jobId: string; error?: string; outputData?: unknown }
   }
   const agg = new Map<string, Agg>()
   const recordJob = (
@@ -81,6 +85,7 @@ export async function reconcileNodeStatesFromJobs(
     jobId: string,
     jobStatus: string,
     errorMessage: unknown,
+    outputData?: unknown,
   ): void => {
     let a = agg.get(nodeId)
     if (!a) {
@@ -91,7 +96,7 @@ export async function reconcileNodeStatesFromJobs(
       a.completed ??= { jobId }
     } else if (jobStatus === "failed") {
       const err = typeof errorMessage === "string" && errorMessage ? errorMessage : undefined
-      a.failed ??= { jobId, error: err }
+      a.failed ??= { jobId, error: err, outputData }
     } else if (jobStatus === "cancelled") {
       const err = typeof errorMessage === "string" && errorMessage ? errorMessage : "Job cancelled"
       a.cancelled ??= { jobId, error: err }
@@ -104,13 +109,13 @@ export async function reconcileNodeStatesFromJobs(
     const jobIds = Array.from(jobIdToNodeId.keys())
     const { data: jobs } = await supabase
       .from("jobs")
-      .select("id, status, error_message")
+      .select("id, status, error_message, output_data")
       .in("id", jobIds)
     if (jobs) {
       for (const job of jobs) {
         const nodeId = jobIdToNodeId.get(job.id as string)
         if (!nodeId) continue
-        recordJob(nodeId, job.id as string, job.status as string, job.error_message)
+        recordJob(nodeId, job.id as string, job.status as string, job.error_message, job.output_data)
       }
     }
   }
@@ -120,10 +125,20 @@ export async function reconcileNodeStatesFromJobs(
   // INSERT and the fire-and-forget updateExecution). Project only the
   // node_id we actually need from input_data to avoid pulling multi-KB
   // payloads across the wire.
+  //
+  // `output_data` is the ONE payload column pulled deliberately, because a
+  // FAILED row may carry what its run retained and only the failed transition
+  // below reads it. It arrives for every terminal row of the execution, not
+  // just the failed ones — there is no per-row column projection — so a stuck
+  // execution full of completed scene jobs costs their plans on the wire. The
+  // trade is bounded and one-directional: this query runs ONLY while some node
+  // is still pending/running (the `stillActive` early return above), i.e. on a
+  // crashed or wedged execution, and the alternative is a second round trip for
+  // the failed ids with its own failure mode on the recovery path.
   if (executionId) {
     const { data: scopedJobs } = await supabase
       .from("jobs")
-      .select("id, status, error_message, node_id:input_data->>node_id")
+      .select("id, status, error_message, output_data, node_id:input_data->>node_id")
       .eq("workflow_execution_id", executionId)
       .in("status", ["completed", "failed", "cancelled"])
     if (scopedJobs && scopedJobs.length > 0) {
@@ -133,7 +148,13 @@ export async function reconcileNodeStatesFromJobs(
           : null
         if (!nodeId) continue
         if (!stillActive.has(nodeId)) continue
-        recordJob(nodeId, job.id as string, job.status as string, job.error_message)
+        recordJob(
+          nodeId,
+          job.id as string,
+          job.status as string,
+          job.error_message,
+          (job as Record<string, unknown>).output_data,
+        )
       }
     }
   }
@@ -161,6 +182,18 @@ export async function reconcileNodeStatesFromJobs(
         nodeSt.status = "failed"
         if (a.failed.error) nodeSt.error = a.failed.error
         if (!nodeSt.jobId) nodeSt.jobId = a.failed.jobId
+        // What the refused run RETAINED, carried the same way the live
+        // orchestrator carries it (`retainedOutputOfRejection`). Without this
+        // the two lanes disagree on the SAME job: a 3D-scene run refused while
+        // the orchestrator was alive delivers its billed draft, and the exact
+        // same run refused while it was down delivers a bare error.
+        //
+        // Scoped to the FAILED transition on purpose. The `completed` branch
+        // below has never carried an output either — that is an older, wider
+        // gap (a resumed completed node arrives with no result) whose fix would
+        // change recovery for every node type, and it is not this change.
+        const retained = retainedOutputOfFailedJob(a.failed.outputData, nodeSt.nodeType ?? "")
+        if (retained && !nodeSt.output) nodeSt.output = retained
         changed = true
       }
     } else if (a.cancelled) {

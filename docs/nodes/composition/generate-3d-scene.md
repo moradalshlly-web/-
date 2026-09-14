@@ -80,8 +80,18 @@ discarded: the job fails, there is no completed result, and `output_data` points
 at what exists — `scenePlan` and `sceneRevisionId` for the draft itself,
 `deliveryId` for its retained evidence, `posterAssetId` for a rendered frame of
 it, and `validation` with `status: "failed"`. The draft is an ordinary scene
-revision: render it, edit it deterministically, or re-author from it. On the
-canvas the node shows the draft and the failure together.
+revision: render it, edit it deterministically, or re-author from it.
+
+**On the canvas, by every route.** A refused draft reaches the node the same way
+whichever way the run was started, and survives a page reload: the single-node
+Run files it live, a full workflow Run carries it on the failed node's
+`nodeStates[nodeId].output`, and reopening the workflow re-files it from the job
+— together with the failure, which is re-asserted because a node's run status is
+not part of the saved workflow. The node shows the draft and the refusal at once;
+a scene being present never means the run passed. Whatever the route, the draft
+is filed by the same rule a successful revision is: an edit you made while the
+run was in flight still wins, and the arriving draft is kept in the node's
+revision history rather than overwriting it.
 
 When the compiler refused the recipe on *every* pass there is no draft — nothing
 compiled, so there is no `scenePlan` and no `sceneRevisionId`. That result still

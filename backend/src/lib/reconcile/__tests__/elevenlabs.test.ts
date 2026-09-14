@@ -81,6 +81,13 @@ vi.mock("../../../providers/video/ffmpeg-utils.js", () => ({
 vi.mock("../../../providers/video/extract-audio-track.js", () => ({ extractAudioTrack: mocks.extractAudioMock }))
 vi.mock("node:fs", () => ({ promises: { readFile: vi.fn().mockResolvedValue(Buffer.from("aud")), writeFile: vi.fn().mockResolvedValue(undefined) } }))
 
+const projectMocks = vi.hoisted(() => ({ poll: vi.fn(), download: vi.fn() }))
+vi.mock("../../../providers/elevenlabs/dubbing-project.js", () => ({
+  isDubbingProject: (id: string) => id.startsWith("project:"),
+  pollDubbingProject: projectMocks.poll,
+  downloadDubbingProject: projectMocks.download,
+}))
+
 import { reconcileElevenLabsJob, type ElevenLabsJobRow } from "../elevenlabs.js"
 
 function row(overrides: Partial<ElevenLabsJobRow> = {}): ElevenLabsJobRow {
@@ -226,4 +233,21 @@ describe("reconcileElevenLabsJob", () => {
     // absent BY CONSTRUCTION, so no reconcile tick can fail a job under review.
     expect(mocks.jobsUpdateInMock).toHaveBeenCalledWith("status", ["pending", "queued", "processing"])
   })
+})
+
+
+it("recovers a Hebrew video project from its persisted ID and original source", async () => {
+  projectMocks.poll.mockResolvedValue({ dubbing_id: "project:p1", status: "dubbed", target_languages: ["he"], media_metadata: { content_type: "video/mp4" } })
+  projectMocks.download.mockResolvedValue(Buffer.from("converted-video"))
+  await reconcileElevenLabsJob(row({ provider_task_id: "project:p1", input_data: { targetLanguage: "he", videoUrl: "https://r2.example/source.mp4" } }))
+  expect(projectMocks.poll).toHaveBeenCalledWith("project:p1")
+  expect(projectMocks.download).toHaveBeenCalledWith("project:p1", true, "https://r2.example/source.mp4")
+  expect(mocks.watermarkUploadMock).toHaveBeenCalled()
+})
+
+it("keeps a Hebrew project audio-only when a video was submitted in the audio slot", async () => {
+  projectMocks.poll.mockResolvedValue({ dubbing_id: "project:p2", status: "dubbed", target_languages: ["he"], media_metadata: { content_type: "video/mp4" } })
+  projectMocks.download.mockResolvedValue(Buffer.from("converted-audio"))
+  await reconcileElevenLabsJob(row({ provider_task_id: "project:p2", input_data: { targetLanguage: "he", audioUrl: "https://r2.example/source.mp4" } }))
+  expect(projectMocks.download).toHaveBeenCalledWith("project:p2", false, undefined)
 })

@@ -157,7 +157,7 @@ const JOB_OUTPUT = { scenePlan: NEW_PLAN, videoUrl: NEW_MP4 }
 describe("reload recovery on a Pro node that already has a video", () => {
   it("recovers the settled run even though the node holds an EARLIER MP4", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-2" }],
+      [{ nodeId: "n1", jobId: "job-2", status: "completed" }],
       [
         wfNode("n1", "pro-3d-render", {
           scenePlan: { planType: "3d-scene", revisionId: "rev-base" },
@@ -178,7 +178,7 @@ describe("reload recovery on a Pro node that already has a video", () => {
 
   it("writes the adopted media with real provenance and a matching active index", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-2" }],
+      [{ nodeId: "n1", jobId: "job-2", status: "completed" }],
       [
         wfNode("n1", "pro-3d-render", {
           scenePlan: { planType: "3d-scene", revisionId: "rev-base" },
@@ -200,7 +200,7 @@ describe("reload recovery on a Pro node that already has a video", () => {
 
   it("does not recover an ordinary media node that already has its result", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "v1", jobId: "job-2" }],
+      [{ nodeId: "v1", jobId: "job-2", status: "completed" }],
       [wfNode("v1", "generate-video", { generatedVideoUrl: OLD_MP4 })],
       async () => ({ status: "completed", output_data: { videoUrl: NEW_MP4 } }),
       NOW,
@@ -210,7 +210,7 @@ describe("reload recovery on a Pro node that already has a video", () => {
 
   it("parks against the LIVE node when the scene moved on during the lookup", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-2" }],
+      [{ nodeId: "n1", jobId: "job-2", status: "completed" }],
       [
         wfNode("n1", "pro-3d-render", {
           scenePlan: { planType: "3d-scene", revisionId: "rev-base" },
@@ -238,7 +238,7 @@ describe("reload recovery on a Pro node that already has a video", () => {
 
   it("is idempotent across reloads — a revision already in history writes nothing", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-2" }],
+      [{ nodeId: "n1", jobId: "job-2", status: "completed" }],
       [
         wfNode("n1", "pro-3d-render", {
           scenePlan: NEW_PLAN,
@@ -272,7 +272,7 @@ describe("reload recovery on a Pro node that already has a video", () => {
 
   it("still recovers a BASIC scene node, which has no media half at all", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "s1", jobId: "job-2" }],
+      [{ nodeId: "s1", jobId: "job-2", status: "completed" }],
       [
         wfNode("s1", "generate-3d-scene", {
           scenePlan: { planType: "3d-scene", revisionId: "rev-base" },

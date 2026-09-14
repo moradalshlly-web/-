@@ -699,7 +699,7 @@ const handleDubbing: HandlerFn = async function handleDubbing(job, ctx) {
   }
   await setJobProgress(job, ctx.jobId, 70)
 
-  const mediaBuffer = await downloadDubbedMedia(dubbingId, d.targetLanguage, videoMode)
+  const mediaBuffer = await downloadDubbedMedia(dubbingId, d.targetLanguage, videoMode, uploadedUrl)
   await setJobProgress(job, ctx.jobId, 85)
   const { ok, url } = await deliverDubbedMedia({
     jobId: ctx.jobId,

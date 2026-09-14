@@ -1,3 +1,4 @@
+import { dubbingModelIdentifier } from "../../lib/dubbing-model.js"
 import {
   pro3DRenderShotStills, assertCanvasExecutionAllowed, OVERLAY_MAX_VARIANTS, overlayVariantIdFromHandle } from "@nodaro/shared"
 import type { Scene3DReference } from "@nodaro/shared"
@@ -4997,7 +4998,7 @@ export function buildPayload(
       const dubSourceUrl = typeof data.sourceUrl === "string" && data.sourceUrl.trim() ? data.sourceUrl.trim() : undefined
       const dubVideoUrl = dubSourceUrl ? undefined : (resolvedInputs.videoUrl || (data.videoUrl as string | undefined))
       const dubAudioUrl = dubSourceUrl || dubVideoUrl ? undefined : (resolvedInputs.audioUrl || (data.audioUrl as string | undefined))
-      return simpleResult("dubbing", "elevenlabs-dubbing", {
+      return simpleResult("dubbing", dubbingModelIdentifier(data.targetLanguage), {
         jobId,
         audioUrl: dubAudioUrl,
         videoUrl: dubVideoUrl,

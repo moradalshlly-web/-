@@ -1,3 +1,5 @@
+import { dubbingModelIdentifier } from "../lib/dubbing-model.js"
+import { usesDubbingProject, validateProjectDubbing } from "../providers/elevenlabs/dubbing-project.js"
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { z } from "zod"
 import { supabase } from "../lib/supabase.js"
@@ -82,6 +84,18 @@ function effectiveDubbedSeconds(probedSec: number | undefined, startTime?: numbe
  */
 export async function probeDubbingDurationPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const body = (req.body ?? {}) as Record<string, unknown>
+  // Reject unsupported project settings before credit reservation or dispatch.
+  if (typeof body.targetLanguage === "string" && usesDubbingProject(body.targetLanguage)) {
+    const parsed = dubbingBody.safeParse(body)
+    if (!parsed.success) {
+      return void reply.code(400).send({ error: { code: "validation_error", ...formatZodError(parsed.error) } })
+    }
+    try {
+      validateProjectDubbing({ url: parsed.data.videoUrl ?? parsed.data.audioUrl }, parsed.data)
+    } catch (err) {
+      return void reply.code(400).send({ error: { code: "unsupported_dubbing_settings", message: (err as Error).message } })
+    }
+  }
   const mediaUrl = (typeof body.videoUrl === "string" && body.videoUrl)
     || (typeof body.audioUrl === "string" && body.audioUrl)
     || undefined
@@ -95,6 +109,9 @@ export async function probeDubbingDurationPreHandler(req: FastifyRequest, reply:
     } catch (err) {
       req.log.warn({ err }, "dubbing: media probe failed; falling back to the 120s reserve bucket")
     }
+  }
+  if (typeof body.targetLanguage === "string" && usesDubbingProject(body.targetLanguage) && probedSec == null) {
+    return void reply.code(422).send({ error: { code: "unreadable_dubbing_source", message: "Could not read the video duration. Import the source again before dubbing into Hebrew." } })
   }
   const effective = effectiveDubbedSeconds(probedSec, startTime, endTime)
   if (effective != null && effective > DUBBING_MAX_DURATION_SEC) {
@@ -113,7 +130,7 @@ export async function dubbingRoutes(app: FastifyInstance) {
   app.post("/v1/dubbing", {
     preHandler: [
       probeDubbingDurationPreHandler,
-      creditGuard(() => "elevenlabs-dubbing", {
+      creditGuard((req) => dubbingModelIdentifier((req.body as Record<string, unknown>)?.targetLanguage), {
         // Per-minute pricing: probed span (fallback 120s) → ceil to whole
         // minutes x the per-minute base. The base is read through
         // getModelCreditBaseCost so an admin model_pricing row tunes the RATE
@@ -126,7 +143,7 @@ export async function dubbingRoutes(app: FastifyInstance) {
           const seconds = typeof probed === "number" && probed > 0 ? probed : DUBBING_FALLBACK_SECONDS
           const minutes = Math.max(1, Math.ceil(seconds / 60))
           const { getModelCreditBaseCost } = await import("../ee/billing/credits.js")
-          const { creditCost } = await getModelCreditBaseCost("elevenlabs-dubbing")
+          const { creditCost } = await getModelCreditBaseCost(dubbingModelIdentifier(body.targetLanguage))
           return creditCost * minutes
         },
       }),
@@ -183,7 +200,7 @@ export async function dubbingRoutes(app: FastifyInstance) {
       return sendInternalError(reply, req, error, "Failed to create job")
     }
 
-    const reservation = await reserveCreditsForJob(req, reply, job.id, "elevenlabs-dubbing")
+    const reservation = await reserveCreditsForJob(req, reply, job.id, dubbingModelIdentifier(targetLanguage))
     if (reply.sent) return
     const usageLogId = reservation?.usageLogId
 

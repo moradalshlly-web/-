@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
 import {
-  pickLatestCompletedJobPerNode,
+  pickLatestTerminalJobPerNode,
   buildCompletedResultPatch,
   computeCompletedJobPatches,
   reconcileCompletedSingleNodeJobs,
@@ -9,39 +9,68 @@ import type { WorkflowNode } from "@/types/nodes"
 
 const NOW = "2026-07-14T12:00:00.000Z"
 
-/** A completed single-node job as the executions list returns it (nodeState
+/** A terminal single-node job as the executions list returns it (nodeState
  *  keyed by canvas node_id; no output_data inline — that's fetched per job). */
-function completedItem(jobId: string, nodeId: string | null) {
+function terminalItem(jobId: string, nodeId: string | null, status = "completed") {
   return {
     id: jobId,
     triggerType: "single-node",
-    nodeStates: { [nodeId ?? jobId]: { nodeId, jobId, status: "completed" } },
+    nodeStates: { [nodeId ?? jobId]: { nodeId, jobId, status } },
   }
 }
+
+const completedItem = (jobId: string, nodeId: string | null) => terminalItem(jobId, nodeId)
+const failedItem = (jobId: string, nodeId: string | null) => terminalItem(jobId, nodeId, "failed")
 
 function node(id: string, type: string, data: Record<string, unknown> = {}): WorkflowNode {
   return { id, type, position: { x: 0, y: 0 }, data } as unknown as WorkflowNode
 }
 
-describe("pickLatestCompletedJobPerNode", () => {
+describe("pickLatestTerminalJobPerNode", () => {
   it("keeps the newest job per node (items are newest-first)", () => {
-    const refs = pickLatestCompletedJobPerNode([
+    const refs = pickLatestTerminalJobPerNode([
       completedItem("job-new", "n1"),
       completedItem("job-old", "n1"),
       completedItem("job-b", "n2"),
     ])
     expect(refs).toEqual([
-      { nodeId: "n1", jobId: "job-new" },
-      { nodeId: "n2", jobId: "job-b" },
+      { nodeId: "n1", jobId: "job-new", status: "completed" },
+      { nodeId: "n2", jobId: "job-b", status: "completed" },
     ])
   })
 
   it("skips items with no canvas node_id and non-single-node items", () => {
-    const refs = pickLatestCompletedJobPerNode([
+    const refs = pickLatestTerminalJobPerNode([
       completedItem("j1", null),
       { id: "orch", triggerType: "manual", nodeStates: { n9: { nodeId: "n9", jobId: "x" } } },
     ])
     expect(refs).toEqual([])
+  })
+
+  /**
+   * The non-regression that makes the widening safe. A media node's newest run
+   * failing must NOT shadow the older completed run this module exists to
+   * recover — otherwise the node claims a job with no media on it and stays
+   * empty, which is the exact bug in reverse.
+   */
+  it("a failed job is ignored unless the node accepts one", () => {
+    const items = [failedItem("job-newer", "n1"), completedItem("job-older", "n1")]
+    expect(pickLatestTerminalJobPerNode(items)).toEqual([
+      { nodeId: "n1", jobId: "job-older", status: "completed" },
+    ])
+  })
+
+  it("claims the newest FAILED job for a node that accepts one", () => {
+    const items = [failedItem("job-newer", "s1"), completedItem("job-older", "s1")]
+    expect(pickLatestTerminalJobPerNode(items, { acceptsFailed: () => true })).toEqual([
+      { nodeId: "s1", jobId: "job-newer", status: "failed" },
+    ])
+  })
+
+  it("ignores a non-terminal job entirely", () => {
+    expect(
+      pickLatestTerminalJobPerNode([terminalItem("j1", "n1", "running")], { acceptsFailed: () => true }),
+    ).toEqual([])
   })
 })
 
@@ -73,7 +102,7 @@ describe("computeCompletedJobPatches", () => {
 
   it("recovers a result onto an empty node", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "j1" }],
+      [{ nodeId: "n1", jobId: "j1", status: "completed" }],
       [node("n1", "generate-video-pro")],
       fetchOk("https://r2/v.mp4"),
       NOW,
@@ -84,7 +113,7 @@ describe("computeCompletedJobPatches", () => {
   it("skips a node that already has a result", async () => {
     const fetch = fetchOk("https://r2/v.mp4")
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "j1" }],
+      [{ nodeId: "n1", jobId: "j1", status: "completed" }],
       [node("n1", "generate-video-pro", { generatedVideoUrl: "https://r2/existing.mp4" })],
       fetch,
       NOW,
@@ -95,7 +124,7 @@ describe("computeCompletedJobPatches", () => {
 
   it("skips a node already marked completed (respects user edits)", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "j1" }],
+      [{ nodeId: "n1", jobId: "j1", status: "completed" }],
       [node("n1", "generate-video-pro", { executionStatus: "completed" })],
       fetchOk("https://r2/v.mp4"),
       NOW,
@@ -105,7 +134,7 @@ describe("computeCompletedJobPatches", () => {
 
   it("skips a job that isn't actually completed yet", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "j1" }],
+      [{ nodeId: "n1", jobId: "j1", status: "completed" }],
       [node("n1", "generate-video-pro")],
       vi.fn(async () => ({ status: "processing", output_data: {} })),
       NOW,
@@ -115,7 +144,7 @@ describe("computeCompletedJobPatches", () => {
 
   it("swallows a fetch error and continues", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "j1" }, { nodeId: "n2", jobId: "j2" }],
+      [{ nodeId: "n1", jobId: "j1", status: "completed" }, { nodeId: "n2", jobId: "j2", status: "completed" }],
       [node("n1", "generate-video-pro"), node("n2", "generate-video-pro")],
       vi.fn(async (jobId: string) => {
         if (jobId === "j1") throw new Error("boom")
@@ -128,7 +157,7 @@ describe("computeCompletedJobPatches", () => {
 
   it("skips a node that's not on the canvas", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "ghost", jobId: "j1" }],
+      [{ nodeId: "ghost", jobId: "j1", status: "completed" }],
       [node("n1", "generate-video-pro")],
       fetchOk("https://r2/v.mp4"),
       NOW,
@@ -191,7 +220,7 @@ describe("video-analysis result recovery", () => {
 
   it("computeCompletedJobPatches recovers an analysis onto an empty node", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "va", jobId: "j1" }],
+      [{ nodeId: "va", jobId: "j1", status: "completed" }],
       [node("va", "video-analysis", { llmModel: "mixed" })],
       vi.fn(async () => ({ status: "completed", output_data: { json: ANALYSIS } })),
       NOW,
@@ -204,7 +233,7 @@ describe("video-analysis result recovery", () => {
   it("skips a node that already carries a saved analysis (guard short-circuits the fetch)", async () => {
     const fetch = vi.fn(async () => ({ status: "completed", output_data: { json: ANALYSIS } }))
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "va", jobId: "j1" }],
+      [{ nodeId: "va", jobId: "j1", status: "completed" }],
       [node("va", "video-analysis", { generatedJson: { scenes: [] } })],
       fetch,
       NOW,
@@ -255,7 +284,7 @@ describe("video-analysis result recovery", () => {
 
   it("computeCompletedJobPatches recovers an audit onto an empty node", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "aud", jobId: "j1" }],
+      [{ nodeId: "aud", jobId: "j1", status: "completed" }],
       [node("aud", "video-audit")],
       vi.fn(async () => ({ status: "completed", output_data: { json: ANALYSIS, report: REPORT } })),
       NOW,
@@ -300,7 +329,7 @@ describe("content-policy rewrite disclosure recovery (Task A4 follow-up)", () =>
 
   it("computeCompletedJobPatches recovers the disclosure onto an empty GVP node after a dead-poll reload", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "j1" }],
+      [{ nodeId: "n1", jobId: "j1", status: "completed" }],
       [node("n1", "generate-video-pro")],
       vi.fn(async () => ({
         status: "completed",
@@ -339,7 +368,7 @@ describe("Scene3D recovery", () => {
 
   it("recovers a first generation onto an empty scene node", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-1" }],
+      [{ nodeId: "n1", jobId: "job-1", status: "completed" }],
       [node("n1", "generate-3d-scene", {})],
       sceneJob(REV_A),
       NOW,
@@ -356,7 +385,7 @@ describe("Scene3D recovery", () => {
     // Uncertain provenance (the run's base is unknown or has moved) → keep the
     // user's scene active and offer the recovered one, never the reverse.
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-1" }],
+      [{ nodeId: "n1", jobId: "job-1", status: "completed" }],
       [node("n1", "generate-3d-scene", { scenePlan: plan(REV_B) })],
       sceneJob(REV_A),
       NOW,
@@ -370,7 +399,7 @@ describe("Scene3D recovery", () => {
     // `sceneJobBaseRevisionId` is not a transient runtime key, so it survives
     // the save and a mid-run reload still knows what the job was based on.
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-1" }],
+      [{ nodeId: "n1", jobId: "job-1", status: "completed" }],
       [node("n1", "edit-3d-scene", { scenePlan: plan(REV_B), sceneJobBaseRevisionId: REV_B })],
       sceneJob(REV_C, REV_B),
       NOW,
@@ -381,7 +410,7 @@ describe("Scene3D recovery", () => {
   it("is IDEMPOTENT across reloads — a revision already in history is not re-parked", async () => {
     const history = [{ revisionId: REV_A, scenePlan: plan(REV_A), source: "generate", createdAt: NOW }]
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-1" }],
+      [{ nodeId: "n1", jobId: "job-1", status: "completed" }],
       [node("n1", "generate-3d-scene", { scenePlan: plan(REV_B), sceneHistory: history })],
       sceneJob(REV_A),
       NOW,
@@ -396,7 +425,7 @@ describe("Scene3D recovery", () => {
     const snapshot = node("n1", "generate-3d-scene", {})
     const live: Record<string, unknown> = { scenePlan: plan(REV_B) }
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-1" }],
+      [{ nodeId: "n1", jobId: "job-1", status: "completed" }],
       [snapshot],
       sceneJob(REV_A),
       NOW,
@@ -408,11 +437,183 @@ describe("Scene3D recovery", () => {
 
   it("skips a job that produced no scene", async () => {
     const patches = await computeCompletedJobPatches(
-      [{ nodeId: "n1", jobId: "job-1" }],
+      [{ nodeId: "n1", jobId: "job-1", status: "completed" }],
       [node("n1", "generate-3d-scene", {})],
       async () => ({ status: "completed", output_data: { videoUrl: "https://r2/v.mp4" } }),
       NOW,
     )
     expect(patches).toEqual([])
+  })
+})
+
+/**
+ * A REFUSED 3D-scene run that RETAINED its draft, across a reload.
+ *
+ * `SCENE_QUALITY_FAILED` after an exhausted repair budget is the refusal that
+ * already published a real, renderable revision — billed, addressable by the
+ * artifact routes, and until now unreachable from here: this lane asked the
+ * executions list for `status: "completed"` only.
+ *
+ * Two distinct losses, and the second is the one that surprises: the draft
+ * itself when the refusal settled with the tab closed, and — even when the
+ * draft DID arrive live — the VERDICT, because `executionStatus` is a transient
+ * key stripped from every save. A refused scene came back from a reload looking
+ * like a clean success.
+ */
+describe("Scene3D retained-draft recovery (a FAILED job)", () => {
+  const REV_A = "11111111-1111-4111-8111-111111111111"
+  const REV_B = "22222222-2222-4222-8222-222222222222"
+  const REV_C = "33333333-3333-4333-8333-333333333333"
+
+  const plan = (revisionId: string, parentRevisionId?: string) => ({
+    planType: "3d-scene",
+    revisionId,
+    ...(parentRevisionId ? { parentRevisionId } : {}),
+  })
+
+  const REFUSAL = "SCENE_QUALITY_FAILED: the reviewer refused the scene after 3 repair passes"
+
+  function refusedJob(revisionId: string, parentRevisionId?: string) {
+    return async () => ({
+      status: "failed",
+      error_message: REFUSAL,
+      output_data: {
+        kind: "draft",
+        scenePlan: plan(revisionId, parentRevisionId),
+        sceneRevisionId: revisionId,
+        deliveryId: "del-1",
+        posterAssetId: "asset-1",
+        validation: { status: "failed", sourceRetained: true },
+        metadata: { review: { refused: true } },
+      },
+    })
+  }
+
+  const failedRef = [{ nodeId: "n1", jobId: "job-1", status: "failed" as const }]
+
+  it("puts the retained draft on an empty node, with the verdict", async () => {
+    const patches = await computeCompletedJobPatches(
+      failedRef,
+      [node("n1", "generate-3d-scene", {})],
+      refusedJob(REV_A),
+      NOW,
+    )
+    expect(patches).toHaveLength(1)
+    const updates = patches[0].updates
+    expect((updates.scenePlan as Record<string, unknown>).revisionId).toBe(REV_A)
+    expect((updates.sceneHistory as Array<{ revisionId: string }>).map((e) => e.revisionId)).toEqual([REV_A])
+    expect(updates.executionStatus).toBe("failed")
+    expect(updates.errorMessage).toBe(REFUSAL)
+  })
+
+  it("re-asserts the verdict alone when the draft already reached the canvas live", async () => {
+    // The live lane adopted it; `executionStatus` did not survive the save.
+    const held = {
+      scenePlan: plan(REV_A),
+      sceneHistory: [{ revisionId: REV_A, source: "generate", plan: plan(REV_A) }],
+      errorMessage: REFUSAL,
+    }
+    const patches = await computeCompletedJobPatches(
+      failedRef,
+      [node("n1", "generate-3d-scene", held)],
+      refusedJob(REV_A),
+      NOW,
+    )
+    expect(patches).toEqual([{ nodeId: "n1", updates: { executionStatus: "failed" } }])
+  })
+
+  it("PARKS the retained draft when the node moved on, and still fails", async () => {
+    const moved = {
+      scenePlan: plan(REV_C, REV_A),
+      sceneJobBaseRevisionId: REV_A,
+    }
+    const patches = await computeCompletedJobPatches(
+      failedRef,
+      [node("n1", "edit-3d-scene", moved)],
+      refusedJob(REV_B, REV_A),
+      NOW,
+    )
+    const updates = patches[0].updates
+    expect(updates.scenePlan).toBeUndefined()
+    expect((updates.scenePendingPlan as Record<string, unknown>).revisionId).toBe(REV_B)
+    expect(updates.executionStatus).toBe("failed")
+  })
+
+  it("never writes the MEDIA half of a failed run", async () => {
+    const patches = await computeCompletedJobPatches(
+      failedRef,
+      [node("n1", "pro-3d-render", {})],
+      async () => ({
+        status: "failed",
+        error_message: REFUSAL,
+        // A producer should never put one here; if one ever does, the node must
+        // not paint a video for a run that failed.
+        output_data: { scenePlan: plan(REV_A), videoUrl: "https://r2/should-not-be-used.mp4" },
+      }),
+      NOW,
+    )
+    expect(patches[0].updates.generatedVideoUrl).toBeUndefined()
+    expect(patches[0].updates.generatedResults).toBeUndefined()
+    expect(patches[0].updates.executionStatus).toBe("failed")
+  })
+
+  it("writes nothing for a failure that retained no scene", async () => {
+    const patches = await computeCompletedJobPatches(
+      failedRef,
+      [node("n1", "generate-3d-scene", { scenePlan: plan(REV_A) })],
+      async () => ({ status: "failed", error_message: "Compiler refused every recipe", output_data: null }),
+      NOW,
+    )
+    expect(patches).toEqual([])
+  })
+
+  it("refuses to stamp a stale verdict over a node the user just re-ran", async () => {
+    const live = { scenePlan: plan(REV_A), executionStatus: "running" }
+    const patches = await computeCompletedJobPatches(
+      failedRef,
+      [node("n1", "generate-3d-scene", { scenePlan: plan(REV_A) })],
+      refusedJob(REV_B, REV_A),
+      NOW,
+      () => live,
+    )
+    expect(patches).toEqual([])
+  })
+
+  it("ignores a failed ref aimed at a node type that retains nothing", async () => {
+    const patches = await computeCompletedJobPatches(
+      failedRef,
+      [node("n1", "generate-video-pro", {})],
+      async () => ({ status: "failed", error_message: "boom", output_data: { videoUrl: "https://r2/v.mp4" } }),
+      NOW,
+    )
+    expect(patches).toEqual([])
+  })
+
+  it("end to end: the reconcile lists failures and applies the draft", async () => {
+    const updateNodeData = vi.fn()
+    await reconcileCompletedSingleNodeJobs(
+      "wf-1",
+      [node("s1", "generate-3d-scene", {})],
+      updateNodeData,
+      {
+        listCompleted: async () => ({
+          data: [
+            {
+              id: "job-1",
+              triggerType: "single-node",
+              nodeStates: { s1: { nodeId: "s1", jobId: "job-1", status: "failed" } },
+            },
+          ],
+        }),
+        fetchOutput: refusedJob(REV_A),
+        nowIso: NOW,
+      },
+    )
+    expect(updateNodeData).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({ executionStatus: "failed", errorMessage: REFUSAL }),
+    )
+    const written = updateNodeData.mock.calls[0][1] as Record<string, unknown>
+    expect((written.scenePlan as Record<string, unknown>).revisionId).toBe(REV_A)
   })
 })

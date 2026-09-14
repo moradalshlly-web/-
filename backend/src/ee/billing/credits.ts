@@ -1,3 +1,4 @@
+import { usdToCredits } from "@nodaro/shared"
 import { trySettleManagedJob } from "./managed-job-settlement.js"
 import { supabase } from "../../lib/supabase.js"
 import { ReserveRpcError, reservePrefixOf } from "../../lib/reserve-errors.js"
@@ -1258,6 +1259,7 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // typical ~2-min clip identically. The model_pricing row is the same
   // per-minute base (migration 359).
   "elevenlabs-dubbing": 40,
+  "elevenlabs-dubbing-v2": usdToCredits(2.2),
   "elevenlabs-voice-remix": 40,    // ElevenLabs voice remix/preview
   "elevenlabs-voice-design": 50,   // ElevenLabs voice design (full controls)
   "elevenlabs-forced-alignment": 30, // ElevenLabs forced alignment

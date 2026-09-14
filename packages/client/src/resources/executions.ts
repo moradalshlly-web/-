@@ -1,4 +1,5 @@
 import type { NodaroClient } from "../client.js"
+import type { NodeExecutionStateWire } from "@nodaro/shared"
 
 export type ExecutionStatus =
   | "pending"
@@ -20,19 +21,18 @@ export type ExecutionTriggerType =
 /**
  * Per-node state inside an execution's `nodeStates` map. Keys are node IDs.
  *
- * Shape mirrors `services/workflow-engine/types.ts` plus the synthetic
- * single-node-job shape from `routes/workflow-execution.ts`.
+ * Extends the published wire contract in `@nodaro/shared`, which is what the
+ * orchestrator writes and the editor reads — so a field added there reaches
+ * SDK consumers as a typed field rather than through the index signature. The
+ * synthetic single-node-job shape from `routes/workflow-execution.ts` fits the
+ * same contract.
  */
-export interface NodeExecutionState {
-  status: string
-  nodeType?: string
-  jobId?: string | null
-  creditsUsed?: number
-  error?: string | null
-  startedAt?: string | null
-  completedAt?: string | null
+export interface NodeExecutionState extends NodeExecutionStateWire {
   [key: string]: unknown
 }
+
+export type { NodeExecutionStatus } from "@nodaro/shared"
+export { OUTPUT_BEARING_NODE_STATUSES, nodeStateMayCarryOutput } from "@nodaro/shared"
 
 /**
  * Workflow execution record. Returned by `get()` and `cancel()` (the cancel

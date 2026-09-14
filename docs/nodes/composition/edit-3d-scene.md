@@ -50,7 +50,8 @@ Poll the returned job ID for `output_data.scenePlan` and `changeSummary`. Retain
 A **failed** job on an advanced engine can still carry `output_data` — the draft
 it built, or the recipe it was refused for. The shapes and what to do with each
 are on [Generate 3D Scene](generate-3d-scene.md#api-and-sdk); this node's failures
-report them identically.
+report them identically, including how a refused draft reaches the canvas from a
+single-node Run, a workflow Run and a reload.
 
 An MP4 is not an editable scene. To work from video alone, provide it as a reference to Generate 3D Scene and inspect the reconstructed result.
 

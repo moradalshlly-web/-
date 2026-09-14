@@ -21,13 +21,15 @@
  * built — a real revision, renderable and editable — so the verdict and the scene arrive
  * together: the node fails, with its reason, AND holds what the run produced.
  *
- * TWO OTHER LANES still drop it, and neither can be fixed from here:
+ * The other two lanes now follow the same rule, so a refused draft survives every route it
+ * can arrive by:
  *
- *  - the RELOAD path (`reconcileCompletedSingleNodeJobs`) lists COMPLETED executions only, so a
- *    refusal that settles while the tab is closed arrives with no draft;
- *  - the DAG path (`run-handlers.ts :: applyNodeStates`) writes only status and error on a
- *    failed node, and the orchestrator's `NodeExecutionState.output` is populated for completed
- *    nodes alone — so a refused draft in a WORKFLOW run needs an SSE-contract change first.
+ *  - the RELOAD path (`lib/reconcile-completed-jobs.ts`) lists `completed,failed` and files a
+ *    retained draft through `buildScene3DRetainedDraftPatch` — which also RE-ASSERTS the verdict,
+ *    since `executionStatus` is transient and a refusal that arrived live is stripped on save;
+ *  - the DAG path (`run-handlers.ts :: syncNodeStatesToStore`) reads `state.output` on a FAILED
+ *    node, which the orchestrator now carries (`OUTPUT_BEARING_NODE_STATUSES` in `@nodaro/shared`,
+ *    `services/workflow-engine/failed-node-output.ts` on the backend).
  */
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { guardedToast, getJobStatusLeanForNode, RUN_START_RESET } from "./poll-job";

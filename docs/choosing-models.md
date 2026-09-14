@@ -191,6 +191,7 @@ Text-to-speech, voice cloning/design/changing, dubbing, sound effects, transcrip
 | ElevenLabs Voice Design | ElevenLabs | Premium | 50 | voice-design | Design a synthetic voice from a description (no reference clip needed). |
 | Voice Clone (Instant) | ElevenLabs | Premium | 50 | voice-clone | Clone a voice from a short reference clip. Instant clone via direct ElevenLabs API. |
 | ElevenLabs Voice Isolation | ElevenLabs | Premium | 74 | isolation | Strip background noise / music from a vocal track. |
+| ElevenLabs Dubbing v2 | ElevenLabs | Premium | 1100 | dubbing | Translate + dub audio or a whole video into a new language — video in, dubbed video out. Async. |
 <!-- AUTO-GEN:END model-table-audio -->
 
 ## Text & LLM models

@@ -1,3 +1,4 @@
+import { replicateOutputCost } from "./output-cost.js"
 /**
  * Replicate Lip-Sync Provider
  *
@@ -137,7 +138,7 @@ export async function replicateLipSync(
 
   console.log(`[Replicate:lipSync] Request:`, JSON.stringify({ version: cfg.version.slice(0, 12), input }, null, 2))
 
-  const { output, cost } = await runReplicatePrediction({
+  const { output, cost: predictionCost } = await runReplicatePrediction({
     version: cfg.version,
     input,
     label: "[replicate:lipSync]",
@@ -148,6 +149,8 @@ export async function replicateLipSync(
   const videoUrl = extractUrl(
     typeof output === "string" ? output : Array.isArray(output) && output.length > 0 ? output[0] : output,
   )
+
+  const cost = provider === "lipsync-2-pro" ? await replicateOutputCost(provider, videoUrl) : predictionCost
 
   console.log(`[Replicate:lipSync] Output: "${videoUrl}"`)
   console.log(`[Replicate:lipSync] Cost: $${cost?.toFixed(6) ?? "N/A"}`)

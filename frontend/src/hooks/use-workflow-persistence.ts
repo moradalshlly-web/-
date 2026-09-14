@@ -1137,7 +1137,13 @@ export function useWorkflowPersistence(projectId?: string) {
         // onto an empty node). Fire-and-forget; guarded to never clobber a node
         // that already has a result or user edits.
         reconcileCompletedSingleNodeJobs(id, nodes, storeUpdateNodeData, {
-          listCompleted: (wfId) => listWorkflowExecutions(wfId, { limit: 50, status: "completed", source: "editor" }),
+          // `failed` rides along because a refusal can RETAIN what it produced
+          // — a 3D-scene run the visual reviewer rejected published a real,
+          // billed revision on its way to failing, and this is the only lane
+          // that can put it back on the canvas (and re-assert the verdict,
+          // which `executionStatus` being transient strips on every save).
+          // The reconcile itself decides per node type which failures count.
+          listCompleted: (wfId) => listWorkflowExecutions(wfId, { limit: 50, status: "completed,failed", source: "editor" }),
           // Re-read after each job lookup: the canvas is interactive while this
           // runs, so a node edited DURING recovery must win over the snapshot.
           readLiveData: (nodeId) =>
