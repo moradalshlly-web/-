@@ -1,3 +1,4 @@
+import { JobGenerationDetails } from "./job-generation-details"
 import { useState, useMemo } from "react"
 import { Link } from "react-router-dom"
 import { Loader2, Info, Copy, Check, ExternalLink } from "lucide-react"
@@ -100,8 +101,8 @@ function JobDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <span className="font-mono text-sm">{job.id}</span>
+          <DialogTitle className="flex flex-wrap items-center gap-3">
+            <span className="min-w-0 break-all font-mono text-sm">{job.id}</span>
             <CopyButton text={job.id} />
             <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
           </DialogTitle>
@@ -115,6 +116,7 @@ function JobDetailDialog({
             <span className="text-muted-foreground">Provider</span>
             <p>{job.provider ?? "-"}</p>
           </div>
+          <JobGenerationDetails input={job.input_data} />
           <div>
             <span className="text-muted-foreground">Cost</span>
             <p>{job.display_cost != null ? `$${job.display_cost.toFixed(4)}` : "-"}</p>
@@ -140,7 +142,7 @@ function JobDetailDialog({
             <p>{formatDateTime(job.completed_at)}</p>
           </div>
           <div>
-            <span className="text-muted-foreground">Duration</span>
+            <span className="text-muted-foreground">Processing time</span>
             <p>{formatDuration(job.started_at, job.completed_at)}</p>
           </div>
           <div>
