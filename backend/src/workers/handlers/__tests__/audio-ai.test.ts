@@ -631,7 +631,7 @@ describe("dubbing handler — modes, parking, post-hoc cap", () => {
     )
     // Route probed it (probedDurationSec set) → NO post-hoc status probe.
     expect(mocks.mockPollDubbingStatus).not.toHaveBeenCalled()
-    expect(mocks.mockDownloadDubbedMedia).toHaveBeenCalledWith("dub-id", "es", false)
+    expect(mocks.mockDownloadDubbedMedia).toHaveBeenCalledWith("dub-id", "es", false, "https://example.com/in.mp3")
     expect(mocks.mockFinalizeJobWithMedia).toHaveBeenCalledWith(
       expect.objectContaining({ jobType: "text-to-audio", result: expect.objectContaining({ providerUsed: "elevenlabs-dubbing" }) }),
     )
@@ -646,7 +646,7 @@ describe("dubbing handler — modes, parking, post-hoc cap", () => {
       expect.anything(),
       expect.anything(),
     )
-    expect(mocks.mockDownloadDubbedMedia).toHaveBeenCalledWith("dub-id", "fr", true)
+    expect(mocks.mockDownloadDubbedMedia).toHaveBeenCalledWith("dub-id", "fr", true, "https://example.com/clip.mp4")
     // Video delivery: nodaro watermark honours ctx, sidecar + thumbnail ride output_data.
     // stringContaining: path.join is backslashed on Windows checkouts.
     expect(mocks.mockWatermarkLocalVideoAndUpload).toHaveBeenCalledWith(expect.stringContaining("dubbed.mp4"), "job-1", "user-1", true)
@@ -675,7 +675,7 @@ describe("dubbing handler — modes, parking, post-hoc cap", () => {
       expect.anything(),
       expect.anything(),
     )
-    expect(mocks.mockDownloadDubbedMedia).toHaveBeenCalledWith("dub-id", "de", true)
+    expect(mocks.mockDownloadDubbedMedia).toHaveBeenCalledWith("dub-id", "de", true, undefined)
   })
 
   it("sourceUrl race: an EMPTY early probe is corrected by the FINAL status's media_metadata (video not delivered as .mp3)", async () => {
@@ -689,7 +689,7 @@ describe("dubbing handler — modes, parking, post-hoc cap", () => {
     })
     const job = makeJob("dubbing", { sourceUrl: "https://youtube.com/watch?v=y", targetLanguage: "es" })
     await handler(job as never, makeCtx())
-    expect(mocks.mockDownloadDubbedMedia).toHaveBeenCalledWith("dub-id", "es", true)
+    expect(mocks.mockDownloadDubbedMedia).toHaveBeenCalledWith("dub-id", "es", true, undefined)
     expect(mocks.mockWatermarkLocalVideoAndUpload).toHaveBeenCalled()
   })
 

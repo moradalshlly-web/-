@@ -57,7 +57,8 @@ function DubbingNodeComponent({ id, data, selected }: NodeProps) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [videoError, setVideoError] = useState(false)
   // Per-minute base rate — the run-confirm dialog shows the real span-based reserve.
-  const credits = useModelCredits("elevenlabs-dubbing", 40)
+  const isHebrew = /^(he|heb)$/i.test(nodeData.targetLanguage ?? "")
+  const credits = useModelCredits(isHebrew ? "elevenlabs-dubbing-v2" : "elevenlabs-dubbing", isHebrew ? 1100 : 40)
 
   useEffect(() => {
     setVideoError(false)

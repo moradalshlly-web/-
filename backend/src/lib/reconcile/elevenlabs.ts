@@ -1,3 +1,4 @@
+import { isDubbingProject, pollDubbingProject, downloadDubbingProject } from "../../providers/elevenlabs/dubbing-project.js"
 import { config } from "../config.js"
 import { supabase } from "../supabase.js"
 import { markJobFailed } from "../job-failure.js"
@@ -19,7 +20,7 @@ export interface ElevenLabsJobRow {
 
 interface DubbingMetadata {
   dubbing_id: string
-  status: "dubbing" | "dubbed" | "failed"
+  status: string
   target_languages?: string[]
   error?: string
   /** ElevenLabs' probe of the source — the mode authority for sourceUrl dubs. */
@@ -33,6 +34,7 @@ async function fetchDubbingMetadata(
   dubbingId: string,
 ): Promise<DubbingMetadata | null> {
   try {
+    if (isDubbingProject(dubbingId)) return await pollDubbingProject(dubbingId)
     const res = await fetch(
       `${ELEVENLABS_BASE_URL}/v1/dubbing/${dubbingId}`,
       { headers: { "xi-api-key": config.ELEVENLABS_API_KEY ?? "" } },
@@ -54,8 +56,10 @@ async function downloadDubbedMediaBytes(
   dubbingId: string,
   targetLang: string,
   videoMode: boolean,
+  sourceUrl?: string,
 ): Promise<Buffer | null> {
   try {
+    if (isDubbingProject(dubbingId)) return await downloadDubbingProject(dubbingId, videoMode, sourceUrl)
     const res = await fetch(
       `${ELEVENLABS_BASE_URL}/v1/dubbing/${dubbingId}/audio/${targetLang}`,
       {
@@ -163,8 +167,10 @@ export async function reconcileElevenLabsJob(row: ElevenLabsJobRow, opts?: Recon
   const targetLang = (row.input_data?.targetLanguage as string | undefined)
     ?? meta.target_languages?.[0]
     ?? "en"
-  const videoMode = resolveVideoMode(meta, row.input_data)
-  const mediaBuffer = await downloadDubbedMediaBytes(row.provider_task_id, targetLang, videoMode)
+  const videoMode = isDubbingProject(row.provider_task_id)
+    ? Boolean(row.input_data?.videoUrl) && resolveVideoMode(meta, row.input_data)
+    : resolveVideoMode(meta, row.input_data)
+  const mediaBuffer = await downloadDubbedMediaBytes(row.provider_task_id, targetLang, videoMode, row.input_data?.videoUrl as string | undefined)
   if (!mediaBuffer) {
     await bumpAttemptsOrExhaust(row.id, "media download failed")
     return

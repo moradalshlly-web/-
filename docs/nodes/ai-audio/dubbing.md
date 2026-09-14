@@ -27,6 +27,12 @@ The dubbed span is the Start/End window when set, otherwise the whole source. Wh
 - A 10-minute video → **400 credits**.
 - A 45-minute video with a window of 0:00–10:00 → the window is the span → **400 credits** (without the window the request is rejected at 30+ minutes).
 
+## Hebrew dubbing
+
+Hebrew (`he`, also accepted as `heb`) uses ElevenLabs' project API with Dubbing v2, priced separately at **1,100 credits per started minute** before any account-specific adjustments. Upload/import the source first and pass it as `audioUrl` or `videoUrl`; provider-fetched `sourceUrl` links are not supported for this target. The source video is retained and combined with the translated soundtrack so the result can be previewed and compared normally.
+
+This target preserves voices and background audio and detects speakers automatically. Native voice substitution, a fixed speaker count, background removal, Start/End windows, provider watermark discounts, profanity filtering and target-accent overrides are rejected before dispatch. Trim the source before dubbing. Video keeps its source resolution. Existing jobs and other target languages continue using the legacy API.
+
 ## Configuration
 
 | Field | Type | Default | Description |

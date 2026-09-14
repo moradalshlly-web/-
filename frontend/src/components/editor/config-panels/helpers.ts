@@ -300,6 +300,8 @@ export function getModelIdentifier(
   nodes?: ReadonlyArray<WorkflowNode>,
 ): string {
   const data = node.data as Record<string, unknown>
+  if (node.type === "dubbing" && /^(he|heb)$/i.test(String(data.targetLanguage ?? ""))) return "elevenlabs-dubbing-v2"
+
 
   // Render Video: the frame-size tier of the plan it will actually send, from
   // the SAME resolver the orchestrator uses to pick the row it charges.

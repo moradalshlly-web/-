@@ -913,3 +913,63 @@ describe("dubbing — waitForDubbing", () => {
     await rejection
   })
 })
+
+
+describe("Hebrew dubbing", () => {
+  it("queues Hebrew on the project API and persists the project before polling", async () => {
+    fetchMock.mockResolvedValueOnce(audioResponse("source"))
+      .mockResolvedValueOnce(jsonResponse({ project_id: "project-1", language_ids: ["lang-1"] }))
+    const onTaskCreated = vi.fn().mockResolvedValue(undefined)
+    const result = await startDubbing({ url: "https://media.example/clip.mp4", mime: "video/mp4", ext: "mp4" }, "he", {}, { onTaskCreated })
+    expect(fetchMock.mock.calls[1][0]).toBe(`${ELEVENLABS_BASE_URL}/v1/dubbing/project`)
+    const form = fetchMock.mock.calls[1][1].body as FormData
+    expect(form.get("target_language")).toBe("he")
+    expect(form.get("model_id")).toBe("dubbing_v2")
+    expect(form.has("target_lang")).toBe(false)
+    expect(onTaskCreated).toHaveBeenCalledWith(result.dubbingId)
+    expect(result.dubbingId).toBe("project:project-1")
+  })
+})
+
+it.each(["he", "heb", "HE"])("routes Hebrew alias %s to project API", async (lang) => {
+  fetchMock.mockResolvedValueOnce(audioResponse("source"))
+    .mockResolvedValueOnce(jsonResponse({ project_id: "p" }))
+  await startDubbing({ url: "https://media.example/audio.mp3" }, lang, { sourceLang: "auto" })
+  const form = fetchMock.mock.calls[1][1].body as FormData
+  expect(form.get("target_language")).toBe("he")
+  expect(form.has("source_language")).toBe(false)
+})
+
+it.each([
+  { disableVoiceCloning: true }, { dropBackgroundAudio: true }, { startTime: 0 },
+  { endTime: 10 }, { numSpeakers: 1 }, { watermark: true }, { useProfanityFilter: true }, { targetAccent: "native" },
+])("rejects unsupported Hebrew options before fetching or charging: %j", async (options) => {
+  await expect(startDubbing({ url: "https://media.example/audio.mp3" }, "he", options)).rejects.toThrow("does not support")
+  expect(fetchMock).not.toHaveBeenCalled()
+})
+
+it("requires an imported Hebrew source before charging", async () => {
+  await expect(startDubbing({ sourceUrl: "https://youtube.com/watch?v=123" }, "he")).rejects.toThrow("Import the video first")
+  expect(fetchMock).not.toHaveBeenCalled()
+})
+
+it.each([
+  ["queued", "dubbing"], ["processing", "dubbing"], ["completed", "dubbed"], ["failed", "failed"], ["stale", "dubbing"],
+])("recovers project language status %s without creating another paid target", async (upstream, expected) => {
+  fetchMock.mockResolvedValueOnce(jsonResponse({ status: "ready", language_ids: ["lang"], media: { has_video: true, duration_s: 45 } }))
+    .mockResolvedValueOnce(jsonResponse({ status: upstream, target_language: "he", error: upstream === "failed" ? { message: "No speech" } : null }))
+  const status = await pollDubbingStatus("project:pid")
+  expect(status.status).toBe(expected)
+  expect(status.media_metadata).toEqual({ content_type: "video/mp4", duration: 45 })
+  expect(fetchMock.mock.calls.map(c => c[0])).toEqual([
+    `${ELEVENLABS_BASE_URL}/v1/dubbing/project/pid`,
+    `${ELEVENLABS_BASE_URL}/v1/dubbing/project/pid/language/lang`,
+  ])
+  expect(fetchMock.mock.calls.every(c => c[1].method === "GET")).toBe(true)
+})
+
+it("handles source preparation failure without waiting for a language target", async () => {
+  fetchMock.mockResolvedValueOnce(jsonResponse({ status: "failed", error: { message: "Invalid source" } }))
+  expect(await pollDubbingStatus("project:pid")).toMatchObject({ status: "failed", error: "Invalid source" })
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})

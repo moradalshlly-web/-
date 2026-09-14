@@ -1,3 +1,5 @@
+import { dubbingModelIdentifier } from "../../lib/dubbing-model.js"
+import { DUBBING_PROJECT_PREFIX, usesDubbingProject, isDubbingProject, validateProjectDubbing, pollDubbingProject, downloadDubbingProject } from "./dubbing-project.js"
 import type { ReconcileOpts } from "../provider.interface.js"
 import { ELEVENLABS_BASE_URL, getElevenLabsHeaders, fetchMediaFromUrl } from "./client.js"
 import { fireOnTaskCreated } from "../../lib/reconcile/fire-on-task-created.js"
@@ -90,6 +92,8 @@ export async function startDubbing(
   options?: DubbingOptions,
   reconcileOpts?: ReconcileOpts,
 ): Promise<DubbingStartResult> {
+  const projectMode = usesDubbingProject(targetLang)
+  if (projectMode) validateProjectDubbing(source, options)
   const headers = getElevenLabsHeaders()
 
   const formData = new FormData()
@@ -107,43 +111,50 @@ export async function startDubbing(
   } else {
     throw new Error("startDubbing requires a media url or a sourceUrl")
   }
-  formData.append("target_lang", targetLang)
+  if (projectMode) {
+    formData.append("target_language", "he")
+    formData.append("model_id", "dubbing_v2")
+    if (options?.sourceLang && options.sourceLang !== "auto") formData.append("source_language", options.sourceLang)
+  } else {
+    formData.append("target_lang", targetLang)
 
-  if (options?.sourceLang) {
-    formData.append("source_lang", options.sourceLang)
-  }
-  if (options?.numSpeakers != null) {
-    formData.append("num_speakers", String(options.numSpeakers))
-  }
-  if (options?.watermark != null) {
-    formData.append("watermark", String(options.watermark))
-  }
-  if (options?.disableVoiceCloning != null) {
-    formData.append("disable_voice_cloning", String(options.disableVoiceCloning))
-  }
-  if (options?.dropBackgroundAudio != null) {
-    formData.append("drop_background_audio", String(options.dropBackgroundAudio))
-  }
-  if (options?.startTime != null) {
-    formData.append("start_time", String(options.startTime))
-  }
-  if (options?.endTime != null) {
-    formData.append("end_time", String(options.endTime))
-  }
-  if (options?.highestResolution != null) {
-    formData.append("highest_resolution", String(options.highestResolution))
-  }
-  if (options?.useProfanityFilter != null) {
-    formData.append("use_profanity_filter", String(options.useProfanityFilter))
-  }
-  if (options?.targetAccent) {
-    formData.append("target_accent", options.targetAccent)
+    if (options?.sourceLang) {
+      formData.append("source_lang", options.sourceLang)
+    }
+    if (options?.numSpeakers != null) {
+      formData.append("num_speakers", String(options.numSpeakers))
+    }
+    if (options?.watermark != null) {
+      formData.append("watermark", String(options.watermark))
+    }
+    if (options?.disableVoiceCloning != null) {
+      formData.append("disable_voice_cloning", String(options.disableVoiceCloning))
+    }
+    if (options?.dropBackgroundAudio != null) {
+      formData.append("drop_background_audio", String(options.dropBackgroundAudio))
+    }
+    if (options?.startTime != null) {
+      formData.append("start_time", String(options.startTime))
+    }
+    if (options?.endTime != null) {
+      formData.append("end_time", String(options.endTime))
+    }
+    if (options?.highestResolution != null) {
+      formData.append("highest_resolution", String(options.highestResolution))
+    }
+    if (options?.useProfanityFilter != null) {
+      formData.append("use_profanity_filter", String(options.useProfanityFilter))
+    }
+    if (options?.targetAccent) {
+      formData.append("target_accent", options.targetAccent)
+    }
+
   }
 
   const response = await providerFetch(
     // Single-purpose funnel → default OUR key inside (caller passes no meta).
-    { provider: "elevenlabs", operation: "dubbing.start", modelKey: reconcileOpts?.modelKey ?? "elevenlabs-dubbing", body: undefined, dimensions: reconcileOpts?.dimensions ?? {} },
-    `${ELEVENLABS_BASE_URL}/v1/dubbing`,
+    { provider: "elevenlabs", operation: "dubbing.start", modelKey: dubbingModelIdentifier(targetLang), body: undefined, dimensions: reconcileOpts?.dimensions ?? {} },
+    `${ELEVENLABS_BASE_URL}/v1/dubbing${projectMode ? "/project" : ""}`,
     {
       method: "POST",
       headers,
@@ -156,6 +167,13 @@ export async function startDubbing(
     throw new Error(`ElevenLabs Dubbing start failed (${response.status}): ${errorText}`)
   }
 
+  if (projectMode) {
+    const result = await response.json() as { project_id?: string }
+    if (!result.project_id) throw new Error("ElevenLabs dubbing project response omitted project_id")
+    const dubbingId = `${DUBBING_PROJECT_PREFIX}${result.project_id}`
+    await fireOnTaskCreated(reconcileOpts, dubbingId, "[elevenlabs/dubbing]")
+    return { dubbingId, expectedDurationSec: 0 }
+  }
   const result = (await response.json()) as { dubbing_id: string; expected_duration_sec: number }
   await fireOnTaskCreated(reconcileOpts, result.dubbing_id, "[elevenlabs/dubbing]")
   return {
@@ -165,6 +183,7 @@ export async function startDubbing(
 }
 
 export async function pollDubbingStatus(dubbingId: string): Promise<DubbingStatus> {
+  if (isDubbingProject(dubbingId)) return pollDubbingProject(dubbingId)
   const headers = getElevenLabsHeaders()
 
   const response = await providerFetch(
@@ -189,7 +208,8 @@ export async function pollDubbingStatus(dubbingId: string): Promise<DubbingStatu
  * audio dub it returns the dubbed audio, for a video dub the dubbed VIDEO —
  * `videoMode` only shapes the Accept header and the caller's file handling.
  */
-export async function downloadDubbedMedia(dubbingId: string, langCode: string, videoMode = false): Promise<Buffer> {
+export async function downloadDubbedMedia(dubbingId: string, langCode: string, videoMode = false, sourceUrl?: string): Promise<Buffer> {
+  if (isDubbingProject(dubbingId)) return downloadDubbingProject(dubbingId, videoMode, sourceUrl)
   const headers = getElevenLabsHeaders()
 
   const response = await providerFetch(

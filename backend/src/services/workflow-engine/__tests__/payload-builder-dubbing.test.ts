@@ -57,3 +57,8 @@ describe("buildPayload — dubbing source precedence + full surface", () => {
     }))
   })
 })
+
+it("uses the project model for Hebrew billing as well as generation", () => {
+  const result = buildPayload(node({ targetLanguage: "he" }), "job1", { videoUrl: "https://x/c.mp4" }, "usage1")
+  expect(result.modelIdentifier).toBe("elevenlabs-dubbing-v2")
+})
