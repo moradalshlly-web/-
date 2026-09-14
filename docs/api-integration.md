@@ -2899,28 +2899,44 @@ not contain storage keys or public download URLs. A retained revision provides:
 Binary requests use normal bearer authentication. Playback requires permission
 to view the revision's workflow; native source requires edit permission. Personal
 revisions are owner-only. A deleted or inaccessible revision returns 404, and
-responses use `Cache-Control: no-store`. Internal authoring recipes and repair
-checkpoints are not downloadable. A revision with pending source materialization
-does not advertise an outdated native source file.
+responses use `Cache-Control: no-store`. **Internal authoring recipes and repair
+checkpoints are not downloadable through the revision routes** — the one
+exception is a refused run's recipe, which is reached through its delivery and is
+described below. A revision with pending source materialization does not
+advertise an outdated native source file.
 
 An export that retains delivery evidence exposes it separately from its source:
 
 - `GET /v1/3d-scene/deliveries/:jobId` returns `sourceKind`, the exact
-  `sceneRevisionId`, source digests, mode, and opaque poster/report descriptors.
-  One kind has no scene behind it: `refused-authoring`, published by a
-  3D Render Pro run whose recipe the compiler refused on every pass. Nothing
-  compiled, so no revision exists and no frame was rendered — `sceneRevisionId`
-  and `sourcePlanSha256` are `null`, there is no poster, and the descriptors are
-  the refusal report alone. The run's retained recipe is not among them: it is
-  kept for re-authoring, never served. See
-  [3D Render Pro](nodes/composition/pro-3d-render.md).
+  `sceneRevisionId`, source digests, mode, and opaque descriptors — the poster,
+  the validation report, and one `shot-still` per shot where the render produced
+  a contact sheet. One kind has no scene behind it: `refused-authoring`,
+  published by a 3D Render Pro run whose recipe the compiler refused on every
+  pass. Nothing compiled, so no revision exists and no frame was rendered —
+  `sceneRevisionId` and `sourcePlanSha256` are `null`, and there is no poster.
+  What that delivery lists is the refusal report and, when the run had a recipe
+  to keep, a `source-json` descriptor (usage `checkpoint`): the planner's last
+  admitted recipe. See [3D Render Pro](nodes/composition/pro-3d-render.md).
 - `GET /v1/3d-scene/deliveries/:jobId/assets/:assetId` returns those bytes with
   bearer authentication, range support, and `Cache-Control: no-store`.
+
+**The retained recipe needs `edit`.** A `source-json` descriptor is listed, and
+its bytes served as `application/json`, only to a caller with edit access to the
+job's workflow — the same access the native `.blend` source requires, and for the
+same reason: a collaborator invited to watch a workflow reads what a run
+produced, not the authoring input behind it. A reader with less sees no such
+descriptor and gets `404` on the bytes, never a `403` that would confirm one
+exists. This is the ONE place a `source-json` is readable: a delivered scene's
+own recipe is pinned by its revision, and the revision routes list no checkpoint
+kinds. Reading it costs no credits, like every other delivery read. The failed
+job's `output_data.validation.sourceRetained` says whether there is one to fetch
+before you ask.
 
 Delivery reads require current access to both the delivery workflow and the
 source workflow; personal sources remain owner-only. Deleting the source revision
 does not remove delivered evidence or waive its source permissions. Delivery
-metadata never includes internal recipes, storage keys, or native source files.
+metadata never includes storage keys or native source files, and no delivery
+descriptor is a URL.
 
 `POST /v1/3d-scene/revisions/:revisionId/edits` saves deterministic v2 overlays
 without a generation job or LLM charge. It requires edit access to the retained

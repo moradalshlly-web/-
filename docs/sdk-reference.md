@@ -5281,14 +5281,40 @@ fixed and server-owned. See
 ### Scene asset reads
 
 `client.scene3d.getDelivery(jobId)` reads retained export metadata, including its
-`sourceKind`, its exact source revision and poster/report descriptors. On a
-`refused-authoring` delivery — a 3D Render Pro run whose recipe never compiled —
-`sceneRevisionId` and `sourcePlanSha256` are `null` and the only descriptor is
-the compiler's refusal report; there is no scene and no poster. For each descriptor, call
+`sourceKind`, its exact source revision and the descriptors it pinned. Four kinds
+appear: `poster` and `validation-report` on every delivery, `shot-still` once per
+shot where the render produced a contact sheet (each carrying its own
+`shotIndex`, `frame`, `width` and `height`), and — on a `refused-authoring`
+delivery alone — `source-json`. For each descriptor, call
 `client.scene3d.deliveryAssetBytes(jobId, asset, { signal })` to read bounded
 bytes through fresh authentication. Access requires both delivery and source
 permissions, including after the source revision has been deleted. These methods
 read already published delivery evidence; they do not start a render.
+
+On a `refused-authoring` delivery — a 3D Render Pro run whose recipe the compiler
+refused on every pass — `sceneRevisionId` and `sourcePlanSha256` are `null` and
+there is no poster, because nothing compiled and no frame was rendered. What that
+delivery does carry is the refusal report and, where the run had one to keep, the
+planner's last admitted recipe:
+
+```typescript
+const recipe = await client.scene3d.retainedRecipe(jobId);
+// null when nothing was retained, or when you hold less than edit access.
+```
+
+`retainedRecipe` reads the delivery, finds the `source-json` descriptor and
+parses its bytes. It answers `null` rather than throwing when there is nothing to
+fetch. Three things to know:
+
+- **It needs edit access** to the job's workflow — the same access
+  `sourceBytes` needs for a native `.blend`. A reader with less does not see the
+  descriptor at all, which is why the answer is `null` rather than an error.
+- **The failed job says whether to ask.** `validation.sourceRetained` on the
+  failed row is `true` when a recipe was kept and `false` when no pass ever
+  cleared admission.
+- **It is evidence, not an input.** A refused run published no revision, so there
+  is no `{ kind: "scene" }` source to re-run it from; read it to see what was
+  attempted and let it inform the next prompt. Reading costs no credits.
 
 `client.scene3d.assetBytes(revisionId, asset, { signal })` fetches a GLB, camera
 track, poster or validation report through the authenticated API. Pass the exact

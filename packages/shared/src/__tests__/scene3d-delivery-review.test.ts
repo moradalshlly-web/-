@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, expectTypeOf, it } from "vitest"
 import {
   SCENE3D_REVIEW_REFUSED_CODE,
   scene3DReviewVerdictOf,
+  type Scene3DAuthoringValidation,
   type Scene3DReviewVerdict,
 } from "../scene3d-delivery-notes.js"
 import { pro3DRenderReviewVerdictSchema } from "../pro-3d-render.js"
@@ -82,5 +83,40 @@ describe("pro3DRenderReviewVerdictSchema", () => {
       verdict: "refused", objections: [{ category: "style", what: "Too dark." }],
     }).success).toBe(true)
     expect(pro3DRenderReviewVerdictSchema.safeParse({ verdict: "accepted", objections: [] }).success).toBe(false)
+  })
+})
+
+/**
+ * `validation.sourceRetained` — the refused-authoring row's one pointer at something fetchable.
+ *
+ * A run whose recipe never compiled publishes no scene revision and no poster, so nothing on
+ * the failed row is a scene. What it can say is whether the recipe it was refused for was kept,
+ * which decides whether `GET /v1/3d-scene/deliveries/{deliveryId}` has a `source-json`
+ * descriptor to list. Declared rather than merely tolerated by the index signature, so a typed
+ * caller can read it without casting — and so it appears in the generated SDK docs at all.
+ */
+describe("Scene3DAuthoringValidation.sourceRetained", () => {
+  it("is a typed optional beside the fields the same block already carried", () => {
+    const refused: Scene3DAuthoringValidation = {
+      status: "failed", scope: "authored", phase: "build", passes: 3,
+      reportAssetId: "report-1", sourceRetained: true,
+      warnings: [{ code: "SCENE_RECIPE_INVALID", message: "camera.shots[0].target is not resolvable" }],
+    }
+    expectTypeOf(refused.sourceRetained).toEqualTypeOf<boolean | undefined>()
+    expect(refused.sourceRetained).toBe(true)
+    // Absent is a first-class answer everywhere in this block: every lane that DID compile
+    // carries no such flag, because there is no refused recipe to have retained.
+    const delivered: Scene3DAuthoringValidation = { status: "passed", reportAssetId: "report-2", warnings: [] }
+    expect(delivered.sourceRetained).toBeUndefined()
+  })
+
+  it("is false, not absent, on a run that never cleared admission", () => {
+    // No pass produced a recipe the compiler would admit, so there is nothing to fetch. `false`
+    // says that; absent would leave a caller unable to tell it from an older deployment.
+    const refused: Scene3DAuthoringValidation = {
+      status: "failed", scope: "authored", phase: "planning", passes: 2,
+      reportAssetId: "report-3", sourceRetained: false, warnings: [],
+    }
+    expect(refused.sourceRetained).toBe(false)
   })
 })

@@ -30,6 +30,22 @@ presence of `metadata.review` is the test — not the status, and not the warnin
 count. See
 [3D Render Pro](../nodes/composition/pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed).
 
+**A FAILED advanced job can still carry `output_data` — read it before re-running.**
+`SCENE_QUALITY_FAILED` means the run spent its budget without a scene it could
+stand behind, and it comes in two shapes. When some pass BUILT a scene, the
+failed row points at that draft: `scenePlan`, `sceneRevisionId`, `deliveryId`,
+`posterAssetId`, and `validation` with `status: "failed"`. The draft is an
+ordinary revision — pass it to `edit_3d_scene` or `render_3d_scene` like any
+other. When the compiler refused the recipe on *every* pass there is no draft and
+no `scenePlan`, but the row still has a `deliveryId`, and
+`validation.sourceRetained` says whether the recipe it was refused for was kept.
+Fetch it at
+`GET /v1/3d-scene/deliveries/{deliveryId}` → the `source-json` descriptor →
+`/assets/{assetId}`, with your own credentials and edit access to the job's
+workflow; reading it costs no credits. There is no MCP verb for delivery bytes —
+these are REST reads. Re-running the identical prompt instead pays for the same
+authoring twice.
+
 Generate and edit accept `engine` (`basic`, `blender-cloud`, or `blender-local`),
 `accepted_scene_schema_versions`, `local_connection_id`, and
 `max_repair_passes`. Optional engines must be available on the deployment;

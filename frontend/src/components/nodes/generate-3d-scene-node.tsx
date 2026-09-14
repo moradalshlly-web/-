@@ -92,7 +92,11 @@ function Generate3DSceneNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         )}
 
-        {status === "failed" && !scenePlan && (
+        {/* Shown whether or not a scene is held: a refused 3D run RETAINS the draft it
+            built, so "there is a scene" and "the run failed" are both true at once and
+            hiding the verdict behind the scene would read as success. Same rule as
+            `edit-3d-scene-node` and `pro-3d-render-node`. */}
+        {status === "failed" && (
           <div className="flex flex-col items-center justify-center gap-1 h-16 rounded-md bg-red-500/5 text-red-500 p-2">
             <div className="flex items-center gap-1.5">
               <AlertCircle className="w-4 h-4 shrink-0" />
