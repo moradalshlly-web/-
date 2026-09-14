@@ -23,6 +23,7 @@ import {
 } from "./types";
 import { estimateRunCredits } from "./estimate-run-credits";
 import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, expandItemsWithRepeat, TRANSIENT_RUNTIME_KEYS, isExpandedClone } from "@nodaro/shared"
+import type { NodeExecutionStatus as SharedNodeExecutionStatus, NodeExecutionStateWire } from "@nodaro/shared"
 import { collapseExpandedClones } from "./execution-graph";
 import { shouldAbandonNode } from "./abandon-guard";
 import { getListInputForNode } from "./node-input-resolver";
@@ -1271,7 +1272,16 @@ export function streamBackendExecution(
 // ---------------------------------------------------------------------------
 
 interface NodeExecutionState {
-  status: "pending" | "running" | "completed" | "failed" | "skipped";
+  /** The shared union (`@nodaro/shared`), so the editor, the orchestrator and
+   *  the SDK partition node status against ONE list. */
+  status: SharedNodeExecutionStatus;
+  /**
+   * What the node produced.
+   *
+   * Present for a COMPLETED node — and for a FAILED one whose run retained a
+   * structured result (`OUTPUT_BEARING_NODE_STATUSES` in `@nodaro/shared`).
+   * Read the FIELD, never the status: its presence is not success.
+   */
   output?: {
     imageUrl?: string;
     videoUrl?: string;
@@ -1331,6 +1341,53 @@ interface NodeExecutionState {
   jobIds?: string[];
   nodeType?: string;
   progress?: number;
+}
+
+/**
+ * The editor's read of a node state must stay compatible with the PUBLISHED
+ * wire contract — a compile error here means the orchestrator and the canvas
+ * have drifted, which is how `output` on a failed node went unread for as long
+ * as it did.
+ */
+const _nodeExecutionStateIsWireCompatible: NodeExecutionStateWire<
+  NonNullable<NodeExecutionState["output"]>
+> = undefined as unknown as NodeExecutionState;
+void _nodeExecutionStateIsWireCompatible;
+
+/**
+ * File an arriving 3D-scene revision onto the node, from a BACKEND DAG run.
+ *
+ * A 3D scene is not a plan field you assign — it is a REVISION. The user keeps
+ * nudging objects and restoring revisions while a backend run is in flight (the
+ * panel is live on purpose), so a raw `updates[planField] = plan` would silently
+ * overwrite an edit the single-node lane is careful to protect. Same guard, same
+ * history: whatever the outcome, the arriving revision is kept and only the
+ * ACTIVE one is in question.
+ *
+ * Shared by the completed AND the failed branch, which is the whole point. A
+ * refused run can RETAIN the draft it built — a real, renderable revision that
+ * was billed and published — and it must be filed by the SAME rule a successful
+ * one is, not by a second copy of it that drifts.
+ */
+function scene3DRevisionPatch(
+  nodeType: string | undefined,
+  data: Record<string, unknown>,
+  state: NodeExecutionState,
+): Record<string, unknown> {
+  const plan = state.output?.plan;
+  if (!plan) return {};
+  const out = state.output as Record<string, unknown>;
+  return resolveSceneCompletion({
+    current: data.scenePlan as Record<string, unknown> | undefined,
+    baseRevisionId: data.sceneJobBaseRevisionId as string | undefined,
+    incoming: plan as Record<string, unknown>,
+    changeSummary: typeof out.changeSummary === "string" ? out.changeSummary : undefined,
+    history: data.sceneHistory as Scene3DRevisionEntry[] | undefined,
+    source: nodeType === "edit-3d-scene" ? "edit" : "generate",
+    // Recorded on the revision so a later `{kind:'scene'}` source can name both
+    // the revision and the run that authorizes it.
+    jobId: state.jobId,
+  }).patch;
 }
 
 /**
@@ -1428,27 +1485,7 @@ function syncNodeStatesToStore(
         if (state.output.plan) {
           const mapping = COMPOSER_PLAN_MAP[node.type ?? ""];
           if (mapping?.planType === "3d-scene") {
-            // A 3D scene is not a plan field you assign — it is a REVISION.
-            // The user keeps nudging objects and restoring revisions while a
-            // backend DAG run is in flight (the panel is live on purpose), so
-            // a raw `updates[planField] = plan` here would silently overwrite
-            // an edit the single-node lane is careful to protect. Same guard,
-            // same history: whatever the outcome, the arriving revision is
-            // kept and only the ACTIVE one is in question.
-            const sceneResult = resolveSceneCompletion({
-              current: data.scenePlan as Record<string, unknown> | undefined,
-              baseRevisionId: data.sceneJobBaseRevisionId as string | undefined,
-              incoming: state.output.plan as Record<string, unknown>,
-              changeSummary: typeof (state.output as Record<string, unknown>).changeSummary === "string"
-                ? ((state.output as Record<string, unknown>).changeSummary as string)
-                : undefined,
-              history: data.sceneHistory as Scene3DRevisionEntry[] | undefined,
-              source: node.type === "edit-3d-scene" ? "edit" : "generate",
-              // Recorded on the revision so a later `{kind:'scene'}` source can
-              // name both the revision and the run that authorizes it.
-              jobId: state.jobId,
-            });
-            Object.assign(updates, sceneResult.patch);
+            Object.assign(updates, scene3DRevisionPatch(node.type, data, state));
           } else if (mapping) {
             updates[mapping.planField] = state.output.plan;
             if (node.type === "video-composer") updates.sceneGraph = state.output.plan;
@@ -1614,7 +1651,23 @@ function syncNodeStatesToStore(
     ) {
       patchMap.set(node.id, { executionStatus: "pending" });
     } else if (state.status === "failed" && currentStatus !== "failed") {
+      // A FAILED node can still have RETAINED what it produced. The orchestrator
+      // now carries that on `NodeExecutionState.output` (shared contract:
+      // `OUTPUT_BEARING_NODE_STATUSES`), so the branch reads the FIELD rather
+      // than inferring emptiness from the status — a 3D-scene run refused by the
+      // visual reviewer published a real revision on its way to failing, and this
+      // is the only path that can put it on the canvas during a workflow run.
+      //
+      // The verdict is unchanged: the node still fails, with its reason. Only the
+      // plan half is applied — a refused run has no MP4 — which is the same rule
+      // the single-node lane (`scene3d-execution.ts`) and the reload lane
+      // (`buildScene3DRetainedDraftPatch`) follow.
+      const retained =
+        COMPOSER_PLAN_MAP[node.type ?? ""]?.planType === "3d-scene"
+          ? scene3DRevisionPatch(node.type, data, state)
+          : {};
       patchMap.set(node.id, {
+        ...retained,
         executionStatus: "failed",
         errorMessage: state.error ?? "Node failed",
         errorHint: state.errorHint,

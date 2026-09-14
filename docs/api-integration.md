@@ -2864,6 +2864,18 @@ mandatory check failed or the compiler refused the recipe, and the retained
 draft is on the failed job. See
 [When the reviewer refuses a scene that passed](nodes/composition/pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed).
 
+**A FAILED node in a workflow run carries what its run retained.** In
+`GET /v1/workflow-executions/:id` and on its SSE stream, a node's entry in
+`nodeStates` carries `output` when it `completed` — and ALSO when it `failed`
+and the run retained a structured result. A refused 3D-scene authoring node
+reports `status: "failed"` with its `error`, and `output.plan` holding the draft
+revision it published; the job row behind it still carries the full
+`output_data` described above. This is additive: a client that does not read the
+field sees exactly what it saw before. Two rules for one that does — gate on the
+FIELD, not on the status (a `pending` or `running` node never has one, and a
+future node type may start retaining), and never read a present `output` as
+success. The node failed; it simply failed holding something.
+
 Availability is per deployment. `GET /v1/3d-scene/capabilities` reports a `pro`
 block with `available` plus the engines, quality profiles, styles, aspect ratios
 and repair-pass ceiling a client may OFFER; `GET /v1/nodes` omits the type where

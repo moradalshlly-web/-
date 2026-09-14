@@ -212,6 +212,74 @@ describe("syncNodeStatesToStore — Scene3D revision guard on the full-DAG path"
     expect((byId.s1.sceneHistory as Array<{ revisionId: string }>).map((e) => e.revisionId)).toEqual([REV_B])
   })
 
+  /**
+   * A FAILED node used to be written as `{ executionStatus, errorMessage,
+   * errorHint }` and nothing else — the branch never looked at `state.output`,
+   * because "only a completed node has one" was an unstated convention.
+   *
+   * It is not true of a 3D scene. Once the repair budget is spent and only the
+   * visual reviewer refuses, the run has already published a real, renderable
+   * revision: the job fails, the credits stay committed, and the draft sits in
+   * `output_data`. On a workflow Run that draft reached nothing — billed,
+   * addressable by the artifact routes, invisible on the canvas.
+   */
+  describe("a REFUSED run that retained its draft", () => {
+    const refusal = (planRev: string, base?: string) => ({
+      s1: {
+        status: "failed",
+        nodeType: "edit-3d-scene",
+        error: "SCENE_QUALITY_FAILED: the reviewer refused the scene after 3 repair passes",
+        output: { plan: plan(planRev, base) },
+      },
+    })
+
+    it("keeps the draft AND the verdict", () => {
+      mockNodes = [{ id: "s1", type: "edit-3d-scene", data: { scenePlan: plan(REV_A), executionStatus: "idle" } }]
+      streamBackendExecution("exec-5", makeCtx(), vi.fn(), vi.fn())
+      sync({ s1: { status: "running", nodeType: "edit-3d-scene" } })
+      const byId = sync(refusal(REV_B, REV_A))
+
+      expect((byId.s1.scenePlan as Record<string, unknown>).revisionId).toBe(REV_B)
+      expect((byId.s1.sceneHistory as Array<{ revisionId: string }>).map((e) => e.revisionId)).toEqual([REV_B])
+      // The refusal is NOT softened by the draft arriving.
+      expect(byId.s1.executionStatus).toBe("failed")
+      expect(byId.s1.errorMessage).toContain("SCENE_QUALITY_FAILED")
+    })
+
+    it("PARKS the retained draft when the user edited the scene mid-run", () => {
+      mockNodes = [{ id: "s1", type: "edit-3d-scene", data: { scenePlan: plan(REV_A), executionStatus: "idle" } }]
+      streamBackendExecution("exec-6", makeCtx(), vi.fn(), vi.fn())
+      sync({ s1: { status: "running", nodeType: "edit-3d-scene" } })
+      mockNodes[0].data = { ...mockNodes[0].data, scenePlan: plan(REV_C, REV_A) }
+      const byId = sync(refusal(REV_B, REV_A))
+
+      expect((byId.s1.scenePlan as Record<string, unknown>).revisionId).toBe(REV_C)
+      expect((byId.s1.scenePendingPlan as Record<string, unknown>).revisionId).toBe(REV_B)
+      expect(byId.s1.executionStatus).toBe("failed")
+    })
+
+    it("writes the plain refusal untouched when the run retained nothing", () => {
+      mockNodes = [{ id: "s1", type: "edit-3d-scene", data: { scenePlan: plan(REV_A), executionStatus: "idle" } }]
+      streamBackendExecution("exec-7", makeCtx(), vi.fn(), vi.fn())
+      const byId = sync({
+        s1: { status: "failed", nodeType: "edit-3d-scene", error: "Compiler refused every recipe" },
+      })
+      expect(byId.s1.executionStatus).toBe("failed")
+      expect((byId.s1.scenePlan as Record<string, unknown>).revisionId).toBe(REV_A)
+      expect(byId.s1.sceneHistory).toBeUndefined()
+    })
+
+    it("ignores an output on a failed NON-scene node (no plan field is invented)", () => {
+      mockNodes = [{ id: "m1", type: "motion-graphics", data: { executionStatus: "idle" } }]
+      streamBackendExecution("exec-8", makeCtx(), vi.fn(), vi.fn())
+      const byId = sync({
+        m1: { status: "failed", nodeType: "motion-graphics", error: "boom", output: { plan: { kind: "motion" } } },
+      })
+      expect(byId.m1.executionStatus).toBe("failed")
+      expect(byId.m1.motionPlan).toBeUndefined()
+    })
+  })
+
   it("leaves every OTHER composer's plan field assigned exactly as before", () => {
     mockNodes = [{ id: "m1", type: "motion-graphics", data: { executionStatus: "idle" } }]
     streamBackendExecution("exec-4", makeCtx(), vi.fn(), vi.fn())

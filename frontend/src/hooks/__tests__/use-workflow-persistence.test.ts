@@ -1462,10 +1462,11 @@ describe("useWorkflowPersistence — terminal-execution restore via load", () =>
       await result.current.load("w1")
     })
 
-    // NB: a separate `status: "completed"` call also fires here — that one is
-    // reconcileCompletedSingleNodeJobs (per-node Run recovery), a different
-    // feature. What matters is that the ORCHESTRATOR restore asks for the full
-    // terminal set, and with limit>1 so it can skip merged single-node rows.
+    // NB: a separate `status: "completed,failed"` call also fires here — that
+    // one is reconcileCompletedSingleNodeJobs (per-node Run recovery), a
+    // different feature. What matters is that the ORCHESTRATOR restore asks for
+    // the full terminal set, and with limit>1 so it can skip merged single-node
+    // rows.
     const restoreCall = mockListWorkflowExecutions.mock.calls.find(
       (c) => (c[1] as { status?: string } | undefined)?.status === TERMINAL_RESTORABLE_STATUSES,
     )
@@ -1473,6 +1474,29 @@ describe("useWorkflowPersistence — terminal-execution restore via load", () =>
     const opts = restoreCall![1] as { limit?: number; source?: string }
     expect(opts.limit).toBeGreaterThan(1)
     expect(opts.source).toBe("editor")
+  })
+
+  /**
+   * The per-node Run recovery must ask for FAILED jobs too — a refused 3D-scene
+   * run retains the revision it published, and this listing is the only thing
+   * that can find it after a reload. Pinned here because it is one query
+   * parameter in a fire-and-forget call: dropping it back to "completed" breaks
+   * the whole retained-draft lane silently, with every unit test still green.
+   */
+  it("asks the per-node recovery for completed AND failed jobs", async () => {
+    setupSupabaseLoad({ id: "w1", name: "WF", nodes: [makeNode()], edges: [] })
+    mockTerminal([])
+
+    const { result } = renderHook(() => useWorkflowPersistence("p1"))
+    await act(async () => {
+      await result.current.load("w1")
+    })
+
+    const recoveryCall = mockListWorkflowExecutions.mock.calls.find(
+      (c) => (c[1] as { status?: string } | undefined)?.status === "completed,failed",
+    )
+    expect(recoveryCall).toBeDefined()
+    expect((recoveryCall![1] as { source?: string }).source).toBe("editor")
   })
 })
 

@@ -23,6 +23,7 @@ import { buildScene3DHttpBody, isScene3DAuthoringType } from "./scene3d-http.js"
 import { buildPayload, buildNodeRefMap, type WorkflowSettings } from "./payload-builder.js"
 import { ensureWorkflowSheetPanels } from "./reference-sheet-stage-a.js"
 import { buildNodeOutputFromJobData } from "./output-extractor.js"
+import { retainedOutputOfFailedJob } from "./failed-node-output.js"
 import { readNodeCursor, writeNodeCursor } from "./node-cursor.js"
 import { resolveFieldMappings, NODE_MAPPABLE_FIELDS } from "./resolve-field-mappings.js"
 
@@ -1897,13 +1898,19 @@ async function pollJobToCompletion(
 
     if (status === "failed" || status === "cancelled") {
       const errorMsg = (jobRecord.error_message as string) ?? `Job ${status}`
-      const err = new Error(errorMsg) as Error & { errorHint?: ErrorHint }
+      const err = new Error(errorMsg) as Error & { errorHint?: ErrorHint; output?: NodeOutput }
       // Mirrors the mapped-billing-refusal errorCode precedent above:
       // the caller (orchestrator-worker.ts) copies this onto
       // nodeStates[nodeId] so the editor/MCP can act on it without
       // re-parsing the error_message prose.
       const hint = jobRecord.error_hint as ErrorHint | null | undefined
       if (hint) err.errorHint = hint
+      // …and so does what the refused run RETAINED. `failed` only: a CANCELLED
+      // job never published a result, and a refund is in flight for it.
+      if (status === "failed") {
+        const retained = retainedOutputOfFailedJob(jobRecord.output_data, nodeType)
+        if (retained) err.output = retained
+      }
       throw err
     }
 

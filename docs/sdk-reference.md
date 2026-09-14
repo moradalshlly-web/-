@@ -1440,6 +1440,30 @@ const { data } = await client.executions.get(executionId)
 console.log(data.status, data.completedNodes, data.totalNodes)
 ```
 
+**Reading `nodeStates[nodeId].output`.** A node carries `output` when it
+`completed` — and ALSO when it `failed` but the run retained a structured
+result. The 3D-scene authoring nodes are the case that exists today: once the
+repair budget is spent and only the visual reviewer refuses, the run has already
+published a real, renderable revision, so the node fails and the revision is in
+`output.plan`. Gate on the FIELD, never on the status — and never read a present
+`output` as success:
+
+```ts
+import { nodeStateMayCarryOutput } from "@nodaro/sdk"
+
+const node = data.nodeStates["scene-1"]
+if (node.status === "failed") {
+  console.error(node.error)                 // the verdict stands
+  if (node.output?.plan) {
+    // …and the draft it retained is still here, billed and addressable.
+  }
+}
+nodeStateMayCarryOutput(node.status) // "completed" | "failed" → true
+```
+
+`OUTPUT_BEARING_NODE_STATUSES` (the same two statuses, as a `Set`) and the
+`NodeExecutionStatus` union are exported beside it.
+
 #### `listForWorkflow(workflowId, params?)`
 
 ```ts
@@ -4878,8 +4902,10 @@ not two.
 
 - `WorkflowExecution` — full execution record with per-node state map
 - `WorkflowExecutionSummary` — list-row shape
-- `NodeExecutionState` — per-node entry inside `nodeStates`
-- `ExecutionStatus` — `"pending" | "running" | "completed" | "failed" | "cancelled" | "stopping" | "timed_out" | "discarded"`
+- `NodeExecutionState` — per-node entry inside `nodeStates`; `output` is present for a `completed` node AND for a `failed` one whose run retained a result
+- `NodeExecutionStatus` — per-NODE status: `"pending" | "running" | "completed" | "failed" | "skipped"`
+- `OUTPUT_BEARING_NODE_STATUSES` / `nodeStateMayCarryOutput(status)` — the two statuses whose node state may carry `output`
+- `ExecutionStatus` — the EXECUTION's own status: `"pending" | "running" | "completed" | "failed" | "cancelled" | "stopping" | "timed_out" | "discarded"`
 - `ExecutionTriggerType` — `"manual" | "webhook" | "schedule" | "app_run" | "single-node"`
 - `ListExecutionsForWorkflowParams` — pagination + filters
 - `ListExecutionsPage<T>` — `{ data: T[], nextCursor? }`

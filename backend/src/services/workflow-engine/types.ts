@@ -6,6 +6,7 @@ import type { MediaItem } from "../social/platforms/index.js"
 import type { BillingContext } from "../../lib/billing-context.js"
 import type { Caption } from "@remotion/captions"
 import type { ErrorHint } from "../../lib/safety-block.js"
+import type { NodeExecutionStatus, NodeExecutionStateWire } from "@nodaro/shared"
 
 // ---------------------------------------------------------------------------
 // Node execution state (stored in workflow_executions.node_states JSONB)
@@ -126,12 +127,13 @@ export interface NodeOutput {
   shotStills?: ReadonlyArray<{ shotIndex: number; frame: number; assetId: string; url: string }>
 }
 
-export type NodeExecutionStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "skipped"
+/**
+ * Re-exported from `@nodaro/shared` so the orchestrator, the SDK and the editor
+ * partition node status against ONE union. Local members used to be free to
+ * drift; the rule that a `failed` node may carry `output` (and a `pending` one
+ * may not) lives beside it there, as `OUTPUT_BEARING_NODE_STATUSES`.
+ */
+export type { NodeExecutionStatus }
 
 export interface NodeExecutionState {
   status: NodeExecutionStatus
@@ -178,6 +180,16 @@ export interface NodeExecutionState {
    *  review. */
   awaitingReview?: boolean
 }
+
+/**
+ * The orchestrator's state must stay a SUPERSET of the published wire contract
+ * — a compile error here means the two have drifted (a renamed field, a
+ * narrowed status, an `output` that stopped being an object) and every client
+ * reading `nodeStates` is already wrong.
+ */
+const _nodeExecutionStateIsWireCompatible: NodeExecutionStateWire<NodeOutput> =
+  undefined as unknown as NodeExecutionState
+void _nodeExecutionStateIsWireCompatible
 
 // ---------------------------------------------------------------------------
 // Orchestrator job data (enqueued to BullMQ)

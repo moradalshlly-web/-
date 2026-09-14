@@ -977,6 +977,16 @@ export type { VoiceChangerModel } from "./voice-changer-models.js"
 // --- Node presets ---
 export { EXECUTION_DATA_KEYS, TRANSIENT_RUNTIME_KEYS, stripTransientRuntimeData } from "./node-runtime-keys.js"
 
+// --- Execution node state (wire contract) ---
+export {
+  OUTPUT_BEARING_NODE_STATUSES,
+  nodeStateMayCarryOutput,
+} from "./node-execution-state.js"
+export type {
+  NodeExecutionStatus,
+  NodeExecutionStateWire,
+} from "./node-execution-state.js"
+
 export {
   MODEL_PARAM_NODE_TYPES,
   normalizeNodeModelParams,
