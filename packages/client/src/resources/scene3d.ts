@@ -160,11 +160,14 @@ export class Scene3DResource {
    * the compiler's own remedy with no planner call, counted APART from
    * `repairPasses` on their own quoted allowance), `restoredAssertions`, and
    * any `SCENE_AUTHORING_ASSUMPTION` warnings. A
-   * completed result whose `metadata.review` is present is an ADVISORY
-   * delivery: the scene passed every mandatory assertion, the visual reviewer
-   * still objected, and each objection is also a `SCENE_REVIEW_REFUSED`
-   * warning. Re-render that same `scenePlan` later with {@link render}, or with
-   * a `{kind:'scene'}` source; that costs no authoring.
+   * completed result whose `metadata.review` is present passed every mandatory
+   * assertion but did NOT get the visual reviewer's approval: `verdict:
+   * "refused"` means it objected, each objection also a `SCENE_REVIEW_REFUSED`
+   * warning; `verdict: "unavailable"` means the review never reached its
+   * provider in `attempts` asks, so nobody judged the scene and
+   * `SCENE_REVIEW_UNAVAILABLE` leads the warnings. Re-render that same
+   * `scenePlan` later with {@link render}, or with a `{kind:'scene'}` source;
+   * that costs no authoring.
    */
   async renderProAndWait(
     params: Pro3DRenderParams | Pro3DRenderRunParams,

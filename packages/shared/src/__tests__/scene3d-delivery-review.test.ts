@@ -3,19 +3,22 @@ import {
   SCENE3D_ASSERTION_RESTORED_CODE,
   SCENE3D_REMEDY_AUTO_APPLIED_CODE,
   SCENE3D_REVIEW_REFUSED_CODE,
+  SCENE3D_REVIEW_UNAVAILABLE_CODE,
+  scene3DReviewNote,
   scene3DReviewVerdictOf,
   type Scene3DAuthoringDelivery,
   type Scene3DAuthoringValidation,
   type Scene3DReviewVerdict,
 } from "../scene3d-delivery-notes.js"
-import { pro3DRenderJobOutputSchema, pro3DRenderReviewVerdictSchema } from "../pro-3d-render.js"
+import { isPro3DRenderJobOutput, pro3DRenderJobOutputSchema, pro3DRenderReviewVerdictSchema } from "../pro-3d-render.js"
 import { FIXTURE_FPS, FIXTURE_FRAMES, FIXTURE_HEIGHT, FIXTURE_WIDTH, planV2 } from "./scene3d-v2-fixtures.js"
 
 /**
- * The advisory delivery is the one Scene3D outcome a caller CANNOT infer from the fields it
- * already reads: the job completed, `videoUrl` is real, and `validation.status` is `"passed"`.
- * Only `metadata.review` says the visual reviewer refused the scene anyway. These tests pin the
- * two ways that fact gets read wrong — off the status, or off the warning count.
+ * A delivery the visual reviewer did not APPROVE is the one Scene3D outcome a caller CANNOT
+ * infer from the fields it already reads: the job completed, `videoUrl` is real, and
+ * `validation.status` is `"passed"`. Only `metadata.review` says the reviewer refused the scene
+ * anyway — or that it never answered at all. These tests pin the ways that fact gets read wrong:
+ * off the status, off the warning count, and off a `verdict` check that knows only `"refused"`.
  */
 describe("scene3DReviewVerdictOf", () => {
   const verdict: Scene3DReviewVerdict = {
@@ -70,6 +73,87 @@ describe("scene3DReviewVerdictOf", () => {
       objections: [{ category: "unsupported", what: "Lighting is flat.", frames: [2, 7] }],
     })
   })
+
+  /**
+   * The sibling verdict, and the reason the reader could not stay keyed on `"refused"`.
+   *
+   * A review whose provider never answered delivers an assertion-passing scene with NO opinion
+   * on it. Read through a `verdict === "refused"` test that returns `undefined` for everything
+   * else, such a delivery is indistinguishable from a clean one — the exact silence this module
+   * exists to prevent.
+   */
+  it("reads the verdict of a scene NOBODY reviewed, which a refused-only reader would drop", () => {
+    const unreviewed = {
+      metadata: { review: { verdict: "unavailable", reason: "provider", attempts: 2, objections: [] } },
+      validation: {
+        status: "passed",
+        warnings: [{ code: SCENE3D_REVIEW_UNAVAILABLE_CODE, message: "… delivered unreviewed." }],
+      },
+    }
+    expect(scene3DReviewVerdictOf(unreviewed)).toEqual({
+      verdict: "unavailable", reason: "provider", attempts: 2, objections: [],
+    })
+  })
+
+  /** A review is BATCHED: what answered before the outage is real evidence, and is not the
+   *  whole verdict. Both facts have to survive the read, or `objections` reads as approval. */
+  it("keeps the batches that answered before the provider went away, on the unavailable arm", () => {
+    const read = scene3DReviewVerdictOf({
+      metadata: { review: { verdict: "unavailable", reason: "provider", attempts: 2, objections: [
+        { category: "motion", what: "The suitcase never crosses.", frames: [0] },
+      ], observed: "A red suitcase on a pale floor." } },
+    })
+    expect(read).toEqual({
+      verdict: "unavailable", reason: "provider", attempts: 2,
+      objections: [{ category: "motion", what: "The suitcase never crosses.", frames: [0] }],
+      observed: "A red suitcase on a pale floor.",
+    })
+  })
+
+  /** `attempts` decides a sentence, never a control flow, so a nonsense one degrades to the
+   *  floor the fact itself guarantees: a verdict exists, so the review was asked at least once. */
+  it("clamps a nonsense attempt count rather than dropping an otherwise good verdict", () => {
+    for (const attempts of [0, -3, 1.5, "two", undefined, Number.NaN]) {
+      expect(scene3DReviewVerdictOf({ metadata: { review: { verdict: "unavailable", attempts, objections: [] } } }))
+        .toEqual({ verdict: "unavailable", reason: "provider", attempts: 1, objections: [] })
+    }
+  })
+
+  it("still refuses a verdict it has never heard of, on either arm", () => {
+    expect(scene3DReviewVerdictOf({ metadata: { review: { verdict: "unreachable", objections: [] } } })).toBeUndefined()
+  })
+})
+
+/**
+ * The note is the anti-invention guard: a surface that spells its own sentence writes "the
+ * reviewer refused this scene" for the arm it was not thinking about, and a scene NOBODY
+ * reviewed is then reported as carrying an opinion that does not exist.
+ */
+describe("scene3DReviewNote", () => {
+  it("never says refused about a scene nobody reviewed, and counts the asks", () => {
+    const note = scene3DReviewNote({ verdict: "unavailable", reason: "provider", attempts: 2, objections: [] })
+    expect(note).toContain("did not reach its provider in 2 attempts")
+    expect(note).toContain("delivered unreviewed")
+    expect(note).not.toMatch(/refus/i)
+  })
+
+  it("says one attempt in the singular, and names the partial findings as partial", () => {
+    expect(scene3DReviewNote({ verdict: "unavailable", reason: "provider", attempts: 1, objections: [] }))
+      .toContain("in one attempt")
+    const partial = scene3DReviewNote({
+      verdict: "unavailable", reason: "provider", attempts: 2,
+      objections: [{ category: "motion", what: "No crossing.", frames: [] }],
+    })
+    expect(partial).toContain("not the whole verdict")
+  })
+
+  it("reports a refusal as a refusal, including one that named nothing actionable", () => {
+    expect(scene3DReviewNote({ verdict: "refused", objections: [
+      { category: "motion", what: "No crossing.", frames: [] },
+    ] })).toContain("refused this scene on one finding")
+    expect(scene3DReviewNote({ verdict: "refused", objections: [] }))
+      .toContain("without naming anything to change")
+  })
 })
 
 describe("pro3DRenderReviewVerdictSchema", () => {
@@ -82,11 +166,87 @@ describe("pro3DRenderReviewVerdictSchema", () => {
     expect(parsed.success).toBe(true)
   })
 
-  it("accepts an objection that cited no frames, and refuses a verdict that is not a refusal", () => {
+  it("accepts an objection that cited no frames, and refuses a verdict it does not know", () => {
     expect(pro3DRenderReviewVerdictSchema.safeParse({
       verdict: "refused", objections: [{ category: "style", what: "Too dark." }],
     }).success).toBe(true)
     expect(pro3DRenderReviewVerdictSchema.safeParse({ verdict: "accepted", objections: [] }).success).toBe(false)
+  })
+
+  it("parses the unavailable verdict, and defaults the fields an older engine omits", () => {
+    const parsed = pro3DRenderReviewVerdictSchema.safeParse({
+      verdict: "unavailable", reason: "provider", attempts: 2, objections: [], extra: 1,
+    })
+    expect(parsed.success).toBe(true)
+    const bare = pro3DRenderReviewVerdictSchema.safeParse({ verdict: "unavailable", objections: [] })
+    expect(bare.success).toBe(true)
+    expect(bare.success && bare.data).toMatchObject({ reason: "provider", attempts: 1 })
+  })
+})
+
+/**
+ * The gap this round closes, stated as the assertion that would have caught it.
+ *
+ * `pro3DRenderReviewVerdictSchema` declared `verdict: z.literal("refused")`, so the whole
+ * result of an UNREVIEWED delivery — a real, paid, playable MP4 — failed `isPro3DRenderJobOutput`
+ * over a discriminant the schema had never been taught. A reader that gates on that predicate
+ * would have shown the caller nothing at all.
+ */
+describe("isPro3DRenderJobOutput with a review nobody could perform", () => {
+  const completed = (review?: unknown) => ({
+    videoUrl: "https://cdn.example/scene.mp4",
+    scenePlan: planV2(),
+    sceneRevisionId: "rev-1",
+    posterAssetId: "poster-1",
+    validation: {
+      status: "passed" as const,
+      reportAssetId: "report-1",
+      warnings: [{ code: SCENE3D_REVIEW_UNAVAILABLE_CODE, message: "… delivered unreviewed." }],
+    },
+    renderer: "blender",
+    metadata: {
+      width: FIXTURE_WIDTH, height: FIXTURE_HEIGHT, fps: FIXTURE_FPS,
+      frames: FIXTURE_FRAMES, duration: FIXTURE_FRAMES / FIXTURE_FPS,
+      ...(review === undefined ? {} : { review }),
+    },
+  })
+
+  it("the fixture itself parses, so a refusal below is about the verdict and nothing else", () => {
+    expect(isPro3DRenderJobOutput(completed())).toBe(true)
+  })
+
+  it("accepts the delivered result of a scene the reviewer never reached", () => {
+    expect(isPro3DRenderJobOutput(completed({
+      verdict: "unavailable", reason: "provider", attempts: 2, objections: [],
+    }))).toBe(true)
+  })
+
+  it("still accepts the refused verdict it always did, and the clean result with no review", () => {
+    expect(isPro3DRenderJobOutput(completed({ verdict: "refused", objections: [] }))).toBe(true)
+    expect(isPro3DRenderJobOutput(completed())).toBe(true)
+  })
+
+  /** Tolerance in the direction that matters: a malformed advisory must never blank a video the
+   *  platform already rendered and charged for. */
+  it("does not blank a delivered video over a malformed review", () => {
+    expect(isPro3DRenderJobOutput(completed({ verdict: "unavailable", attempts: "many", objections: [] }))).toBe(true)
+    expect(isPro3DRenderJobOutput(completed({ verdict: "unavailable", reason: "weather", objections: [] }))).toBe(true)
+  })
+
+  /**
+   * The regression guard for the NEXT verdict, not this one.
+   *
+   * The discriminant stays strict — guessing it is how a scene nobody reviewed gets reported as
+   * refused — but an unrecognised verdict must cost at most itself. This is the exact shape that
+   * broke here: had `review` blanked the whole result for `"unavailable"`, it will do it again
+   * for whatever the engine declares next, and the caller loses a paid MP4 over an advisory.
+   */
+  it("keeps the delivered video when the verdict is one it has never heard of", () => {
+    const parsed = pro3DRenderJobOutputSchema.safeParse(completed({ verdict: "shrugged", objections: [] }))
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.metadata.review).toBeUndefined()
+    // …and the run still says so through the warning, which has no code enum to refuse it.
+    expect(parsed.success && parsed.data.validation.warnings?.[0]?.code).toBe(SCENE3D_REVIEW_UNAVAILABLE_CODE)
   })
 })
 

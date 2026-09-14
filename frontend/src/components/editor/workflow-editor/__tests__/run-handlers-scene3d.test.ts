@@ -222,6 +222,13 @@ describe("syncNodeStatesToStore — Scene3D revision guard on the full-DAG path"
    * revision: the job fails, the credits stay committed, and the draft sits in
    * `output_data`. On a workflow Run that draft reached nothing — billed,
    * addressable by the artifact routes, invisible on the canvas.
+   *
+   * The reason this branch reads `state.output` rather than the error CODE is
+   * what makes it survive a new one. `SCENE_QUALITY_FAILED` is no longer the
+   * only refusal that retains a draft: a run whose visual review could not reach
+   * its provider retains one under `SCENE_REVIEW_UNAVAILABLE`, on deployments
+   * that do not deliver unreviewed scenes. The second case below pins that the
+   * code is not part of the rule.
    */
   describe("a REFUSED run that retained its draft", () => {
     const refusal = (planRev: string, base?: string) => ({
@@ -244,6 +251,35 @@ describe("syncNodeStatesToStore — Scene3D revision guard on the full-DAG path"
       // The refusal is NOT softened by the draft arriving.
       expect(byId.s1.executionStatus).toBe("failed")
       expect(byId.s1.errorMessage).toContain("SCENE_QUALITY_FAILED")
+    })
+
+    /**
+     * The SAME branch, under the code round 10u added. Nothing here keys on the
+     * error string, and that is the assertion: a draft retained because NOBODY
+     * could review it reaches the canvas exactly as a refused one does, and the
+     * node still fails with the reason it failed for. If this ever needs a new
+     * case per error code, the branch has stopped reading the output.
+     */
+    it("keeps the draft when the review could not be performed at all", () => {
+      mockNodes = [{ id: "s1", type: "edit-3d-scene", data: { scenePlan: plan(REV_A), executionStatus: "idle" } }]
+      streamBackendExecution("exec-5u", makeCtx(), vi.fn(), vi.fn())
+      sync({ s1: { status: "running", nodeType: "edit-3d-scene" } })
+      const byId = sync({
+        s1: {
+          status: "failed",
+          nodeType: "edit-3d-scene",
+          error: "SCENE_REVIEW_UNAVAILABLE: The scene built and every mandatory assertion passed, "
+            + "but the visual review did not reach its provider in 2 attempts; it was retained unreviewed.",
+          output: { plan: plan(REV_B, REV_A) },
+        },
+      })
+
+      expect((byId.s1.scenePlan as Record<string, unknown>).revisionId).toBe(REV_B)
+      expect((byId.s1.sceneHistory as Array<{ revisionId: string }>).map((e) => e.revisionId)).toEqual([REV_B])
+      expect(byId.s1.executionStatus).toBe("failed")
+      // Reported as what it is — never softened into a refusal nobody made.
+      expect(byId.s1.errorMessage).toContain("SCENE_REVIEW_UNAVAILABLE")
+      expect(byId.s1.errorMessage).not.toMatch(/refus/i)
     })
 
     it("PARKS the retained draft when the user edited the scene mid-run", () => {

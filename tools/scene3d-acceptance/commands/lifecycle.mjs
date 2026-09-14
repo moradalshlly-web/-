@@ -20,7 +20,7 @@ import { HarnessError, idempotencyKeyFor, makeClient, readBalance, readCapabilit
 import { resolvePrompt } from "../lib/harness.mjs"
 import { shortHash } from "../lib/parity.mjs"
 import { followJob, phaseTimings, readJobRecord } from "../lib/poll.mjs"
-import { deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
+import { deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, reviewDetail, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
 
 export const NAME = "lifecycle"
 
@@ -150,7 +150,7 @@ export async function main(ctx) {
       expected: "completed | completed-advisory",
       actual: outcome,
       pass: isDelivered(outcome),
-      detail: review ? `the visual reviewer refused this scene: ${review.objectionCount} objection(s)` : undefined,
+      detail: reviewDetail(review),
     })
     ctx.assert("credits committed", { expected: "committed", actual: job?.credit_status ?? null })
   }

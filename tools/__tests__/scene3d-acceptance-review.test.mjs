@@ -11,6 +11,7 @@ import { describe, it } from "node:test"
 
 import { deliveryOutcome, isDelivered, repairEvidence, reviewEvidence, summarizeProOutput } from "../scene3d-acceptance/lib/pro.mjs"
 import { createReceipt, finalize, markAdvisory, validateReceipt } from "../scene3d-acceptance/lib/receipt.mjs"
+import { advisoryClause } from "../scene3d-acceptance/lib/harness.mjs"
 
 /** A delivered result the reviewer refused, shaped as the plugin publishes it. */
 function advisoryOutput(overrides = {}) {
@@ -38,6 +39,23 @@ function advisoryOutput(overrides = {}) {
     mechanicalPasses: 1,
     ...overrides,
   }
+}
+
+/** The same delivery, with a review NOBODY could perform: the outage arm of the verdict. */
+function unreviewedOutput(review = {}, warnings = null) {
+  return advisoryOutput({
+    validation: {
+      status: "passed",
+      reportAssetId: "ast_report",
+      warnings: warnings ?? [
+        { code: "SCENE_REVIEW_UNAVAILABLE", message: "… it was delivered unreviewed." },
+      ],
+    },
+    metadata: {
+      width: 1920, height: 1080, fps: 24, frames: 240, duration: 10,
+      review: { verdict: "unavailable", reason: "provider", attempts: 2, objections: [], ...review },
+    },
+  })
 }
 
 describe("reviewEvidence", () => {
@@ -96,6 +114,63 @@ describe("reviewEvidence", () => {
     const review = reviewEvidence(messy)
     assert.equal(review.objectionCount, 1)
     assert.deepEqual(review.objections[0], { category: "unsupported", what: "Flat lighting.", correction: null, frames: [2] })
+  })
+})
+
+/**
+ * The outage arm, and the reason a `verdict === "refused"` reader could not stay.
+ *
+ * A run delivered with NO verdict on it reads, through such a reader, as a clean
+ * acceptance — the job completed, the video is real, `validation.status` is
+ * `"passed"`. That is the same silence `reviewEvidence` exists to prevent, one
+ * step further out: the reviewer's veto turned into silence in round 9c, and the
+ * reviewer's ABSENCE turned into approval here.
+ */
+describe("reviewEvidence reads a review nobody could perform", () => {
+  it("reports the verdict, why it is missing, and how many times the review was asked", () => {
+    const review = reviewEvidence(unreviewedOutput())
+    assert.equal(review.verdict, "unavailable")
+    assert.equal(review.reason, "provider")
+    assert.equal(review.attempts, 2)
+    assert.equal(review.objectionCount, 0)
+    assert.equal(review.unavailableWarningCount, 1)
+    assert.match(review.reviewEvidenceSentence, /delivered UNREVIEWED/)
+  })
+
+  /** A review is BATCHED. What answered before the provider went away is real
+   *  evidence, and reporting it as the verdict would be the opposite error. */
+  it("keeps the batches that answered first, without calling them the verdict", () => {
+    const review = reviewEvidence(unreviewedOutput({
+      objections: [{ category: "motion", what: "The suitcase never crosses.", frames: [0] }],
+    }, [
+      { code: "SCENE_REVIEW_UNAVAILABLE", message: "… delivered unreviewed." },
+      { code: "SCENE_REVIEW_REFUSED", message: "motion: the suitcase never crosses" },
+    ]))
+    assert.equal(review.verdict, "unavailable")
+    assert.equal(review.objectionCount, 1)
+    assert.equal(review.refusedWarningCount, 1)
+    assert.equal(review.unavailableWarningCount, 1)
+    assert.match(review.reviewEvidenceSentence, /not a verdict/)
+  })
+
+  it("clamps an attempt count that cannot describe asks that were made", () => {
+    for (const attempts of [0, -1, 1.5, "two", undefined]) {
+      assert.equal(reviewEvidence(unreviewedOutput({ attempts })).attempts, 1)
+    }
+  })
+
+  /** The refused arm keeps exactly the fields it had: no `reason`, no `attempts`,
+   *  so a ledger cannot read an outage into a refusal that answered. */
+  it("adds nothing to a refusal that answered", () => {
+    const refused = reviewEvidence(advisoryOutput())
+    assert.equal(refused.verdict, "refused")
+    assert.equal("attempts" in refused, false)
+    assert.equal("reason" in refused, false)
+    assert.equal("unavailableWarningCount" in refused, false)
+  })
+
+  it("still reports no verdict for one it has never heard of", () => {
+    assert.equal(reviewEvidence(unreviewedOutput({ verdict: "shrugged" })), null)
   })
 })
 
@@ -244,5 +319,47 @@ describe("the receipt says advisory without changing the verdict", () => {
     const receipt = finalize(Object.assign(make(), { assertions: [{ name: "a", expected: 1, actual: 1, pass: true }] }))
     receipt.advisory = "yes"
     assert.ok(validateReceipt(receipt).includes("advisory is not a boolean"))
+  })
+})
+
+/**
+ * The outcome and the operator line, for the delivery nobody reviewed.
+ *
+ * No THIRD outcome is added on purpose: to a ledger an unreviewed delivery is
+ * the same kind of thing as an advisory one — paid, playable, not clean — and a
+ * new string would break every caller that switches on this one. What must not
+ * be the same is the SENTENCE: "advisory review: 0 objections" for a scene
+ * nobody looked at says the reviewer found nothing, which is the reading an
+ * operator acts on wrongly.
+ */
+describe("an unreviewed delivery is completed-advisory, and says so in words", () => {
+  it("maps to completed-advisory, exactly as a refusal does", () => {
+    assert.equal(deliveryOutcome({ terminalStatus: "completed", output: unreviewedOutput() }), "completed-advisory")
+    assert.equal(isDelivered(deliveryOutcome({ terminalStatus: "completed", output: unreviewedOutput() })), true)
+  })
+
+  it("never reports it as an advisory review that found nothing", () => {
+    const receipt = markAdvisory(createReceipt({ subcommand: "authoring", runId: "r1", baseUrl: "https://next.example.invalid" }),
+      reviewEvidence(unreviewedOutput()), "authoring")
+    const line = advisoryClause(receipt)
+    assert.match(line, /review UNAVAILABLE after 2 attempts/)
+    assert.doesNotMatch(line, /advisory review: 0 objections/)
+  })
+
+  it("says both when a multi-step probe delivered both ways", () => {
+    const receipt = createReceipt({ subcommand: "blender-cloud-v2", runId: "r1", baseUrl: "https://next.example.invalid" })
+    markAdvisory(receipt, reviewEvidence(advisoryOutput()), "generate")
+    markAdvisory(receipt, reviewEvidence(unreviewedOutput()), "render")
+    const line = advisoryClause(receipt)
+    assert.match(line, /advisory review: 1 objection/)
+    assert.match(line, /1 step UNREVIEWED after 2 attempts/)
+  })
+
+  it("counts partial batches as partial in the line", () => {
+    const receipt = markAdvisory(createReceipt({ subcommand: "authoring", runId: "r1", baseUrl: "https://next.example.invalid" }),
+      reviewEvidence(unreviewedOutput({
+        objections: [{ category: "motion", what: "The suitcase never crosses.", frames: [0] }],
+      })), "authoring")
+    assert.match(advisoryClause(receipt), /review UNAVAILABLE after 2 attempts, 1 objection from partial batches/)
   })
 })

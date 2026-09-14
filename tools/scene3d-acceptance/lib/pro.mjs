@@ -243,7 +243,7 @@ export function repairEvidence({ output, quote, requested }) {
 }
 
 /**
- * The visual reviewer's verdict on a result that was DELIVERED anyway, or `null`.
+ * The visual reviewer's verdict on a result DELIVERED without its approval, or `null`.
  *
  * Read by raw property access rather than through `@nodaro/shared`: every static
  * import in this harness must be relative or `node:`, and the shape is small
@@ -258,10 +258,21 @@ export function repairEvidence({ output, quote, requested }) {
  *    is exactly why the scene was delivered instead of withheld;
  *  - the `SCENE_REVIEW_REFUSED` warning count can be ZERO — a refusal that named
  *    nothing actionable is still a refusal, and is the shape most worth catching.
+ *
+ * `verdict` says WHICH way the approval is missing, and both are read here:
+ *
+ *  - `"refused"` — the reviewer answered and objected;
+ *  - `"unavailable"` — the review's provider never answered in `attempts` asks,
+ *    so NOBODY judged the scene. `objections` may still be non-empty there: a
+ *    review is batched, and what answered before the outage is real evidence
+ *    that is not the whole verdict. A reader keyed on `"refused"` alone records
+ *    such a run as a clean acceptance, which is the same silence this function
+ *    exists to prevent — one step further out.
  */
 export function reviewEvidence(output) {
   const review = output && typeof output === "object" ? output.metadata?.review : undefined
-  if (!review || typeof review !== "object" || review.verdict !== "refused") return null
+  if (!review || typeof review !== "object") return null
+  if (review.verdict !== "refused" && review.verdict !== "unavailable") return null
   const objections = (Array.isArray(review.objections) ? review.objections : [])
     .filter((o) => o && typeof o === "object" && typeof o.what === "string" && o.what)
     .map((o) => ({
@@ -271,14 +282,29 @@ export function reviewEvidence(output) {
       frames: (Array.isArray(o.frames) ? o.frames : []).filter((f) => Number.isSafeInteger(f) && f >= 0),
     }))
   const warnings = output.validation?.warnings
+  const unavailable = review.verdict === "unavailable"
+  const countCode = (code) =>
+    Array.isArray(warnings) ? warnings.filter((w) => w?.code === code).length : null
   return {
-    verdict: "refused",
+    verdict: review.verdict,
+    ...(unavailable
+      ? {
+          // Why there is no verdict, and how hard the run tried before giving up —
+          // the one number that tells an unlucky call from a provider that was
+          // down for the whole pause. Clamped like the app-side reader clamps it.
+          reason: typeof review.reason === "string" && review.reason ? review.reason : "provider",
+          attempts: Number.isSafeInteger(review.attempts) && review.attempts > 0 ? review.attempts : 1,
+          unavailableWarningCount: countCode("SCENE_REVIEW_UNAVAILABLE"),
+        }
+      : {}),
     objectionCount: objections.length,
     objections,
     observed: typeof review.observed === "string" && review.observed ? review.observed : null,
-    refusedWarningCount: Array.isArray(warnings)
-      ? warnings.filter((w) => w?.code === "SCENE_REVIEW_REFUSED").length
-      : null,
+    refusedWarningCount: countCode("SCENE_REVIEW_REFUSED"),
+    reviewEvidenceSentence: unavailable
+      ? "the scene was delivered UNREVIEWED: its review never reached a provider, so the objections "
+        + "below (if any) are the batches that answered first, not a verdict"
+      : "the reviewer answered and refused this scene; the objections below are its whole verdict",
   }
 }
 
@@ -290,9 +316,33 @@ export function reviewEvidence(output) {
  * committed, and every mandatory assertion passed. It is named apart from
  * `completed` because it is not a clean acceptance, and a probe that reported it
  * as one would quietly turn the reviewer's veto into silence.
+ *
+ * It covers BOTH ways the approval is missing — a refusal and a review nobody
+ * could perform — deliberately, and no third outcome is added: an unreviewed
+ * delivery is the same kind of thing to a ledger (paid, playable, not clean),
+ * and a new outcome string would break every caller that switches on this one.
+ * WHICH way it is missing is in `measurements.review.verdict`.
  */
 export function deliveryOutcome({ terminalStatus, output }) {
   return terminalStatus === "completed" && reviewEvidence(output) ? "completed-advisory" : terminalStatus
+}
+
+/**
+ * The one-line assertion detail for a delivery the reviewer did not approve.
+ *
+ * Written down once because four probes used to spell it themselves, all four as
+ * "the visual reviewer refused this scene: N objection(s)" — true for a refusal,
+ * and an invented opinion for a scene NOBODY reviewed, whose `objectionCount` is
+ * `0` in the common case and would have read as "refused it, naming nothing".
+ */
+export function reviewDetail(review) {
+  if (!review) return undefined
+  const objections = `${review.objectionCount} objection${review.objectionCount === 1 ? "" : "s"}`
+  return review.verdict === "unavailable"
+    ? `the visual review never reached its provider in ${review.attempts} attempt`
+      + `${review.attempts === 1 ? "" : "s"}; the scene was delivered unreviewed`
+      + `${review.objectionCount ? ` (${objections} from the batches that answered first)` : ""}`
+    : `the visual reviewer refused this scene: ${objections}`
 }
 
 /** The two outcomes that mean "the run delivered a scene". */

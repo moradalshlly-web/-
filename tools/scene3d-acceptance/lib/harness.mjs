@@ -164,16 +164,35 @@ export async function runSubcommand(name, argv, main) {
  * The advisory half of the summary line, or nothing.
  *
  * The run PASSED — every assertion held and the exit code is 0 — and it still
- * delivered a scene the reviewer refused. Both facts belong on the one line an
- * operator reads, because either alone is misleading.
+ * delivered a scene the reviewer did not approve. Both facts belong on the one
+ * line an operator reads, because either alone is misleading.
+ *
+ * WHICH way the approval is missing is on the line too, and that is the point:
+ * "advisory review: 0 objections" for a scene NOBODY reviewed is the reading an
+ * operator acts on wrongly — it says the reviewer looked and found nothing, when
+ * the truth is that the reviewer never looked. A run that delivered both ways
+ * (possible only on a multi-step probe) says so rather than picking one.
+ *
+ * Exported for the self-tests: this sentence is the whole operator-facing
+ * difference between the two deliveries, so it is the thing worth pinning.
  */
-function advisoryClause(receipt) {
+export function advisoryClause(receipt) {
   if (!receipt.advisory) return ""
   const reviews = receipt.measurements?.reviews
-  const count = reviews
-    ? Object.values(reviews).reduce((n, r) => n + (r?.objectionCount ?? 0), 0)
-    : receipt.measurements?.review?.objectionCount ?? 0
-  return ` — COMPLETED (advisory review: ${count} objection${count === 1 ? "" : "s"})`
+  const all = reviews
+    ? Object.values(reviews).filter(Boolean)
+    : [receipt.measurements?.review].filter(Boolean)
+  const count = all.reduce((n, r) => n + (r?.objectionCount ?? 0), 0)
+  const objections = `${count} objection${count === 1 ? "" : "s"}`
+  const unreviewed = all.filter((r) => r?.verdict === "unavailable")
+  if (!unreviewed.length) return ` — COMPLETED (advisory review: ${objections})`
+  const attempts = Math.max(...unreviewed.map((r) => r?.attempts ?? 1))
+  const partial = count ? `, ${objections} from partial batches` : ""
+  if (unreviewed.length === all.length) {
+    return ` — COMPLETED (review UNAVAILABLE after ${attempts} attempts${partial})`
+  }
+  return ` — COMPLETED (advisory review: ${objections}; ${unreviewed.length} step`
+    + `${unreviewed.length === 1 ? "" : "s"} UNREVIEWED after ${attempts} attempts)`
 }
 
 /** Wire a subcommand module up as a process. Used by the dispatcher. */

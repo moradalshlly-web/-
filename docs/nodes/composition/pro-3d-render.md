@@ -113,10 +113,11 @@ link that outlives the run is created anywhere.
 
 The completed job's `output_data` carries the fields below. A job that failed
 with `SCENE_QUALITY_FAILED` carries a smaller set of the same fields, pointing
-at the draft it kept — see [Errors](#errors). A completed job may also be an
-**advisory delivery** — the scene passed every mandatory check and the visual
-reviewer still objected — which adds `metadata.review`; see
-[When the reviewer refuses a scene that passed](#when-the-reviewer-refuses-a-scene-that-passed).
+at the draft it kept — see [Errors](#errors). A completed job may also have been
+delivered **without the visual reviewer's approval** — the scene passed every
+mandatory check, and the reviewer either objected or never answered at all —
+which adds `metadata.review`; see
+[When a scene that passed is delivered unapproved](#when-a-scene-that-passed-is-delivered-unapproved).
 
 | Field | Meaning |
 |---|---|
@@ -128,8 +129,8 @@ reviewer still objected — which adds `metadata.review`; see
 | `sourceArtifactId` | Present when an editable native source was retained. |
 | `validation` | `{ status, reportAssetId, warnings[] }` — each warning has a `code`, a `message` and an optional `shotId`. `status` is `passed` here; a **failed** job can carry this field too, with `status: "failed"` (see [Errors](#errors)). See [Warning codes](#warning-codes) for what a `code` can be. |
 | `renderer` | Renderer identity/version the export was produced with. |
-| `metadata` | `{ width, height, fps, frames, duration }` — check these against a downstream model's video-reference limits before wiring the MP4 in. On a run that authored, it also carries `summary`: the planner's own one-or-two-sentence description of what it made, and on a repaired run, of the repair. Optional — a run that returned no summary is not an error. On an **advisory delivery** it additionally carries `review` (below). |
-| `metadata.review` | Present **only** on an advisory delivery: `{ verdict: "refused", objections[], observed? }`, the visual reviewer's verdict on a scene that was delivered anyway. Each objection is `{ category, what, correction?, frames[] }` — `what` is the finding itself, `correction` the recipe-level change it asked for where it named one, and `frames` the frames it cited. There is no `severity`: only blocking findings become objections. `objections` may be **empty**, which reports a refusal that named nothing actionable. Absent on every other result, including a clean one. |
+| `metadata` | `{ width, height, fps, frames, duration }` — check these against a downstream model's video-reference limits before wiring the MP4 in. On a run that authored, it also carries `summary`: the planner's own one-or-two-sentence description of what it made, and on a repaired run, of the repair. Optional — a run that returned no summary is not an error. On a delivery the reviewer did not approve it additionally carries `review` (below). |
+| `metadata.review` | Present **only** on a delivery the visual reviewer did not approve. Read `verdict` — it is the discriminant, and it has two values. `{ verdict: "refused", objections[], observed? }` is the scene the reviewer objected to and that was delivered anyway. `{ verdict: "unavailable", reason: "provider", attempts, objections[], observed? }` is the scene **nobody reviewed**: the review never reached its provider in `attempts` asks, so no verdict on it exists. Each objection is `{ category, what, correction?, frames[] }` — `what` is the finding itself, `correction` the recipe-level change it asked for where it named one, and `frames` the frames it cited. There is no `severity`: only blocking findings become objections. `objections` may be **empty**, which reports a refusal that named nothing actionable; on the `unavailable` arm it holds whichever review batches answered before the outage, which are **not** the verdict. Absent on every other result, including a clean one. |
 | `repairPasses` | How many repair passes actually RAN, never the number of authoring passes — so a composition accepted first time reports `0`, not `1`. Optional, and **absent** rather than `0` on a render-only export, which authored nothing and had no repair budget to spend. |
 | `admissionRetries` | Pre-build planner retries: a recipe the compiler would not admit is re-asked of the planner, with no build and no repair pass spent. Counted apart from `repairPasses` and never folded into it — they buy different things. Optional, and absent on a run that needed none. |
 | `mechanicalPasses` | Repairs the engine applied **itself**, from the compiler's own structured remedy, with no planner call. Counted **apart** from `repairPasses` and never folded into it: these passes spend their own quoted allowance — the `mechanical` line, up to 2, released when unspent — rather than one of your repairs, so a run may report more mechanical passes than repairs. The pass identity the pricing keeps is `buildPasses = authoringPasses + repairPasses + mechanicalPasses`. Each one also adds a `REMEDY_AUTO_APPLIED` warning. Optional, and absent both when the run took none and on an engine that does not report it. See [The mechanical-pass allowance](#the-mechanical-pass-allowance). |
@@ -145,6 +146,7 @@ than an error — the list is open-ended by design.
 |---|---|
 | `SCENE_AUTHORING_ASSUMPTION` | The brief did not say, so the run decided. One entry per assumption the planner made, with any normalization the engine applied to it. These appear on a run that **authored**; a render-only export has none. |
 | `SCENE_REVIEW_REFUSED` | One objection the visual reviewer raised against a scene this job **delivered anyway**. One entry per objection, carrying a `shotId` when every frame it cites falls inside one shot. The whole verdict, including any objection the row could not fit, is in `metadata.review`. |
+| `SCENE_REVIEW_UNAVAILABLE` | **Nobody reviewed this scene.** The visual review never reached its provider, so the assertion-passing scene was delivered — or, where the deployment does not deliver unapproved scenes, retained as a draft — with no verdict on it. One entry, and it **leads** the array: it qualifies every line under it, because any `SCENE_REVIEW_REFUSED` entry below came from a review that never finished. The message says how many times the review was asked. |
 | `REMEDY_AUTO_APPLIED` | One remedy the engine applied **itself** on a mechanical repair pass, rather than asking the planner for a fix. Names the mandatory assertion that refused the build, the change that was applied, and the measurement before it. One entry per remedy; the count of such passes is `mechanicalPasses`. |
 | `ASSERTION_RESTORED` | One mandatory assertion the engine put **back** after a planner answer re-shaped it without being asked to. A repair may change what the feedback names; an assertion outside that invitation is restored to its last admitted form and the run continues. Names the assertion, the edit that restored it and why. Counted by `restoredAssertions`. |
 | `SCENE_QUALITY_BLOCKING` | The paid visual reviewer found a blocking problem with the built scene. Carries a `shotId` when the cited frames all fall inside one shot. |
@@ -160,6 +162,11 @@ you get says what happened to the scene:
   and the finding is advice about it. A review that could not establish the
   requested behaviour arrives here as an objection with `category: "evidence"`
   rather than under its own code.
+- `SCENE_REVIEW_UNAVAILABLE` says there is no finding at all, because there is
+  no reviewer verdict. It appears on a **completed** job beside `metadata.review`
+  — and, where the deployment retains unapproved scenes instead of delivering
+  them, on a **failed** one, which publishes no `metadata` block and where this
+  warning is the only thing that says the draft was never judged.
 
 The complete finding set is always in the pinned validation report, not the row.
 
@@ -302,7 +309,7 @@ the third is not:
 
 | Code | Retry? | Meaning |
 |---|---|---|
-| `SCENE_PROVIDER_UNAVAILABLE` | Yes, after a few minutes | The scene planner's model provider was unavailable, overloaded or rate-limited, or the call never received an answer. The brief was not the problem. |
+| `SCENE_PROVIDER_UNAVAILABLE` | Yes, after a few minutes | The scene **planner's** model provider was unavailable, overloaded or rate-limited, or the call never received an answer. The brief was not the problem. A *visual review* whose provider is unreachable no longer ends the run this way: it is asked again after a bounded pause, and the assertion-passing scene is then delivered unreviewed — see [When a scene that passed is delivered unapproved](#when-a-scene-that-passed-is-delivered-unapproved). |
 | `SCENE_PLANNING_TIMEOUT` | Yes | Planning ran past its time bound. Retry, or shorten the brief and reference set. |
 | `SCENE_PLANNER_OUTPUT_INVALID` | No, not unchanged | The provider answered, but the recipe it produced could not be accepted by the compiler. Simplify the brief or use fewer references. |
 
@@ -310,40 +317,65 @@ Work already completed before the failure (an earlier repair pass, for
 example) is charged as usual; the message never promises a refund it cannot
 verify.
 
-#### When the reviewer refuses a scene that passed
+#### When a scene that passed is delivered unapproved
 
-The visual reviewer's objection drives a correction pass for as long as the
-repair budget lasts. What happens when that budget runs out depends on what the
-run has in hand.
+A scene whose every **mandatory** check passed can reach you without the visual
+reviewer's approval, in two ways. Both **complete**: `videoUrl` is a real MP4,
+the credits commit, and what is missing rides along on `metadata.review`
+alongside the scene rather than instead of it.
 
-**If the scene is there and every mandatory check passed, you get the scene.**
-The composition compiled, it exported, and each assertion the run could
-*measure* held. The only thing still objecting is the reviewer's reading of the
-rendered frames. The job **completes**: `videoUrl` is a real MP4, the credits
-commit, and the refusal is delivered alongside the scene rather than instead of
-it —
+**The reviewer objected.** Its objection drives a correction pass for as long as
+the repair budget lasts; once that budget runs out, the composition compiled, it
+exported, each assertion the run could *measure* held, and the only thing still
+objecting is the reviewer's reading of the rendered frames — so you get the
+scene:
 
 | Where | What |
 |---|---|
 | `metadata.review` | the whole verdict: `{ verdict: "refused", objections[], observed? }` |
 | `validation.warnings[]` | one `SCENE_REVIEW_REFUSED` entry per objection, tagged with a `shotId` where the cited frames fall inside one shot |
 
-Two things about reading this are worth stating plainly, because the obvious
-tests both fail:
+**Nobody could review it.** The review's own provider never answered. A repair
+cannot help here — a repair answers an objection, and an outage raises none — so
+the run does not wait for the repair budget at all: it asks the review once more
+after a bounded pause, and if it is still unreachable it delivers the
+assertion-passing scene immediately, unreviewed. Nothing is spent on the asking:
+the review unit is **unbilled** on a call the provider never answered, and the
+delivery bills exactly as the refused one does — authoring, build, render and
+export, with the quote's `validation` line (`Validation frames`) settling at
+zero.
+
+| Where | What |
+|---|---|
+| `metadata.review` | `{ verdict: "unavailable", reason: "provider", attempts, objections[], observed? }` — `attempts` is how many times the review was asked, so one unlucky call is distinguishable from a provider that was down throughout |
+| `validation.warnings[]` | **leads** with one `SCENE_REVIEW_UNAVAILABLE` entry, then one `SCENE_REVIEW_REFUSED` per surviving objection |
+
+Three things about reading either are worth stating plainly, because the obvious
+tests all fail:
 
 - **`validation.status` is still `passed`.** The mandatory checks *did* pass —
   that is precisely why the scene was delivered. Testing the status will not
-  find an advisory delivery.
+  find an unapproved delivery.
 - **the objection list can be empty.** A refusal that named nothing actionable
   is still a refusal, and `objections: []` reports it honestly instead of
   hiding it. Counting `SCENE_REVIEW_REFUSED` warnings will not find that one
   either.
+- **objections under an `unavailable` verdict are not the verdict.** A review is
+  batched, and those are whichever batches answered before the provider went
+  away — real findings, but not a judgement of the scene. Reading `objections:
+  []` there as approval is the same mistake, one step further out.
 
-The presence of `metadata.review` is the reliable test:
+The presence of `metadata.review` is the reliable test, and `verdict` is what
+you branch on:
 
 ```typescript
 const review = shot.metadata?.review;
-if (review) {
+if (review?.verdict === "unavailable") {
+  // Delivered, and NOBODY judged it: the review never reached its provider in
+  // review.attempts asks. The video is usable; there is simply no opinion on it.
+  // Any objections here are partial batches, not a verdict.
+  console.log(`unreviewed after ${review.attempts} attempts`);
+} else if (review) {
   // Delivered, and the reviewer objected. The video is usable; decide whether
   // this particular objection matters to you.
   for (const objection of review.objections) {
@@ -359,12 +391,20 @@ become objections, so every entry in the list is one. `observed` is the
 reviewer's account of what it found *correct*, and is never a substitute for an
 objection.
 
+The pinned validation report records the same fact in its own words: it carries
+`review: "refused"` or `review: "unavailable"`, so a reader of the delivery can
+tell an unreviewed scene from a reviewed one without inferring it from an empty
+list of reviews.
+
 **What to do with one.** The scene is a finished result: use it, or treat the
 objection as an edit brief. Submitting the same revision as a `scene` source
 **with** an `editPrompt` pays for another authoring pass from the delivered
 recipe — the `correction` on an objection is written to be usable as that
 instruction. Deterministic edits (transform, colour, visibility, shot offsets)
-apply to it like any other retained scene and cost no authoring.
+apply to it like any other retained scene and cost no authoring. An *unreviewed*
+scene has no correction to work from: re-running the job re-authors the scene
+rather than re-reviewing the one you have, so the usable answer is to judge the
+MP4 yourself.
 
 #### `SCENE_QUALITY_FAILED` keeps the scene it built
 
@@ -372,7 +412,12 @@ apply to it like any other retained scene and cost no authoring.
 budget without a scene it could stand behind. That happens when a **mandatory**
 check failed on the last build, or when the compiler refused the recipe outright
 — not when the visual reviewer alone objected to a scene that otherwise passed,
-which is the advisory delivery above. The job **fails** — there is no MP4, and
+and not when no reviewer could be reached for one, both of which are the
+unapproved deliveries above. Where a deployment does *not* deliver unapproved
+scenes, an unreviewed one is retained here instead, and its
+`validation.warnings[]` leads with `SCENE_REVIEW_UNAVAILABLE` — a failed job
+publishes no `metadata` block, so that warning is the only thing that says the
+draft was never judged. The job **fails** — there is no MP4, and
 `videoUrl`/`resultUrl` are absent rather than empty — but the scene it built is
 kept, and the failed job's `output_data` says where:
 

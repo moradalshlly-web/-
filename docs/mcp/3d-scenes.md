@@ -31,15 +31,23 @@ more mechanical passes than repairs. The exception is a run quoted before that
 line existed, where the pass charged a repair and the count is a subset — and
 the quote, not the result, is what says which.
 
-A completed scene job may also be an **advisory delivery**: the repair budget
-was spent, every mandatory check passed, and the visual review still objected,
-so the scene was delivered with the refusal attached. Then `metadata.review` is
-`{ verdict: "refused", objections[], observed? }` and `validation.warnings[]`
-carries one `SCENE_REVIEW_REFUSED` entry per objection. `validation.status` is
-still `passed` on such a result and the objection list may be empty, so the
-presence of `metadata.review` is the test — not the status, and not the warning
-count. See
-[3D Render Pro](../nodes/composition/pro-3d-render.md#when-the-reviewer-refuses-a-scene-that-passed).
+A completed scene job may also have been delivered **without the visual review's
+approval**, and `metadata.review` says which of two ways. `{ verdict: "refused",
+objections[], observed? }` — the repair budget was spent, every mandatory check
+passed, and the review still objected, so the scene was delivered with the
+refusal attached and one `SCENE_REVIEW_REFUSED` warning per objection.
+`{ verdict: "unavailable", reason: "provider", attempts, objections[],
+observed? }` — the review never reached its provider in `attempts` asks, so
+**nobody judged the scene**; `validation.warnings[]` leads with a
+`SCENE_REVIEW_UNAVAILABLE` entry, and any objections under it are batches that
+answered before the outage rather than a verdict.
+
+`validation.status` is still `passed` on both and the objection list may be
+empty, so the presence of `metadata.review` is the test — not the status, and
+not the warning count — and `verdict` is what to branch on before telling a user
+anything: reporting a refusal for a scene nobody reviewed invents an opinion.
+See
+[3D Render Pro](../nodes/composition/pro-3d-render.md#when-a-scene-that-passed-is-delivered-unapproved).
 
 **A FAILED advanced job can still carry `output_data` — read it before re-running.**
 `SCENE_QUALITY_FAILED` means the run spent its budget without a scene it could

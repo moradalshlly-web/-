@@ -5151,7 +5151,8 @@ exact composition) and `videoUrl` (the exported MP4), plus the revision, poster,
 its own account of the answer — `metadata.summary`, `repairPasses`,
 `admissionRetries`, `mechanicalPasses`, `restoredAssertions` and any
 `SCENE_AUTHORING_ASSUMPTION` warnings (see below), plus
-`metadata.review` when the visual reviewer refused the scene that was delivered.
+`metadata.review` when the scene was delivered without the visual reviewer's
+approval — because it refused, or because it never answered at all.
 `nodes.run("pro-3d-render", …)` and
 `nodes.runAndWait("pro-3d-render", …)` reach the same routes with the same
 typed `Pro3DRenderRunParams` / `Pro3DRenderJobOutput`.
@@ -5284,18 +5285,32 @@ The same fields appear on a `generateAndWait` result when an advanced engine
 authored the scene. The deterministic Basic lane asks no model and carries none
 of them.
 
-#### A delivery the visual reviewer refused
+#### A delivery the visual reviewer did not approve
 
-A **completed** result may be an *advisory delivery*: the repair budget was
-spent, every mandatory check passed, and the visual reviewer still objected, so
-the scene was delivered with the refusal attached. The video is real and the
-credits committed.
+A **completed** result may reach you without the visual reviewer's approval, in
+two ways. The video is real and the credits committed in both; `verdict` says
+which, and it is a discriminated union, so a `switch` gets a compile-time answer.
+
+- **`"refused"`** — the repair budget was spent, every mandatory check passed,
+  and the reviewer still objected, so the scene was delivered with the refusal
+  attached.
+- **`"unavailable"`** — the review never reached its provider. A repair cannot
+  answer an outage, so the run asks again after a bounded pause and, if it is
+  still unreachable, delivers the assertion-passing scene unreviewed. `attempts`
+  says how many times it was asked. **Nobody judged this scene.**
 
 ```typescript
-import { scene3DReviewVerdictOf } from "@nodaro/shared";
+import { scene3DReviewNote, scene3DReviewVerdictOf } from "@nodaro/shared";
 
 const review = scene3DReviewVerdictOf(shot);
 if (review) {
+  // One user-safe sentence for either verdict. Prefer it over writing your own:
+  // "the reviewer refused this scene" is an invented opinion when nobody looked.
+  console.log(scene3DReviewNote(review));
+
+  if (review.verdict === "unavailable") {
+    console.log(`unreviewed after ${review.attempts} attempts`);
+  }
   for (const objection of review.objections) {
     // category, what, correction?, frames[]
     console.log(objection.category, objection.what, objection.correction);
@@ -5309,14 +5324,18 @@ There is no `severity`: only blocking findings become objections. `observed` is
 the reviewer's account of what it found *correct*, never a substitute for an
 objection. Every objection also arrives as a `SCENE_REVIEW_REFUSED` entry in
 `validation.warnings[]`, tagged with a `shotId` where its cited frames fall
-inside one shot.
+inside one shot; on the `"unavailable"` arm a `SCENE_REVIEW_UNAVAILABLE` entry
+**leads** that array.
 
-Two readings that look right and are not, which is why the helper exists:
+Three readings that look right and are not, which is why the helpers exist:
 
 - **`validation.status` is still `"passed"`.** The mandatory checks *did* pass —
   that is why the scene was delivered rather than withheld.
 - **`objections` may be empty.** A refusal that named nothing actionable is
   still a refusal, so counting `SCENE_REVIEW_REFUSED` warnings misses it.
+- **objections under an `"unavailable"` verdict are not the verdict.** A review
+  is batched, and those are whichever batches answered before the provider went
+  away. An empty list there is silence, not approval.
 
 A visual refusal on its own no longer fails the job. `SCENE_QUALITY_FAILED` now
 means a mandatory check failed or the compiler refused the recipe; the

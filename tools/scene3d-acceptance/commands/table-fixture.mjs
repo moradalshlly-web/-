@@ -25,7 +25,7 @@ import { evaluateTableFixture, motionSeries, TABLE_CUTS, TABLE_DIMENSIONS, TABLE
 import { resolvePrompt } from "../lib/harness.mjs"
 import { shortHash } from "../lib/parity.mjs"
 import { followJob, phaseTimings, readJobRecord } from "../lib/poll.mjs"
-import { deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, repairEvidence, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
+import { deliveryOutcome, isDelivered, promptSourceParams, quoteAndRun, repairEvidence, reviewDetail, reviewEvidence, summarizeProOutput, summarizeQuote } from "../lib/pro.mjs"
 import { analysisSize, meanAbsDiff, probeVideo, resolveFfmpeg, resolveFfprobe, streamFrames, swayAndTremor } from "../lib/video.mjs"
 
 export const NAME = "table-fixture"
@@ -106,7 +106,7 @@ export async function main(ctx) {
       expected: "completed | completed-advisory",
       actual: outcome,
       pass: isDelivered(outcome),
-      detail: review ? `the visual reviewer refused this scene: ${review.objectionCount} objection(s)` : job?.error_message ?? undefined,
+      detail: reviewDetail(review) ?? job?.error_message ?? undefined,
     })) return
     ctx.assert("credits committed", { expected: "committed", actual: job?.credit_status ?? null })
     // `passed` on an advisory delivery too: the mandatory assertions DID pass, which
