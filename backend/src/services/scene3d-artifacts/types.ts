@@ -30,6 +30,23 @@ export const SCENE3D_ARTIFACT_KINDS = [
 ] as const
 export type Scene3DArtifactKind = (typeof SCENE3D_ARTIFACT_KINDS)[number]
 
+/**
+ * The kinds that are ONE rendered PNG frame of a composition.
+ *
+ * A poster and a shot still are the same bytes under the same verification
+ * (`receipt.ts` reads the PNG header for both, and both are served
+ * `image/png`); what differs is what a delivery does with them — the poster is
+ * the single cover frame, a shot still is pinned per shot with its own shot
+ * identity. They are named TOGETHER here because a still is reserved under the
+ * kind it will be pinned as: `publishScene3DDelivery` matches every pin
+ * against its reservation's kind and object key, so "render it as a poster,
+ * pin it as a shot still" is refused as an unreserved artifact.
+ * `SCENE3D_ARTIFACT_CONTENT_TYPES` is the authority this is checked against
+ * (see `scene3d-artifact-kinds.test.ts`).
+ */
+export const SCENE3D_STILL_KINDS = ["poster", "shot-still"] as const satisfies readonly Scene3DArtifactKind[]
+export type Scene3DStillKind = (typeof SCENE3D_STILL_KINDS)[number]
+
 /** Why a revision pins an artifact. */
 export const SCENE3D_ARTIFACT_USAGES = [
   "playback",

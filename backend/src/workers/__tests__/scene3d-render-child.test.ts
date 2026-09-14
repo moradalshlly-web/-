@@ -64,8 +64,19 @@ describe("scene render worker lifecycle", () => {
     expect(mocks.still.mock.calls.map(([args]) => args.frame)).toEqual([0, 48])
     expect(mocks.writePng).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ jobId: input.parentJobId,
       userId: input.userId, revisionId: input.plan.revisionId, kind: "poster" }), { signal: expect.any(AbortSignal) })
+    expect(mocks.existingPng).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: "poster" }))
     expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled()
     expect(mocks.complete).toHaveBeenCalledWith(child.id, expect.objectContaining({ output_data: { sceneRenderResult: expect.objectContaining({ kind: "stills", frames: expect.any(Array) }) } }))
+  })
+  it("reserves shot stills under the kind the delivery pins them as", async () => {
+    child.input.output = { kind: "stills", frames: [0], artifactKind: "shot-still" } as unknown as typeof input.output
+    await processSceneRenderChild(job, async () => "bundle", {})
+    // Both halves of the frame lane — the adoption read and the write — name the
+    // requested kind. A still reserved as a poster and pinned as a shot still is
+    // refused by publication as "not reserved by this parent".
+    expect(mocks.existingPng).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: "shot-still" }))
+    expect(mocks.writePng).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ jobId: input.parentJobId,
+      userId: input.userId, revisionId: input.plan.revisionId, kind: "shot-still" }), { signal: expect.any(AbortSignal) })
   })
   it("adopts completed PNGs on retry instead of requiring another byte-identical render", async () => {
     child.input.output = { kind: "stills", frames: [0, 48] } as unknown as typeof input.output

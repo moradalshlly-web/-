@@ -50,6 +50,24 @@ describe("publishing a delivery's shot stills", () => {
     expect(fixture.store.get).toHaveBeenCalledTimes(3)
   })
 
+  /**
+   * The refusal that cost every accepted Pro scene its delivery until
+   * 2026-09-14 (staging job 2ad83d9a): the renderer reserved every frame as a
+   * `poster`, so the shot-still pin named an artifact this parent had reserved
+   * under another kind at another key. The authority stays exactly this
+   * strict — the fix is that a stills render now reserves the kind its caller
+   * will pin, so keep this refusal honest rather than loosening it.
+   */
+  it("refuses a still whose reservation was made under another kind", async () => {
+    const still = withStill()
+    const posterKey = scene3DArtifactObjectKey(OWNER, REV, STILL, "poster")
+    fixture.objects.set(posterKey, STILL_BYTES)
+    const intent = fixture.db.tables.scene3d_upload_intents.at(-1) as Record<string, unknown>
+    intent.kind = "poster"; intent.object_key = posterKey
+    delete (still as { objectKey?: string }).objectKey
+    await expect(run()).rejects.toThrow("not reserved by this parent")
+  })
+
   it("records the producer's own pixel size when it states one", async () => {
     withStill({ width: 320, height: 180 })
     await expect(run()).resolves.toMatchObject({ status: "created" })

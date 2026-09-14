@@ -72,15 +72,34 @@ describe("owned scene still writes", () => {
     const stored = { ...f.receipt, kind: "poster" as const, byteLength: png.length + 8, sha256: "b".repeat(64) }
     vi.mocked(f.toolkit.receive).mockResolvedValue(stored)
     await expect(writeScene3DPng(f.toolkit, { ...f.input, kind: "poster", bytes: png }, { fetch: f.fetch })).resolves.toEqual(stored)
-    await expect(receiveScene3DPngIfPresent(f.toolkit, f.input)).resolves.toEqual(stored)
+    await expect(receiveScene3DPngIfPresent(f.toolkit, { ...f.input, kind: "poster" })).resolves.toEqual(stored)
   })
   it("treats only a definite missing frame as permission to render again", async () => {
     const f = fixture()
     vi.mocked(f.toolkit.receive).mockRejectedValueOnce(new Scene3DArtifactError("SCENE_ASSET_MISSING", "Not found"))
-    await expect(receiveScene3DPngIfPresent(f.toolkit, f.input)).resolves.toBeNull()
+    await expect(receiveScene3DPngIfPresent(f.toolkit, { ...f.input, kind: "poster" })).resolves.toBeNull()
     vi.mocked(f.toolkit.receive).mockRejectedValueOnce(new Scene3DArtifactError("SCENE_STORAGE_FAILED", "Read unavailable"))
-    await expect(receiveScene3DPngIfPresent(f.toolkit, f.input)).rejects.toThrow("Read unavailable")
+    await expect(receiveScene3DPngIfPresent(f.toolkit, { ...f.input, kind: "poster" })).rejects.toThrow("Read unavailable")
   })
+  // A delivery pins a shot still as `shot-still`, and publication matches the pin
+  // against its reservation's kind — so the still lane must be able to RESERVE
+  // that kind. It could not until 2026-09-14, which is why every accepted Pro
+  // scene lost its delivery to "artifact is not reserved by this parent".
+  it("writes a shot still under its own kind, beside the poster", async () => {
+    const f = fixture(412)
+    const receipt = { ...f.receipt, kind: "shot-still" as const, byteLength: png.length,
+      sha256: createHash("sha256").update(png).digest("hex") }
+    vi.mocked(f.toolkit.receive).mockResolvedValue(receipt)
+    await expect(writeScene3DPng(f.toolkit, { ...f.input, kind: "shot-still", bytes: png }, { fetch: f.fetch })).resolves.toEqual(receipt)
+    expect(f.toolkit.grant).toHaveBeenCalledWith(expect.objectContaining({ kind: "shot-still" }))
+  })
+  it.each([["poster", "shot-still"], ["shot-still", "poster"]] as const)(
+    "refuses to adopt a %s frame as a %s", async (stored, asked) => {
+      const f = fixture()
+      vi.mocked(f.toolkit.receive).mockResolvedValue({ ...f.receipt, kind: stored, byteLength: png.length,
+        sha256: createHash("sha256").update(png).digest("hex") })
+      await expect(receiveScene3DPngIfPresent(f.toolkit, { ...f.input, kind: asked })).rejects.toThrow("invalid receipt")
+    })
   it("rejects invalid headers, oversize images and wrong kinds before granting", async () => {
     const f = fixture()
     // One past the CONTRACT's ceiling, not a literal — this guard exists to

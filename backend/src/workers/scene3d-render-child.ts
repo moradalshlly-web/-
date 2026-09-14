@@ -60,11 +60,16 @@ export async function processSceneRenderChild(job: Job, bundle: () => Promise<st
         const artifacts = createScene3DArtifactToolkit()
         if (!artifacts) throw new Error("Scene private storage is unavailable")
         const frames: Extract<PluginSceneRenderResult, { kind: "stills" }>["frames"] = []
+        // The kind the CALLER will pin this frame as. A delivery's shot stills are
+        // pinned as `shot-still`, and publication matches a pin against its
+        // reservation's kind and object key — so the reservation is made under the
+        // kind the frame is for, never under a blanket "poster".
+        const kind = input.output.artifactKind ?? "poster"
         for (const frame of input.output.frames) {
           controller.signal.throwIfAborted()
           const artifactId = sceneRenderChildId({ ...input, key: `${child.id}-${frame}` })
           const scope = { jobId: input.parentJobId, userId: input.userId, revisionId: input.plan.revisionId, artifactId }
-          const existing = await receiveScene3DPngIfPresent(artifacts, scope)
+          const existing = await receiveScene3DPngIfPresent(artifacts, { ...scope, kind })
           if (existing) {
             frames.push({ frame, artifactId, sha256: existing.sha256, byteLength: existing.byteLength })
             await job.updateProgress(Math.round(90 * frames.length / input.output.frames.length))
@@ -74,7 +79,7 @@ export async function processSceneRenderChild(job: Job, bundle: () => Promise<st
           await renderStill({ serveUrl, composition, inputProps, frame, imageFormat: "png", output,
             puppeteerInstance: browser, chromiumOptions, browserExecutable, timeoutInMilliseconds: 120000, logLevel: "warn" })
           controller.signal.throwIfAborted()
-          const receipt = await writeScene3DPng(artifacts, { ...scope, kind: "poster", bytes: await readFile(output) }, { signal: controller.signal })
+          const receipt = await writeScene3DPng(artifacts, { ...scope, kind, bytes: await readFile(output) }, { signal: controller.signal })
           frames.push({ frame, artifactId, sha256: receipt.sha256, byteLength: receipt.byteLength })
           await job.updateProgress(Math.round(90 * frames.length / input.output.frames.length))
         }
