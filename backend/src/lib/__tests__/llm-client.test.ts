@@ -395,7 +395,7 @@ describe("KIE error envelope handling (regression: empty output for Gemini/GPT)"
     // so it falls through to KIE messages path.
     // Fresh Response per call: this path is served over the collapsed stream and
     // re-dials the transport ladder, and a single Response's body can only be
-    // read one time. Fake timers so the test does not sit out the 8.4 s of
+    // read one time. Fake timers so the test does not sit out the 53.4 s of
     // backoff the ladder spends before it gives up.
     fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ code: 500, msg: "maintenance" })))
     vi.useFakeTimers()
@@ -406,7 +406,7 @@ describe("KIE error envelope handling (regression: empty output for Gemini/GPT)"
         messages: [{ role: "user", content: "hi" }],
       })
       const assertion = expect(call).rejects.toThrow(/code 500/)
-      await vi.advanceTimersByTimeAsync(20_000)
+      await vi.advanceTimersByTimeAsync(60_000)
       await assertion
     } finally {
       vi.useRealTimers()
@@ -756,13 +756,13 @@ describe("kieCollapseStream: gpt-6-astra served over the streaming wire", () => 
     try {
       const call = llmComplete({ modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }] })
       const assertion = expect(call).rejects.toThrow(/closed without output/)
-      // Drive the whole 400 / 2 000 / 6 000 ms ladder without waiting for it.
-      await vi.advanceTimersByTimeAsync(20_000)
+      // Drive the whole 400 / 2 000 / 6 000 / 15 000 / 30 000 ms ladder without waiting for it.
+      await vi.advanceTimersByTimeAsync(60_000)
       await assertion
     } finally {
       vi.useRealTimers()
     }
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(6)
   })
 
   it("retries exactly once after a rejected fetch, then succeeds", async () => {
@@ -777,25 +777,27 @@ describe("kieCollapseStream: gpt-6-astra served over the streaming wire", () => 
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it("throws after four failed streams — the ladder is bounded at three extra attempts", async () => {
+  it("throws after six failed streams — the ladder is bounded at five extra attempts", async () => {
     const { llmComplete } = await import("../llm-client.js")
     // Bounded on purpose: nothing sits behind this lane for a responses-format
     // model (no direct-vendor fallback), so a genuinely down endpoint has to
-    // surface rather than be ridden out. 8.4 s of total pause is the price of
-    // clearing the several-second wobble measured on this lane (round 7g); a
-    // real outage still ends the call.
+    // surface rather than be ridden out. 53.4 s of total pause is the price of
+    // clearing the several-second wobble measured on this lane (round 7g) and
+    // the fifteen-second burst of mixed 503 / 500 / upstream_error failures that
+    // outran the first 8.4 s (round 10a, staging job 7f109f4b); a real outage
+    // still ends the call.
     fetchMock.mockRejectedValue(new Error("socket hang up"))
 
     vi.useFakeTimers()
     try {
       const call = llmComplete({ modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }] })
       const assertion = expect(call).rejects.toThrow(/socket hang up/)
-      await vi.advanceTimersByTimeAsync(20_000)
+      await vi.advanceTimersByTimeAsync(60_000)
       await assertion
     } finally {
       vi.useRealTimers()
     }
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(6)
   })
 
   // MEASURED 2026-09-14 (round 7g), staging job a37e5a64: the planner's call to
@@ -823,7 +825,7 @@ describe("kieCollapseStream: gpt-6-astra served over the streaming wire", () => 
     let res: Awaited<ReturnType<typeof llmComplete>>
     try {
       const call = llmComplete({ modelId: "gpt-6-astra", system: "s", messages: [{ role: "user", content: "hi" }] })
-      await vi.advanceTimersByTimeAsync(20_000)
+      await vi.advanceTimersByTimeAsync(60_000)
       res = await call
     } finally {
       vi.useRealTimers()
@@ -833,8 +835,8 @@ describe("kieCollapseStream: gpt-6-astra served over the streaming wire", () => 
     expect(fetchMock).toHaveBeenCalledTimes(3)
     // Each extra attempt names its own number and its own pause, so the next
     // reader counts attempts from the log instead of inferring them.
-    expect(warnings.some((w) => w.includes("[llm-kie-stream-retry] gpt-6-astra attempt 2/4 in 400 ms"))).toBe(true)
-    expect(warnings.some((w) => w.includes("[llm-kie-stream-retry] gpt-6-astra attempt 3/4 in 2000 ms"))).toBe(true)
+    expect(warnings.some((w) => w.includes("[llm-kie-stream-retry] gpt-6-astra attempt 2/6 in 400 ms"))).toBe(true)
+    expect(warnings.some((w) => w.includes("[llm-kie-stream-retry] gpt-6-astra attempt 3/6 in 2000 ms"))).toBe(true)
   })
 
   // The second bound, and the one that makes a longer ladder safe: the ladder
