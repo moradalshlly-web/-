@@ -173,15 +173,15 @@ describe("preferKie routing (claude-sonnet-5 / claude-opus-4.8)", () => {
     try {
       const call = llmComplete({ modelId: "claude-opus-5", system: "", messages: [{ role: "user", content: "hi" }] })
       const assertion = expect(call).rejects.toThrow()
-      // Drive the 400 / 2 000 / 6 000 ms transport ladder without sitting it out.
-      await vi.advanceTimersByTimeAsync(20_000)
+      // Drive the 400 / 2 000 / 6 000 / 15 000 / 30 000 ms transport ladder without sitting it out.
+      await vi.advanceTimersByTimeAsync(60_000)
       await assertion
     } finally {
       vi.useRealTimers()
     }
     // One initial attempt plus the bounded ladder — a genuinely down proxy still
     // fails inside seconds rather than looping.
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(fetchMock).toHaveBeenCalledTimes(6)
   })
 
   it("falls back to direct Anthropic when KIE errors", async () => {

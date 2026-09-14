@@ -584,7 +584,7 @@ class LlmStreamResponseError extends Error {
 
 /**
  * The transport-retry ladder: the pause before each EXTRA attempt at a failure that cost
- * nothing. Its length is the number of extra attempts (so 3 entries = 4 attempts in all).
+ * nothing. Its length is the number of extra attempts (so 5 entries = 6 attempts in all).
  *
  * MEASURED 2026-09-14 (round 7g) against staging, KIE `codex/v1/responses` serving
  * `gpt-6-astra`: 4 of 21 POSTs in one four-hour window — 19% — came back
@@ -605,11 +605,23 @@ class LlmStreamResponseError extends Error {
  * Scene3D planner) whose own deadline is 360 s and whose job dies outright on the first
  * unanswered call.
  *
+ * MEASURED AGAIN 2026-09-14 05:04:42–05:04:57Z (round 10a), staging job 7f109f4b, the edit
+ * pass of the first Basic-lane scene to author end to end: the repair planner call failed FOUR
+ * times in fifteen seconds — `upstream_error` frame, `500 "The server is currently being
+ * maintained"`, `503 "Service temporarily unavailable"`, then the 500 again — every one before
+ * any usage, so the whole 8.4 s ladder was spent inside one burst and the job died having paid
+ * for pass 0. The six bursts the ladder met between 04:43Z and 05:05Z tell the shape: five
+ * ended within one or two extra attempts (2.4 s), one outran 8.4 s. The failures on this lane
+ * come in BURSTS of mixed shapes, not as independent 19% coin flips (four independent misses
+ * would be 0.13%; one burst in six is what was seen). So the ladder gains a 15 s and a 30 s
+ * step: 53.4 s of added wait in the worst case, still bounded by the caller's own deadline
+ * (the Scene3D planner's is 360 s), and still free — none of these attempts reported usage.
+ *
  * It does NOT try to ride out a real outage — minutes of `server_error` still surface, which is
  * the behaviour the Scene3D loop deliberately treats as terminal rather than burning three
  * queue attempts on.
  */
-const LLM_TRANSPORT_RETRY_DELAYS_MS: readonly number[] = [400, 2_000, 6_000]
+const LLM_TRANSPORT_RETRY_DELAYS_MS: readonly number[] = [400, 2_000, 6_000, 15_000, 30_000]
 
 /**
  * May this failure be retried at the TRANSPORT level — i.e. did it cost nothing?
