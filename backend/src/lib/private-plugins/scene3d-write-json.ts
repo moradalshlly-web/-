@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { SCENE3D_LIMITS } from "@nodaro/shared"
 import type { PluginSceneArtifactToolkit, PluginSceneArtifactUpload } from "./scene3d-artifact-contract.js"
-import { Scene3DArtifactError } from "../../services/scene3d-artifacts/types.js"
+import { Scene3DArtifactError, SCENE3D_STILL_KINDS, type Scene3DStillKind } from "../../services/scene3d-artifacts/types.js"
 import { assertScene3DArtifactMagic } from "../../services/scene3d-artifacts/receipt.js"
 
 const JSON_KINDS = new Set(["source-json", "build-manifest", "validation-report", "camera-track-json"])
@@ -9,11 +9,11 @@ const JSON_KINDS = new Set(["source-json", "build-manifest", "validation-report"
 /** Adopt bytes already rendered under this immutable child/frame identity. */
 export async function receiveScene3DPngIfPresent(
   toolkit: Pick<PluginSceneArtifactToolkit, "receive">,
-  input: Omit<PluginSceneArtifactUpload, "kind">,
+  input: Omit<PluginSceneArtifactUpload, "kind"> & { kind: Scene3DStillKind },
 ) {
   try {
     const receipt = await toolkit.receive(input)
-    if (receipt.artifactId !== input.artifactId || receipt.kind !== "poster" ||
+    if (receipt.artifactId !== input.artifactId || receipt.kind !== input.kind ||
         !/^[a-f0-9]{64}$/.test(receipt.sha256) || receipt.byteLength < 33 || receipt.byteLength > 8 * 1024 * 1024) {
       throw new Scene3DArtifactError("SCENE_ASSET_INVALID", "Stored scene frame has an invalid receipt")
     }
@@ -60,7 +60,7 @@ export async function writeScene3DPng(
 ) {
   options?.signal?.throwIfAborted()
   const bytes = Buffer.from(input.bytes)
-  if (input.kind !== "poster" || bytes.length < 33 || bytes.length > 8 * 1024 * 1024 ||
+  if (!(SCENE3D_STILL_KINDS as readonly string[]).includes(input.kind) || bytes.length < 33 || bytes.length > 8 * 1024 * 1024 ||
       !bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ||
       bytes.toString("ascii",12,16) !== "IHDR" ||
       bytes.readUInt32BE(16) < 1 || bytes.readUInt32BE(16) > SCENE3D_LIMITS.maxDimensionPx ||

@@ -10,7 +10,18 @@ export interface PluginSceneRenderInput extends PluginSceneRenderScope {
   plan: unknown
   /** `owned-build` reads the active parent's received, unpublished artifacts. */
   assets: "retained-revision" | "owned-build"
-  output: { kind: "video" } | { kind: "stills"; frames: number[] }
+  /**
+   * `artifactKind` is the kind each rendered frame is RESERVED under, and it
+   * defaults to `poster`.
+   *
+   * A delivery pins a shot still as `shot-still`, and publication matches every
+   * pin against its reservation's kind and object key — so a still reserved as
+   * a `poster` and pinned as a `shot-still` is refused as "not reserved by this
+   * parent" (measured on staging job 2ad83d9a, 2026-09-14: the first Pro run
+   * whose scene was accepted, lost at delivery). The caller knows which frames
+   * become shot stills; the renderer reserves them under that name.
+   */
+  output: { kind: "video" } | { kind: "stills"; frames: number[]; artifactKind?: "poster" | "shot-still" }
 }
 
 export type PluginSceneRenderResult =

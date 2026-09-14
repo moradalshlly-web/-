@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { z } from "zod"
 import { scene3DAnyPlanSchema, verifyScene3DPlanV2ContentHash, type Scene3DPlan } from "@nodaro/shared"
+import { SCENE3D_STILL_KINDS } from "../../services/scene3d-artifacts/types.js"
 import type { PluginSceneRenderInput, PluginSceneRenderScope, PluginSceneRenderResult } from "./scene3d-render-contract.js"
 
 const scopeSchema = z.object({ parentJobId: z.string().uuid(), userId: z.string().uuid(), key: z.string().min(1).max(128) })
@@ -9,7 +10,8 @@ const requestSchema = scopeSchema.extend({
   assets: z.enum(["retained-revision", "owned-build"]),
   output: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("video") }).strict(),
-    z.object({ kind: z.literal("stills"), frames: z.array(z.number().int().nonnegative()).min(1).max(24) }).strict(),
+    z.object({ kind: z.literal("stills"), frames: z.array(z.number().int().nonnegative()).min(1).max(24),
+      artifactKind: z.enum(SCENE3D_STILL_KINDS).optional() }).strict(),
   ]),
 }).strict()
 

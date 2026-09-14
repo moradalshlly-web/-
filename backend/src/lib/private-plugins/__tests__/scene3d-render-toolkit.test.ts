@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { Scene3DPlanV1 } from "@nodaro/shared"
 import { createSceneRenderingToolkit, type SceneRenderPorts, type SceneRenderChild, type SceneRenderParent } from "../scene3d-render-toolkit.js"
 import { validateSceneRenderRequest, sceneRenderChildId } from "../scene3d-render-identity.js"
+import { SCENE3D_ARTIFACT_KINDS, SCENE3D_ARTIFACT_CONTENT_TYPES, SCENE3D_STILL_KINDS } from "../../../services/scene3d-artifacts/types.js"
 import type { PluginSceneRenderInput } from "../scene3d-render-contract.js"
 const plan: Scene3DPlanV1 = { planType: "3d-scene", schemaVersion: 1, revisionId: "00000000-0000-4000-8000-000000000000",
   width: 320, height: 180, fps: 24, durationInFrames: 96, backgroundColor: "#101010",
@@ -101,6 +102,31 @@ describe("durable scene render children", () => {
   it.each([[[96]], [[0,0]], [Array.from({ length: 25 }, (_, i) => i)], [[-1]]])("rejects invalid still frames %j", async (frames) => {
     const f = fixture()
     await expect(validateSceneRenderRequest({ ...f.input, output: { kind: "stills", frames } })).rejects.toThrow()
+  })
+  // A stills render reserves each frame under the kind its CALLER will pin it
+  // as: `publishScene3DDelivery` matches every pin against the reservation's
+  // kind and object key, so a shot still reserved as a poster is refused as
+  // "not reserved by this parent" — which is what failed every accepted Pro
+  // scene until 2026-09-14. The set is DERIVED from the content-type table so a
+  // new PNG kind is reservable by this lane the day it is declared.
+  it("reserves a still under any PNG artifact kind, and nothing else", async () => {
+    const f = fixture()
+    const png = SCENE3D_ARTIFACT_KINDS.filter((kind) => SCENE3D_ARTIFACT_CONTENT_TYPES[kind] === "image/png")
+    expect([...SCENE3D_STILL_KINDS].sort()).toEqual([...png].sort())
+    for (const artifactKind of png) {
+      const request = await validateSceneRenderRequest({ ...f.input,
+        output: { kind: "stills", frames: [0], artifactKind } as Extract<PluginSceneRenderInput["output"], { kind: "stills" }> })
+      expect(request.input.output).toEqual({ kind: "stills", frames: [0], artifactKind })
+    }
+    await expect(validateSceneRenderRequest({ ...f.input,
+      output: { kind: "stills", frames: [0], artifactKind: "glb" } as never })).rejects.toThrow()
+  })
+  it("keeps the child identity when the still kind changes, and only moves the input hash", async () => {
+    const f = fixture()
+    const poster = await validateSceneRenderRequest({ ...f.input, output: { kind: "stills", frames: [0] } })
+    const still = await validateSceneRenderRequest({ ...f.input, output: { kind: "stills", frames: [0], artifactKind: "shot-still" } })
+    expect(still.childJobId).toBe(poster.childJobId)
+    expect(still.inputHash).not.toBe(poster.inputHash)
   })
   it("refuses abort before any admission work", async () => {
     const f = fixture()
