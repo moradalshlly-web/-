@@ -1,0 +1,529 @@
+{
+  "slug": "fashion-film-studio",
+  "name": "Fashion Film Studio",
+  "description": "One model, one gown, two productions: each scene is a sentence you rewrite — it becomes an opening still, and the still becomes an 8-second slow-motion fashion film. Same woman, same gown, two worlds.",
+  "markdownDescription": "## Fashion Film Studio\n\nOne model, one gown, two productions. Each scene is one sentence you can rewrite: it becomes an opening still, and the still becomes an 8-second slow-motion fashion film. Same woman, same gown, two worlds — the sentence is the director.\n\n1. **Model photo + Model notes** — the person in plain basics, and a written description that locks her face, hair, tattoos and rings.\n2. **Garment photo** — the gown. An AI writes it down once so it never drifts between scenes.\n3. **Scene 1** — a runway on a salt flat at sunset: brief → opening still → film.\n4. **Scene 2** — a black studio with a wind machine and strobes: the same three steps.\n5. Rewrite a brief and rerun its row; add a third row for a third scene.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "video",
+    "image"
+  ],
+  "tags": [
+    "fashion-film",
+    "video",
+    "model",
+    "gown",
+    "campaign"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 200,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/4595c2ce-a6f2-4b3b-90aa-ed9f21b4acbc.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 18,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One model, one gown, two productions. Each scene is one sentence you can rewrite: it becomes an opening still, and the still becomes an 8-second slow-motion fashion film. Same woman, same gown, two worlds — the sentence is the director.\n\n1. Model photo + Model notes — the person in plain basics, and a written description that locks her face, hair, tattoos and rings.\n2. Garment photo — the gown. An AI writes it down once so it never drifts between scenes.\n3. Scene 1 — a runway on a salt flat at sunset: brief → opening still → film.\n4. Scene 2 — a black studio with a wind machine and strobes: the same three steps.\n5. Rewrite a brief and rerun its row; add a third row for a third scene.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Fashion film studio — how it works",
+        "width": 1180,
+        "height": 560,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-model",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 720
+      },
+      "data": {
+        "bold": false,
+        "text": "The photo shows the person in plain basics on grey, so the template can dress her. The notes describe her in words — eyes, bob, skin, tattoos, rings, earrings — and every still quotes them next to the photo, so the face never drifts. Swap the photo and rewrite the notes for another person.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Model photo + Model notes",
+        "width": 640,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-garment",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1640
+      },
+      "data": {
+        "bold": false,
+        "text": "The gown as it was shot — a lookbook page works, a packshot works. Every still gets it as a reference and puts her in it: the same cut, the same colour, the same fabric.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Garment photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 1900,
+        "y": 720
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI looks at the gown once and writes it down in one precise paragraph — bodice, ruffle, colour, fabric, skirt. The stills and the films quote it, so both scenes shoot the same gown.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Garment notes",
+        "width": 560,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-films",
+      "type": "sticky-note",
+      "position": {
+        "x": 2700,
+        "y": 720
+      },
+      "data": {
+        "bold": false,
+        "text": "Each row is one production: the brief in your words → the opening still, the frame before anything moves → the film that starts from that still. Row 1 is a runway on a salt flat at sunset; row 2 is a black studio with a wind machine and strobes. Same woman, same gown, two worlds — rewrite a brief and rerun its row.",
+        "color": "#26221a",
+        "label": "Steps 4–5",
+        "title": "4–5 · Two productions",
+        "width": 2380,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "model",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 720
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/e091f82f-1e1c-48a8-ac26-34e08088d3d5.png",
+        "label": "Model photo",
+        "r2Url": "https://cdn.nodaro.ai/images/e091f82f-1e1c-48a8-ac26-34e08088d3d5.png",
+        "filename": "model-neutral-basics-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/e091f82f-1e1c-48a8-ac26-34e08088d3d5.png",
+        "presentationInput": true
+      },
+      "width": 600.4693000326412,
+      "height": 799.3747556684536,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model-notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 1360,
+        "y": 720
+      },
+      "data": {
+        "text": "A striking woman in her late twenties to early thirties with piercing pale blue eyes and a sleek, chin-length black bob with a center part that frames her angular, high-cheekboned face. Her skin is a warm medium-tan tone with a smooth, luminous finish. She has a slim, model-lean build with long elegant fingers adorned with multiple chunky silver rings on both hands. Her most distinctive features are extensive dark floral and botanical tattoos covering both forearms and hands in dense, intricate sleeve-style patterns. She wears bold cobalt-blue resin drop earrings that complement her eye color. Her brows are dark, well-defined, and slightly arched, and her lips are full with a natural rosy-nude tone.",
+        "label": "Model notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "garment",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1640
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/17fae706-7a3a-4ab8-9b77-dcb0559c9086.png",
+        "label": "Garment photo",
+        "r2Url": "https://cdn.nodaro.ai/images/17fae706-7a3a-4ab8-9b77-dcb0559c9086.png",
+        "filename": "gown-purple-organza-lookbook-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/17fae706-7a3a-4ab8-9b77-dcb0559c9086.png",
+        "presentationInput": true
+      },
+      "width": 601.0160887888534,
+      "height": 554.0617068522242,
+      "className": "rf-resized"
+    },
+    {
+      "id": "garment-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1900,
+        "y": 1150
+      },
+      "data": {
+        "label": "Garment notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the gown in the reference image. If the image shows several photos, they all show the same gown.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write garment descriptions for an image and video generator. Look at the reference image and describe the gown in ONE paragraph of 50–70 words, plain declarative English: silhouette, bodice and neckline, sleeves or shoulders, ruffles or drapes, colours, fabrics and their finish, waist, skirt and length. Only what is visible. Ignore the person, the jewellery and the background. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "scene-1",
+      "type": "text-prompt",
+      "position": {
+        "x": 2700,
+        "y": 1060
+      },
+      "data": {
+        "text": "A runway on a white salt flat at sunset — one straight line to the horizon under a warm low sun. She does a runway walk straight toward the camera, the wind pulling at the gown, everything in slow motion, the camera low and gliding backwards in front of her. At the end she stops, strikes a pose and looks into the lens.",
+        "label": "Scene 1 brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "frame-1",
+      "type": "generate-image",
+      "position": {
+        "x": 3140,
+        "y": 1060
+      },
+      "data": {
+        "label": "Opening still 1",
+        "style": "",
+        "prompt": "Opening still of a high-end fashion film, cinematic 16:9, photorealistic. {Scene 1 brief || A fashion film scene.} This is the very first frame — the instant before the motion starts, the light and the place already set. The woman from the model reference photo — identical face, hair, skin, tattoos and rings: {Model notes || the woman in the model reference photo.} She wears the exact gown from the garment reference photo, unchanged in cut, colour and fabric: {Garment notes || the gown in the garment reference photo.} Full body in frame, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 552,
+      "height": 368,
+      "className": "rf-resized"
+    },
+    {
+      "id": "film-1",
+      "type": "generate-video",
+      "position": {
+        "x": 3880,
+        "y": 1060
+      },
+      "data": {
+        "label": "Fashion film 1",
+        "prompt": "High-end fashion film, 8 seconds, slow motion, no dialogue. {Scene 1 brief || A fashion film scene.} The woman and the gown are exactly as in the opening frame — the same face, the same hair, the same gown, its cut and colour never changing: {Garment notes || the gown in the opening frame.} Cinematic, photorealistic, no text.",
+        "duration": 8,
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/0ae268c1-5d3b-4486-9330-f575113626fc.mp4",
+        "presentationOutput": true
+      },
+      "width": 800,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "scene-2",
+      "type": "text-prompt",
+      "position": {
+        "x": 2700,
+        "y": 1670
+      },
+      "data": {
+        "text": "A black studio. A wind machine sends the organza flying, a strobe flash pops every second like a campaign shoot, and she changes her pose with every flash, in slow motion, the fabric caught mid-air. On the last flash the frame freezes.",
+        "label": "Scene 2 brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "frame-2",
+      "type": "generate-image",
+      "position": {
+        "x": 3140,
+        "y": 1670
+      },
+      "data": {
+        "label": "Opening still 2",
+        "style": "",
+        "prompt": "Opening still of a high-end fashion film, cinematic 16:9, photorealistic. {Scene 2 brief || A fashion film scene.} This is the very first frame — the instant before the motion starts, the light and the place already set. The woman from the model reference photo — identical face, hair, skin, tattoos and rings: {Model notes || the woman in the model reference photo.} She wears the exact gown from the garment reference photo, unchanged in cut, colour and fabric: {Garment notes || the gown in the garment reference photo.} Full body in frame, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 552,
+      "height": 368,
+      "className": "rf-resized"
+    },
+    {
+      "id": "film-2",
+      "type": "generate-video",
+      "position": {
+        "x": 3880,
+        "y": 1670
+      },
+      "data": {
+        "label": "Fashion film 2",
+        "prompt": "High-end fashion film, 8 seconds, slow motion, no dialogue. {Scene 2 brief || A fashion film scene.} The woman and the gown are exactly as in the opening frame — the same face, the same hair, the same gown, its cut and colour never changing: {Garment notes || the gown in the opening frame.} Cinematic, photorealistic, no text.",
+        "duration": 8,
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/9779c494-79ca-43f6-9011-966b5f7da29c.mp4",
+        "presentationOutput": true
+      },
+      "width": 800,
+      "height": 450,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-garment-notes",
+      "source": "garment",
+      "target": "garment-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-model-frame1",
+      "source": "model",
+      "target": "frame-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-frame1",
+      "source": "garment",
+      "target": "frame-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mnotes-frame1",
+      "source": "model-notes",
+      "target": "frame-1",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-frame1",
+      "source": "garment-notes",
+      "target": "frame-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-scene1-frame1",
+      "source": "scene-1",
+      "target": "frame-1",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-frame1-film1",
+      "source": "frame-1",
+      "target": "film-1",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-scene1-film1",
+      "source": "scene-1",
+      "target": "film-1",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-film1",
+      "source": "garment-notes",
+      "target": "film-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-frame2",
+      "source": "model",
+      "target": "frame-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-frame2",
+      "source": "garment",
+      "target": "frame-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mnotes-frame2",
+      "source": "model-notes",
+      "target": "frame-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-frame2",
+      "source": "garment-notes",
+      "target": "frame-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-scene2-frame2",
+      "source": "scene-2",
+      "target": "frame-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-frame2-film2",
+      "source": "frame-2",
+      "target": "film-2",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-scene2-film2",
+      "source": "scene-2",
+      "target": "film-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-film2",
+      "source": "garment-notes",
+      "target": "film-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.276
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "model": {
+          "title": "Model photo",
+          "description": "The person in plain basics. The template dresses her."
+        },
+        "film-1": {
+          "title": "Fashion film 1",
+          "description": "8 seconds, slow motion, 16:9, no audio."
+        },
+        "film-2": {
+          "title": "Fashion film 2",
+          "description": "8 seconds, slow motion, 16:9, no audio."
+        },
+        "frame-1": {
+          "title": "Opening still 1",
+          "description": "The frame before anything moves, 16:9."
+        },
+        "frame-2": {
+          "title": "Opening still 2",
+          "description": "The frame before anything moves, 16:9."
+        },
+        "garment": {
+          "title": "Garment photo",
+          "description": "The gown as shot — a lookbook page or a packshot."
+        },
+        "scene-1": {
+          "title": "Scene 1: Salt flat runway",
+          "description": "One paragraph: the place, the light, the walk, the camera."
+        },
+        "scene-2": {
+          "title": "Scene 2: Black studio, strobes",
+          "description": "One paragraph: the place, the light, the walk, the camera."
+        },
+        "model-notes": {
+          "title": "Model notes",
+          "description": "The person in words — face, hair, skin, tattoos, jewellery."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "model",
+        "model-notes",
+        "garment",
+        "scene-1",
+        "scene-2"
+      ],
+      "outputOrder": [
+        "frame-1",
+        "film-1",
+        "frame-2",
+        "film-2"
+      ]
+    }
+  }
+}

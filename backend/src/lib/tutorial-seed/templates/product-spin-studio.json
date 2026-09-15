@@ -1,0 +1,438 @@
+{
+  "slug": "product-spin-studio",
+  "name": "Product Spin Studio",
+  "description": "One product photo in, a seamless 360° spin out: an 8-second square loop that starts and ends on your photo, plus three extra angles pulled from it as stills.",
+  "markdownDescription": "## Product Spin Studio\n\nOne product photo becomes a seamless 360° spin for the product page, plus three extra angles as stills. No turntable, no 3D model.\n\n1. **Product photo** — one clean shot on a plain background. The one thing that never changes.\n2. **Extra notes + Light** — what the camera cannot see (the back, the sides) and the studio light.\n3. **Product description** — an AI writes the product down once, so the spin keeps every detail.\n4. **Spin** — one full turn, 8 seconds, starting and ending on your photo, trimmed to loop cleanly.\n5. **Three stills** — frames pulled from the spin at a quarter, half and three-quarter turn.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "video",
+    "image"
+  ],
+  "tags": [
+    "product",
+    "360",
+    "spin",
+    "loop",
+    "e-commerce"
+  ],
+  "complexity": "beginner",
+  "estimatedCredits": 90,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "lighting",
+    "llm-chat",
+    "generate-video",
+    "extract-frame",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "seedance"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/45655729-e916-4bfc-b832-1b57a3bb602a.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 8,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One product photo becomes a seamless 360° spin for the product page, plus three extra angles as stills. No turntable, no 3D model.\n\n1. Product photo — one clean shot on a plain background. The one thing that never changes.\n2. Extra notes + Light — what the camera cannot see (the back, the sides) and the studio light.\n3. Product description — an AI writes the product down once, so the spin keeps every detail.\n4. Spin — one full turn, 8 seconds, starting and ending on your photo, trimmed to loop cleanly.\n5. Three stills — frames pulled from the spin at a quarter, half and three-quarter turn.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Product spin studio — how it works",
+        "width": 1180,
+        "height": 650,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "One clean photo on a plain background, the product centred with room around it. It is the first AND the last frame of the spin, so the loop closes on the exact shot you uploaded.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-extra",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1530
+      },
+      "data": {
+        "bold": false,
+        "text": "Tell the spin what the photo cannot show: what is on the back, the sides, the underside. Plain words. Pick the light from tiles; soft even light keeps the white background white.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Extra notes + Light",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writer",
+      "type": "sticky-note",
+      "position": {
+        "x": 1597,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI looks at the photo once and describes the product in one precise paragraph: shape, materials, colours, logos. The spin quotes it, so nothing drifts while the product turns.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Product description",
+        "width": 560,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-spin",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Seedance 1.5 at 1080p, square, 8 seconds, no audio. Your photo is the first and the last frame, and the loop trim cuts the tail on the frame that matches the start. Open the node to change speed, direction or size, then rerun just this node.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · The spin",
+        "width": 640,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-stills",
+      "type": "sticky-note",
+      "position": {
+        "x": 3277,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Frames pulled out of the spin at 2, 4 and 6 seconds: a quarter turn, the back, three-quarter turn. Free extra angles for the product page. If the turn is uneven, move the seconds on a still and rerun it alone.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Three stills",
+        "width": 1960,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 810
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/32c5f78e-35ce-4727-8551-7853a8e39d0d.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/32c5f78e-35ce-4727-8551-7853a8e39d0d.png",
+        "filename": "sneaker-sage-retro-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/32c5f78e-35ce-4727-8551-7853a8e39d0d.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "extra-notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1530
+      },
+      "data": {
+        "text": "The inner side mirrors the outer side. The heel has a small navy tab with no text. The sole is plain gum rubber all round.",
+        "label": "Extra notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 1060,
+        "y": 1530
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "soft",
+        "lightingDirection": "three-quarter",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "product-description",
+      "type": "llm-chat",
+      "position": {
+        "x": 1597,
+        "y": 1240
+      },
+      "data": {
+        "label": "Product description",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the product in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write product descriptions for a video generator. Look at the reference image and describe the product in ONE paragraph of 50–70 words, plain declarative English: what it is, overall shape and proportions, materials and finishes, colours and where each colour sits, any logo, stitching, trim or hardware. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "spin",
+      "type": "generate-video",
+      "position": {
+        "x": 2397,
+        "y": 1280
+      },
+      "data": {
+        "label": "360° spin",
+        "prompt": "The product from the first frame stands on an invisible turntable in a pure white seamless studio and makes exactly one slow, steady, full 360-degree turn clockwise, returning to exactly its starting position so the first and last frames match perfectly. The camera is locked off; the product stays centred and the same size; nothing else moves or appears. Product, exactly as photographed: {Product description || the product in the first frame.} {Extra notes || Nothing else to note.} {Lighting || soft even studio light}, a faint contact shadow under the product. Clean e-commerce product video, no text, no watermark, HD, stable picture.",
+        "duration": 8,
+        "loopTrim": {
+          "enabled": true,
+          "quality": "precise",
+          "framesToTest": 48
+        },
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/b0b87bf5-2e9e-4f72-9394-592394b574b4.mp4",
+        "presentationOutput": true
+      },
+      "width": 640,
+      "height": 640,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still-quarter",
+      "type": "extract-frame",
+      "position": {
+        "x": 3277,
+        "y": 1110
+      },
+      "data": {
+        "mode": "timestamp",
+        "label": "Still · quarter turn",
+        "timestamp": 2,
+        "fieldMappings": {},
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 560,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still-back",
+      "type": "extract-frame",
+      "position": {
+        "x": 3977,
+        "y": 1110
+      },
+      "data": {
+        "mode": "timestamp",
+        "label": "Still · back",
+        "timestamp": 4,
+        "fieldMappings": {},
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 560,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still-three-quarter",
+      "type": "extract-frame",
+      "position": {
+        "x": 4677,
+        "y": 1110
+      },
+      "data": {
+        "mode": "timestamp",
+        "label": "Still · three-quarter turn",
+        "timestamp": 6,
+        "fieldMappings": {},
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 560,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-photo-description",
+      "source": "product-photo",
+      "target": "product-description",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-photo-start",
+      "source": "product-photo",
+      "target": "spin",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-photo-end",
+      "source": "product-photo",
+      "target": "spin",
+      "sourceHandle": "image",
+      "targetHandle": "endFrame"
+    },
+    {
+      "id": "e-description-spin",
+      "source": "product-description",
+      "target": "spin",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-spin",
+      "source": "extra-notes",
+      "target": "spin",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-spin",
+      "source": "lighting",
+      "target": "spin",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-spin-still-quarter",
+      "source": "spin",
+      "target": "still-quarter",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-spin-still-back",
+      "source": "spin",
+      "target": "still-back",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-spin-still-three-quarter",
+      "source": "spin",
+      "target": "still-three-quarter",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.267
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "spin": {
+          "title": "360° spin",
+          "description": "One full turn in 8 seconds, square, trimmed to loop."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Optional. Soft even studio light is the default."
+        },
+        "still-back": {
+          "title": "Back",
+          "description": "A still from the spin at 4 seconds."
+        },
+        "extra-notes": {
+          "title": "Extra notes",
+          "description": "Optional. What the photo cannot show — the back, the sides, the underside."
+        },
+        "product-photo": {
+          "title": "Your product",
+          "description": "One clean photo on a plain background. It is the first and the last frame of the spin."
+        },
+        "still-quarter": {
+          "title": "Quarter turn",
+          "description": "A still from the spin at 2 seconds."
+        },
+        "still-three-quarter": {
+          "title": "Three-quarter turn",
+          "description": "A still from the spin at 6 seconds."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product-photo",
+        "extra-notes",
+        "lighting"
+      ],
+      "outputOrder": [
+        "spin",
+        "still-quarter",
+        "still-back",
+        "still-three-quarter"
+      ]
+    }
+  }
+}

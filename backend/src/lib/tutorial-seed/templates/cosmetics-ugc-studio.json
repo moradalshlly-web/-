@@ -1,0 +1,793 @@
+{
+  "slug": "cosmetics-ugc-studio",
+  "name": "Cosmetics UGC Studio",
+  "description": "One product photo in, eight phone-style social images out (9:16): the product alone on a dashboard, a café table, a hotel bed and a beach towel, then in a creator's hands — car mirror, rooftop flash, dressing-room selfie, picnic. The product is a reference, the format is a setting: no swap step, no resize step.",
+  "markdownDescription": "## Cosmetics UGC Studio\n\nOne product photo becomes eight phone-style social images in 9:16 — the kind a customer might post — four with the product alone in real places, four with a creator in the frame. No product swapping, no resizing: the product is a reference, the format is a setting.\n\n1. **Product photo** — a packshot on a plain background. It appears exactly as it is in every image.\n2. **Camera + Light + Vibe** — the phone look from tiles, the light from tiles, one line of mood.\n3. **Product notes** — an AI writes the product down once; every image quotes it.\n4. **Row 1, the product alone** — dashboard, café, hotel bed, beach. Cluttered, tilted, real.\n5. **Row 2, with a creator** — car mirror, rooftop flash, dressing-room selfie, picnic. Hands and half faces, never a posed model.\n6. Swap a scene line in any image node and rerun just that node; swap the product photo and rerun everything.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "ugc",
+    "cosmetics",
+    "social",
+    "phone",
+    "9:16"
+  ],
+  "complexity": "beginner",
+  "estimatedCredits": 120,
+  "nodeTypesUsed": [
+    "upload-image",
+    "camera-format",
+    "lighting",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/1f265f3c-15ca-439f-9988-77251630b7ce.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 15,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One product photo becomes eight phone-style social images in 9:16 — the kind a customer might post — four with the product alone in real places, four with a creator in the frame. No product swapping, no resizing: the product is a reference, the format is a setting.\n\n1. Product photo — a packshot on a plain background. It appears exactly as it is in every image.\n2. Camera + Light + Vibe — the phone look from tiles, the light from tiles, one line of mood.\n3. Product notes — an AI writes the product down once; every image quotes it.\n4. Row 1, the product alone — dashboard, café, hotel bed, beach. Cluttered, tilted, real.\n5. Row 2, with a creator — car mirror, rooftop flash, dressing-room selfie, picnic. Hands and half faces, never a posed model.\n6. Swap a scene line in any image node and rerun just that node; swap the product photo and rerun everything.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Cosmetics ugc studio — how it works",
+        "width": 1180,
+        "height": 770,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "A packshot on a plain background. Every image gets it as a reference, so the shape, the finish and the cap stay exactly as they are — no swap step needed.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-look",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1650
+      },
+      "data": {
+        "bold": false,
+        "text": "The phone tile makes every image look shot on a phone: mild sharpening, grain, casual framing. Natural light keeps it honest. The vibe line sets the mood in plain words — change it to rainy, cosy, late-night, and every scene follows.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Camera + Light + Vibe",
+        "width": 640,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 1954,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI looks at the packshot once and writes the product down in one precise paragraph — shape, finish, colours, cap, window. Every image quotes it next to the photo, so the product never drifts.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Product notes",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-alone",
+      "type": "sticky-note",
+      "position": {
+        "x": 2754,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "Four real places, no people: a car dashboard at golden hour, a café table, a rumpled hotel bed, a beach towel. Each image has a fixed scene line plus the product, the phone look and the vibe. Off-centre, a little tilted, clutter left in — that is the whole style. Open any image to rewrite its scene, then rerun just that node.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · The product alone",
+        "width": 2660,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-creator",
+      "type": "sticky-note",
+      "position": {
+        "x": 2754,
+        "y": 2346
+      },
+      "data": {
+        "bold": false,
+        "text": "The same product held, applied, passed around: a car-mirror application, a rooftop night shot with harsh flash, a dressing-room mirror selfie, a picnic hand-off. Hands and half faces only — a person makes it a recommendation, a posed model makes it an ad. Same rules as row 1; rewrite a scene line and rerun that node alone.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · With a creator in the frame",
+        "width": 2660,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 930
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/0b33f89b-885f-4127-b398-90272a912ecc.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/0b33f89b-885f-4127-b398-90272a912ecc.png",
+        "filename": "lip-oil-holographic-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/0b33f89b-885f-4127-b398-90272a912ecc.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "camera",
+      "type": "camera-format",
+      "position": {
+        "x": 700,
+        "y": 1650
+      },
+      "data": {
+        "label": "Camera",
+        "hintMode": "compact",
+        "cameraFormat": "iphone",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 1057,
+        "y": 1650
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "natural",
+        "lightingDirection": "window",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "vibe",
+      "type": "text-prompt",
+      "position": {
+        "x": 1414,
+        "y": 1650
+      },
+      "data": {
+        "text": "Sunny, easy, a little chaotic — end of summer, friends, nothing planned.",
+        "label": "Vibe",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "product-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1954,
+        "y": 1400
+      },
+      "data": {
+        "label": "Product notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 300,
+        "userInput": "Describe the product in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write product descriptions for an image generator. Look at the reference image and describe the product in ONE paragraph of 40–60 words, plain declarative English: what it is, shape and size, material and finish, colours and where each colour sits, the cap, any window, any embossing. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "a-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2754,
+        "y": 1230
+      },
+      "data": {
+        "label": "Alone · Dashboard",
+        "style": "",
+        "prompt": "The product standing on a car dashboard at golden hour, the low sun flaring through the windscreen, a hand-shaped shadow, a phone charger cable and sunglasses in the corner. The exact product from the product reference photo, unchanged — same shape, same finish, same colours, same cap: {Product notes || the product in the product reference photo.} {Camera || shot on a phone}, {Lighting || natural available light}, a casual snapshot: slightly off-centre, a little tilted, real clutter left in, no styling, no retouching, mild phone sharpening and grain, true colours. The vibe: {Vibe || sunny, easy, a little chaotic.} Vertical 9:16, no text, no watermark, no logo overlays.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "a-2",
+      "type": "generate-image",
+      "position": {
+        "x": 3454,
+        "y": 1230
+      },
+      "data": {
+        "label": "Alone · Café",
+        "style": "",
+        "prompt": "The product on a small café table next to an iced matcha with a paper straw, crumbs, a folded receipt, the chair and the street soft behind, midday light. The exact product from the product reference photo, unchanged — same shape, same finish, same colours, same cap: {Product notes || the product in the product reference photo.} {Camera || shot on a phone}, {Lighting || natural available light}, a casual snapshot: slightly off-centre, a little tilted, real clutter left in, no styling, no retouching, mild phone sharpening and grain, true colours. The vibe: {Vibe || sunny, easy, a little chaotic.} Vertical 9:16, no text, no watermark, no logo overlays.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "a-3",
+      "type": "generate-image",
+      "position": {
+        "x": 4154,
+        "y": 1230
+      },
+      "data": {
+        "label": "Alone · Hotel bed",
+        "style": "",
+        "prompt": "The product dropped on a rumpled white hotel bed beside a phone, a room key card and a pair of sunglasses, morning light from the window across the sheets. The exact product from the product reference photo, unchanged — same shape, same finish, same colours, same cap: {Product notes || the product in the product reference photo.} {Camera || shot on a phone}, {Lighting || natural available light}, a casual snapshot: slightly off-centre, a little tilted, real clutter left in, no styling, no retouching, mild phone sharpening and grain, true colours. The vibe: {Vibe || sunny, easy, a little chaotic.} Vertical 9:16, no text, no watermark, no logo overlays.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "a-4",
+      "type": "generate-image",
+      "position": {
+        "x": 4854,
+        "y": 1230
+      },
+      "data": {
+        "label": "Alone · Beach",
+        "style": "",
+        "prompt": "The product half-buried in the edge of a striped beach towel on the sand, a sandy hand print next to it, the sea a bright blur at the top, hard afternoon sun. The exact product from the product reference photo, unchanged — same shape, same finish, same colours, same cap: {Product notes || the product in the product reference photo.} {Camera || shot on a phone}, {Lighting || natural available light}, a casual snapshot: slightly off-centre, a little tilted, real clutter left in, no styling, no retouching, mild phone sharpening and grain, true colours. The vibe: {Vibe || sunny, easy, a little chaotic.} Vertical 9:16, no text, no watermark, no logo overlays.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "c-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2754,
+        "y": 2646
+      },
+      "data": {
+        "label": "Creator · Car mirror",
+        "style": "",
+        "prompt": "A young woman applying the product in the rear-view mirror of a parked car, only her mouth and chin and one hand in the mirror, the product big and sharp in the foreground, warm evening light. The exact product from the product reference photo, unchanged — same shape, same finish, same colours, same cap: {Product notes || the product in the product reference photo.} {Camera || shot on a phone}, {Lighting || natural available light}, a casual snapshot: slightly off-centre, a little tilted, real clutter left in, no styling, no retouching, mild phone sharpening and grain, true colours. The vibe: {Vibe || sunny, easy, a little chaotic.} Vertical 9:16, no text, no watermark, no logo overlays.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "c-2",
+      "type": "generate-image",
+      "position": {
+        "x": 3454,
+        "y": 2646
+      },
+      "data": {
+        "label": "Creator · Rooftop night",
+        "style": "",
+        "prompt": "A hand holding the product up to the camera at a rooftop party at night, harsh direct phone flash, blurred friends and string lights behind, the product tack-sharp and bright. The exact product from the product reference photo, unchanged — same shape, same finish, same colours, same cap: {Product notes || the product in the product reference photo.} {Camera || shot on a phone}, {Lighting || natural available light}, a casual snapshot: slightly off-centre, a little tilted, real clutter left in, no styling, no retouching, mild phone sharpening and grain, true colours. The vibe: {Vibe || sunny, easy, a little chaotic.} Vertical 9:16, no text, no watermark, no logo overlays.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "c-3",
+      "type": "generate-image",
+      "position": {
+        "x": 4154,
+        "y": 2646
+      },
+      "data": {
+        "label": "Creator · Dressing room",
+        "style": "",
+        "prompt": "A mirror selfie in a shop dressing room, the phone covering most of her face, the product held up beside it, hangers and a curtain behind, flat fluorescent light. The exact product from the product reference photo, unchanged — same shape, same finish, same colours, same cap: {Product notes || the product in the product reference photo.} {Camera || shot on a phone}, {Lighting || natural available light}, a casual snapshot: slightly off-centre, a little tilted, real clutter left in, no styling, no retouching, mild phone sharpening and grain, true colours. The vibe: {Vibe || sunny, easy, a little chaotic.} Vertical 9:16, no text, no watermark, no logo overlays.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "c-4",
+      "type": "generate-image",
+      "position": {
+        "x": 4854,
+        "y": 2646
+      },
+      "data": {
+        "label": "Creator · Picnic",
+        "style": "",
+        "prompt": "A friend's hand passing the product across a picnic blanket, another hand reaching for it, snacks and a book half in frame, dappled tree shade and sun. The exact product from the product reference photo, unchanged — same shape, same finish, same colours, same cap: {Product notes || the product in the product reference photo.} {Camera || shot on a phone}, {Lighting || natural available light}, a casual snapshot: slightly off-centre, a little tilted, real clutter left in, no styling, no retouching, mild phone sharpening and grain, true colours. The vibe: {Vibe || sunny, easy, a little chaotic.} Vertical 9:16, no text, no watermark, no logo overlays.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-product-notes",
+      "source": "product",
+      "target": "product-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-a-1",
+      "source": "product",
+      "target": "a-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-a-1",
+      "source": "product-notes",
+      "target": "a-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-camera-a-1",
+      "source": "camera",
+      "target": "a-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-a-1",
+      "source": "lighting",
+      "target": "a-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-vibe-a-1",
+      "source": "vibe",
+      "target": "a-1",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-a-2",
+      "source": "product",
+      "target": "a-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-a-2",
+      "source": "product-notes",
+      "target": "a-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-camera-a-2",
+      "source": "camera",
+      "target": "a-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-a-2",
+      "source": "lighting",
+      "target": "a-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-vibe-a-2",
+      "source": "vibe",
+      "target": "a-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-a-3",
+      "source": "product",
+      "target": "a-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-a-3",
+      "source": "product-notes",
+      "target": "a-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-camera-a-3",
+      "source": "camera",
+      "target": "a-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-a-3",
+      "source": "lighting",
+      "target": "a-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-vibe-a-3",
+      "source": "vibe",
+      "target": "a-3",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-a-4",
+      "source": "product",
+      "target": "a-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-a-4",
+      "source": "product-notes",
+      "target": "a-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-camera-a-4",
+      "source": "camera",
+      "target": "a-4",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-a-4",
+      "source": "lighting",
+      "target": "a-4",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-vibe-a-4",
+      "source": "vibe",
+      "target": "a-4",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-c-1",
+      "source": "product",
+      "target": "c-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-c-1",
+      "source": "product-notes",
+      "target": "c-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-camera-c-1",
+      "source": "camera",
+      "target": "c-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-c-1",
+      "source": "lighting",
+      "target": "c-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-vibe-c-1",
+      "source": "vibe",
+      "target": "c-1",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-c-2",
+      "source": "product",
+      "target": "c-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-c-2",
+      "source": "product-notes",
+      "target": "c-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-camera-c-2",
+      "source": "camera",
+      "target": "c-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-c-2",
+      "source": "lighting",
+      "target": "c-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-vibe-c-2",
+      "source": "vibe",
+      "target": "c-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-c-3",
+      "source": "product",
+      "target": "c-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-c-3",
+      "source": "product-notes",
+      "target": "c-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-camera-c-3",
+      "source": "camera",
+      "target": "c-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-c-3",
+      "source": "lighting",
+      "target": "c-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-vibe-c-3",
+      "source": "vibe",
+      "target": "c-3",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-c-4",
+      "source": "product",
+      "target": "c-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-c-4",
+      "source": "product-notes",
+      "target": "c-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-camera-c-4",
+      "source": "camera",
+      "target": "c-4",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-c-4",
+      "source": "lighting",
+      "target": "c-4",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-vibe-c-4",
+      "source": "vibe",
+      "target": "c-4",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.22
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "a-1": {
+          "title": "Alone: Dashboard",
+          "description": "A 9:16 phone-style image. Rewrite its scene line to change it."
+        },
+        "a-2": {
+          "title": "Alone: Café",
+          "description": "A 9:16 phone-style image. Rewrite its scene line to change it."
+        },
+        "a-3": {
+          "title": "Alone: Hotel bed",
+          "description": "A 9:16 phone-style image. Rewrite its scene line to change it."
+        },
+        "a-4": {
+          "title": "Alone: Beach",
+          "description": "A 9:16 phone-style image. Rewrite its scene line to change it."
+        },
+        "c-1": {
+          "title": "Creator: Car mirror",
+          "description": "A 9:16 phone-style image. Rewrite its scene line to change it."
+        },
+        "c-2": {
+          "title": "Creator: Rooftop night",
+          "description": "A 9:16 phone-style image. Rewrite its scene line to change it."
+        },
+        "c-3": {
+          "title": "Creator: Dressing room",
+          "description": "A 9:16 phone-style image. Rewrite its scene line to change it."
+        },
+        "c-4": {
+          "title": "Creator: Picnic",
+          "description": "A 9:16 phone-style image. Rewrite its scene line to change it."
+        },
+        "vibe": {
+          "title": "Vibe",
+          "description": "One line of mood. Every scene follows it."
+        },
+        "camera": {
+          "title": "Camera",
+          "description": "The phone tile. Any other camera tile changes the whole look."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A packshot on a plain background. It appears exactly as it is in every image."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Natural window light is the honest default."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "vibe",
+        "camera",
+        "lighting"
+      ],
+      "outputOrder": [
+        "a-1",
+        "a-2",
+        "a-3",
+        "a-4",
+        "c-1",
+        "c-2",
+        "c-3",
+        "c-4"
+      ]
+    }
+  }
+}

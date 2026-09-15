@@ -3,7 +3,6 @@ import {
   NEW_WINDOW_DAYS,
   POPULAR_MIN_CLONES,
   flowSteps,
-  hiddenNoteCount,
   modelChipLabels,
   relatedTemplates,
   templateBadge,
@@ -64,13 +63,6 @@ describe("flowSteps", () => {
     expect(flowSteps([null, 42, { type: "text-prompt" }, { position: { x: 1 } }])).toEqual([
       { type: "text-prompt", label: "Text", count: 1 },
     ])
-  })
-})
-
-describe("hiddenNoteCount", () => {
-  it("counts the sticky notes the canvas leaves out, and nothing else", () => {
-    expect(hiddenNoteCount([{ type: "sticky-note" }, { type: "text-prompt" }, null, { type: "sticky-note" }])).toBe(2)
-    expect(hiddenNoteCount([])).toBe(0)
   })
 })
 

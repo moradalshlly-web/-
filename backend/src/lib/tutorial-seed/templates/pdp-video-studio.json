@@ -1,0 +1,594 @@
+{
+  "slug": "pdp-video-studio",
+  "name": "PDP Video Studio",
+  "description": "One clothing photo in, a product-page video out: a full-body model card, three short clips — walk-in, turn, detail — and the stitched 16-second vertical video, with the clothing unchanged throughout.",
+  "markdownDescription": "## PDP Video Studio\n\nOne clothing photo becomes a product-page video. No shoot, no separate model build.\n\n1. **Clothing photo** — a packshot or flat lay on a plain background. The one thing that never changes.\n2. **Model + Styling notes** — pick the look from tiles; say what goes with the clothing.\n3. **Clothing notes** — an AI writes the clothing down once, so every clip agrees on the details.\n4. **Model card** — one full-body 9:16 photo of the model in the clothing. Every clip starts from it.\n5. **Three clips** — walk-in, turn, detail. Same model, same clothing, same white studio.\n6. **PDP video** — the three clips cut together, ready for the product page.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "video",
+    "image"
+  ],
+  "tags": [
+    "fashion",
+    "e-commerce",
+    "video",
+    "pdp",
+    "model"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 170,
+  "nodeTypesUsed": [
+    "upload-image",
+    "person",
+    "text-prompt",
+    "lighting",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "combine-videos",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/f547bf1f-1481-4957-843c-8863b3a87d0a.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 7,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One clothing photo becomes a product-page video: a model card, three short clips and one stitched vertical video. No shoot, no separate model build.\n\n1. Clothing photo — a packshot or flat lay on a plain background. The one thing that never changes.\n2. Model + Styling notes — pick the look from tiles; say what goes with the clothing.\n3. Clothing notes — an AI writes the clothing down once, so every clip agrees on the details.\n4. Model card — one full-body 9:16 photo of the model in the clothing. Every clip starts from it.\n5. Three clips — walk-in, turn, detail. Same model, same clothing, same white studio.\n6. PDP video — the three clips cut together, ready for the product page.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Pdp video studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-clothing",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "A packshot, a ghost-mannequin shot or a flat lay on a plain background. The model card gets it as a reference, so colour, neckline and drape stay exactly as they are.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Clothing photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-model",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1770
+      },
+      "data": {
+        "bold": false,
+        "text": "Pick the look from tiles: type, age, hair, skin, eyes. No photo needed. Want a specific person? Wire a model photo or a Character node into the Model card as one more reference.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · The model",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-styling",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2200
+      },
+      "data": {
+        "bold": false,
+        "text": "What goes with the clothing and how it is worn: shoes, jewellery, hair. Plain words. The model card follows them and the clips inherit them from the card.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Styling notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-light",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2590
+      },
+      "data": {
+        "bold": false,
+        "text": "Studio light from tiles. High-key three-quarter light keeps the white background white in the photo and in the clips.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Light",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-card",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Clothing notes: an AI describes the clothing from the photo in one precise paragraph; the card and every clip quote it. Model card: one full-body 9:16 photo of the model in the clothing on white — the first frame of every clip.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Clothing notes + Model card",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-clips",
+      "type": "sticky-note",
+      "position": {
+        "x": 2340,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Each clip starts from the model card and adds one fixed motion: a walk-in (4 s), a slow full turn (8 s), a push-in to the fabric (4 s). Seedance 1.5 at 1080p, no audio. Open a clip to change its motion or its seconds, then rerun just that node.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Three clips",
+        "width": 1800,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-final",
+      "type": "sticky-note",
+      "position": {
+        "x": 4380,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "The three clips cut together in order, no audio: one 16-second vertical video for the product page. Rerun this node alone after changing any clip.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · Pdp video",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "clothing-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/a525efd2-b7da-436e-a323-7702a98cfd39.png",
+        "label": "Clothing photo",
+        "r2Url": "https://cdn.nodaro.ai/images/a525efd2-b7da-436e-a323-7702a98cfd39.png",
+        "filename": "dress-rust-satin-slip-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/a525efd2-b7da-436e-a323-7702a98cfd39.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model",
+      "type": "person",
+      "position": {
+        "x": 700,
+        "y": 1770
+      },
+      "data": {
+        "age": "age-30s",
+        "type": "woman",
+        "label": "Model",
+        "eyeColor": "eyes-hazel",
+        "hairBase": "base-short-straight",
+        "hintMode": "compact",
+        "skinTone": "skin-olive",
+        "hairColor": "hair-jet-black",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "styling",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2200
+      },
+      "data": {
+        "text": "Worn as it is, with thin gold hoop earrings and tan strappy heeled sandals. Hair tucked behind the ears. No bag.",
+        "label": "Styling notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 700,
+        "y": 2590
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "high-key",
+        "lightingDirection": "three-quarter",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "clothing-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1320
+      },
+      "data": {
+        "label": "Clothing notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the clothing in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write clothing descriptions for an image generator. Look at the reference image and describe the clothing in ONE paragraph of 50–70 words, plain declarative English: clothing type, colour, fabric and finish, neckline, straps or sleeves, closure, length, fit and drape. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model-card",
+      "type": "generate-image",
+      "position": {
+        "x": 1540,
+        "y": 1680
+      },
+      "data": {
+        "label": "Model card",
+        "style": "",
+        "prompt": "E-commerce studio photograph, full body head to toe, of {Model || a fashion model} standing relaxed and facing the camera, weight on one leg, arms loose, on a pure white seamless studio floor and background. The model wears the exact clothing from the clothing reference image, unchanged: {Clothing notes || the clothing in the clothing reference image.} Worn as follows: {Styling notes || as it comes.} {Lighting || soft diffused studio light}, a soft shadow under the shoes, natural skin, calm expression, no props, no text. Vertical 9:16 frame with room above the head and below the feet. Sharp and clean.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clip-1",
+      "type": "generate-video",
+      "position": {
+        "x": 2340,
+        "y": 1150
+      },
+      "data": {
+        "label": "Clip 1 · Walk-in",
+        "prompt": "The model from the first frame walks slowly toward the camera, three relaxed steps, arms loose, a soft smile, the fabric moving naturally with each step, full body in frame throughout. The outfit exactly as in the first frame, its cut unchanged — no slit, no new straps, no new seams: {Clothing notes || the clothing in the first frame.} Pure white seamless studio, soft even light, camera locked off at chest height. Clean e-commerce product video, natural motion, no text, no watermark, HD, stable picture.",
+        "duration": 4,
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/3629bb24-592f-4b7c-b519-17b373e2068a.mp4",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clip-2",
+      "type": "generate-video",
+      "position": {
+        "x": 2960,
+        "y": 1150
+      },
+      "data": {
+        "label": "Clip 2 · Turn",
+        "prompt": "The model from the first frame makes one slow, smooth full turn in place — front, side, back, side, front — arms relaxed, hair moving gently, so the outfit is seen from every side, full body in frame throughout. The outfit exactly as in the first frame, its cut unchanged — no slit, no new straps, no new seams: {Clothing notes || the clothing in the first frame.} Pure white seamless studio, soft even light, camera locked off at chest height. Clean e-commerce product video, natural motion, no text, no watermark, HD, stable picture.",
+        "duration": 8,
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/d03a7f83-c9ae-4b0f-aa3b-4ac0c9839821.mp4",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clip-3",
+      "type": "generate-video",
+      "position": {
+        "x": 3580,
+        "y": 1150
+      },
+      "data": {
+        "label": "Clip 3 · Detail",
+        "prompt": "The camera pushes in slowly from full body to a close-up of the neckline, the fabric texture and the drape; the model stands almost still with a slight sway, one hand lightly smoothing the fabric. The outfit exactly as in the first frame, its cut unchanged — no slit, no new straps, no new seams: {Clothing notes || the clothing in the first frame.} Pure white seamless studio, soft even light. Clean e-commerce product video, natural motion, no text, no watermark, HD, stable picture.",
+        "duration": 4,
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/09729fb8-4c46-4cc4-86ae-a8c70ecb4f87.mp4",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pdp-video",
+      "type": "combine-videos",
+      "position": {
+        "x": 4380,
+        "y": 1240
+      },
+      "data": {
+        "label": "PDP video",
+        "audioMode": "remove",
+        "clipOrder": [
+          "clip-1",
+          "clip-2",
+          "clip-3"
+        ],
+        "transition": "cut",
+        "fieldMappings": {},
+        "trimEndFrames": 2,
+        "trimStartFrames": 1,
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/f3a2042a-1df7-43b0-af5a-4095e11dbd24.mp4",
+        "presentationOutput": true,
+        "smartCutFramesNext": 8,
+        "smartCutFramesPrev": 8,
+        "transitionDuration": 0.5
+      },
+      "width": 640,
+      "height": 1138,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-clothing-notes",
+      "source": "clothing-photo",
+      "target": "clothing-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clothing-card",
+      "source": "clothing-photo",
+      "target": "model-card",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-model-card",
+      "source": "model",
+      "target": "model-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-card",
+      "source": "styling",
+      "target": "model-card",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-card",
+      "source": "lighting",
+      "target": "model-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-card",
+      "source": "clothing-notes",
+      "target": "model-card",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-clip1",
+      "source": "model-card",
+      "target": "clip-1",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-notes-clip1",
+      "source": "clothing-notes",
+      "target": "clip-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-clip1-video",
+      "source": "clip-1",
+      "target": "pdp-video",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-card-clip2",
+      "source": "model-card",
+      "target": "clip-2",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-notes-clip2",
+      "source": "clothing-notes",
+      "target": "clip-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-clip2-video",
+      "source": "clip-2",
+      "target": "pdp-video",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-card-clip3",
+      "source": "model-card",
+      "target": "clip-3",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-notes-clip3",
+      "source": "clothing-notes",
+      "target": "clip-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-clip3-video",
+      "source": "clip-3",
+      "target": "pdp-video",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.279
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "model": {
+          "title": "The model",
+          "description": "Pick the look from tiles. No photo needed."
+        },
+        "clip-1": {
+          "title": "Walk-in",
+          "description": "Three relaxed steps toward the camera, 4 seconds."
+        },
+        "clip-2": {
+          "title": "Turn",
+          "description": "One slow full turn in place, 8 seconds."
+        },
+        "clip-3": {
+          "title": "Detail",
+          "description": "A push-in to neckline, fabric and drape, 4 seconds."
+        },
+        "styling": {
+          "title": "Styling notes",
+          "description": "What goes with the clothing and how it is worn — shoes, jewellery, hair."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Optional. High-key three-quarter light is the e-commerce default."
+        },
+        "pdp-video": {
+          "title": "PDP video",
+          "description": "The three clips cut together — one 16-second vertical video."
+        },
+        "model-card": {
+          "title": "Model card",
+          "description": "The full-body 9:16 anchor photo: the model in the clothing on white."
+        },
+        "clothing-photo": {
+          "title": "Your clothing",
+          "description": "A packshot, ghost-mannequin shot or flat lay on a plain background. It appears exactly as it is in the card and the clips."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "clothing-photo",
+        "model",
+        "styling",
+        "lighting"
+      ],
+      "outputOrder": [
+        "pdp-video",
+        "clip-1",
+        "clip-2",
+        "clip-3",
+        "model-card"
+      ]
+    }
+  }
+}

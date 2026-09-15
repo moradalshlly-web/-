@@ -1,0 +1,689 @@
+{
+  "slug": "furniture-studio",
+  "name": "Furniture Studio",
+  "description": "One packshot of a table in, a furniture brand's whole page out: the piece in three rooms at true scale, the same room from three camera positions, and the identical shape in other materials.",
+  "markdownDescription": "## Furniture Studio\n\nOne packshot of a table, and everything a furniture brand shows: the piece in three rooms at true scale, one room from three camera positions, and the same piece in other materials.\n\n1. **Product photo** — the table on white. Every image gets it as the reference; an AI writes it down once.\n2. **Light + Brand style** — the light from tiles and one line about the brand's interiors.\n3. **Row 1, three rooms** — Capri villa, Tokyo loft, Alpine chalet. A big product has to sit in a room at the right size and perspective.\n4. **Row 2, three angles** — the Capri room again from the front, three-quarter and above. The room image is the reference, so it stays the same room.\n5. **Row 3, variants** — the identical shape in black marble and in walnut. Only the material changes.\n6. Rewrite a room, an angle or a material in its node and rerun that node alone.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "furniture",
+    "interior",
+    "room-placement",
+    "camera-angles",
+    "material-variants"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 150,
+  "nodeTypesUsed": [
+    "upload-image",
+    "lighting",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/ae30c1ad-d394-4a2d-a24d-b51422c9bad6.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 21,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One packshot of a table, and everything a furniture brand shows: the piece in three rooms at true scale, one room from three camera positions, and the same piece in other materials.\n\n1. Product photo — the table on white. Every image gets it as the reference; an AI writes it down once.\n2. Light + Brand style — the light from tiles and one line about the brand's interiors.\n3. Row 1, three rooms — Capri villa, Tokyo loft, Alpine chalet. A big product has to sit in a room at the right size and perspective.\n4. Row 2, three angles — the Capri room again from the front, three-quarter and above. The room image is the reference, so it stays the same room.\n5. Row 3, variants — the identical shape in black marble and in walnut. Only the material changes.\n6. Rewrite a room, an angle or a material in its node and rerun that node alone.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Furniture studio — how it works",
+        "width": 1180,
+        "height": 730,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-table",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "One packshot of the piece on white, three-quarter view. Every image gets it as the reference, so the shape, the stone and the proportions are yours. Replace it with any piece: a chair, a lamp, a bed.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-look",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1460
+      },
+      "data": {
+        "bold": false,
+        "text": "Natural daylight from tiles suits interiors. The brand-style line says how the brand's rooms feel — calm and architectural, warm and rustic, bold and colourful — and every room follows it.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Light + Brand style",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 1597,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI looks at the piece once and writes it down in one precise paragraph — top, bases, stone, proportions, real-world size. Every image quotes it next to the photo, so the table stays the same table in every room.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Product notes",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-rooms",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "The piece placed in three rooms that could not be more different: a villa in Capri, a loft in Tokyo, a chalet in the Alps. Each room is one paragraph in its node. The prompt insists on true scale, correct perspective and floor contact — the hard part with big furniture.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Three rooms",
+        "width": 2080,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-angles",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 1760
+      },
+      "data": {
+        "bold": false,
+        "text": "The Capri room shot again from three camera positions: straight-on, three-quarter, and top-down. The room image itself is wired in as a reference, so the walls, the terrace and the light stay put — only the camera moves.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · The same room, Three angles",
+        "width": 2080,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-variants",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 2630
+      },
+      "data": {
+        "bold": false,
+        "text": "The identical table in black marble and in walnut, on white. The shape is locked by the photo and the notes; only the material line changes. Add a node per finish you sell.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Material variants",
+        "width": 1340,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "table",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 890
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/de0bed45-ecd8-4cf3-822f-5639c25068e8.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/de0bed45-ecd8-4cf3-822f-5639c25068e8.png",
+        "filename": "table-travertine-oval-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/de0bed45-ecd8-4cf3-822f-5639c25068e8.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 700,
+        "y": 1460
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "natural",
+        "lightingDirection": "window",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 1057,
+        "y": 1460
+      },
+      "data": {
+        "text": "Refined modern interiors: calm, architectural and understated, natural materials, a lot of daylight, nothing cluttered.",
+        "label": "Brand style",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "product-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1597,
+        "y": 1360
+      },
+      "data": {
+        "label": "Product notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the piece of furniture in the reference image, including its likely real-world size.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write furniture descriptions for an image generator. Look at the reference image and describe the piece in ONE paragraph of 50–70 words, plain declarative English: what it is, the shape of the top, the bases and where they sit, the material and its finish and colour, the proportions, and a plausible real-world size in centimetres. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "room-capri",
+      "type": "generate-image",
+      "position": {
+        "x": 2397,
+        "y": 1190
+      },
+      "data": {
+        "label": "Room · Capri villa",
+        "style": "",
+        "prompt": "Interior photograph, 4:3, photorealistic, architectural-magazine quality. A modern villa in Capri: a white-plastered dining room open to a sea terrace, arched openings, the blue Tyrrhenian sea and a lemon tree beyond, terracotta floor, afternoon sun. In the middle of the room stands The exact table from the product reference photo — the same oval top, the same two drum bases, the same stone, its proportions and its size as a real dining table for six, nothing added and nothing changed: {Product notes || the table in the reference photo.} At its true scale in the room, with dining chairs around it that suit the room, the perspective and the floor contact correct, the room's light falling on the stone. {Lighting || natural daylight}. {Brand style || Refined modern interiors: calm, architectural, understated.} No people, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "room-tokyo",
+      "type": "generate-image",
+      "position": {
+        "x": 3137,
+        "y": 1190
+      },
+      "data": {
+        "label": "Room · Tokyo loft",
+        "style": "",
+        "prompt": "Interior photograph, 4:3, photorealistic, architectural-magazine quality. A concrete loft in Tokyo: raw board-formed concrete walls, one floor-to-ceiling window onto a rainy neon street at dusk, dark oak floor, a single paper lantern. In the middle of the room stands The exact table from the product reference photo — the same oval top, the same two drum bases, the same stone, its proportions and its size as a real dining table for six, nothing added and nothing changed: {Product notes || the table in the reference photo.} At its true scale in the room, with dining chairs around it that suit the room, the perspective and the floor contact correct, the room's light falling on the stone. {Lighting || natural daylight}. {Brand style || Refined modern interiors: calm, architectural, understated.} No people, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "room-alps",
+      "type": "generate-image",
+      "position": {
+        "x": 3877,
+        "y": 1190
+      },
+      "data": {
+        "label": "Room · Alpine chalet",
+        "style": "",
+        "prompt": "Interior photograph, 4:3, photorealistic, architectural-magazine quality. A timber chalet in the Alps: pale larch walls and ceiling, a huge window onto snowy peaks, a stone fireplace, sheepskin on a bench, winter light. In the middle of the room stands The exact table from the product reference photo — the same oval top, the same two drum bases, the same stone, its proportions and its size as a real dining table for six, nothing added and nothing changed: {Product notes || the table in the reference photo.} At its true scale in the room, with dining chairs around it that suit the room, the perspective and the floor contact correct, the room's light falling on the stone. {Lighting || natural daylight}. {Brand style || Refined modern interiors: calm, architectural, understated.} No people, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "angle-front",
+      "type": "generate-image",
+      "position": {
+        "x": 2397,
+        "y": 2060
+      },
+      "data": {
+        "label": "Angle · Front",
+        "style": "",
+        "prompt": "The SAME dining room as in the room reference photo — the same walls, arches, terrace, floor, chairs, light and time of day — photographed again from a different camera position. Straight-on front view at seated eye level, the table centred, its long side to the camera, the room symmetrical behind it. The exact table from the product reference photo — the same oval top, the same two drum bases, the same stone, its proportions and its size as a real dining table for six, nothing added and nothing changed: {Product notes || the table in the reference photo.} 4:3, photorealistic, no people, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "angle-quarter",
+      "type": "generate-image",
+      "position": {
+        "x": 3137,
+        "y": 2060
+      },
+      "data": {
+        "label": "Angle · Three-quarter",
+        "style": "",
+        "prompt": "The SAME dining room as in the room reference photo — the same walls, arches, terrace, floor, chairs, light and time of day — photographed again from a different camera position. Three-quarter view from a standing height, the table seen from a front corner so both drum bases show, the terrace opening to one side. The exact table from the product reference photo — the same oval top, the same two drum bases, the same stone, its proportions and its size as a real dining table for six, nothing added and nothing changed: {Product notes || the table in the reference photo.} 4:3, photorealistic, no people, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "angle-top",
+      "type": "generate-image",
+      "position": {
+        "x": 3877,
+        "y": 2060
+      },
+      "data": {
+        "label": "Angle · Top-down",
+        "style": "",
+        "prompt": "The SAME dining room as in the room reference photo — the same walls, arches, terrace, floor, chairs, light and time of day — photographed again from a different camera position. Top-down view from directly above, the whole oval top filling the middle of the frame, the chairs around it, the terracotta floor as the background. The exact table from the product reference photo — the same oval top, the same two drum bases, the same stone, its proportions and its size as a real dining table for six, nothing added and nothing changed: {Product notes || the table in the reference photo.} 4:3, photorealistic, no people, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "variant-marble",
+      "type": "generate-image",
+      "position": {
+        "x": 2397,
+        "y": 2930
+      },
+      "data": {
+        "label": "Variant · Black marble",
+        "style": "",
+        "prompt": "Furniture packshot on a pure white seamless background, 4:3, the same three-quarter view as the product reference photo: the identical table — the same oval top, the same two off-centre drum bases, the same proportions — but made entirely of polished black Marquina marble with fine white veins. Only the material changes; the shape stays exact. {Product notes || the table in the reference photo.} Soft even studio light, a faint contact shadow, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "variant-walnut",
+      "type": "generate-image",
+      "position": {
+        "x": 3137,
+        "y": 2930
+      },
+      "data": {
+        "label": "Variant · Walnut",
+        "style": "",
+        "prompt": "Furniture packshot on a pure white seamless background, 4:3, the same three-quarter view as the product reference photo: the identical table — the same oval top, the same two off-centre drum bases, the same proportions — but made entirely of solid oiled American walnut with a straight grain, the same oval top and the same two drum bases in wood. Only the material changes; the shape stays exact. {Product notes || the table in the reference photo.} Soft even studio light, a faint contact shadow, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-table-notes",
+      "source": "table",
+      "target": "product-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-table-room-capri",
+      "source": "table",
+      "target": "room-capri",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-room-capri",
+      "source": "product-notes",
+      "target": "room-capri",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-room-capri",
+      "source": "lighting",
+      "target": "room-capri",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-room-capri",
+      "source": "brand",
+      "target": "room-capri",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-table-room-tokyo",
+      "source": "table",
+      "target": "room-tokyo",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-room-tokyo",
+      "source": "product-notes",
+      "target": "room-tokyo",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-room-tokyo",
+      "source": "lighting",
+      "target": "room-tokyo",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-room-tokyo",
+      "source": "brand",
+      "target": "room-tokyo",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-table-room-alps",
+      "source": "table",
+      "target": "room-alps",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-room-alps",
+      "source": "product-notes",
+      "target": "room-alps",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-room-alps",
+      "source": "lighting",
+      "target": "room-alps",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-room-alps",
+      "source": "brand",
+      "target": "room-alps",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-room-angle-front",
+      "source": "room-capri",
+      "target": "angle-front",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-table-angle-front",
+      "source": "table",
+      "target": "angle-front",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-angle-front",
+      "source": "product-notes",
+      "target": "angle-front",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-room-angle-quarter",
+      "source": "room-capri",
+      "target": "angle-quarter",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-table-angle-quarter",
+      "source": "table",
+      "target": "angle-quarter",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-angle-quarter",
+      "source": "product-notes",
+      "target": "angle-quarter",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-room-angle-top",
+      "source": "room-capri",
+      "target": "angle-top",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-table-angle-top",
+      "source": "table",
+      "target": "angle-top",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-angle-top",
+      "source": "product-notes",
+      "target": "angle-top",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-table-variant-marble",
+      "source": "table",
+      "target": "variant-marble",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-variant-marble",
+      "source": "product-notes",
+      "target": "variant-marble",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-table-variant-walnut",
+      "source": "table",
+      "target": "variant-walnut",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-variant-walnut",
+      "source": "product-notes",
+      "target": "variant-walnut",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.237
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "brand": {
+          "title": "Brand style",
+          "description": "One line about how the brand's rooms feel."
+        },
+        "table": {
+          "title": "Product photo",
+          "description": "The piece on white, three-quarter view."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Natural daylight suits interiors."
+        },
+        "angle-top": {
+          "title": "Angle: Top-down",
+          "description": "The Capri room from this camera, 4:3."
+        },
+        "room-alps": {
+          "title": "Room: Alpine chalet",
+          "description": "The piece in this room at true scale, 4:3."
+        },
+        "room-capri": {
+          "title": "Room: Capri villa",
+          "description": "The piece in this room at true scale, 4:3."
+        },
+        "room-tokyo": {
+          "title": "Room: Tokyo loft",
+          "description": "The piece in this room at true scale, 4:3."
+        },
+        "angle-front": {
+          "title": "Angle: Front",
+          "description": "The Capri room from this camera, 4:3."
+        },
+        "angle-quarter": {
+          "title": "Angle: Three-quarter",
+          "description": "The Capri room from this camera, 4:3."
+        },
+        "variant-marble": {
+          "title": "Variant: Black marble",
+          "description": "The identical shape in this material, on white."
+        },
+        "variant-walnut": {
+          "title": "Variant: Walnut",
+          "description": "The identical shape in this material, on white."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "table",
+        "brand",
+        "lighting"
+      ],
+      "outputOrder": [
+        "room-capri",
+        "room-tokyo",
+        "room-alps",
+        "angle-front",
+        "angle-quarter",
+        "angle-top",
+        "variant-marble",
+        "variant-walnut"
+      ]
+    }
+  }
+}
