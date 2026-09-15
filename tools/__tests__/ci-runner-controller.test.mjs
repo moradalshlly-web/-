@@ -6,6 +6,12 @@ const service = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 const env = { CI_REPOSITORY: 'example/private', RAILWAY_PROJECT_ID: 'project',
   RAILWAY_ENVIRONMENT_ID: 'ci', CI_GITHUB_TOKEN: 'github-secret', CI_RAILWAY_TOKEN: 'railway-secret',
   CI_RUNNER_SERVICES: service }
+test('pool configuration supports twenty distinct slots and rejects excess or duplicate capacity', () => {
+  const ids = Array.from({ length: 21 }, (_, i) => `${i.toString(16).padStart(8, '0')}-aaaa-aaaa-aaaa-aaaaaaaaaaaa`)
+  assert.doesNotThrow(() => createController({ env: { ...env, CI_RUNNER_SERVICES: ids.slice(0, 20).join(',') } }))
+  assert.throws(() => createController({ env: { ...env, CI_RUNNER_SERVICES: ids.join(',') } }), /Invalid runner slots/)
+  assert.throws(() => createController({ env: { ...env, CI_RUNNER_SERVICES: `${service},${service}` } }), /Invalid runner slots/)
+})
 function harness({ fork = false, busy = false, badGithub = false, badRailway = false, race = false } = {}) {
   const calls = [], logs = []
   let discoveries = 0
