@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { getWorkflowAccess, shareWorkflow, unshareWorkflow } from "@/lib/api"
+import { getWorkflowAccess, isNotFoundError, shareWorkflow, unshareWorkflow } from "@/lib/api"
 import { CollaboratorsPanel } from "./collaborators-panel"
 import type { PresentationSettings, PresentationViewMode } from "@/hooks/use-workflow-store"
 import { VIEW_MODES, ALL_VIEW_MODES } from "./view-mode-selector"
@@ -75,6 +75,12 @@ export function ShareDialog({ workflowId, presentationSettings, updatePresentati
       setShareToken(null)
       toast.success("Sharing disabled")
     } catch (err) {
+      // Nothing to revoke (404) is the state the click asked for (#722).
+      if (isNotFoundError(err)) {
+        setShareToken(null)
+        toast.success("Sharing disabled")
+        return
+      }
       toast.error(err instanceof Error ? err.message : "Failed to revoke")
     } finally {
       setLoading(false)

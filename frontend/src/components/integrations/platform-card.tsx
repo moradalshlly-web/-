@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Loader2, Unlink, Plus, AlertTriangle, RefreshCw, Instagram, Video, Youtube, Linkedin, Twitter, Facebook, Send, Share2, MessageCircle, Cloud, PenLine, BookOpen, Globe, Users, Pin, Gamepad2, AtSign, Hash } from "lucide-react"
-import { getSocialAuthUrl, disconnectSocial, connectTelegram, connectSocialCustom, setDefaultSocialConnection, type SocialProviderInfo } from "@/lib/api"
+import { getSocialAuthUrl, disconnectSocial, connectTelegram, connectSocialCustom, setDefaultSocialConnection, isNotFoundError, type SocialProviderInfo } from "@/lib/api"
 import { toast } from "sonner"
 import { useT } from "@/lib/i18n"
 import { isCloud } from "@/lib/edition"
@@ -155,7 +155,15 @@ export function PlatformCard({ provider, connections, onConnectionChange }: Plat
       await disconnectSocial(connectionId)
       toast.success(t("integ.disconnectedFrom", { name: provider.label }))
       onConnectionChange()
-    } catch {
+    } catch (err) {
+      // A 404 means the row is already gone (another tab, or a list rendered
+      // before a refetch): that is the state the click asked for, so refresh
+      // and report success rather than "Failed to disconnect" (#722).
+      if (isNotFoundError(err)) {
+        toast.success(t("integ.disconnectedFrom", { name: provider.label }))
+        onConnectionChange()
+        return
+      }
       toast.error(t("integ.toastDisconnectFailed"))
     } finally {
       setDisconnectingId(null)

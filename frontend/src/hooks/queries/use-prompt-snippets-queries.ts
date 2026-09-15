@@ -8,6 +8,7 @@ import {
   createPromptSnippet,
   updatePromptSnippet,
   deletePromptSnippet,
+  deleteOrAlreadyGone,
   type PromptSnippet,
 } from "@/lib/api"
 import { buildSnippetPool, type SnippetPoolItem } from "@/lib/snippet-pool"
@@ -56,7 +57,8 @@ export function usePromptSnippetMutations() {
     onSuccess: invalidate,
   })
   const remove = useMutation({
-    mutationFn: (id: string) => deletePromptSnippet(id),
+    // Already deleted elsewhere (404) is the state the click asked for (#722).
+    mutationFn: (id: string) => deleteOrAlreadyGone(deletePromptSnippet(id)),
     onSuccess: invalidate,
   })
   return { create, update, remove }

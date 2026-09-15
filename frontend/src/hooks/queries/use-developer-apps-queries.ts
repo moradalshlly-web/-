@@ -6,6 +6,7 @@ import {
   createDeveloperApp,
   updateDeveloperApp,
   deleteDeveloperApp,
+  deleteOrAlreadyGone,
   rotateDeveloperAppSecret,
   type DeveloperApp,
   type CreateDeveloperAppInput,
@@ -60,7 +61,8 @@ export function useUpdateDeveloperAppMutation() {
 export function useDeleteDeveloperAppMutation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => deleteDeveloperApp(id),
+    // Already deleted elsewhere (404) is the state the click asked for (#722).
+    mutationFn: async (id: string) => deleteOrAlreadyGone(deleteDeveloperApp(id)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.developerApps.all })
     },
