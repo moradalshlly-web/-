@@ -115,6 +115,10 @@ function mockJobInsert(result: { data: unknown; error: unknown }) {
 // Tests
 // ---------------------------------------------------------------------------
 
+// MiniMax Music is the node's only provider and is reference-CONDITIONED, so
+// every success path here carries one (see the refusal test at the bottom).
+const REFERENCE_AUDIO = "https://cdn.nodaro.ai/audio/reference.mp3"
+
 describe("POST /v1/generate-music", () => {
   it("returns 400 when prompt is missing", async () => {
     const res = await app.inject({
@@ -148,7 +152,7 @@ describe("POST /v1/generate-music", () => {
     const res = await app.inject({
       method: "POST",
       url: "/v1/generate-music",
-      payload: { prompt: "upbeat electronic track" },
+      payload: { prompt: "upbeat electronic track", referenceAudioUrl: REFERENCE_AUDIO },
     })
 
     expect(res.statusCode).toBe(401)
@@ -170,6 +174,7 @@ describe("POST /v1/generate-music", () => {
         genre: "jazz",
         mood: "relaxing",
         instrumental: true,
+        referenceAudioUrl: REFERENCE_AUDIO,
         userId: "00000000-0000-4000-8000-000000000001",
       },
     })
@@ -215,6 +220,7 @@ describe("POST /v1/generate-music", () => {
       url: "/v1/generate-music",
       payload: {
         prompt: "upbeat electronic track",
+        referenceAudioUrl: REFERENCE_AUDIO,
         userId: "00000000-0000-4000-8000-000000000001",
       },
     })
@@ -222,6 +228,31 @@ describe("POST /v1/generate-music", () => {
     expect(res.statusCode).toBe(500)
     const body = res.json()
     expect(body.error.code).toBe("internal_error")
+  })
+
+  // `minimax/music-01` answers E006 "At least one reference song, voice or
+  // instrumental is required" — a prompt-only run of this node could never
+  // succeed, and in production (2026-09-08) it reserved credits and created a
+  // job before the provider said so. Refuse before any of that happens.
+  it("returns 400 when MiniMax is asked to run without a reference", async () => {
+    const { mockInsert } = mockJobInsert({ data: { id: "job-1" }, error: null })
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/generate-music",
+      payload: {
+        prompt: "calm piano melody",
+        userId: "00000000-0000-4000-8000-000000000001",
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    const body = res.json()
+    expect(body.error.code).toBe("validation_error")
+    expect(JSON.stringify(body.error)).toContain("reference song, voice or instrumental")
+    // Nothing was created and nothing was queued — the whole point of the gate.
+    expect(mockInsert).not.toHaveBeenCalled()
+    expect(videoQueue.add).not.toHaveBeenCalled()
   })
 
   it("uses minimax as default provider when none specified", async () => {
@@ -235,6 +266,7 @@ describe("POST /v1/generate-music", () => {
       url: "/v1/generate-music",
       payload: {
         prompt: "calm piano melody",
+        referenceAudioUrl: REFERENCE_AUDIO,
         userId: "00000000-0000-4000-8000-000000000001",
       },
     })

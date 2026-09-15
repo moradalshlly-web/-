@@ -4658,6 +4658,20 @@ export function buildPayload(
         mood: musicMood,
         instrumental: musicInstrumental,
       })
+      // MiniMax Music is reference-CONDITIONED: `minimax/music-01` answers E006
+      // "At least one reference song, voice or instrumental is required" when
+      // none is sent, so a prompt-only run of this node can never succeed
+      // (prod 2026-09-08). Refuse at build time — before the reservation, the
+      // way the Suno Cover / AI Audit refusals above do — instead of paying a
+      // provider round trip to be told the same thing. Mirrors the route's own
+      // `.refine`, so single-node runs and DAG runs answer identically.
+      const musicReferenceUrl = resolvedInputs.audioUrl || (data.referenceAudioUrl as string | undefined)
+      if (provider === "minimax" && !musicReferenceUrl) {
+        throw codedMediaRefusal(
+          "audio_required",
+          "MiniMax Music needs a reference song, voice or instrumental — connect an audio track to the Generate Music node, or upload one in its settings",
+        )
+      }
       return {
         jobName: "generate-music",
         queueName: "video-generation",
@@ -4671,7 +4685,7 @@ export function buildPayload(
           mood: musicMood,
           instrumental: musicInstrumental,
           lyrics: resolveRefs(data.lyrics as string | undefined, refMap),
-          referenceAudioUrl: resolvedInputs.audioUrl || data.referenceAudioUrl,
+          referenceAudioUrl: musicReferenceUrl,
           // modelVersion is an optional Suno-family field (v4/v5/v4.5); forward
           // so orchestrator runs respect the user's model selection.
           modelVersion: data.modelVersion,

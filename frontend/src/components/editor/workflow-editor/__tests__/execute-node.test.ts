@@ -1879,8 +1879,20 @@ describe("generate-music", () => {
     expect(mockToastError).toHaveBeenCalled()
   })
 
-  it("calls pollJobWithNodeUpdate via runProcessingNode", async () => {
+  // MiniMax (the node's only provider) is reference-conditioned — the provider
+  // refuses a run with no reference song / voice / instrumental, so the node
+  // refuses first. Every run test here therefore carries one.
+  it("rejects a MiniMax run with no reference song, voice or instrumental", async () => {
     mockResolveNodeInputs.mockReturnValue({ prompt: "jazz" })
+    const promise = executeNode(makeNode("generate-music", {}), makeCtx())
+    promise.catch(() => {})
+    await expect(promise).rejects.toThrow("Reference audio required")
+    expect(mockToastError).toHaveBeenCalled()
+    expect(mockPollJobWithNodeUpdate).not.toHaveBeenCalled()
+  })
+
+  it("calls pollJobWithNodeUpdate via runProcessingNode", async () => {
+    mockResolveNodeInputs.mockReturnValue({ prompt: "jazz", audioUrl: "https://cdn.example/ref.mp3" })
     mockPollJobWithNodeUpdate.mockResolvedValue(undefined)
     await executeNode(makeNode("generate-music", {}), makeCtx())
     expect(mockPollJobWithNodeUpdate).toHaveBeenCalledWith(

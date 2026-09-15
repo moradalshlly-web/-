@@ -472,6 +472,32 @@ describe("buildPayload", () => {
       expect(result.modelIdentifier).toBe("generate-music")
       expect(result.payload.prompt).toBe("epic score")
     })
+
+    // MiniMax Music is reference-conditioned (`minimax/music-01` → E006 "At
+    // least one reference song, voice or instrumental is required"), so a
+    // prompt-only DAG run could never succeed — it just reserved credits and
+    // waited for the provider to say no (prod 2026-09-08). Refuse at build
+    // time, before the reservation, exactly like the route's own `.refine`.
+    it("refuses a MiniMax run with no reference, before any credits are reserved", () => {
+      const n = node("n1", "generate-music", { prompt: "epic score", provider: "minimax" })
+      expect(() => buildPayload(n, jobId, {})).toThrow(/audio_required.*reference song, voice or instrumental/)
+    })
+
+    it("accepts a MiniMax run whose reference arrives from an upstream audio node", () => {
+      const n = node("n1", "generate-music", { prompt: "epic score", provider: "minimax" })
+      const result = buildPayload(n, jobId, { audioUrl: "https://cdn.nodaro.ai/audio/ref.mp3" })
+      expect(result.payload.referenceAudioUrl).toBe("https://cdn.nodaro.ai/audio/ref.mp3")
+    })
+
+    it("accepts a MiniMax run whose reference was uploaded on the node", () => {
+      const n = node("n1", "generate-music", {
+        prompt: "epic score",
+        provider: "minimax",
+        referenceAudioUrl: "https://cdn.nodaro.ai/audio/uploaded.mp3",
+      })
+      const result = buildPayload(n, jobId, {})
+      expect(result.payload.referenceAudioUrl).toBe("https://cdn.nodaro.ai/audio/uploaded.mp3")
+    })
   })
 
   describe("text-to-audio", () => {

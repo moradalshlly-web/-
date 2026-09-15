@@ -2636,7 +2636,7 @@ export const en = {
   "cfgext.musicLyricsPlaceholder": "Write lyrics for the song... (use {} to inject input)",
   "cfgext.musicFromPrefix": "From: ",
   "cfgext.musicNoAudioExtracted": "No audio extracted yet",
-  "cfgext.musicMinimaxNeedsReference": "MiniMax works best with a reference song",
+  "cfgext.musicMinimaxNeedsReference": "MiniMax needs a reference song, voice or instrumental to run",
   "cfgext.musicRefUploadFile": "Upload file",
   "cfgext.musicGet": "Get",
   "cfgext.musicDownloadingAudio": "Downloading audio...",

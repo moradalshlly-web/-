@@ -2611,7 +2611,7 @@ export const he: ChromeDict = {
   "cfgext.musicLyricsPlaceholder": "כתבו מילים לשיר... (השתמשו ב־{} כדי להזריק קלט)",
   "cfgext.musicFromPrefix": "מתוך: ",
   "cfgext.musicNoAudioExtracted": "עדיין לא חולץ אודיו",
-  "cfgext.musicMinimaxNeedsReference": "MiniMax עובד הכי טוב עם שיר ייחוס",
+  "cfgext.musicMinimaxNeedsReference": "MiniMax דורש שיר, קול או ליווי ייחוס כדי לרוץ",
   "cfgext.musicRefUploadFile": "העלאת קובץ",
   "cfgext.musicGet": "הבאה",
   "cfgext.musicDownloadingAudio": "מוריד אודיו...",
