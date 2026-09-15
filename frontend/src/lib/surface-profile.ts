@@ -19,6 +19,7 @@ export const DASHBOARD_TAB_KEYS = [
   "statistics",
   "gallery",
   "studio",
+  "mcp",
 ] as const
 export type DashboardTabKey = (typeof DASHBOARD_TAB_KEYS)[number]
 export type AuthMethod = "email" | "google" | "sso"

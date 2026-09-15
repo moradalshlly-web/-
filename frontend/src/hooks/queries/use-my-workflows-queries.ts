@@ -3,7 +3,39 @@ import { createClient } from "@/lib/supabase"
 import { getAuthHeaders } from "@/lib/api"
 import { queryKeys } from "@/lib/query-keys"
 import { useWorkspaceScope } from "@/hooks/use-workspace-scope"
+import { isMcpProjectName } from "@/lib/mcp-project"
 import { STUDIO_APP_SLUG, isMissingColumnError, readShowClientAppsFlag } from "./use-client-apps-queries"
+
+/**
+ * Which slice of the caller's native workflows a consumer wants:
+ *   - `all`      — every native row (the query's own result, unfiltered)
+ *   - `personal` — everything EXCEPT the auto-created "mcp" project's flows
+ *   - `mcp`      — only the "mcp" project's flows (the "MCP Workflows" tab)
+ * One query, one cache entry; the slice is a `select` over it, so switching
+ * tabs never refetches and the two tabs can never disagree about a row.
+ */
+export type MyWorkflowsScope = "all" | "personal" | "mcp"
+
+export function filterWorkflowsByScope<T extends { readonly projectName: string }>(
+  rows: readonly T[],
+  scope: MyWorkflowsScope,
+): T[] {
+  if (scope === "all") return [...rows]
+  const wantMcp = scope === "mcp"
+  return rows.filter((w) => isMcpProjectName(w.projectName) === wantMcp)
+}
+
+/**
+ * One selector per slice, created once: React Query re-runs `select` whenever
+ * its identity changes, so a closure built inside the hook would hand
+ * consumers a new array on every render (defeating their useMemo) for no new
+ * data. Module-level functions keep the identity stable without a React hook
+ * (the query hook is also exercised outside a render in its tests).
+ */
+const SELECT_BY_SCOPE: Record<Exclude<MyWorkflowsScope, "all">, (rows: MyWorkflow[]) => MyWorkflow[]> = {
+  personal: (rows) => filterWorkflowsByScope(rows, "personal"),
+  mcp: (rows) => filterWorkflowsByScope(rows, "mcp"),
+}
 
 export interface MyWorkflow {
   readonly id: string
@@ -146,11 +178,13 @@ async function selectFirstThatWorks(baseQuery: WorkflowQuery): Promise<DbWorkflo
  * we retry without `is_default` so the tab keeps rendering — the ⭐ badge
  * is just lost until the migration applies.
  */
-export function useMyWorkflows() {
+export function useMyWorkflows(scope: MyWorkflowsScope = "all") {
   // One value, into both the key and the filter — see use-workspace-scope.
   const { workspaceId, ready } = useWorkspaceScope()
   return useQuery({
     queryKey: queryKeys.workflows.listMine(workspaceId),
+    // The MCP split is a view over the one cached list (see MyWorkflowsScope).
+    select: scope === "all" ? undefined : SELECT_BY_SCOPE[scope],
     queryFn: async (): Promise<MyWorkflow[]> => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()

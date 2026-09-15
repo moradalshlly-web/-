@@ -31,7 +31,10 @@ const DARK_BY_DESIGN: ReadonlySet<string> = new Set([
   "editor/freecut-import-picker.tsx",
 ])
 
-const DARK_HEXES = ["1E1E1E", "1e1e1e", "121212", "2D2D2D", "2d2d2d", "0e0e10", "111114", "232327"]
+// App chrome darks, plus the canvas palette's dark tokens (globals.css .dark:
+// --canvas-bg / --node-card / --node-border / --canvas-dot) — a component must
+// read those through the variable, never paint the hex.
+const DARK_HEXES = ["1E1E1E", "1e1e1e", "121212", "2D2D2D", "2d2d2d", "0e0e10", "111114", "232327", "08080b", "111116", "22222b", "26262f"]
 const HEX_CLASS_RE = new RegExp(`((?:[a-z-]+:)*)(bg|border|text)-\\[#(${DARK_HEXES.join("|")})\\]`, "g")
 
 function listSourceFiles(dir: string): string[] {

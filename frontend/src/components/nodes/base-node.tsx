@@ -87,12 +87,13 @@ interface BaseNodeProps {
 }
 
 // Card border + background. The CARD BORDER is uniform across every category
-// (light #E2E8F0 / dark #333333) — category identity is carried by the header
-// color (CATEGORY_HEADER) and icon, NOT the border, so all nodes read as one
-// family on the canvas. (Selected/running states still override the border via
-// their own classes below.) Kept as a per-category map so a category can opt
-// into a distinct background later without reintroducing border drift.
-const NEUTRAL_CARD_STYLE = "bg-white border-[#E2E8F0] dark:border-[#333333] dark:bg-[#101010]/90 dark:backdrop-blur-sm"
+// (the --node-border / --node-card / --node-shadow canvas tokens in
+// globals.css, one value per theme) — category identity is carried by the
+// header color (CATEGORY_HEADER) and icon, NOT the border, so all nodes read as
+// one family on the canvas. (Selected/running states still override the border
+// via their own classes below.) Kept as a per-category map so a category can
+// opt into a distinct background later without reintroducing border drift.
+const NEUTRAL_CARD_STYLE = "bg-[var(--node-card)] border-[var(--node-border)] shadow-[var(--node-shadow)]"
 const CATEGORY_STYLES: Record<string, string> = {
   input: NEUTRAL_CARD_STYLE,
   parameter: NEUTRAL_CARD_STYLE,
@@ -624,7 +625,7 @@ function BaseNodeComponent({
   const childrenBody = children && (
     hideHeader
       ? <div className="text-xs overflow-hidden flex-1 min-h-0">{children}</div>
-      : <div className="px-3 py-2 text-xs overflow-hidden flex-1 min-h-0 bg-white dark:bg-transparent text-[#1E293B] dark:text-card-foreground">{children}</div>
+      : <div className="px-3 py-2 text-xs overflow-hidden flex-1 min-h-0 bg-transparent text-card-foreground">{children}</div>
   )
 
   return (
@@ -688,7 +689,7 @@ function BaseNodeComponent({
       )}
       <div
         className={cn(
-          "group relative rounded-xl border-2 shadow-[0_4px_6px_-1px_rgb(0_0_0/0.05)] min-w-[200px] bg-card text-card-foreground flex-auto overflow-hidden flex flex-col",
+          "group relative rounded-xl border-2 min-w-[200px] text-card-foreground flex-auto overflow-hidden flex flex-col",
           "hover:border-black/40 dark:hover:border-white/40 transition-colors duration-200",
           CATEGORY_STYLES[category],
           // Focused (selected, no settings): blue glow

@@ -94,7 +94,14 @@ const SAVED_DISPLAY_DURATION = 2000
 /** Hard cap on a single save round-trip. A hung request would otherwise pin
  *  `saveStatus: "saving"` and silently freeze the autosave gate for the rest
  *  of the session (the "workflow not saved for a long time" report). */
-const SAVE_TIMEOUT_MS = 30_000
+export const SAVE_TIMEOUT_MS = 30_000
+
+/** How long a queued save() waits for the one in flight before abandoning
+ *  it. Every request inside a save is abort-guarded at SAVE_TIMEOUT_MS, so
+ *  this only ever fires for a request that slipped past its guard — and
+ *  then it keeps a single wedged attempt from freezing save, Run and the
+ *  Copilot bridge for the rest of the session. */
+export const SAVE_QUEUE_WAIT_MS = SAVE_TIMEOUT_MS + 5_000
 
 /**
  * Sync node results from jobs table via backend API.
@@ -573,12 +580,25 @@ export function useWorkflowPersistence(projectId?: string) {
   // full-save path without re-probing on every save.
   const deltaRpcUnavailableRef = useRef(false)
 
-  const save = useCallback(
+  // One save at a time. `save()` is reachable from several callers that do
+  // not pass through the autosave gate — the pre-Run save, the poll-start
+  // and job-finished saves, the toolbar's Retry — and two of them a few ms
+  // apart used to send the SAME CAS token: the winner moved the version, so
+  // the second always came back as "updated on another device". A caller
+  // that finds a save in flight waits for it and then re-reads the store:
+  // if the first save covered its edits the isDirty guard makes it a no-op,
+  // otherwise it saves against the advanced token.
+  const inFlightSaveRef = useRef<Promise<SaveResult> | null>(null)
+
+  const saveOnce = useCallback(
     async (pid?: string): Promise<SaveResult> => {
       const resolvedProjectId = pid ?? projectId
       if (!resolvedProjectId) return { success: false, error: "No project ID" }
 
-      const { workflowId, workflowName, nodes: allNodes, edges: allEdges, characterDefinitions, flowPromptTemplates, presentationSettings } =
+      // `epochAtStart` travels with the graph read here: applySaveSuccess
+      // clears isDirty only if no edit advanced the epoch while the request
+      // was out (an in-flight edit was never sent and must stay dirty).
+      const { workflowId, workflowName, nodes: allNodes, edges: allEdges, characterDefinitions, flowPromptTemplates, presentationSettings, dirtyEpoch: epochAtStart } =
         useWorkflowStore.getState()
 
       // Filter out temporary nodes: sub-workflow execution nodes and expanded loop clones
@@ -704,7 +724,7 @@ export function useWorkflowPersistence(projectId?: string) {
               flowPromptTemplates: st.flowPromptTemplates,
               presentationSettings: st.presentationSettings,
               savedViewport: st.savedViewport,
-            })
+            }, epochAtStart)
             return { success: true }
           }
           if (row.version == null) return "fallback" // row gone — full path 404s
@@ -731,6 +751,7 @@ export function useWorkflowPersistence(projectId?: string) {
             .from("workflows")
             .select("nodes, edges, settings, name, version, updated_at")
             .eq("id", workflowId)
+            .abortSignal(AbortSignal.timeout(SAVE_TIMEOUT_MS))
             .maybeSingle()
           if (!fresh) return "fallback"
           const freshRow = fresh as unknown as {
@@ -855,6 +876,10 @@ export function useWorkflowPersistence(projectId?: string) {
                 .from("workflows")
                 .select("updated_at, version")
                 .eq("id", workflowId)
+                // Bounded like the UPDATE itself: this runs exactly when the
+                // network is already misbehaving, and a hang here would hold
+                // the save queue.
+                .abortSignal(AbortSignal.timeout(SAVE_TIMEOUT_MS))
                 .maybeSingle()
               if (cur?.updated_at) {
                 setRemoteUpdatedAt(cur.updated_at as string)
@@ -888,9 +913,20 @@ export function useWorkflowPersistence(projectId?: string) {
             typeof (data as { version?: unknown }).version === "number"
               ? ((data as { version: number }).version)
               : null,
+            undefined,
+            epochAtStart,
           )
         } else {
-          const { data: { user } } = await supabase.auth.getUser()
+          // Bounded: the auth lookup has no abort signal of its own. The
+          // timer is cleared when the lookup wins, so the losing promise
+          // never rejects into the void.
+          let authTimer: ReturnType<typeof setTimeout> | undefined
+          const authTimeout = new Promise<never>((_, reject) => {
+            authTimer = setTimeout(() => reject(new Error("Auth lookup timed out")), SAVE_TIMEOUT_MS)
+          })
+          const { data: { user } } = await Promise.race([supabase.auth.getUser(), authTimeout]).finally(() => {
+            if (authTimer) clearTimeout(authTimer)
+          })
           if (!user) {
             setSaveStatus("error", "Not authenticated")
             return { success: false, error: "Not authenticated" }
@@ -918,6 +954,8 @@ export function useWorkflowPersistence(projectId?: string) {
             typeof (data as { version?: unknown }).version === "number"
               ? ((data as { version: number }).version)
               : null,
+            undefined,
+            epochAtStart,
           )
         }
 
@@ -933,6 +971,48 @@ export function useWorkflowPersistence(projectId?: string) {
       }
     },
     [projectId, setWorkflowId, setSaveStatus, setLoadedUpdatedAt, setRemoteUpdatedAt, applySaveSuccess],
+  )
+
+  const save = useCallback(
+    async (pid?: string): Promise<SaveResult> => {
+      // The workflow this call was made for: a load() that lands while we
+      // wait must not have the queued attempt write the NEW workflow's graph
+      // under this call's project id.
+      const enqueuedFor = useWorkflowStore.getState().workflowId
+
+      // Queue behind whatever is in flight (a failed save releases the queue
+      // the same way — its own status handling already happened inside).
+      // The wait is BOUNDED: a request that hangs past its abort guard must
+      // not turn the queue into a session-long freeze of save, Run and the
+      // Copilot bridge. After the bound the wedged attempt is abandoned and
+      // this caller goes ahead; the abandoned attempt's `finally` below is
+      // identity-checked, so its late completion cannot clobber the ref.
+      while (inFlightSaveRef.current) {
+        const blocked = inFlightSaveRef.current
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const timedOut = await Promise.race([
+          blocked.then(() => false, () => false),
+          new Promise<boolean>((resolve) => {
+            timer = setTimeout(() => resolve(true), SAVE_QUEUE_WAIT_MS)
+          }),
+        ])
+        if (timer) clearTimeout(timer)
+        if (timedOut && inFlightSaveRef.current === blocked) inFlightSaveRef.current = null
+      }
+
+      if (enqueuedFor && useWorkflowStore.getState().workflowId !== enqueuedFor) {
+        return { success: false, error: "workflow_changed" }
+      }
+
+      const attempt = saveOnce(pid)
+      inFlightSaveRef.current = attempt
+      try {
+        return await attempt
+      } finally {
+        if (inFlightSaveRef.current === attempt) inFlightSaveRef.current = null
+      }
+    },
+    [saveOnce],
   )
 
   const load = useCallback(
@@ -1199,7 +1279,10 @@ export function useWorkflowPersistence(projectId?: string) {
             .from("workflows")
             .update({ nodes: JSON.parse(JSON.stringify(stripTransientRuntimeData(orderNodesParentFirst(nodes)))) })
             .eq("id", id)
-            .select("updated_at")
+            // `version` too: this write bumps it, and a cursor left at null
+            // here demoted the next save to the updated_at string CAS, which
+            // any updated_at-only write (thumbnail, share toggle) then broke.
+            .select("updated_at, version")
             .maybeSingle()
 
           if (saveError) {

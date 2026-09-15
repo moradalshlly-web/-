@@ -535,8 +535,10 @@ optional; each array empty = "keep the default"):
   section you want to keep — e.g. `["workflows","projects","statistics","tutorials"]`
   keeps the flat-workflows and projects lists (hiding the Studio list), the
   tutorials and the Executions stats, and drops the Nodaro apps band, the
-  template row and the Templates and MiniApps sidebar entries. Full key set:
-  `["workflows","projects","apps","miniapps","templates","tutorials","statistics","gallery","studio"]`
+  template row and the Templates and MiniApps sidebar entries. `mcp` is the
+  fourth Jump back in list — the flows an MCP client created in the
+  auto-managed "mcp" project — and is hidden the same way. Full key set:
+  `["workflows","projects","apps","miniapps","templates","tutorials","statistics","gallery","studio","mcp"]`
 - `nodes.deny` / `models.deny`: node types / model ids to remove everywhere — the
   picker, `GET /v1/nodes`, `GET /v1/models`, the MCP tools, and at run time (a
   denied node fails with `node_not_available`)

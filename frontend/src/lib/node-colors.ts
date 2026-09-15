@@ -6,15 +6,19 @@
 // in dark mode without overwhelming the surrounding chips — the alpha
 // blends them onto the canvas bg the same way Tailwind's `/25` color
 // utilities do.
+// The 7th, "paper", is the explanation-note swatch the tutorial templates use:
+// warm cream in light mode (dark ink), a warm near-black in dark mode.
 export const NODE_COLORS = [
   "#0f172a", "#1e3a5f", "#1a2e1a",
   "#ff007340", "#A855F740", "#22D3EE40",
+  "#26221a",
 ]
 
 export const LIGHT_COLORS_MAP: Record<string, string> = {
   "#0f172a": "#f1f5f9",
   "#1e3a5f": "#dbeafe",
   "#1a2e1a": "#dcfce7",
+  "#26221a": "#f6eedc",
   // Light-mode counterparts for the bright/alpha palette entries above.
   // Drop the alpha and pick the matching shade-50/100 from the palette
   // family so the swatch reads as the same hue in both themes.
@@ -57,8 +61,10 @@ export const INK = {
 
 export type Ink = keyof typeof INK
 
-/** Canvas backgrounds an alpha tint composites onto (globals.css). */
-const CANVAS_BG = { dark: "#121212", light: "#F8FAFC" } as const
+/** Canvas backgrounds an alpha tint composites onto — the `--canvas-bg` values
+ *  in globals.css (:root / .dark). Exported only so `canvas-bg-drift.test.ts`
+ *  can fail the build the moment the two stop matching. */
+export const CANVAS_BG = { dark: "#08080b", light: "#f6f6f8" } as const
 
 function parseHex(hex: string): { r: number; g: number; b: number; a: number } | null {
   const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(hex.trim())

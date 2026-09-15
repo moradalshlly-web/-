@@ -79,7 +79,9 @@ export async function ensureCanvasVersion(
       version: typeof row.version === "number" ? row.version : null,
       settings: row.settings ?? null,
     })
-    return "fetched"
+    // The store refuses a snapshot that is not newer than what it holds, so
+    // "fetched" is only true once the version actually advanced.
+    return atLeast(version) ? "fetched" : "failed"
   } catch {
     return "failed"
   }

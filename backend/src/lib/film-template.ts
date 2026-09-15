@@ -120,9 +120,11 @@ export const TEMPLATE_NODES: readonly TemplateNode[] = [
       _description:
         "Free-form annotation. Use one or more sticky notes for director " +
         "notes (continuity reminders, lighting cues, post-pipeline TODOs). " +
-        "Color hex is free-form; default dark navy with white text. " +
-        "Width/height define the canvas footprint in pixels.",
+        "Color hex is free-form; the default is the paper swatch (cream in " +
+        "light mode, warm near-black in dark). Width/height define the " +
+        "canvas footprint in pixels.",
       label: "Director Notes",
+      title: "Director notes",
       text:
         "Continuity:\n" +
         "• Shot 1 → Shot 2: match cliff geometry and sun angle.\n" +
@@ -131,7 +133,7 @@ export const TEMPLATE_NODES: readonly TemplateNode[] = [
         "Audio:\n" +
         "• Score: ambient strings, low register.\n" +
         "• SFX: wind bed across all three shots.",
-      color: "#2d2d44",
+      color: "#26221a",
       textColor: "#ffffff",
       width: 360,
       height: 260,

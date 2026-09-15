@@ -15,6 +15,7 @@ const mockSetWorkflowId = vi.fn()
 const mockMarkClean = vi.fn()
 const mockSetSaveStatus = vi.fn()
 const mockSetLoadedUpdatedAt = vi.fn()
+const mockSetLoadedVersion = vi.fn()
 const mockSetRemoteUpdatedAt = vi.fn()
 
 // ---------------------------------------------------------------------------
@@ -72,7 +73,7 @@ vi.mock("@/hooks/use-workflow-store", () => {
           markClean: mockMarkClean,
           setSaveStatus: mockSetSaveStatus,
           setLoadedUpdatedAt: mockSetLoadedUpdatedAt,
-          setLoadedVersion: vi.fn(),
+          setLoadedVersion: mockSetLoadedVersion,
           setRemoteUpdatedAt: mockSetRemoteUpdatedAt,
           setIsWorkflowLoading: vi.fn(),
           applySaveSuccess: vi.fn(),
@@ -85,7 +86,7 @@ vi.mock("@/hooks/use-workflow-store", () => {
           markClean: mockMarkClean,
           setSaveStatus: mockSetSaveStatus,
           setLoadedUpdatedAt: mockSetLoadedUpdatedAt,
-          setLoadedVersion: vi.fn(),
+          setLoadedVersion: mockSetLoadedVersion,
           setRemoteUpdatedAt: mockSetRemoteUpdatedAt,
           setIsWorkflowLoading: vi.fn(),
           applySaveSuccess: vi.fn(),
@@ -136,11 +137,18 @@ function setupSupabaseLoad(workflowData: Record<string, unknown>) {
       eq: () => ({
         // Direct await path (legacy `await .update(...).eq(...)`).
         error: null,
-        // New chain: `.eq(...).select("updated_at").maybeSingle()` for the
-        // side-save after node-result sync, and (after one more `.eq` for
-        // optimistic locking) for the save() path.
-        select: () => ({
-          maybeSingle: async () => ({ data: { updated_at: "2026-01-02T00:00:00Z" }, error: null }),
+        // New chain: `.eq(...).select("updated_at, version").maybeSingle()`
+        // for the side-save after node-result sync, and (after one more
+        // `.eq` for optimistic locking) for the save() path.
+        // Honours the requested columns like PostgREST does — a select that
+        // forgets `version` gets a row without it.
+        select: (cols: string) => ({
+          maybeSingle: async () => ({
+            data: cols.includes("version")
+              ? { updated_at: "2026-01-02T00:00:00Z", version: 7 }
+              : { updated_at: "2026-01-02T00:00:00Z" },
+            error: null,
+          }),
         }),
         eq: () => ({
           select: () => ({
@@ -315,6 +323,35 @@ describe("useWorkflowPersistence — syncNodeResultsFromDB (via load)", () => {
     expect(data.generatedImageUrl).toBe("https://cdn.example.com/img.png")
     expect(data.activeResultIndex).toBe(0)
     expect(data.currentJobId).toBeUndefined()
+  })
+
+  it("advances BOTH cursors after the side-save so the next save keeps the integer CAS", async () => {
+    // The side-save bumps `version`. Capturing only `updated_at` left
+    // `loadedVersion` null, which demoted the next save to the updated_at
+    // string CAS — and any updated_at-only write (a thumbnail, a share
+    // toggle) then failed it as "updated on another device".
+    const nodes = [
+      makeNode({
+        id: "n1",
+        type: "generate-image",
+        data: { label: "Img", executionStatus: "running", currentJobId: VALID_UUID, generatedResults: [] },
+      }),
+    ]
+    mockGetBatchJobStatus.mockResolvedValue([
+      { id: VALID_UUID, status: "completed", output_data: { imageUrl: "https://cdn.example.com/img.png" }, error_message: null },
+    ])
+    setupSupabaseLoad({ id: "w1", name: "Test", nodes, edges: [], settings: {}, version: 6 })
+
+    const { result } = renderHook(() => useWorkflowPersistence("p1"))
+    await act(async () => {
+      await result.current.load("w1")
+    })
+
+    // The initial SELECT sets the row's cursors, then the side-save's
+    // returned row advances both — never back to null.
+    expect(mockSetLoadedVersion).toHaveBeenCalledWith(6)
+    expect(mockSetLoadedUpdatedAt).toHaveBeenLastCalledWith("2026-01-02T00:00:00Z")
+    expect(mockSetLoadedVersion).toHaveBeenLastCalledWith(7)
   })
 
   it("updates completed job with videoUrl", async () => {

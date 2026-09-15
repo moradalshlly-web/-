@@ -17,19 +17,25 @@ import { surfaceTabs } from "@/lib/surface-selectors"
 import { SectionTitle, SegmentedControl, ThemeSwitch, type SegmentOption } from "./home-section"
 import { NODARO_APPS_KEY } from "./home-tabs"
 
-type WorkspaceTab = "workflows" | "projects" | "studio"
+type WorkspaceTab = "workflows" | "projects" | "studio" | "mcp"
 
-const WORKSPACE_TABS = ["workflows", "projects", "studio"] as const satisfies readonly WorkspaceTab[]
+// `mcp`: the flows an MCP client (Claude, Cursor, ...) created in the
+// auto-managed "mcp" project — split out so they stop crowding the personal list.
+const WORKSPACE_TABS = ["workflows", "projects", "studio", "mcp"] as const satisfies readonly WorkspaceTab[]
 const WORKSPACE_TAB_STORAGE_KEY = "nodaro-dashboard-workspace-tab"
+
+function isWorkspaceTab(value: string | null): value is WorkspaceTab {
+  return (WORKSPACE_TABS as readonly string[]).includes(value ?? "")
+}
 
 /** The URL wins over the last choice, so a deep link (?tab=projects) stays stable. */
 function initialWorkspaceTab(): WorkspaceTab {
   if (typeof window === "undefined") return "workflows"
   const requested = new URLSearchParams(window.location.search).get("tab")
-  if (requested === "projects" || requested === "workflows" || requested === "studio") return requested
+  if (isWorkspaceTab(requested)) return requested
   try {
     const stored = localStorage.getItem(WORKSPACE_TAB_STORAGE_KEY)
-    if (stored === "projects" || stored === "studio") return stored
+    if (isWorkspaceTab(stored) && stored !== "workflows") return stored
   } catch {
     // storage blocked — fall back to the flat workflow list
   }
@@ -49,7 +55,7 @@ interface ContinueTabProps {
 
 /**
  * The Continue tab: the Nodaro apps band, then "Jump back in" — one segmented
- * filter over the three workspace lists, sharing a single search field.
+ * filter over the four workspace lists, sharing a single search field.
  */
 export function ContinueTab({
   isAdmin,
@@ -75,9 +81,9 @@ export function ContinueTab({
     }
   }, [workspaceTab])
 
-  // B1: a deployment surface profile can narrow the three lists. surfaceTabs
+  // B1: a deployment surface profile can narrow the four lists. surfaceTabs
   // returns the code default unless a profile whitelists a subset; a whitelist
-  // naming NO list falls back to all three (S4) so the section can never go
+  // naming NO list falls back to all four (S4) so the section can never go
   // blank, and a stored/URL choice the profile has since hidden falls back to
   // the first visible list.
   const allowed = surfaceTabs(WORKSPACE_TABS)
@@ -88,6 +94,7 @@ export function ContinueTab({
     workflows: t("dash.myWorkflows"),
     projects: t("dash.myProjects"),
     studio: t("dash.studioWorkflows"),
+    mcp: t("dash.mcpWorkflows"),
   }
   const options: readonly SegmentOption<WorkspaceTab>[] = visibleTabs.map((value) => ({ value, label: labels[value] }))
 
@@ -170,6 +177,15 @@ export function ContinueTab({
           )}
           {activeTab === "studio" && <StudioWorkflowsView showAll={showAll} search={search} />}
           {activeTab === "projects" && <ProjectsGridView showAll={showAll} search={search} adminUsers={adminUsers} />}
+          {activeTab === "mcp" && (
+            <MyWorkflowsView
+              scope="mcp"
+              onCreateWorkflow={onCreateWorkflow}
+              onMoveWorkflow={onMoveWorkflow}
+              isCreating={isCreating}
+              search={search}
+            />
+          )}
         </div>
       </section>
     </>

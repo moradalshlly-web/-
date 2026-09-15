@@ -40,6 +40,7 @@ function resetStoreState(overrides: Record<string, unknown> = {}) {
     lastSavedSnapshot: null,
     savedViewport: null,
     remoteUpdatedAt: null,
+    dirtyEpoch: 0,
     // Default dirty so the existing save-path tests exercise the network
     // update; the isDirty short-circuit (clean editor → no UPDATE) is covered
     // by its own test below.
@@ -113,7 +114,7 @@ vi.mock("@/hooks/use-workflow-store", () => {
 // Import under test (after mocks)
 // ---------------------------------------------------------------------------
 
-import { useWorkflowPersistence } from "../use-workflow-persistence"
+import { useWorkflowPersistence, SAVE_QUEUE_WAIT_MS } from "../use-workflow-persistence"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -297,6 +298,164 @@ describe("useWorkflowPersistence — save", () => {
     expect(payload.edges).toHaveLength(1)
   })
 
+  it("serialises overlapping save() calls — the second waits for the first and never sends the stale CAS token", async () => {
+    resetStoreState({ workflowId: "wf-1", nodes: [makeNode("n1")], loadedVersion: 60, loadedUpdatedAt: "T60" })
+
+    // Hold the first save's round-trip open until the test releases it.
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const maybeSingle = vi.fn().mockImplementation(async () => {
+      await held
+      return { data: { updated_at: "T61", version: 61 }, error: null }
+    })
+    const select = vi.fn().mockReturnValue({ maybeSingle })
+    const abortSignal = vi.fn().mockReturnValue({ select })
+    const eqVersion = vi.fn().mockReturnValue({ select, abortSignal })
+    const eqId = vi.fn().mockReturnValue({ select, eq: eqVersion, abortSignal })
+    const update = vi.fn().mockReturnValue({ eq: eqId })
+    mockSupabaseFrom.mockReturnValue({ update })
+    // A real save success advances the cursor and cleans the store.
+    mockApplySaveSuccess.mockImplementationOnce((updatedAt: string, version: number | null) => {
+      Object.assign(storeState, { loadedUpdatedAt: updatedAt, loadedVersion: version, isDirty: false })
+    })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let outcomes: Array<{ success: boolean; error?: string }> = []
+    await act(async () => {
+      // Two direct callers a tick apart (a job finishing + the poll-start
+      // save). Before serialisation both sent `.eq("version", 60)` and the
+      // loser reported "updated on another device" to a lone user.
+      const first = result.current.save()
+      const second = result.current.save()
+      await Promise.resolve()
+      release()
+      outcomes = await Promise.all([first, second])
+    })
+
+    expect(outcomes.map((o) => o.success)).toEqual([true, true])
+    // One network write, carrying the token the tab actually held...
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(eqVersion).toHaveBeenCalledWith("version", 60)
+    // ...and no phantom conflict for the caller that waited.
+    expect(mockSetSaveStatus).not.toHaveBeenCalledWith("error", expect.anything())
+    expect(mockApplySaveSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  it("a queued save whose edits the first did NOT cover writes against the advanced token", async () => {
+    resetStoreState({ workflowId: "wf-1", nodes: [makeNode("n1")], loadedVersion: 60, loadedUpdatedAt: "T60" })
+
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    let calls = 0
+    const maybeSingle = vi.fn().mockImplementation(async () => {
+      calls += 1
+      if (calls === 1) await held
+      return { data: { updated_at: `T${60 + calls}`, version: 60 + calls }, error: null }
+    })
+    const select = vi.fn().mockReturnValue({ maybeSingle })
+    const abortSignal = vi.fn().mockReturnValue({ select })
+    const eqVersion = vi.fn().mockReturnValue({ select, abortSignal })
+    const eqId = vi.fn().mockReturnValue({ select, eq: eqVersion, abortSignal })
+    const update = vi.fn().mockReturnValue({ eq: eqId })
+    mockSupabaseFrom.mockReturnValue({ update })
+    // The first success advances the token, but the user kept typing while
+    // it was in flight: the store is still dirty when the second caller wakes.
+    mockApplySaveSuccess.mockImplementationOnce((updatedAt: string, version: number | null) => {
+      Object.assign(storeState, { loadedUpdatedAt: updatedAt, loadedVersion: version, isDirty: true })
+    })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let outcomes: Array<{ success: boolean; error?: string }> = []
+    await act(async () => {
+      const first = result.current.save()
+      const second = result.current.save()
+      await Promise.resolve()
+      release()
+      outcomes = await Promise.all([first, second])
+    })
+
+    expect(outcomes.map((o) => o.success)).toEqual([true, true])
+    expect(update).toHaveBeenCalledTimes(2)
+    // Second write CAS'd on the token the FIRST write produced — never on 60 twice.
+    expect(eqVersion.mock.calls.map((c) => c[1])).toEqual([60, 61])
+    expect(mockSetSaveStatus).not.toHaveBeenCalledWith("error", expect.anything())
+  })
+
+  it("a wedged in-flight save cannot freeze the queue: after the bound the next caller goes ahead", async () => {
+    resetStoreState({ workflowId: "wf-1", nodes: [makeNode("n1")], loadedVersion: 60, loadedUpdatedAt: "T60" })
+
+    let calls = 0
+    const maybeSingle = vi.fn().mockImplementation(() => {
+      calls += 1
+      // The first round-trip never answers (a stall that also slipped past
+      // its abort guard); the second is normal.
+      return calls === 1
+        ? new Promise<never>(() => {})
+        : Promise.resolve({ data: { updated_at: "T61", version: 61 }, error: null })
+    })
+    const select = vi.fn().mockReturnValue({ maybeSingle })
+    const abortSignal = vi.fn().mockReturnValue({ select })
+    const eqVersion = vi.fn().mockReturnValue({ select, abortSignal })
+    const eqId = vi.fn().mockReturnValue({ select, eq: eqVersion, abortSignal })
+    const update = vi.fn().mockReturnValue({ eq: eqId })
+    mockSupabaseFrom.mockReturnValue({ update })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let second: Promise<{ success: boolean; error?: string }> | undefined
+    await act(async () => {
+      void result.current.save() // wedged for good
+      second = result.current.save()
+      await vi.advanceTimersByTimeAsync(SAVE_QUEUE_WAIT_MS + 1)
+    })
+
+    await expect(second!).resolves.toEqual(expect.objectContaining({ success: true }))
+    expect(update).toHaveBeenCalledTimes(2)
+  })
+
+  it("drops a queued save when the editor moved to another workflow while it waited", async () => {
+    resetStoreState({ workflowId: "wf-1", nodes: [makeNode("n1")], loadedVersion: 60, loadedUpdatedAt: "T60" })
+
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const maybeSingle = vi.fn().mockImplementation(async () => {
+      await held
+      return { data: { updated_at: "T61", version: 61 }, error: null }
+    })
+    const select = vi.fn().mockReturnValue({ maybeSingle })
+    const abortSignal = vi.fn().mockReturnValue({ select })
+    const eqVersion = vi.fn().mockReturnValue({ select, abortSignal })
+    const eqId = vi.fn().mockReturnValue({ select, eq: eqVersion, abortSignal })
+    const update = vi.fn().mockReturnValue({ eq: eqId })
+    mockSupabaseFrom.mockReturnValue({ update })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let outcomes: Array<{ success: boolean; error?: string }> = []
+    await act(async () => {
+      const first = result.current.save()
+      const second = result.current.save()
+      storeState.workflowId = "wf-2" // a load() switched workflows meanwhile
+      release()
+      outcomes = await Promise.all([first, second])
+    })
+
+    expect(outcomes[0].success).toBe(true)
+    expect(outcomes[1]).toEqual({ success: false, error: "workflow_changed" })
+    // The queued attempt never wrote wf-2's graph under wf-1's call.
+    expect(update).toHaveBeenCalledTimes(1)
+  })
+
+  it("hands applySaveSuccess the dirty epoch it read the graph at (edits made in flight stay dirty)", async () => {
+    resetStoreState({ workflowId: "wf-1", nodes: [makeNode("n1")], loadedVersion: 60, dirtyEpoch: 3 })
+    setupSupabaseUpdate(null, "T61")
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    await act(async () => {
+      await result.current.save()
+    })
+
+    expect(mockApplySaveSuccess).toHaveBeenCalledWith("T61", 5, undefined, 3)
+  })
+
   it("does NOT call setWorkflowId on update (existing workflow)", async () => {
     resetStoreState({ workflowId: "existing-wf-id", nodes: [makeNode("n1")] })
     setupSupabaseUpdate()
@@ -463,7 +622,10 @@ describe("useWorkflowPersistence — save", () => {
       data: { updated_at: "2026-01-02T00:00:00Z" },
       error: null,
     })
-    const fallbackEq = vi.fn().mockReturnValue({ maybeSingle: fallbackMaybeSingle })
+    const fallbackEq = vi.fn().mockReturnValue({
+      maybeSingle: fallbackMaybeSingle,
+      abortSignal: vi.fn().mockReturnValue({ maybeSingle: fallbackMaybeSingle }),
+    })
     const fallbackSelect = vi.fn().mockReturnValue({ eq: fallbackEq })
 
     mockSupabaseFrom.mockReturnValue({
@@ -502,7 +664,10 @@ describe("useWorkflowPersistence — save", () => {
     const mockUpdate = vi.fn().mockReturnValue({ eq: eqId })
 
     const fallbackMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
-    const fallbackEq = vi.fn().mockReturnValue({ maybeSingle: fallbackMaybeSingle })
+    const fallbackEq = vi.fn().mockReturnValue({
+      maybeSingle: fallbackMaybeSingle,
+      abortSignal: vi.fn().mockReturnValue({ maybeSingle: fallbackMaybeSingle }),
+    })
     const fallbackSelect = vi.fn().mockReturnValue({ eq: fallbackEq })
 
     mockSupabaseFrom.mockReturnValue({
@@ -538,7 +703,8 @@ describe("useWorkflowPersistence — save", () => {
     // Batched: markClean + setLoadedUpdatedAt + setRemoteUpdatedAt + status
     // flip happen in one Zustand set() to close the realtime echo race.
     expect(mockApplySaveSuccess).toHaveBeenCalledTimes(1)
-    expect(mockApplySaveSuccess).toHaveBeenCalledWith("2026-03-04T12:00:00Z", 5)
+    // (no delta snapshot on the full path; the dirty epoch the graph was read at)
+    expect(mockApplySaveSuccess).toHaveBeenCalledWith("2026-03-04T12:00:00Z", 5, undefined, 0)
   })
 
   it("does NOT call applySaveSuccess on save failure", async () => {
@@ -812,6 +978,7 @@ describe("useWorkflowPersistence — save", () => {
         "2026-06-12T02:00:00Z",
         42,
         expect.objectContaining({ name: "Test Workflow" }),
+        0,
       )
     } finally {
       vi.unstubAllEnvs()
@@ -908,7 +1075,10 @@ describe("useWorkflowPersistence — save", () => {
         },
         error: null,
       })
-      const freshEq = vi.fn().mockReturnValue({ maybeSingle: freshMaybeSingle })
+      const freshEq = vi.fn().mockReturnValue({
+        maybeSingle: freshMaybeSingle,
+        abortSignal: vi.fn().mockReturnValue({ maybeSingle: freshMaybeSingle }),
+      })
       mockSupabaseFrom.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: freshEq }) })
       // attempt 2: success at version 44
       rpcResolves([{ ok: true, version: 44, updated_at: "2026-06-12T02:02:00Z" }])

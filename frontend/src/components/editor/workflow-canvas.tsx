@@ -902,6 +902,7 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
     getCurrentEdges: () => getEdges(),
     getIsDirty: () => useWorkflowStore.getState().isDirty,
     getLoadedUpdatedAt: () => useWorkflowStore.getState().loadedUpdatedAt,
+    getLoadedVersion: () => useWorkflowStore.getState().loadedVersion,
     // `version` MUST be forwarded: the store's `loadedVersion` is the CAS token
     // of the next full save. Dropping it here left the token stale after every
     // external write (MCP / Copilot / another device), so the user's next save
@@ -1140,7 +1141,13 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
       const targetNode = nodeMap.get(edge.target)
       const edgeLabelResult = getEdgeLabel(edge, sourceNode, targetNode)
       const edgeLabel = edgeLabelResult?.label
-      const edgeLabelColor = edgeLabel && sourceNode ? getMiniMapNodeColor(sourceNode) : undefined
+      // Idle edges take the source handle's TYPE color (text wires blue, image
+      // pink, …) so a wire matches the pips it connects. Execution/drag/hover/
+      // selected/disabled states still override (in AnimatedFlowEdge + below).
+      const edgeTypeColor = getEdgeTypeColor(sourceNode?.type, edge.sourceHandle)
+      // The label pill wears the SAME color as the wire it sits on; the node
+      // category color is only the fallback for an untyped edge.
+      const edgeLabelColor = edgeLabel && sourceNode ? (edgeTypeColor ?? getMiniMapNodeColor(sourceNode)) : undefined
       const edgeModeLabel = getOutputModeLabel(edge, sourceNode, targetNode)
       const edgeRangeLabel = getEdgeRangeLabel(edge)
 
@@ -1156,11 +1163,6 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
       const unusedPromptRef = unusedPromptEdgeIds.has(edge.id)
 
       const outputMode = resolveEffectiveOutputMode(edge, sourceNode, targetNode)
-
-      // Idle edges take the source handle's TYPE color (text wires blue, image
-      // cyan, …) so a wire matches the pips it connects. Execution/drag/hover/
-      // selected/disabled states still override (in AnimatedFlowEdge + below).
-      const edgeTypeColor = getEdgeTypeColor(sourceNode?.type, edge.sourceHandle)
 
       // Stable signature of every value that feeds the returned edge's
       // `data`/`style`/`animated`/`type`. Reuse the previously-returned object
@@ -2955,7 +2957,7 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
           edgesReconnectable={!isReadOnly}
           deleteKeyCode={isReadOnly ? null : ["Delete", "Backspace"]}
           className={cn(
-            "bg-background touch-manipulation",
+            "canvas-ambient touch-manipulation",
             connectingFromType === "source" && "connecting-from-source",
             connectingFromType === "target" && "connecting-from-target",
           )}
@@ -2977,17 +2979,20 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
           {!isMobile && showMiniMap && (
             <MiniMap
               position={minimapPosition(isRtl)}
-              className="!bg-card !border !shadow-sm"
+              className="!bg-[var(--node-card)] !border !border-[var(--node-border)] !shadow-sm"
               nodeColor={getMiniMapNodeColor}
               maskColor="rgba(0, 0, 0, 0.2)"
             />
           )}
+          {/* Dots: 32px apart, 2px each — the density the grid used to have only
+              at 200% zoom, now at 100% (design decision, canvas palette work). Lines (snap mode)
+              keep the 16px snap pitch. */}
           <Background
             variant={snapEnabled ? BackgroundVariant.Lines : BackgroundVariant.Dots}
-            gap={16}
-            size={snapEnabled ? 0.5 : 1}
-            color={snapEnabled ? "var(--grid-line-color)" : undefined}
-            className="!bg-background"
+            gap={snapEnabled ? 16 : 32}
+            size={snapEnabled ? 0.5 : 2}
+            color={snapEnabled ? "var(--grid-line-color)" : "var(--canvas-dot)"}
+            className="!bg-transparent"
           />
           {guideLines.length > 0 && <AlignmentGuideLines guides={guideLines} />}
         </ReactFlow>

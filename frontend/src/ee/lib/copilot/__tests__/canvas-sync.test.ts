@@ -6,7 +6,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const reconcileFromRemote = vi.fn()
+// Mirrors the real store: adopting a snapshot advances the version token.
+const reconcileFromRemote = vi.fn((args: { version?: number | null }) => {
+  if (typeof args.version === "number") state.loadedVersion = args.version
+})
 const state = {
   loadedVersion: 6 as number | null,
   isDirty: false,

@@ -19,8 +19,8 @@ export const HANDLE_COLORS = {
   // ── Text / string ────────────────────────────────────────────────────
   text: "#3B82F6", // blue-500 — prompt, text, dialogue, system-prompt, URL/string inputs, payload/message
   // ── Image family ─────────────────────────────────────────────────────
-  image: "#22D3EE", // cyan — image, references, portrait, start-frame, image-url
-  imageRef: "#34D399", // emerald — image references (kept distinct from a single image input)
+  image: "#EC4899", // pink — image, references, portrait, start-frame, image-url
+  imageRef: "#7C3AED", // violet-600 — image references: same "references / context" family as `reference` below, one shade deeper so the guard can still tell the two types apart
   endFrame: "#06B6D4", // teal — end frame (distinct from the cyan start frame)
   // ── Video / motion ───────────────────────────────────────────────────
   video: "#A78BFA", // violet — video, video-refs, source video, motion, scenes
@@ -31,7 +31,7 @@ export const HANDLE_COLORS = {
   look: "#818CF8", // indigo — look, elements, cinematography pickers, json, branches
   pickerJson: "#2DD4BF", // teal-400 — picker-json (image→picker analysis output)
   // ── Multimodal reference ─────────────────────────────────────────────
-  reference: "#E879F9", // fuchsia — mixed/any reference input (image + video + audio + text), e.g. Generate Text "References"
+  reference: "#8B5CF6", // violet — mixed/any reference input (image + video + audio + text), e.g. Generate Text "References"
   // ── Identity / refs ──────────────────────────────────────────────────
   identity: "#F472B6", // pink — character, location, assets, voice id/persona
   // ── Single-purpose types ─────────────────────────────────────────────

@@ -13,16 +13,23 @@ import type { StickyNoteData } from "@/types/nodes"
 type StickyFontSize = StickyNoteData["fontSize"]
 
 /**
- * The four declared sizes now render four distinct sizes. Previously `lg` and
- * `xl` both rendered 18px and `sm` rendered 14px, so a note on a large canvas
- * had no way to get bigger. `base` (the default) and `lg` keep their existing
- * px values, so every existing note is unchanged; `sm` and `xl` become real.
+ * The four declared sizes render four distinct BODY sizes; the title sits one
+ * step above its body so a note reads as heading + paragraph at every size.
+ * `base` (the default) and `lg` keep their historical px values, so every
+ * existing note is unchanged.
  */
 const FONT_SIZE_PX: Record<StickyFontSize, number> = {
   sm: 12,
   base: 14,
   lg: 18,
   xl: 26,
+}
+
+const TITLE_SIZE_PX: Record<StickyFontSize, number> = {
+  sm: 14,
+  base: 17,
+  lg: 22,
+  xl: 30,
 }
 
 const FONT_SIZE_LABEL: Record<StickyFontSize, string> = {
@@ -38,6 +45,27 @@ const FONT_SIZE_CYCLE: readonly StickyFontSize[] = ["base", "lg", "xl", "sm"]
 function nextFontSize(current: StickyFontSize): StickyFontSize {
   const i = FONT_SIZE_CYCLE.indexOf(current)
   return FONT_SIZE_CYCLE[(i + 1) % FONT_SIZE_CYCLE.length]
+}
+
+/** `<input type="color">` only speaks 6-digit hex — drop a palette entry's alpha
+ *  byte, and give an imported note's non-hex colour (`rebeccapurple`) a legal
+ *  stand-in instead of a React value warning. */
+function opaqueHex(hex: string): string {
+  if (/^#[0-9a-fA-F]{8}$/.test(hex)) return hex.slice(0, 7)
+  return /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#000000"
+}
+
+type TranslationKey = Parameters<ReturnType<typeof useT>>[0]
+
+/** Spoken names for the palette swatches (aria); order follows NODE_COLORS. */
+const SWATCH_LABEL_KEY: Record<string, TranslationKey> = {
+  "#0f172a": "node.swatchSlate",
+  "#1e3a5f": "node.swatchBlue",
+  "#1a2e1a": "node.swatchGreen",
+  "#ff007340": "node.swatchPink",
+  "#A855F740": "node.swatchPurple",
+  "#22D3EE40": "node.swatchCyan",
+  "#26221a": "node.swatchPaper",
 }
 
 function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
@@ -60,15 +88,17 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
   // Ink follows the surface, not the theme — a colour with no light-mode
   // counterpart (the seeded demo's #2d2d44, imports, agents) keeps its dark
   // surface in light mode, and theme-picked slate ink vanished on it.
-  const ink = INK[readableInk(effectiveColor, isDark)]
+  const inkKey = readableInk(effectiveColor, isDark)
+  const ink = INK[inkKey]
   const currentSize: StickyFontSize = FONT_SIZE_PX[nodeData.fontSize as StickyFontSize]
     ? (nodeData.fontSize as StickyFontSize)
     : "base"
   const bold = nodeData.bold ?? false
   const italic = nodeData.italic ?? false
   const alignment = nodeData.alignment ?? "left"
-  const width = nodeData.width ?? 400
-  const height = nodeData.height ?? 300
+  const width = nodeData.width ?? 320
+  const height = nodeData.height ?? 200
+  const title = nodeData.title ?? ""
 
   const handleResize = useCallback(
     (_event: unknown, params: { width: number; height: number }) => {
@@ -78,11 +108,13 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
   )
 
   const fontSize = FONT_SIZE_PX[currentSize]
+  const titleSize = TITLE_SIZE_PX[currentSize]
   // 18px and up reads as a heading, and carries the heavier weight the
   // two-state control used to imply.
   const fontWeight = bold ? 700 : fontSize >= 18 ? 600 : 400
   const fontStyle = italic ? ("italic" as const) : ("normal" as const)
   const textAlign = alignment as "left" | "center" | "right"
+  const borderColor = adjustColor(effectiveColor, inkKey === "dark" ? -28 : 22)
 
   return (
     <div
@@ -96,17 +128,22 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
         hoverTimeoutRef.current = setTimeout(() => setIsHovered(false), 800)
       }}
     >
-      {/* Floating label above node */}
-      <EditableNodeLabel
-        label={nodeData.label}
-        icon={<StickyNote className="w-3.5 h-3.5" />}
-        onSave={(newLabel) => updateNodeData(id, { label: newLabel })}
-      />
+      {/* Floating label above the note — only while the note has no title of
+          its own; once a title is set it IS the name, and the label would just
+          repeat it. */}
+      {!title.trim() && (
+        <EditableNodeLabel
+          label={nodeData.label}
+          icon={<StickyNote className="w-3.5 h-3.5" />}
+          onSave={(newLabel) => updateNodeData(id, { label: newLabel })}
+        />
+      )}
 
       {/* Node resizer */}
       <NodeResizer
         isVisible={!!selected}
         minWidth={160}
+        minHeight={110}
         lineClassName="!border-[#38BDF8]"
         handleClassName="!w-2.5 !h-2.5 !bg-[#38BDF8] !border-none !rounded-sm"
         onResize={handleResize}
@@ -115,7 +152,7 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
       {/* Floating toolbar above node */}
       <NodeToolbar isVisible={selected || isHovered} position={Position.Top} offset={0}>
         <div
-          className="flex items-center gap-1 px-2 py-1.5 bg-white border border-border dark:bg-[#1a1a1a] dark:border-white/10 rounded-xl shadow-xl backdrop-blur-sm flex-wrap"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-xl shadow-xl backdrop-blur-sm flex-wrap border node-menu-surface"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onMouseEnter={() => {
@@ -126,22 +163,37 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
             hoverTimeoutRef.current = setTimeout(() => setIsHovered(false), 300)
           }}
         >
-          {/* Color swatches */}
+          {/* Colour swatches — the palette, then a free colour well */}
           {NODE_COLORS.map((c) => (
-            <div
+            <button
               key={c}
+              type="button"
+              aria-label={SWATCH_LABEL_KEY[c] ? t(SWATCH_LABEL_KEY[c]) : c}
               onClick={(e) => { e.stopPropagation(); updateNodeData(id, { color: c }) }}
-              className={`w-4 h-4 rounded-full cursor-pointer border-2 transition-transform hover:scale-110 ${color === c ? "border-foreground dark:border-white" : "border-foreground/15 dark:border-white/20"}`}
+              className={`w-5 h-5 rounded-full cursor-pointer border-2 transition-transform hover:scale-110 ${color === c ? "border-foreground dark:border-white" : "border-foreground/15 dark:border-white/20"}`}
               style={{ backgroundColor: getEffectiveColor(c, isDark) }}
             />
           ))}
+          <label
+            title={t("node.customColour")}
+            className="relative w-5 h-5 rounded-full cursor-pointer border-2 border-foreground/15 dark:border-white/20 overflow-hidden transition-transform hover:scale-110"
+            style={{ background: "conic-gradient(#ff0073, #f59e0b, #22c55e, #38bdf8, #a855f7, #ff0073)" }}
+          >
+            <input
+              type="color"
+              aria-label={t("node.customColour")}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              value={opaqueHex(color)}
+              onChange={(e) => updateNodeData(id, { color: e.target.value })}
+            />
+          </label>
 
-          <div className="w-px h-4 bg-border dark:bg-white/10 mx-1" />
+          <div className="w-px h-4 bg-[var(--pill-border)] mx-1" />
 
           {/* Paragraph / Heading select */}
           <button
             type="button"
-            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-foreground/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10 transition-colors"
+            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-[var(--pill-fg-muted)] hover:text-[var(--pill-fg)] hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             onClick={(e) => {
               e.stopPropagation()
               updateNodeData(id, { fontSize: nextFontSize(currentSize) })
@@ -151,12 +203,12 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
             <ChevronDown className="w-3 h-3" />
           </button>
 
-          <div className="w-px h-4 bg-border dark:bg-white/10 mx-1" />
+          <div className="w-px h-4 bg-[var(--pill-border)] mx-1" />
 
           {/* Bold */}
           <button
             type="button"
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${bold ? "bg-black/10 text-foreground dark:bg-white/20 dark:text-white" : "text-foreground/50 hover:text-foreground/80 hover:bg-black/5 dark:text-white/50 dark:hover:text-white/80 dark:hover:bg-white/10"}`}
+            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${bold ? "bg-black/10 text-[var(--pill-fg)] dark:bg-white/20" : "text-[var(--pill-fg-muted)] hover:text-[var(--pill-fg)] hover:bg-black/5 dark:hover:bg-white/10"}`}
             onClick={(e) => {
               e.stopPropagation()
               updateNodeData(id, { bold: !bold })
@@ -168,7 +220,7 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
           {/* Italic */}
           <button
             type="button"
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${italic ? "bg-black/10 text-foreground dark:bg-white/20 dark:text-white" : "text-foreground/50 hover:text-foreground/80 hover:bg-black/5 dark:text-white/50 dark:hover:text-white/80 dark:hover:bg-white/10"}`}
+            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${italic ? "bg-black/10 text-[var(--pill-fg)] dark:bg-white/20" : "text-[var(--pill-fg-muted)] hover:text-[var(--pill-fg)] hover:bg-black/5 dark:hover:bg-white/10"}`}
             onClick={(e) => {
               e.stopPropagation()
               updateNodeData(id, { italic: !italic })
@@ -177,46 +229,33 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
             <Italic className="w-3.5 h-3.5" />
           </button>
 
-          <div className="w-px h-4 bg-border dark:bg-white/10 mx-1" />
+          <div className="w-px h-4 bg-[var(--pill-border)] mx-1" />
 
           {/* Alignment */}
-          <button
-            type="button"
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${alignment === "left" ? "bg-black/10 text-foreground dark:bg-white/20 dark:text-white" : "text-foreground/50 hover:text-foreground/80 hover:bg-black/5 dark:text-white/50 dark:hover:text-white/80 dark:hover:bg-white/10"}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              updateNodeData(id, { alignment: "left" })
-            }}
-          >
-            <AlignLeft className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${alignment === "center" ? "bg-black/10 text-foreground dark:bg-white/20 dark:text-white" : "text-foreground/50 hover:text-foreground/80 hover:bg-black/5 dark:text-white/50 dark:hover:text-white/80 dark:hover:bg-white/10"}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              updateNodeData(id, { alignment: "center" })
-            }}
-          >
-            <AlignCenter className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${alignment === "right" ? "bg-black/10 text-foreground dark:bg-white/20 dark:text-white" : "text-foreground/50 hover:text-foreground/80 hover:bg-black/5 dark:text-white/50 dark:hover:text-white/80 dark:hover:bg-white/10"}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              updateNodeData(id, { alignment: "right" })
-            }}
-          >
-            <AlignRight className="w-3.5 h-3.5" />
-          </button>
+          {([
+            ["left", <AlignLeft key="l" className="w-3.5 h-3.5" />],
+            ["center", <AlignCenter key="c" className="w-3.5 h-3.5" />],
+            ["right", <AlignRight key="r" className="w-3.5 h-3.5" />],
+          ] as const).map(([value, icon]) => (
+            <button
+              key={value}
+              type="button"
+              className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${alignment === value ? "bg-black/10 text-[var(--pill-fg)] dark:bg-white/20" : "text-[var(--pill-fg-muted)] hover:text-[var(--pill-fg)] hover:bg-black/5 dark:hover:bg-white/10"}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                updateNodeData(id, { alignment: value })
+              }}
+            >
+              {icon}
+            </button>
+          ))}
 
-          <div className="w-px h-4 bg-border dark:bg-white/10 mx-1" />
+          <div className="w-px h-4 bg-[var(--pill-border)] mx-1" />
 
           {/* Bullet list */}
           <button
             type="button"
-            className="w-6 h-6 flex items-center justify-center rounded text-foreground/50 hover:text-foreground/80 hover:bg-black/5 dark:text-white/50 dark:hover:text-white/80 dark:hover:bg-white/10 transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded text-[var(--pill-fg-muted)] hover:text-[var(--pill-fg)] hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             onClick={(e) => {
               e.stopPropagation()
               const currentText = nodeData.text ?? ""
@@ -231,7 +270,7 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
             <List className="w-3.5 h-3.5" />
           </button>
 
-          <div className="w-px h-4 bg-border dark:bg-white/10 mx-1" />
+          <div className="w-px h-4 bg-[var(--pill-border)] mx-1" />
 
           {/* 3-dots "More options" — sticky-note uses custom chrome instead
               of BaseNode, so it must reproduce BaseNode's overflow button
@@ -240,7 +279,7 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
               (duplicate / skip / delete / …) every other node exposes. */}
           <button
             type="button"
-            className="w-6 h-6 flex items-center justify-center rounded text-foreground/50 hover:text-foreground/80 hover:bg-black/5 dark:text-white/50 dark:hover:text-white/80 dark:hover:bg-white/10 transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded text-[var(--pill-fg-muted)] hover:text-[var(--pill-fg)] hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             aria-label={t("editor.moreOptions")}
             onClick={(e) => {
               e.stopPropagation()
@@ -254,19 +293,40 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
         </div>
       </NodeToolbar>
 
-      {/* Container */}
+      {/* Container: title row + body, one surface */}
       <div
-        className="w-full h-full rounded-xl overflow-hidden flex flex-col"
+        className="w-full h-full rounded-2xl overflow-hidden flex flex-col px-4 pt-3 pb-3"
         style={{
           backgroundColor: effectiveColor,
-          border: `2px solid ${adjustColor(effectiveColor, -30)}`,
-          boxShadow: `0 0 16px ${effectiveColor}15`,
+          border: `1px solid ${borderColor}`,
+          boxShadow: "var(--node-shadow)",
         }}
       >
-        {/* Textarea */}
+        <input
+          type="text"
+          aria-label={t("node.noteTitle")}
+          className="sticky-note-textarea nopan nodrag w-full bg-transparent outline-none border-none p-0 mb-1 leading-tight"
+          style={{
+            fontSize: titleSize,
+            fontWeight: 700,
+            textAlign,
+            color: ink.text,
+            caretColor: ink.text,
+            ["--sticky-placeholder" as string]: ink.placeholder,
+          }}
+          placeholder={t("node.noteTitle")}
+          value={title}
+          onChange={(e) => {
+            e.stopPropagation()
+            updateNodeData(id, { title: e.target.value })
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        />
         <textarea
           ref={textareaRef}
-          className="sticky-note-textarea nopan w-full flex-1 bg-transparent resize-none outline-none border-none p-3 leading-relaxed"
+          aria-label={t("node.noteBody")}
+          className="sticky-note-textarea nopan w-full flex-1 bg-transparent resize-none outline-none border-none p-0 leading-relaxed"
           style={{
             fontSize,
             fontWeight,
@@ -274,6 +334,7 @@ function StickyNoteNodeComponent({ id, data, selected }: NodeProps) {
             textAlign,
             color: ink.text,
             caretColor: ink.text,
+            opacity: 0.88,
             // Placeholder colour cannot be set inline; globals.css reads it.
             ["--sticky-placeholder" as string]: ink.placeholder,
           }}

@@ -1,0 +1,598 @@
+{
+  "slug": "still-life-studio",
+  "name": "Still Life Studio",
+  "description": "Show, don't describe: your product, two props and a mood photo go in as pictures; a hero still life and a matching close-up come out.",
+  "markdownDescription": "## Still Life Studio\n\nEvery object that must look a certain way arrives as a photo, not as words.\n\n1. **Product photo** — the one thing that never changes.\n2. **Props 1–2** — objects for the scene, each on a plain background. Leave a slot empty if you like.\n3. **Mood photo** — a photograph with the light and colours you want. Only its atmosphere is used.\n4. **Brief + Light** — a sentence or two and a picker. That is all the writing.\n5. Two prompt writers look at every image and write one prompt each.\n6. Two images come out: the wide hero still life and a close detail shot — same scene, same light.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "product",
+    "still-life",
+    "references",
+    "props"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 106,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "lighting",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "nano-banana-pro"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/cf7844b6-97cf-462f-ad51-474098f49efd.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 5,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": -700
+      },
+      "data": {
+        "textColor": "#ffffff",
+        "bold": false,
+        "italic": false,
+        "alignment": "left",
+        "label": "How it works",
+        "color": "#26221a",
+        "width": 740,
+        "height": 340,
+        "fontSize": "base",
+        "title": "Still life studio — how it works",
+        "text": "Show, don't describe. Every object that must look a certain way arrives as a photo, not as words.\n\n1. Product photo — the one thing that never changes.\n2. Props 1–2 — objects for the scene, each on a plain background. Leave a slot empty if you like.\n3. Mood photo — a photograph with the light and colours you want. Only its atmosphere is used.\n4. Brief + Light — a sentence or two and a picker. That is all the writing.\n5. Two prompt writers look at every image and write one prompt each.\n6. Two images come out: the wide hero still life and a close detail shot — same scene, same light."
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "textColor": "#ffffff",
+        "bold": false,
+        "italic": false,
+        "alignment": "left",
+        "label": "Step 1",
+        "color": "#26221a",
+        "width": 260,
+        "height": 230,
+        "fontSize": "sm",
+        "title": "1 · Your product",
+        "text": "One clean photo on a plain background. The image models get it as a reference, so shape, label and colour stay exactly as they are. Swap this photo and the whole studio works for a different product."
+      }
+    },
+    {
+      "id": "note-props",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 460
+      },
+      "data": {
+        "textColor": "#ffffff",
+        "bold": false,
+        "italic": false,
+        "alignment": "left",
+        "label": "Step 2",
+        "color": "#26221a",
+        "width": 260,
+        "height": 260,
+        "fontSize": "sm",
+        "title": "2 · Props (optional)",
+        "text": "Up to two objects for the scene, each photographed alone on a plain background. A photo tells the model the exact colour, texture and shape — a sentence never does. An empty slot is simply ignored."
+      }
+    },
+    {
+      "id": "note-mood",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1380
+      },
+      "data": {
+        "textColor": "#ffffff",
+        "bold": false,
+        "italic": false,
+        "alignment": "left",
+        "label": "Step 3",
+        "color": "#26221a",
+        "width": 260,
+        "height": 230,
+        "fontSize": "sm",
+        "title": "3 · Mood photo (optional)",
+        "text": "A photograph with the light, colours and surfaces you are after. The writers borrow its atmosphere — never its objects. Leave it out and the brief and the light picker decide the mood."
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1840
+      },
+      "data": {
+        "textColor": "#ffffff",
+        "bold": false,
+        "italic": false,
+        "alignment": "left",
+        "label": "Step 4",
+        "color": "#26221a",
+        "width": 260,
+        "height": 180,
+        "fontSize": "sm",
+        "title": "4 · The brief",
+        "text": "Plain language, one or two sentences: where the product sits, what is around it, the feeling. No prompt-writing needed — that happens in the next step."
+      }
+    },
+    {
+      "id": "note-light",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2080
+      },
+      "data": {
+        "textColor": "#ffffff",
+        "bold": false,
+        "italic": false,
+        "alignment": "left",
+        "label": "Step 5",
+        "color": "#26221a",
+        "width": 260,
+        "height": 200,
+        "fontSize": "sm",
+        "title": "5 · Light picker",
+        "text": "Pick time of day, style and direction from the tiles instead of describing light in words. Optional: skip it and the mood photo leads."
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 800,
+        "y": -300
+      },
+      "data": {
+        "textColor": "#ffffff",
+        "bold": false,
+        "italic": false,
+        "alignment": "left",
+        "label": "Step 6",
+        "color": "#26221a",
+        "width": 300,
+        "height": 260,
+        "fontSize": "sm",
+        "title": "6 · Two prompt writers",
+        "text": "Both look at every image plus the brief and the light. The first writes the wide hero shot; the second writes a close detail of the same scene. Each prompt names every prop and opens with the product \"exactly as in the reference\". Open a writer to read or tune its rules."
+      }
+    },
+    {
+      "id": "note-outputs",
+      "type": "sticky-note",
+      "position": {
+        "x": 1300,
+        "y": -300
+      },
+      "data": {
+        "textColor": "#ffffff",
+        "bold": false,
+        "italic": false,
+        "alignment": "left",
+        "label": "Step 7",
+        "color": "#26221a",
+        "width": 300,
+        "height": 260,
+        "fontSize": "sm",
+        "title": "7 · The shots",
+        "text": "Each image node receives its prompt plus all the reference photos. Hero still life: vertical 4:5 for feed and campaign. Detail shot: square 1:1 for product pages. Same product, same props, same light — a matching pair."
+      }
+    },
+    {
+      "id": "product-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 300,
+        "y": 0
+      },
+      "data": {
+        "label": "Product photo",
+        "url": "https://cdn.nodaro.ai/images/1f7f08af-9fda-48e7-9475-4ea3b8d44ab6.png",
+        "r2Url": "https://cdn.nodaro.ai/images/1f7f08af-9fda-48e7-9475-4ea3b8d44ab6.png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/1f7f08af-9fda-48e7-9475-4ea3b8d44ab6.png",
+        "filename": "perfume-bottle-demo.png",
+        "mimeType": "image/png",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "prop-1",
+      "type": "upload-image",
+      "position": {
+        "x": 300,
+        "y": 460
+      },
+      "data": {
+        "label": "Prop 1",
+        "url": "https://cdn.nodaro.ai/images/8516ac15-5a76-47d9-939c-144f2d8f04a1.png",
+        "r2Url": "https://cdn.nodaro.ai/images/8516ac15-5a76-47d9-939c-144f2d8f04a1.png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/8516ac15-5a76-47d9-939c-144f2d8f04a1.png",
+        "filename": "prop-jellyfish-demo.png",
+        "mimeType": "image/png",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "prop-2",
+      "type": "upload-image",
+      "position": {
+        "x": 300,
+        "y": 920
+      },
+      "data": {
+        "label": "Prop 2",
+        "url": "https://cdn.nodaro.ai/images/aebb5a43-c069-48df-861a-2acbf7a67849.png",
+        "r2Url": "https://cdn.nodaro.ai/images/aebb5a43-c069-48df-861a-2acbf7a67849.png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/aebb5a43-c069-48df-861a-2acbf7a67849.png",
+        "filename": "prop-red-coral-demo.png",
+        "mimeType": "image/png",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "mood-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 300,
+        "y": 1380
+      },
+      "data": {
+        "label": "Mood photo",
+        "url": "https://cdn.nodaro.ai/images/88328908-8666-43ca-9201-3dcab3e33c14.png",
+        "r2Url": "https://cdn.nodaro.ai/images/88328908-8666-43ca-9201-3dcab3e33c14.png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/88328908-8666-43ca-9201-3dcab3e33c14.png",
+        "filename": "mood-sea-cave-demo.png",
+        "mimeType": "image/png",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 300,
+        "y": 1840
+      },
+      "data": {
+        "label": "Brief",
+        "text": "Deep underwater. The perfume bottle stands upright on a rock shelf at the bottom of a sunlit sea cave, water all around it. The red coral rises behind it and the jellyfish drifts past in the background. Shafts of light fall from the surface far above, caustics ripple over the glass and chrome, tiny bubbles and particles hang in the water. Surreal and luxurious, perfectly still.",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 300,
+        "y": 2080
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "timeOfDay": "noon",
+        "lightingStyle": "underwater-caustics",
+        "lightingDirection": "top-overhead",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "writer-hero",
+      "type": "llm-chat",
+      "position": {
+        "x": 800,
+        "y": 0
+      },
+      "data": {
+        "label": "Prompt · Hero shot",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 1024,
+        "temperature": 0.5,
+        "templateId": "custom",
+        "fieldMappings": {},
+        "userInput": "Brief: {Brief}\n\nLight: {Lighting || not specified — choose the light that suits the brief and the mood photo}",
+        "systemPrompt": "You are the photographer's assistant on a still-life shoot. You receive up to four images and a short brief. Image 1 is always the product. Each of the other images is either a prop — a single object on a plain background — or, at most one of them, a mood photo: a whole scene that shows the light, colours, surfaces and atmosphere the client wants. Tell them apart by looking. The scene may be a place no real studio could build — underwater, mid-air, inside a cave — as long as the product itself stays exactly as photographed.\n\nWrite ONE prompt for the wide hero still life.\n\nRules:\n- Begin with exactly: \"The exact product from the first reference image, unchanged — same shape, colours, materials, label and proportions —\" and continue the sentence with where it sits in the scene.\n- Name every prop and say it must appear exactly as in its reference image: same shape, colour and material. Give each prop a place and a purpose in the composition. Props may frame the product but never cover it or its label.\n- Use the mood photo only for light, palette, surfaces and atmosphere. Never copy its objects. If there is no mood photo, build the mood from the brief.\n- Vertical 4:5 composition. Cover, in this order: product placement and scale; surface and background; the props; camera angle and distance; the light — source, direction, quality, colour; and close with the photographic finish (lens feel, depth of field, crisp or soft).\n- One paragraph, 100–150 words, plain declarative English. Describe only what the camera sees. Never write a brand name, any text to be rendered, bullet points or commentary. Never invent a second unit or another colour of the product. Output only the prompt."
+      },
+      "width": 260,
+      "height": 280,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-detail",
+      "type": "llm-chat",
+      "position": {
+        "x": 800,
+        "y": 460
+      },
+      "data": {
+        "label": "Prompt · Detail shot",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 1024,
+        "temperature": 0.5,
+        "templateId": "custom",
+        "fieldMappings": {},
+        "userInput": "Brief: {Brief}\n\nLight: {Lighting || not specified — choose the light that suits the brief and the mood photo}",
+        "systemPrompt": "You are the photographer's assistant on a still-life shoot. You receive up to four images and a short brief. Image 1 is always the product. Each of the other images is either a prop — a single object on a plain background — or, at most one of them, a mood photo: a whole scene that shows the light, colours, surfaces and atmosphere the client wants. Tell them apart by looking. The scene may be a place no real studio could build — underwater, mid-air, inside a cave — as long as the product itself stays exactly as photographed.\n\nWrite ONE prompt for a close DETAIL shot that pairs with the wide hero still life of the same scene: the product fills most of a square frame, seen close and slightly from above, its material and label crisp; exactly one prop enters the frame at an edge, partly cropped; the same surface, light and palette as the brief and the mood photo describe.\n\nRules:\n- Begin with exactly: \"The exact product from the first reference image, unchanged — same shape, colours, materials, label and proportions —\" and continue the sentence with how it fills the frame.\n- Name the one prop you chose and say it must appear exactly as in its reference image. It may touch the frame edge but never cover the product's label.\n- Use the mood photo only for light, palette, surfaces and atmosphere. Never copy its objects. If there is no mood photo, build the mood from the brief.\n- Square 1:1 composition, shallow depth of field. Cover, in this order: how the product fills the frame; the surface under it; the prop; camera angle and distance; the light — source, direction, quality, colour; and close with the photographic finish (macro feel, focus falloff).\n- One paragraph, 90–140 words, plain declarative English. Describe only what the camera sees. Never write a brand name, any text to be rendered, bullet points or commentary. Never invent a second unit or another colour of the product. Output only the prompt."
+      },
+      "width": 260,
+      "height": 280,
+      "className": "rf-resized"
+    },
+    {
+      "id": "hero-shot",
+      "type": "generate-image",
+      "position": {
+        "x": 1300,
+        "y": 0
+      },
+      "data": {
+        "label": "Hero still life",
+        "provider": "nano-banana-pro",
+        "resolution": "2K",
+        "aspectRatio": "4:5",
+        "prompt": "",
+        "negativePrompt": "",
+        "style": "",
+        "fieldMappings": {},
+        "presentationOutput": true
+      }
+    },
+    {
+      "id": "detail-shot",
+      "type": "generate-image",
+      "position": {
+        "x": 1300,
+        "y": 460
+      },
+      "data": {
+        "label": "Detail shot",
+        "provider": "nano-banana-pro",
+        "resolution": "2K",
+        "aspectRatio": "1:1",
+        "prompt": "",
+        "negativePrompt": "",
+        "style": "",
+        "fieldMappings": {},
+        "presentationOutput": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-product-wh",
+      "source": "product-photo",
+      "target": "writer-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prop1-wh",
+      "source": "prop-1",
+      "target": "writer-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prop2-wh",
+      "source": "prop-2",
+      "target": "writer-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-wh",
+      "source": "mood-photo",
+      "target": "writer-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-wd",
+      "source": "product-photo",
+      "target": "writer-detail",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prop1-wd",
+      "source": "prop-1",
+      "target": "writer-detail",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prop2-wd",
+      "source": "prop-2",
+      "target": "writer-detail",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-wd",
+      "source": "mood-photo",
+      "target": "writer-detail",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-hero",
+      "source": "product-photo",
+      "target": "hero-shot",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prop1-hero",
+      "source": "prop-1",
+      "target": "hero-shot",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prop2-hero",
+      "source": "prop-2",
+      "target": "hero-shot",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-hero",
+      "source": "mood-photo",
+      "target": "hero-shot",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-detail",
+      "source": "product-photo",
+      "target": "detail-shot",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prop1-detail",
+      "source": "prop-1",
+      "target": "detail-shot",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prop2-detail",
+      "source": "prop-2",
+      "target": "detail-shot",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-detail",
+      "source": "mood-photo",
+      "target": "detail-shot",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-wh",
+      "source": "brief",
+      "target": "writer-hero",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lighting-wh",
+      "source": "lighting",
+      "target": "writer-hero",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-wd",
+      "source": "brief",
+      "target": "writer-detail",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lighting-wd",
+      "source": "lighting",
+      "target": "writer-detail",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-wh-hero",
+      "source": "writer-hero",
+      "target": "hero-shot",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-wd-detail",
+      "source": "writer-detail",
+      "target": "detail-shot",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 60,
+      "y": 460,
+      "zoom": 0.42
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product-photo",
+        "brief",
+        "prop-1",
+        "prop-2",
+        "mood-photo",
+        "lighting"
+      ],
+      "outputOrder": [
+        "hero-shot",
+        "detail-shot"
+      ],
+      "cardMeta": {
+        "product-photo": {
+          "title": "Your product",
+          "description": "One clean photo of the product on a plain background. It appears exactly as it is — only the scene around it is built."
+        },
+        "brief": {
+          "title": "The scene",
+          "description": "One or two sentences: where the product sits, what is around it, the mood. The prompt writers do the rest."
+        },
+        "prop-1": {
+          "title": "Prop 1",
+          "description": "Optional. A photo of an object you want in the scene, alone on a plain background. Showing beats describing."
+        },
+        "prop-2": {
+          "title": "Prop 2",
+          "description": "Optional. A second object — or leave it empty."
+        },
+        "mood-photo": {
+          "title": "Mood photo",
+          "description": "Optional. A photograph with the light, colours and surfaces you are after. Only its atmosphere is used, never its objects."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Optional. Pick the light, or leave it and the mood photo and brief decide."
+        },
+        "hero-shot": {
+          "title": "Hero still life",
+          "description": "The wide shot: product, props and mood in one 4:5 frame."
+        },
+        "detail-shot": {
+          "title": "Detail shot",
+          "description": "The close-up that pairs with it: the product up close, one prop at the edge, same light."
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 ---
 node_type: sticky-note
-generated_at: 2026-08-15T21:55:09.459Z
-generated_from: 150c80ac9
+generated_at: 2026-09-14T18:06:53.874Z
+generated_from: 5323e14a6
 ---
 
 # Sticky Note
@@ -25,15 +25,19 @@ generated_from: 150c80ac9
 - `italic: boolean`
 - `alignment: "left" | "center" | "right"`
 
+**Optional data fields:**
+- `title?: string`
+
 **Default data:**
 ```json
 {
   "label": "Sticky Note",
-  "text": "I'm a note\nDouble click to customize",
-  "color": "#2d2d44",
+  "title": "Note",
+  "text": "",
+  "color": "#26221a",
   "textColor": "#ffffff",
-  "width": 840,
-  "height": 540,
+  "width": 320,
+  "height": 200,
   "fontSize": "base",
   "bold": false,
   "italic": false,
@@ -66,11 +70,12 @@ generated_from: 150c80ac9
   },
   "data": {
     "label": "Sticky Note",
-    "text": "I'm a note\nDouble click to customize",
-    "color": "#2d2d44",
+    "title": "Note",
+    "text": "",
+    "color": "#26221a",
     "textColor": "#ffffff",
-    "width": 840,
-    "height": 540,
+    "width": 320,
+    "height": 200,
     "fontSize": "base",
     "bold": false,
     "italic": false,

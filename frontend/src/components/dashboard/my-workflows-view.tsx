@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react"
 import { Link } from "react-router-dom"
-import { Plus, Loader2, Search, Star, MoreHorizontal, Trash2, FolderInput } from "lucide-react"
+import { Plus, Loader2, Search, Star, MoreHorizontal, Trash2, FolderInput, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -18,11 +18,19 @@ import { useDemoSeed } from "@/hooks/use-demo-seed"
 import { useProjectsStore } from "@/hooks/use-projects-store"
 import { queryClient } from "@/lib/query-client"
 import { queryKeys } from "@/lib/query-keys"
+import { toast } from "sonner"
 
 interface MyWorkflowsViewProps {
   readonly onCreateWorkflow: () => void
   readonly onMoveWorkflow: (workflow: MyWorkflow) => void
   readonly isCreating?: boolean
+  /**
+   * `personal` (default) — the hand-made flows, i.e. everything outside the
+   * auto-created "mcp" project. `mcp` — only that project's flows: the same
+   * grid, search and card menu (duplicate / move / delete), under the "MCP
+   * Workflows" filter, without a create action (an MCP client creates those).
+   */
+  readonly scope?: "personal" | "mcp"
   /**
    * Controlled search text — the home screen's Jump back in field. When set,
    * the view renders no heading row of its own: the filter above it already
@@ -35,18 +43,24 @@ export function MyWorkflowsView({
   onCreateWorkflow,
   onMoveWorkflow,
   isCreating,
+  scope = "personal",
   search: controlledSearch,
 }: MyWorkflowsViewProps) {
   const t = useT()
   const projectDisplayName = useProjectDisplayName()
-  const { data: workflows = [], isLoading } = useMyWorkflows()
+  const { data: workflows = [], isLoading } = useMyWorkflows(scope)
+  // Same cached query, unsliced — the demo seed must look at EVERYTHING the
+  // user owns, or a user whose only flows came from an MCP client would get
+  // the Welcome Demo re-seeded every time they opened the personal tab.
+  const { data: allWorkflows = [] } = useMyWorkflows("all")
   const { user } = useAuth()
   // First-time users get the Welcome Demo seeded into their default project.
   // Gated on a resolved session: the hook fires exactly once per mount, so
   // firing during an auth-timing edge (query resolved [] with no user yet)
   // would burn that one attempt on a 401.
-  const { isSeeding } = useDemoSeed(!isLoading && workflows.length === 0 && !!user)
+  const { isSeeding } = useDemoSeed(scope === "personal" && !isLoading && allWorkflows.length === 0 && !!user)
   const deleteWorkflow = useProjectsStore((s) => s.deleteWorkflow)
+  const duplicateWorkflow = useProjectsStore((s) => s.duplicateWorkflow)
   const [ownSearch, setOwnSearch] = useState("")
   const search = controlledSearch ?? ownSearch
 
@@ -66,6 +80,19 @@ export function MyWorkflowsView({
     queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all })
   }
 
+  // Same-project copy named "<name> (Copy)" (use-projects-store). The store
+  // refreshes the project view; this flat list has its own query, so refetch it.
+  const handleDuplicate = async (id: string) => {
+    // The store swallows every failure into null — say so, or the menu item
+    // looks like it did nothing.
+    const copy = await duplicateWorkflow(id)
+    if (!copy) {
+      toast.error(t("dash.duplicateFailed"))
+      return
+    }
+    queryClient.invalidateQueries({ queryKey: queryKeys.workflows.all })
+  }
+
   if (isLoading || isSeeding) {
     return (
       <div className="flex justify-center py-16">
@@ -78,16 +105,18 @@ export function MyWorkflowsView({
     return (
       <div className="text-center py-20">
         <p className="text-sm text-muted-foreground mb-4">
-          {t("dash.noWorkflowsYet")}
+          {scope === "mcp" ? t("dash.noMcpWorkflowsYet") : t("dash.noWorkflowsYet")}
         </p>
-        <Button onClick={onCreateWorkflow} disabled={isCreating}>
-          {isCreating ? (
-            <Loader2 className="h-4 w-4 me-1 animate-spin" />
-          ) : (
-            <Plus className="h-4 w-4 me-1" />
-          )}
-          {isCreating ? t("dash.creating") : t("dash.newWorkflow")}
-        </Button>
+        {scope === "personal" && (
+          <Button onClick={onCreateWorkflow} disabled={isCreating}>
+            {isCreating ? (
+              <Loader2 className="h-4 w-4 me-1 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 me-1" />
+            )}
+            {isCreating ? t("dash.creating") : t("dash.newWorkflow")}
+          </Button>
+        )}
       </div>
     )
   }
@@ -96,7 +125,9 @@ export function MyWorkflowsView({
     <>
       {controlledSearch === undefined && (
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium text-muted-foreground">{t("dash.myWorkflows")}</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">
+            {scope === "mcp" ? t("dash.mcpWorkflows") : t("dash.myWorkflows")}
+          </h2>
           <div className="relative w-48">
             <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -155,6 +186,10 @@ export function MyWorkflowsView({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleDuplicate(wf.id)}>
+                      <Copy className="h-3.5 w-3.5 me-2" />
+                      {t("dash.workflowDuplicate")}
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onMoveWorkflow(wf)}>
                       <FolderInput className="h-3.5 w-3.5 me-2" />
                       {t("dialog.moveToProject")}

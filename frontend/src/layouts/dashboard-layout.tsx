@@ -104,7 +104,9 @@ export default function DashboardLayout() {
           {!isEditor && !embedded && <MobileHeader onMenuClick={() => setMobileMenuOpen(true)} />}
           {/* Withheld free grant → activation path. Self-hiding; cloud only. */}
           {!embedded && <FreeGrantBannerSlot />}
-          <main className="flex-1 overflow-auto">
+          {/* The editor paints its own canvas ground; every other page gets the
+              ambient wash (globals.css .page-ambient) under its content. */}
+          <main className={isEditor ? "flex-1 overflow-auto" : "flex-1 overflow-auto page-ambient"}>
             <Outlet />
           </main>
         </div>

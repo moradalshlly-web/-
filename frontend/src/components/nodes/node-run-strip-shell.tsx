@@ -34,7 +34,7 @@ export function NodeRunStripShell({ children }: { readonly children: ReactNode }
   return (
     <div
       data-testid="node-run-strip"
-      className="flex items-center gap-0.5 px-1.5 py-1 backdrop-blur-sm rounded-xl border bg-white/85 border-black/10 text-neutral-900 node-menu-surface dark:border-white/10 dark:text-white"
+      className="flex items-center gap-0.5 px-1.5 py-1 backdrop-blur-sm rounded-xl border node-menu-surface"
       style={{ transform: `scale(${scale})`, transformOrigin: "50% 0%" }}
       onClick={(e) => e.stopPropagation()}
     >
