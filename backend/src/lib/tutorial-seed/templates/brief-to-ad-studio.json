@@ -1,0 +1,500 @@
+{
+  "slug": "brief-to-ad-studio",
+  "name": "Brief to Ad Studio",
+  "description": "No product photo needed: a brief, brand notes and a moodboard in; three 9:16 story ads out — a timely hook, a promise, a proof — the scene photographed from the brief, in one brand world, with every word from your notes. For hotels, restaurants, clinics, gyms and anything sold as an experience.",
+  "markdownDescription": "## Brief to Ad Studio\n\nNo product photo needed. A brief, your brand notes and a moodboard become three story ads — three hooks on the same brief, in one brand world — for hotels, restaurants, clinics, gyms, agencies, anything you sell as an experience.\n\n1. **Brief** — what this campaign is about, for whom, and what you want them to do.\n2. **Brand notes** — who you are, the facts you can stand behind, colours and tone.\n3. **Moodboard** — optional. A picture of your world; every ad follows its look.\n4. **Three hooks** — Timely (the reason now), Promise (what they get), Proof (the evidence) — one writer each, each writing a headline, a small line, a button and the scene. Edit a brief by hand and rerun its ad.\n5. **Three story ads** — vertical 9:16, the scene photographed from the brief, the copy exactly as written and clear of the phone's edges.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "brief",
+    "services",
+    "hospitality",
+    "stories",
+    "local-business"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 51,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/6db352e9-afcc-4252-87e9-b1792fb82a5f.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 32,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "No product photo needed. A brief, your brand notes and a moodboard go in; three story ads come out — three hooks on the same brief, in one brand world — for hotels, restaurants, clinics, gyms, agencies, anything you sell as an experience.\n\n1. Brief — what this campaign is about, for whom, and what you want them to do.\n2. Brand notes — who you are, the facts you can stand behind, colours and tone.\n3. Moodboard — optional. A picture of your world; every ad follows its look.\n4. Three hooks — Timely (the reason now), Promise (what they get), Proof (the evidence) — one writer each, each writing a headline, a small line, a button and the scene.\n5. Three story ads — vertical 9:16, the scene photographed from the brief, the copy exactly as written and clear of the phone's edges.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Brief to ad studio — how it works",
+        "width": 1180,
+        "height": 600,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 760
+      },
+      "data": {
+        "bold": false,
+        "text": "What this campaign is about, the moment it lands in (a season, an opening, a week), who it is for, and what you want them to do. One paragraph in plain words.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Brief",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1150
+      },
+      "data": {
+        "bold": false,
+        "text": "Who you are, what makes you different, the facts you can stand behind — a rating, a number, a guarantee — plus colours and tone. Only what is here gets used; nothing is invented.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Brand notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-mood",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1580
+      },
+      "data": {
+        "bold": false,
+        "text": "Optional. A picture of your world — a few photos on one board. Every ad follows its colours, textures and light. Delete the node if the notes say it all.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Moodboard",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 760
+      },
+      "data": {
+        "bold": false,
+        "text": "Timely uses the moment from the brief. Promise says the one thing the customer gets. Proof brings the evidence from the notes, quoted faithfully. Each writer returns a headline, a small line, a button and the scene in a fixed shape. Edit a brief by hand and rerun its ad.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Three hooks",
+        "width": 560,
+        "height": 430,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ads",
+      "type": "sticky-note",
+      "position": {
+        "x": 2340,
+        "y": 760
+      },
+      "data": {
+        "bold": false,
+        "text": "Vertical 9:16: the scene photographed from the brief, the copy exactly as written and clear of the phone's interface. Rerun one alone for another take on the same hook.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Three story ads",
+        "width": 560,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 760
+      },
+      "data": {
+        "text": "Autumn campaign for Hotel Marea, a 24-room hotel on a quiet cove. The sea stays warm through October and rooms are quieter and cheaper than in summer. Reach couples from the city, 30 to 50, planning a long weekend. Get them to book directly on our site.",
+        "label": "Brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1150
+      },
+      "data": {
+        "text": "Hotel Marea — a small hotel on a cove: an infinity pool over the sea, a terrace restaurant, breakfast until noon, linen and terracotta, no lobby music. Facts we can stand behind: rated 9.6 by 2,100 guests; every room faces the sea; free cancellation up to 48 hours. Colours: off-white, sea-green, terracotta. Tone: calm, warm, unhurried, few words.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "moodboard",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1580
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/feb37fdb-8e97-4710-ad29-1610b942e496.png",
+        "label": "Moodboard",
+        "r2Url": "https://cdn.nodaro.ai/images/feb37fdb-8e97-4710-ad29-1610b942e496.png",
+        "assetId": "feb37fdb-8e97-4710-ad29-1610b942e496",
+        "filename": "brand-moodboard-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/feb37fdb-8e97-4710-ad29-1610b942e496.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-timely",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1310
+      },
+      "data": {
+        "label": "Timely brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 550,
+        "userInput": "Brand notes: {Brand notes || a local business.} Brief: {Brief || one strong ad per hook.} The reference image, if any, is the moodboard. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director for businesses that sell an experience or a service rather than a product you can hold. You get the brand notes, the brief and, if present, a moodboard whose look you follow. Write the TIMELY ad — the hook is the moment from the brief: the season, the week, the news, the reason to act now — one of three ads on the same brief, each with its own hook, all in the same brand world.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 80 to 110 words for a vertical 9:16 story: the scene that carries the message — a real place, a real moment, real people if they help, described precisely enough to photograph — the colours and light from the moodboard or the brand notes, where the headline, the small line and the button sit (clear of the top and bottom edges where the phone's interface sits), the typography and the mood.>\nUse only facts from the brand notes and the brief; never invent prices, numbers, awards or quotes. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-promise",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 2426
+      },
+      "data": {
+        "label": "Promise brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 550,
+        "userInput": "Brand notes: {Brand notes || a local business.} Brief: {Brief || one strong ad per hook.} The reference image, if any, is the moodboard. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director for businesses that sell an experience or a service rather than a product you can hold. You get the brand notes, the brief and, if present, a moodboard whose look you follow. Write the PROMISE ad — the hook is the one thing the customer gets, said plainly and beautifully, the scene showing exactly that — one of three ads on the same brief, each with its own hook, all in the same brand world.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 80 to 110 words for a vertical 9:16 story: the scene that carries the message — a real place, a real moment, real people if they help, described precisely enough to photograph — the colours and light from the moodboard or the brand notes, where the headline, the small line and the button sit (clear of the top and bottom edges where the phone's interface sits), the typography and the mood.>\nUse only facts from the brand notes and the brief; never invent prices, numbers, awards or quotes. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-proof",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 3542
+      },
+      "data": {
+        "label": "Proof brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 550,
+        "userInput": "Brand notes: {Brand notes || a local business.} Brief: {Brief || one strong ad per hook.} The reference image, if any, is the moodboard. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director for businesses that sell an experience or a service rather than a product you can hold. You get the brand notes, the brief and, if present, a moodboard whose look you follow. Write the PROOF ad — the hook is the evidence from the notes (a rating, a number of guests, a review, a guarantee), quoted faithfully; if the notes give none, a plain factual claim from the notes instead — one of three ads on the same brief, each with its own hook, all in the same brand world.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 80 to 110 words for a vertical 9:16 story: the scene that carries the message — a real place, a real moment, real people if they help, described precisely enough to photograph — the colours and light from the moodboard or the brand notes, where the headline, the small line and the button sit (clear of the top and bottom edges where the phone's interface sits), the typography and the mood.>\nUse only facts from the brand notes and the brief; never invent prices, numbers, awards or quotes. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-timely",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 1310
+      },
+      "data": {
+        "label": "Ad · Timely",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen, built from this brief: {Timely brief || Headline: \"The sea is still warm.\" Small line: none Button: \"Book now\" Look: an infinity pool meeting a calm sea at golden hour, white linen moving in the breeze, a serif headline in the upper third, the button in the lower third, clear of the phone's edges, calm and sun-washed.} The reference image, if any, is the moodboard — follow its colours, textures and light; do not copy its tiles. Photograph the scene the brief describes, photoreal and cinematic. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text, all of it clear of the top and bottom edges. Crisp typography, no logos, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-promise",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 2426
+      },
+      "data": {
+        "label": "Ad · Promise",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen, built from this brief: {Promise brief || Headline: \"The sea is still warm.\" Small line: none Button: \"Book now\" Look: an infinity pool meeting a calm sea at golden hour, white linen moving in the breeze, a serif headline in the upper third, the button in the lower third, clear of the phone's edges, calm and sun-washed.} The reference image, if any, is the moodboard — follow its colours, textures and light; do not copy its tiles. Photograph the scene the brief describes, photoreal and cinematic. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text, all of it clear of the top and bottom edges. Crisp typography, no logos, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-proof",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 3542
+      },
+      "data": {
+        "label": "Ad · Proof",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen, built from this brief: {Proof brief || Headline: \"The sea is still warm.\" Small line: none Button: \"Book now\" Look: an infinity pool meeting a calm sea at golden hour, white linen moving in the breeze, a serif headline in the upper third, the button in the lower third, clear of the phone's edges, calm and sun-washed.} The reference image, if any, is the moodboard — follow its colours, textures and light; do not copy its tiles. Photograph the scene the brief describes, photoreal and cinematic. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text, all of it clear of the top and bottom edges. Crisp typography, no logos, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-brief-writer-timely",
+      "source": "brief",
+      "target": "writer-timely",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-timely",
+      "source": "brand",
+      "target": "writer-timely",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-writer-timely",
+      "source": "moodboard",
+      "target": "writer-timely",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-timely",
+      "source": "writer-timely",
+      "target": "ad-timely",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-ad-timely",
+      "source": "moodboard",
+      "target": "ad-timely",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-writer-promise",
+      "source": "brief",
+      "target": "writer-promise",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-promise",
+      "source": "brand",
+      "target": "writer-promise",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-writer-promise",
+      "source": "moodboard",
+      "target": "writer-promise",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-promise",
+      "source": "writer-promise",
+      "target": "ad-promise",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-ad-promise",
+      "source": "moodboard",
+      "target": "ad-promise",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-writer-proof",
+      "source": "brief",
+      "target": "writer-proof",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-proof",
+      "source": "brand",
+      "target": "writer-proof",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-writer-proof",
+      "source": "moodboard",
+      "target": "writer-proof",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-proof",
+      "source": "writer-proof",
+      "target": "ad-proof",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-ad-proof",
+      "source": "moodboard",
+      "target": "ad-proof",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.176
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "brand": {
+          "title": "Brand notes",
+          "description": "Who you are, the facts, colours and tone."
+        },
+        "brief": {
+          "title": "Brief",
+          "description": "What the campaign is about, for whom, and the action."
+        },
+        "ad-proof": {
+          "title": "Proof",
+          "description": "The evidence from your notes."
+        },
+        "ad-timely": {
+          "title": "Timely",
+          "description": "The reason to act now."
+        },
+        "moodboard": {
+          "title": "Moodboard",
+          "description": "Optional. A picture of your world."
+        },
+        "ad-promise": {
+          "title": "Promise",
+          "description": "The one thing they get."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "brief",
+        "brand",
+        "moodboard"
+      ],
+      "outputOrder": [
+        "ad-timely",
+        "ad-promise",
+        "ad-proof"
+      ]
+    }
+  }
+}
