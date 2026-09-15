@@ -22,6 +22,7 @@ import { backendHybridRoles } from "../../lib/reference-format.js"
 import { selectLoraRoutingForMentions } from "../../lib/character-lora.js"
 import { config } from "../../lib/config.js"
 import { isNodeDenied, deniedNodeRejectionMessage, isModelDenied, deniedModelRejectionMessage } from "../../lib/surface-deny.js"
+import { safeUrlSchema } from "../../lib/url-validator.js"
 import { scene3DFrameFromNode, scene3DNodePreflightError, scene3DReferencesFromNode } from "../../lib/scene3d-node.js"
 import { scene3DAnyPlanSchema, scene3DPlanSchemaVersion, type Scene3DPlanV2 } from "@nodaro/shared"
 import { scene3DReferenceListError } from "../scene3d/index.js"
@@ -206,6 +207,74 @@ export const REQUIRED_MEDIA_INPUTS: Readonly<Record<string, RequiredMediaInput |
   "suno-mashup": { anyOf: ["uploadUrlList", "audioUrl", "audioUrl2"], kind: "audio", noun: "at least one audio track" },
 }
 
+/**
+ * Is this value something a worker can actually FETCH?
+ *
+ * ABSENT is not the only way a media input fails. A non-empty value that is not
+ * a URL — a Text node wired into `videoUrl`, a FieldMapping pointing at the
+ * wrong output, a hand-authored workflow JSON — satisfied the emptiness test
+ * above and then died inside `safeFetch`'s `new URL(...)` as a bare
+ * "Invalid URL": no node name, no field, no value, and (for merge-video-audio,
+ * whose impl is wrapped in `runPostProcessing`) tagged post-delivery, so the
+ * refund guard skipped. That is the 2026-09-04 merge-video-audio report.
+ *
+ * The gate is `safeUrlSchema` — the EXACT schema every HTTP route applies at
+ * its boundary. The DAG lane never crosses a route, which is why it is the only
+ * lane that can produce this; reusing the schema means the two lanes cannot
+ * drift apart on what a media URL is (including the self-host own-storage
+ * exemption).
+ *
+ * Only keys that NAME a url are checked, so the non-media alternatives the
+ * table deliberately carries (`kieTaskId` — an upstream VEO/Runway task) are
+ * untouched; `{ url }` entries inside a resolved list (`audioSources`) are
+ * checked by shape rather than by key name.
+ */
+type MediaValueVerdict = "ok" | "unfetchable" | "absent"
+
+function mediaValueVerdict(key: string, value: unknown): MediaValueVerdict {
+  const keyNamesUrl = /url/i.test(key)
+  const one = (v: unknown): MediaValueVerdict => {
+    if (typeof v === "string") {
+      if (!v.trim()) return "absent"
+      if (!keyNamesUrl) return "ok"
+      return safeUrlSchema.safeParse(v).success ? "ok" : "unfetchable"
+    }
+    if (v && typeof v === "object") {
+      const u = (v as { url?: unknown }).url
+      // An entry whose shape we do NOT recognise is TRUSTED, exactly as the
+      // old emptiness test trusted it. Only strings and `{ url }` entries are
+      // judged, so this can never refuse a list it cannot actually read.
+      if (typeof u !== "string") return "ok"
+      if (!u.trim()) return "unfetchable"
+      return safeUrlSchema.safeParse(u).success ? "ok" : "unfetchable"
+    }
+    return "absent"
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "absent"
+    const verdicts = value.map(one)
+    // One bad clip fails the whole render, so one bad entry fails the list.
+    if (verdicts.some((v) => v === "unfetchable")) return "unfetchable"
+    return verdicts.some((v) => v === "ok") ? "ok" : "absent"
+  }
+  return one(value)
+}
+
+/** Short, single-line echo of the offending value so the run panel says WHICH
+ *  input was wrong. It is the user's own workflow data, and the download
+ *  failures next door already quote the URL they could not fetch. */
+function mediaValuePreview(value: unknown): string {
+  const first = Array.isArray(value)
+    ? value.find((v) => mediaValueVerdict("url", v) === "unfetchable") ?? value[0]
+    : value
+  const text =
+    first && typeof first === "object" && typeof (first as { url?: unknown }).url === "string"
+      ? (first as { url: string }).url
+      : String(first ?? "")
+  const flat = text.replace(/\s+/g, " ").trim()
+  return flat.length > 60 ? `${flat.slice(0, 60)}…` : flat
+}
+
 /** Throw a coded, node-named refusal when a required media input is absent on
  *  BOTH the resolved inputs and the node data. Mirrors the shape of the
  *  existing `video_required` throw at the AI Audit case. */
@@ -230,14 +299,21 @@ export function assertRequiredMediaInputs(
     // through to the node's own value. With `??` an upstream that resolved to ""
     // would shadow a real `data.videoUrl` and the guard would refuse a graph
     // that runs fine today — a regression introduced by a regression-guard.
+    // `unfetchable` NEVER outranks an `ok`: a requirement with any usable value
+    // is satisfied, exactly as before, so this can only refuse a node that had
+    // nothing to run on. It only changes WHICH refusal a node with junk gets.
+    let unfetchable: unknown
     const satisfied = entry.anyOf.some((key) => {
       const v = (ri[key] as unknown) || (nd[key] as unknown)
-      if (typeof v === "string") return v.trim().length > 0
-      return Array.isArray(v) && v.length > 0
+      const verdict = mediaValueVerdict(key, v)
+      if (verdict === "unfetchable" && unfetchable === undefined) unfetchable = v
+      return verdict === "ok"
     })
     if (satisfied) continue
     const err = new Error(
-      `${entry.kind}_required: node "${label}" needs ${entry.noun} — connect one upstream, or the run will fail at the provider.`,
+      unfetchable !== undefined
+        ? `${entry.kind}_required: node "${label}" needs ${entry.noun}, but what reached it is not a media URL ("${mediaValuePreview(unfetchable)}") — check the connection or field mapping feeding it.`
+        : `${entry.kind}_required: node "${label}" needs ${entry.noun} — connect one upstream, or the run will fail at the provider.`,
     ) as Error & { code?: string }
     err.code = `${entry.kind}_required`
     throw err

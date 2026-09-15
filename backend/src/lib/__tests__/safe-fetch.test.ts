@@ -126,4 +126,22 @@ describe("safeFetch — fast-fail", () => {
     await expect(safeFetch("http://[fe80::1]/api")).rejects.toThrow(/fe80::1/)
     await expect(safeFetch("http://[fc00::1]/api")).rejects.toThrow(/fc00::1/)
   })
+
+  // A malformed URL used to surface as Node's bare "Invalid URL" — which is the
+  // ENTIRE explanation a failed merge carried into /admin/app-reports
+  // (2026-09-04). Every other refusal here names what it refused.
+  it("names the value when the URL cannot be parsed at all", async () => {
+    await expect(safeFetch("the quick brown fox")).rejects.toThrow(
+      /safeFetch: not a valid URL: "the quick brown fox"/,
+    )
+    await expect(safeFetch("")).rejects.toThrow(/not a valid URL: ""/)
+  })
+
+  it("keeps the named value short and single-line", async () => {
+    const junk = `line one\nline two ${"x".repeat(400)}`
+    const err = await safeFetch(junk).then(() => null, (e: Error) => e)
+    expect(err?.message).toMatch(/^safeFetch: not a valid URL: /)
+    expect(err?.message.length).toBeLessThan(200)
+    expect(err?.message).not.toContain("\n")
+  })
 })

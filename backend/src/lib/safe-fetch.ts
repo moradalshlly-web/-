@@ -238,7 +238,18 @@ export interface SafeFetchInit extends Omit<UndiciRequestInit, "dispatcher"> {
  *   - Non-http(s) protocols are rejected.
  */
 export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<Response> {
-  const parsed = new URL(url)
+  // NAME what was rejected. `new URL()` throws a bare "Invalid URL" — no value,
+  // no context — and that string is what reached /admin/app-reports as the
+  // whole explanation of a failed merge (2026-09-04, merge-video-audio fed a
+  // non-URL by a field mapping). Every other refusal in this function says what
+  // it refused; so does this one now.
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    const shown = String(url ?? "").replace(/\s+/g, " ").trim().slice(0, 120)
+    throw new Error(`safeFetch: not a valid URL: "${shown}"`)
+  }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error(`safeFetch: blocked — protocol ${parsed.protocol}`)
   }

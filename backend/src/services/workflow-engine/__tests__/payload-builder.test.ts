@@ -833,12 +833,12 @@ describe("buildPayload", () => {
 
     it("suno-mashup", () => {
       const n = node("n1", "suno-mashup", {})
-      const inputs: ResolvedInputs = { audioUrl: "a.mp3", audioUrl2: "b.mp3" }
+      const inputs: ResolvedInputs = { audioUrl: "https://cdn.example/a.mp3", audioUrl2: "https://cdn.example/b.mp3" }
       const result = buildPayload(n, jobId, inputs)
       expect(result.jobName).toBe("suno-mashup")
       const urlList = result.payload.uploadUrlList as string[]
-      expect(urlList).toContain("a.mp3")
-      expect(urlList).toContain("b.mp3")
+      expect(urlList).toContain("https://cdn.example/a.mp3")
+      expect(urlList).toContain("https://cdn.example/b.mp3")
     })
   })
 
@@ -946,7 +946,7 @@ describe("buildPayload", () => {
 
     it("voice-changer", () => {
       const n = node("n1", "voice-changer", { voiceId: "v1" })
-      const result = buildPayload(n, jobId, { audioUrl: "a.mp3" })
+      const result = buildPayload(n, jobId, { audioUrl: "https://cdn.example/a.mp3" })
       expect(result.jobName).toBe("voice-changer")
       expect(result.payload.voiceId).toBe("v1")
     })
@@ -961,7 +961,7 @@ describe("buildPayload", () => {
           { voiceId: "v2", similarityBoost: 0.6 },
         ],
       })
-      const result = buildPayload(n, jobId, { audioUrl: "a.mp3" })
+      const result = buildPayload(n, jobId, { audioUrl: "https://cdn.example/a.mp3" })
       expect(result.jobName).toBe("voice-changer-pro")
       expect(result.payload.orderedVoices).toEqual([
         { voiceId: "v1", engine: "v3", stability: 0.5, seed: 7 },
@@ -975,7 +975,7 @@ describe("buildPayload", () => {
       const n = node("n1", "voice-changer-pro", {
         orderedVoices: [null, { voiceId: "v2" }],
       })
-      const result = buildPayload(n, jobId, { audioUrl: "a.mp3" })
+      const result = buildPayload(n, jobId, { audioUrl: "https://cdn.example/a.mp3" })
       expect(result.payload.orderedVoices).toEqual([null, { voiceId: "v2" }])
     })
 
@@ -986,19 +986,19 @@ describe("buildPayload", () => {
       const n = node("n1", "voice-changer-pro", {
         orderedVoices: [null, null],
       })
-      expect(() => buildPayload(n, jobId, { audioUrl: "a.mp3" }))
+      expect(() => buildPayload(n, jobId, { audioUrl: "https://cdn.example/a.mp3" }))
         .toThrow(/at least one speaker needs a new voice/)
     })
 
     it("voice-changer-pro rejects an empty orderedVoices pre-flight", () => {
       const n = node("n1", "voice-changer-pro", { orderedVoices: [] })
-      expect(() => buildPayload(n, jobId, { audioUrl: "a.mp3" }))
+      expect(() => buildPayload(n, jobId, { audioUrl: "https://cdn.example/a.mp3" }))
         .toThrow(/add at least one voice/)
     })
 
     it("dubbing", () => {
       const n = node("n1", "dubbing", { targetLanguage: "es" })
-      const result = buildPayload(n, jobId, { audioUrl: "a.mp3" })
+      const result = buildPayload(n, jobId, { audioUrl: "https://cdn.example/a.mp3" })
       expect(result.jobName).toBe("dubbing")
       expect(result.payload.targetLanguage).toBe("es")
     })
@@ -1018,7 +1018,7 @@ describe("buildPayload", () => {
 
     it("forced-alignment", () => {
       const n = node("n1", "forced-alignment", { transcript: "hello" })
-      const result = buildPayload(n, jobId, { audioUrl: "a.mp3" })
+      const result = buildPayload(n, jobId, { audioUrl: "https://cdn.example/a.mp3" })
       expect(result.jobName).toBe("forced-alignment")
     })
 
