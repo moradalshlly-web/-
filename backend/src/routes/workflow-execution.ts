@@ -13,6 +13,7 @@ import { supabase } from "../lib/supabase.js"
 import { resolveWebSurfaceFlag } from "../middleware/credit-guard.js"
 import { tryRemoveFromQueue } from "../lib/queue.js"
 import { orchestrationQueue } from "../lib/orchestration-queue.js"
+import { refuseIfConsentPending } from "../lib/consent-gate.js"
 import { createSSEStream } from "../lib/sse.js"
 import { executionEvents, type ExecutionEvent } from "../lib/execution-events.js"
 import type { WorkflowExecutionJob } from "../services/workflow-engine/types.js"
@@ -233,6 +234,12 @@ export async function workflowExecutionRoutes(app: FastifyInstance) {
         error: { code: "unauthorized", message: "Authentication required" },
       })
     }
+
+    // Welcome credits opt-in: an account that still owes its email consent
+    // cannot start a run. The reservation funnel refuses every node anyway;
+    // refusing HERE is what lets the browser open the consent ask instead of
+    // watching nodes fail mid-run.
+    if (await refuseIfConsentPending(req, reply)) return reply
 
     if (req.appAuthorization) {
       const err = requireScope(req.appAuthorization.scopes, "workflows:execute")

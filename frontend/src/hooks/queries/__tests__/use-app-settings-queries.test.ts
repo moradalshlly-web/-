@@ -116,6 +116,7 @@ describe("useAppSettings", () => {
       consent_login_definition: "session",
       consent_text: "",
       consent_version: 1,
+      welcome_offer_enabled: false,
       notify_digest_enabled: true,
       notify_digest_hour: 8,
       notify_milestones_enabled: true,

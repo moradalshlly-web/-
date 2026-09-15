@@ -81,6 +81,23 @@ export const he: ChromeDict = {
   "auth.installSetup": "התקנת השרת",
   "auth.freeCredits": "התחלה חינם עם עד {credits} קרדיטים. ללא צורך בכרטיס אשראי.",
 
+  // קרדיטים של ברוכים הבאים (פופאפ ובאנר במסך הבית, ענן בלבד)
+  "welcome.eyebrow": "ברוכים הבאים ל-Nodaro",
+  "welcome.badge": "קרדיטים",
+  "welcome.title": "{credits} קרדיטים חינם מחכים לך",
+  "welcome.body": "אשרו קבלת עדכונים וטיפים במייל והקרדיטים ייכנסו לחשבון מיד. אפשר להסיר את ההרשמה בכל רגע.",
+  "welcome.cta": "כן, שלחו לי מייל והוסיפו {credits} קרדיטים",
+  "welcome.later": "אולי אחר כך",
+  "welcome.close": "סגירה",
+  "welcome.banner.title": "קבלו {credits} קרדיטים חינם",
+  "welcome.banner.body": "אשרו קבלת עדכונים וטיפים במייל והם ייכנסו לחשבון מיד.",
+  "welcome.pending.title": "{credits} הקרדיטים שלך פעילים",
+  "welcome.pending.body": "אשרו קבלת עדכונים וטיפים במייל כדי להמשיך ליצור כאן. אפשר להסיר את ההרשמה בכל רגע.",
+  "welcome.pending.cta": "כן, שלחו לי מייל ואמשיך ליצור",
+  "welcome.claimed": "{credits} קרדיטים נוספו",
+  "welcome.done": "סיום",
+  "welcome.error": "משהו לא עבד. נסו שוב.",
+
   // Legal
   "legal.terms": "תנאי שימוש",
   "legal.privacy": "מדיניות פרטיות",

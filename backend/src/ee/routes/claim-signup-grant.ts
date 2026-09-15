@@ -3,6 +3,7 @@ import { z } from "zod"
 import { sendInternalError } from "../../lib/http-errors.js"
 import { callerKeyHash } from "../../routes/oauth-register.js"
 import { fallbackClaimDue, runSignupGrantClaim } from "../billing/signup-grant.js"
+import { welcomeClaimOptions } from "../billing/welcome-offer-claim-options.js"
 import { supabase } from "../../lib/supabase.js"
 
 /**
@@ -133,6 +134,8 @@ export async function claimSignupGrantRoutes(app: FastifyInstance) {
           return { state: current, granted: false }
         }
 
+        // Welcome offer (when on): consent first — a claim without it only
+        // leaves its fingerprints and stays 'unclaimed' (see signup-grant.ts).
         const outcome = await runSignupGrantClaim(
           {
             userId,
@@ -141,6 +144,7 @@ export async function claimSignupGrantRoutes(app: FastifyInstance) {
             ipHash: callerKeyHash(req),
           },
           req.log,
+          await welcomeClaimOptions(req),
         )
 
         return { state: outcome.state === "unclaimed" ? current : outcome.state, granted: outcome.granted }

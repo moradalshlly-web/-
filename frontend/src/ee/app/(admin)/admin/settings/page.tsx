@@ -76,6 +76,8 @@ export default function AdminSettingsPage() {
   const [consentLoginDef, setConsentLoginDef] = useState<"session" | "app_open">("session")
   const [consentText, setConsentText] = useState("")
   const [consentVersion, setConsentVersion] = useState(1)
+  // Welcome credits opt-in: the signup grant waits for the email "yes".
+  const [welcomeOfferEnabled, setWelcomeOfferEnabled] = useState(false)
   // Internal founder notifications (Slack, one channel; Cloud-only).
   const [notifyDigestEnabled, setNotifyDigestEnabled] = useState(true)
   const [notifyDigestHour, setNotifyDigestHour] = useState(8)
@@ -111,6 +113,7 @@ export default function AdminSettingsPage() {
       setConsentLoginDef(settings.consent_login_definition ?? "session")
       setConsentText(settings.consent_text ?? "")
       setConsentVersion(settings.consent_version ?? 1)
+      setWelcomeOfferEnabled(settings.welcome_offer_enabled ?? false)
       setNotifyDigestEnabled(settings.notify_digest_enabled ?? true)
       setNotifyDigestHour(settings.notify_digest_hour ?? 8)
       setNotifyMilestonesEnabled(settings.notify_milestones_enabled ?? true)
@@ -183,6 +186,7 @@ export default function AdminSettingsPage() {
     if (consentLoginDef !== (settings?.consent_login_definition ?? "session")) updates.push({ key: "consent_login_definition", value: consentLoginDef })
     if (consentText.trim() && consentText.trim() !== (settings?.consent_text ?? "")) updates.push({ key: "consent_text", value: consentText.trim() })
     if (consentVersion !== (settings?.consent_version ?? 1)) updates.push({ key: "consent_version", value: consentVersion })
+    if (welcomeOfferEnabled !== (settings?.welcome_offer_enabled ?? false)) updates.push({ key: "welcome_offer_enabled", value: welcomeOfferEnabled })
 
     if (notifyDigestEnabled !== (settings?.notify_digest_enabled ?? true)) updates.push({ key: "notify_digest_enabled", value: notifyDigestEnabled })
     if (notifyDigestHour !== (settings?.notify_digest_hour ?? 8)) updates.push({ key: "notify_digest_hour", value: notifyDigestHour })
@@ -232,6 +236,7 @@ export default function AdminSettingsPage() {
     consentLoginDef !== (settings.consent_login_definition ?? "session") ||
     (consentText.trim() !== "" && consentText.trim() !== (settings.consent_text ?? "")) ||
     consentVersion !== (settings.consent_version ?? 1) ||
+    welcomeOfferEnabled !== (settings.welcome_offer_enabled ?? false) ||
     notifyDigestEnabled !== (settings.notify_digest_enabled ?? true) ||
     notifyDigestHour !== (settings.notify_digest_hour ?? 8) ||
     notifyMilestonesEnabled !== (settings.notify_milestones_enabled ?? true) ||
@@ -579,6 +584,19 @@ export default function AdminSettingsPage() {
           </div>
 
           <div className="flex items-center justify-between">
+            <div className="pr-4">
+              <Label htmlFor="welcome-offer-enabled">Free credits wait for the email opt-in</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When on, a new account gets its free credits only after saying yes to product emails (the welcome popup and
+                banner on the home tab). Chrome-extension signups get the credits right away and are asked on the web
+                before they can create there. Off = credits land automatically, as before. Turn on only after the
+                migration has reached production.
+              </p>
+            </div>
+            <Switch id="welcome-offer-enabled" checked={welcomeOfferEnabled} onCheckedChange={setWelcomeOfferEnabled} />
+          </div>
+
+          <div className="flex items-center justify-between mt-4">
             <div className="pr-4">
               <Label htmlFor="consent-enabled">Show the consent prompt</Label>
               <p className="text-xs text-muted-foreground mt-0.5">

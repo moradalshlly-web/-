@@ -153,6 +153,42 @@ SELECT pg_temp.assert_eq('the service role still updates profiles.email',
 RESET ROLE;
 
 -- ---------------------------------------------------------------------------
+-- 6b. 426's column on the same denylist: welcome_consent_pending is the mark
+--     that BLOCKS creation for an account granted its credits through the
+--     Chrome extension until it consents. A user clearing it themselves would
+--     lift their own block, so it joined the denylist; the service role (the
+--     consent-grant helper) is the only writer.
+-- ---------------------------------------------------------------------------
+UPDATE profiles SET welcome_consent_pending = true WHERE id = '00000000-0000-4000-8000-000000000991';
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000991","role":"authenticated"}';
+SET LOCAL request.jwt.claim.sub = '00000000-0000-4000-8000-000000000991';
+DO $$ BEGIN
+  UPDATE profiles SET welcome_consent_pending = false WHERE id = '00000000-0000-4000-8000-000000000991';
+  IF (SELECT welcome_consent_pending FROM profiles WHERE id = '00000000-0000-4000-8000-000000000991') = false THEN
+    RAISE EXCEPTION 'ASSERT FAIL: a user cleared their own welcome_consent_pending';
+  END IF;
+  RAISE NOTICE 'ok  a user cannot clear their own welcome_consent_pending (row unchanged)';
+EXCEPTION WHEN insufficient_privilege OR check_violation THEN
+  RAISE NOTICE 'ok  a user cannot clear their own welcome_consent_pending (refused)';
+END $$;
+-- welcome_offer_seen_at is deliberately NOT denylisted: hiding one's own popup
+-- is harmless, and the browser's own write must keep landing.
+DO $$ BEGIN
+  UPDATE profiles SET welcome_offer_seen_at = now() WHERE id = '00000000-0000-4000-8000-000000000991';
+  IF (SELECT welcome_offer_seen_at FROM profiles WHERE id = '00000000-0000-4000-8000-000000000991') IS NULL THEN
+    RAISE EXCEPTION 'ASSERT FAIL: a user could not stamp their own welcome_offer_seen_at';
+  END IF;
+  RAISE NOTICE 'ok  the user can still stamp their own welcome_offer_seen_at';
+END $$;
+RESET ROLE;
+SELECT pg_temp.assert_eq('the mark survived the user''s attempt',
+  (SELECT (welcome_consent_pending)::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000991'), 'true');
+UPDATE profiles SET welcome_consent_pending = false WHERE id = '00000000-0000-4000-8000-000000000991';
+SELECT pg_temp.assert_eq('the service role clears welcome_consent_pending',
+  (SELECT (welcome_consent_pending)::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000991'), 'false');
+
+-- ---------------------------------------------------------------------------
 -- 7-9. THE SHAPE. Every touch of this function since 310 has had to drop the
 --      previous overload by its full argument list; forget it and the old,
 --      `email`-blind twin stays resolvable and the whole guard is a coin flip
@@ -161,8 +197,10 @@ RESET ROLE;
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.assert_eq('check_profiles_update_allowed has exactly one overload',
   (SELECT count(*)::text FROM pg_proc WHERE proname = 'check_profiles_update_allowed'), '1');
-SELECT pg_temp.assert_eq('its signature ends in the new column',
-  (SELECT (pg_get_function_arguments(oid) LIKE '%p_email text')::text
+-- 426 appended p_welcome_consent_pending after p_email; both must be in the
+-- one overload's argument list, in that order.
+SELECT pg_temp.assert_eq('its signature ends in the newest denylisted column',
+  (SELECT (pg_get_function_arguments(oid) LIKE '%p_email text, p_welcome_consent_pending boolean')::text
      FROM pg_proc WHERE proname = 'check_profiles_update_allowed'), 'true');
 SELECT pg_temp.assert_eq('the UPDATE policy exists and is the one the migration recreated',
   (SELECT count(*)::text FROM pg_policies

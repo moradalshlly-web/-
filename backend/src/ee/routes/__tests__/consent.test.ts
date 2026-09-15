@@ -13,12 +13,20 @@ vi.mock("@/lib/config.js", () => ({
 vi.mock("@/lib/api-auth-mode.js", () => ({ rejectProgrammaticAuth: vi.fn(() => false) }))
 vi.mock("@/ee/lib/consent-config.js", () => ({ getConsentConfig: vi.fn() }))
 vi.mock("@/ee/lib/consent-loops-sync.js", () => ({ syncConsentRow: vi.fn().mockResolvedValue(undefined) }))
+// The consent-grant helper invalidates the balance cache (the welcome offer's
+// consent-pending mark rides it); the real module drags in the whole billing
+// surface, and only the invalidator is needed here.
+vi.mock("@/ee/routes/credits.js", () => ({ invalidateBalanceCache: vi.fn() }))
+vi.mock("@/ee/lib/welcome-offer-config.js", () => ({ getWelcomeOfferConfig: vi.fn().mockResolvedValue({ enabled: false }) }))
+vi.mock("@/ee/billing/signup-grant.js", () => ({ readFreeGrantState: vi.fn(), readWelcomeOfferState: vi.fn() }))
 
 import { consentRoutes } from "../consent.js"
 import { supabase } from "../../../lib/supabase.js"
 import { rejectProgrammaticAuth } from "../../../lib/api-auth-mode.js"
 import { getConsentConfig } from "../../lib/consent-config.js"
 import { syncConsentRow } from "../../lib/consent-loops-sync.js"
+import { getWelcomeOfferConfig } from "../../lib/welcome-offer-config.js"
+import { readFreeGrantState, readWelcomeOfferState } from "../../billing/signup-grant.js"
 
 const ENABLED = {
   enabled: true,
@@ -106,6 +114,27 @@ describe("GET /v1/consent/state", () => {
     expect(res.statusCode).toBe(200)
     expect(res.json()).toMatchObject({ shouldShow: false, status: "disabled" })
     expect(supabase.rpc).not.toHaveBeenCalled()
+  })
+
+  // Welcome offer ON: the popup / banner own the ask for these two accounts,
+  // and this read must not burn one of their cadence-limited shows.
+  it("yields to the welcome offer for an unclaimed account (no RPC, no stamp)", async () => {
+    vi.mocked(getWelcomeOfferConfig).mockResolvedValue({ enabled: true })
+    vi.mocked(readFreeGrantState).mockResolvedValue("unclaimed")
+    const res = await app.inject({ method: "GET", url: "/v1/consent/state?userId=u1" })
+    expect(res.json()).toMatchObject({ shouldShow: false, status: "welcome_offer" })
+    expect(supabase.rpc).not.toHaveBeenCalled()
+    vi.mocked(getWelcomeOfferConfig).mockResolvedValue({ enabled: false })
+  })
+
+  it("yields to the welcome offer for an extension-granted account that still owes consent", async () => {
+    vi.mocked(getWelcomeOfferConfig).mockResolvedValue({ enabled: true })
+    vi.mocked(readFreeGrantState).mockResolvedValue("granted")
+    vi.mocked(readWelcomeOfferState).mockResolvedValue({ popupSeen: false, consentPending: true })
+    const res = await app.inject({ method: "GET", url: "/v1/consent/state?userId=u1" })
+    expect(res.json()).toMatchObject({ shouldShow: false, status: "welcome_offer" })
+    expect(supabase.rpc).not.toHaveBeenCalled()
+    vi.mocked(getWelcomeOfferConfig).mockResolvedValue({ enabled: false })
   })
 
   it("shouldShow:true with text+version when the RPC stamps a show", async () => {

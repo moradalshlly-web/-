@@ -678,6 +678,8 @@ export function useAdminSettings() {
         consent_login_definition: (settings.consent_login_definition as "session" | "app_open" | undefined) ?? "session",
         consent_text: (settings.consent_text as string | undefined) ?? "",
         consent_version: (settings.consent_version as number | undefined) ?? 1,
+        // Welcome credits opt-in switch (same reasoning as consent above).
+        welcome_offer_enabled: (settings.welcome_offer_enabled as boolean | undefined) ?? false,
         // Internal founder-notification knobs (same reasoning as consent above).
         notify_digest_enabled: (settings.notify_digest_enabled as boolean | undefined) ?? true,
         notify_digest_hour: (settings.notify_digest_hour as number | undefined) ?? 8,

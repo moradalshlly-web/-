@@ -21,6 +21,8 @@ import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, 
 import { flux2BaseCredits } from "../../lib/pricing/flux2-cost.js"
 import { AI_AVATAR_RATE_USD_PER_SEC, aiAvatarHoldCredits } from "../../lib/pricing/ai-avatar-cost.js"
 import { effectiveMarkupPercent } from "./service-margin.js"
+import { getWelcomeOfferConfig } from "../lib/welcome-offer-config.js"
+import { ConsentRequiredError } from "../lib/consent-required.js"
 import { CINEMATIC_RATE_USD_PER_SEC, cinematicHoldCredits } from "../../lib/pricing/cinematic-avatar-cost.js"
 
 // ── Flux 2 per-MP×ref static costs (generated from flux2BaseCredits formula) ──
@@ -211,6 +213,14 @@ export interface UserBalance {
    * gate's column exists (a dev deploy can run ahead of the migration).
    */
   freeGrantState?: "unclaimed" | "granted" | "withheld"
+  /**
+   * Welcome-credits opt-in state. PRESENT only while the offer is switched on
+   * (app_settings.welcome_offer_enabled) — absent means "no popup, no banner,
+   * no block". `popupSeen`: the one-time popup was already shown.
+   * `consentPending`: the account was granted through the extension and still
+   * owes the email consent — the web apps block creation until it is given.
+   */
+  welcomeOffer?: { popupSeen: boolean; consentPending: boolean }
   /** Per-user deployment allowance in RAW credits; null when no allowance applies
    *  (no payer, or the caller IS the payer — which holds the real credits, not
    *  an allocation — or the figure was unavailable). NOT null merely because
@@ -2363,7 +2373,20 @@ export class CreditsService {
     modelIdentifier: string,
     providerCostUsd: number,
     displayCostUsd: number,
-    options?: { watermarkOverride?: boolean; isAppRun?: boolean; creditOverride?: number; skipAutoRecharge?: boolean; webFreeMode?: boolean; communityInstance?: boolean; billingContext?: BillingContext; oncePerJob?: boolean },
+    options?: {
+      watermarkOverride?: boolean
+      isAppRun?: boolean
+      creditOverride?: number
+      skipAutoRecharge?: boolean
+      webFreeMode?: boolean
+      communityInstance?: boolean
+      billingContext?: BillingContext
+      oncePerJob?: boolean
+      /** Welcome credits opt-in: ONLY the route guard sets this, and only for
+       *  an extension-origin request (`consentBlockExempt`). Every other
+       *  reservation for an account that still owes its consent is refused. */
+      consentPendingAllowed?: boolean
+    },
   ): Promise<ReserveResult> {
     // Self-hosted: skip reservation
     if (creditsDisabled()) {
@@ -2390,14 +2413,33 @@ export class CreditsService {
     // overridden) for the watermark decision. Under a deployment payer this
     // is the PAYER's row: its grade is what the entitlement gates ran on at
     // resolve, and the requester's tier prices nothing here.
-    const { data: tierProfile } = await supabase
+    // Welcome credits opt-in: while the offer is on, the same row carries the
+    // consent-pending mark (the column exists only from migration 426, so it
+    // is asked for only behind the flag; a deployment payer's row is never
+    // consent-gated).
+    const welcomeOffer = dep ? { enabled: false } : await getWelcomeOfferConfig()
+    const { data: tierProfile } = (await supabase
       .from("profiles")
-      .select("tier, subscription_tier, lifetime_topup_credits")
+      .select("tier, subscription_tier, lifetime_topup_credits" + (welcomeOffer.enabled ? ", welcome_consent_pending" : ""))
       .eq("id", debitUserId)
-      .single()
-    const userTier = tierProfile
-      ? effectiveTierOf(tierProfile as { tier: string | null; subscription_tier: string | null; lifetime_topup_credits: number })
-      : "free"
+      .single()) as unknown as {
+      data: {
+        tier: string | null
+        subscription_tier: string | null
+        lifetime_topup_credits: number
+        welcome_consent_pending?: boolean | null
+      } | null
+    }
+    // THE funnel for the consent block: every spend — route guard, the
+    // orchestrator's worker-queued nodes, pipelines, publish workers —
+    // reserves here, so an account that still owes its consent cannot spend
+    // anywhere. Only the route guard may lift it, for an extension-origin
+    // request. Same message the guard's 403 carries, so a node that fails
+    // here says the same thing the popup does.
+    if (welcomeOffer.enabled && tierProfile?.welcome_consent_pending === true && !options?.consentPendingAllowed) {
+      throw new ConsentRequiredError()
+    }
+    const userTier = tierProfile ? effectiveTierOf(tierProfile) : "free"
     // Pool-aware web spending (D1 v2): resolved against payg-ness here so the
     // surface flag can be threaded from any web-origin caller unconditionally.
     // P14: the same helper the preflight uses swaps these gates for the org

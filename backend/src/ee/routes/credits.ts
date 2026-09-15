@@ -12,7 +12,15 @@ import { PriceNotConfiguredError, type UserBalance } from "../billing/credits.js
 import { callerKeyHash } from "../../routes/oauth-register.js"
 import { config } from "../../lib/config.js"
 import { firstHeaderValue } from "../../lib/request-helpers.js"
-import { fallbackClaimDue, isForeignOrigin, readFreeGrant, runSignupGrantClaim } from "../billing/signup-grant.js"
+import {
+  fallbackClaimDue,
+  isForeignOrigin,
+  readFreeGrant,
+  readWelcomeOfferState,
+  runSignupGrantClaim,
+} from "../billing/signup-grant.js"
+import { welcomeClaimOptions } from "../billing/welcome-offer-claim-options.js"
+import { getWelcomeOfferConfig } from "../lib/welcome-offer-config.js"
 import { allowanceEnforcementActive, deploymentPayerActive, deploymentPayerId } from "../../lib/deployment-payer.js"
 import { allowanceFor } from "../billing/deployment-allowance-service.js"
 import { refusePayerBalanceToProgrammaticCaller } from "../lib/payer-balance-guard.js"
@@ -54,9 +62,13 @@ async function settleFreeGrant(
     })
     // Fresh account on our own page: the keyed claim may still be coming.
     if (!foreign && !fallbackClaimDue(grant.createdAt)) return { state: "unclaimed", moved: false }
+    // Welcome offer (when on): the keyless poll claims only once consent is
+    // granted — anywhere — and an extension-origin read claims at once and
+    // marks the consent as owed (welcomeClaimOptions).
     const outcome = await runSignupGrantClaim(
       { userId, browserKey: null, deviceKey: null, ipHash: callerKeyHash(req) },
       req.log,
+      await welcomeClaimOptions(req),
     )
     if (foreign) {
       // The host only — never the raw caller IP, which is what ipHash exists for.
@@ -69,6 +81,22 @@ async function settleFreeGrant(
   } catch (err) {
     req.log.warn({ err, userId }, "free grant fallback claim failed")
     return undefined
+  }
+}
+
+/**
+ * The welcome-offer fields for the balance payload — PRESENT only while the
+ * offer is on, so a client that sees them knows the popup / banner / block
+ * apply. Never throws: a missing column (dev ahead of migration 426) or a
+ * read error just leaves the key out, which every client renders as "off".
+ */
+async function welcomeOfferForBalance(userId: string): Promise<UserBalance["welcomeOffer"] | null> {
+  try {
+    const cfg = await getWelcomeOfferConfig()
+    if (!cfg.enabled) return null
+    return await readWelcomeOfferState(userId)
+  } catch {
+    return null
   }
 }
 
@@ -224,7 +252,12 @@ export async function creditsRoutes(app: FastifyInstance) {
       // Best-effort end to end: nothing here may break a balance read.
       const grant = dep ? undefined : await settleFreeGrant(userId, req)
       if (grant?.moved) balance = await CreditsService.getBalance(userId)
-      const data: UserBalance = grant ? { ...balance, freeGrantState: grant.state } : balance
+      const welcomeOffer = dep ? null : await welcomeOfferForBalance(userId)
+      const data: UserBalance = {
+        ...balance,
+        ...(grant ? { freeGrantState: grant.state } : {}),
+        ...(welcomeOffer ? { welcomeOffer } : {}),
+      }
 
       // D12 — the per-user allowance rides ALONGSIDE the balance; `total` is
       // never overloaded to mean it (getBalance has five non-test callers and
