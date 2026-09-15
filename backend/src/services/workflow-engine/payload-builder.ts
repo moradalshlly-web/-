@@ -4874,14 +4874,17 @@ export function buildPayload(
       // (one per speaker, in first-appearance order). Unmapped speakers pass
       // through unchanged when the array is shorter than the detected count.
       // NOTE: the orchestrator reserves credits via a flat model-identifier
-      // lookup ("voice-changer-pro" → 4 credits in STATIC_CREDIT_COSTS / model_pricing).
-      // The single-node route reserves credits dynamically, scaled to the
-      // number of mapped speakers. The orchestrator path has no equivalent
-      // per-node hook, so it reserves the flat base cost regardless of
-      // speaker count — under-reserving relative to what the worker
-      // actually commits on multi-speaker (>1 voice) runs. Follow-up: wire
-      // a dynamic per-node credit override into the orchestrator (same
-      // class of fix as the route's).
+      // lookup ("voice-changer-pro" → the per-MINUTE unit in STATIC_CREDIT_COSTS /
+      // model_pricing, i.e. one minute of one speaker's stem; see
+      // ee/billing/voice-changer-pro-credits.ts).
+      // The single-node route reserves credits dynamically, scaled to each
+      // mapped speaker's stem length. The orchestrator path has no equivalent
+      // per-node hook, so it reserves the flat unit regardless of speaker
+      // count or clip length — and because the count-based commit settles AT
+      // OR BELOW the reservation (workers/shared.ts commitJobCredits), a
+      // multi-speaker or longer-than-a-minute workflow run is UNDER-CHARGED,
+      // not merely under-reserved. Follow-up: wire a dynamic per-node credit
+      // override into the orchestrator (same class of fix as the route's).
       // A null entry means "keep this speaker's original voice" (cloud-plugins
       // orderedVoices contract) — preserve it positionally.
       //

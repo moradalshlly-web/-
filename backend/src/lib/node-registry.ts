@@ -612,7 +612,9 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-audio",
     description: "Detect each speaker in a multi-speaker recording and replace each one's voice independently, preserving words, timing and lip-sync. Provide an ordered list of target voices — voice N recasts the N-th speaker to talk; a null entry is a keep-slot (that speaker keeps their original voice). Per-voice engine: \"sts\" (default recast) or \"v3\" (Re-speak — regenerates the performance from the transcript with eleven_v3). Cloud edition only.",
     outputType: "audio",
-    creditCost: 4,
+    // Per started minute of one speech-to-speech voice's stem; Re-speak voices
+    // are priced per started 1K characters. See docs/nodes/ai-audio/voice-changer-pro.md.
+    creditCost: 40,
     capabilities: ["multi-speaker", "video-revoice", "dual-output-handles"],
     inputSchema: {
       fields: [

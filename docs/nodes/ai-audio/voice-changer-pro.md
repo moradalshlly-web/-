@@ -42,7 +42,7 @@ Each entry in **Ordered Voices** may be an object that pins per-speaker ElevenLa
 | Field | Type | Range | Default | Description |
 |-------|------|-------|---------|-------------|
 | `voiceId` | `string` | — | *(required)* | Target voice — premade name (`Rachel`, `Aria`, …) or an ElevenLabs UUID for a custom clone. |
-| `engine` | `"sts" \| "v3"` | — | `"sts"` | Which lane converts this speaker. `"sts"` is the classic speech-to-speech recast. `"v3"` is **Re-speak**: the performance is regenerated from the transcript with eleven_v3 (`[audio tags]` supported) — the original delivery is replaced, and lips won't match on video. A v3 speaker needs transcript text (the analysis now carries per-segment `text`, editable before conversion); without an analysis the engine re-speaks from its own transcription. For `"v3"`, stability accepts exactly 0 / 0.5 / 1, and `similarityBoost`/`style`/`useSpeakerBoost` are ignored. Priced per 1K characters of the re-spoken text (floor: one recast unit). |
+| `engine` | `"sts" \| "v3"` | — | `"sts"` | Which lane converts this speaker. `"sts"` is the classic speech-to-speech recast. `"v3"` is **Re-speak**: the performance is regenerated from the transcript with eleven_v3 (`[audio tags]` supported) — the original delivery is replaced, and lips won't match on video. A v3 speaker needs transcript text (the analysis now carries per-segment `text`, editable before conversion); without an analysis the engine re-speaks from its own transcription. For `"v3"`, stability accepts exactly 0 / 0.5 / 1, and `similarityBoost`/`style`/`useSpeakerBoost` are ignored. Priced per started 1K characters of the re-spoken text (see Credit Pricing). |
 | `stability` | `number` | 0–1 | model default | Higher = steadier and more consistent; lower = more expressive and variable. |
 | `similarityBoost` | `number` | 0–1 | model default | How closely the output hugs the target voice's timbre. |
 | `style` | `number` | 0–1 | `0` | Style exaggeration. `>0` amplifies delivery at the cost of latency / stability. |
@@ -81,18 +81,50 @@ The reverb presets use `wetDryMix`; the `echo` and `custom` presets use `delayMs
 
 ## Credit Pricing
 
-| Voices mapped | Credits |
+Each **recast** (non-null) entry in your Ordered Voices list is priced by the
+audio it converts. A speech-to-speech voice is billed **by the length of its
+stem** — the stem runs from the start of the clip to that speaker's last
+line — at the `voice-changer-pro` rate (40 credits per minute, prorated per
+second and rounded up to the next credit). A Re-speak
+(`engine: "v3"`) voice is billed **per started 1,000 characters** of the text
+it re-speaks at the `voice-changer-pro-respeak` rate (30 credits per 1K).
+Every voice has a floor of 4 credits (six billable seconds), and so does the
+run as a whole.
+
+```
+sts voice      = max(4, ceil(40 × stemSeconds / 60))
+re-speak voice = max(4, ceil(chars / 1000) × 30)
+total          = max(4, sum of every recast voice)
+```
+
+| Recast voices | Credits |
 |---------------|---------|
-| 1 speaker | 4 |
-| 2 speakers | 8 |
-| 3 speakers | 12 |
-| N speakers | 4 × N |
+| 1 speech-to-speech voice, last line ends at 26.76 s | 18 |
+| 1 speech-to-speech voice, 60 s stem | 40 |
+| 1 speech-to-speech voice, 61 s stem | 41 |
+| 1 speech-to-speech voice, 3 s stem | 4 (floor) |
+| 2 speech-to-speech voices at 60 s + 1 Re-speak voice of 1,500 chars | 40 + 40 + 60 = 140 |
 
-Credit cost is **4 credits per mapped speaker** (per recast pass). Unmapped speakers (those beyond the length of your Ordered Voices list) are passed through without charge.
+Unmapped speakers (those beyond the length of your Ordered Voices list) and
+keep-slots (`null` entries) are passed through without charge — credits count
+only the **recast** entries. The per-minute and per-1K rates are the credit
+identifiers `voice-changer-pro` and `voice-changer-pro-respeak`; the
+`analyze` step (`voice-changer-pro-analyze`, 10 credits) and the `export`
+step (`voice-changer-pro-export`, 1 credit) are flat.
 
-Keep-slots are free: a `null` entry reserves and charges nothing — credits count only the **recast** (non-null) entries.
+> **Reservation vs. charge:** the reservation is sized from the `analysis`
+> you send (each speaker's last segment end, each Re-speak speaker's text).
+> The worker measures the stems it actually converted and commits that
+> amount, never more than the reservation. A recast sent **without** an
+> analysis reserves one minute per speech-to-speech voice (and one 1K bucket
+> per Re-speak voice) and settles under that ceiling.
 
-> **Note (workflow execution):** When running via the workflow orchestrator (server-side), the orchestrator reserves a flat **4 credits** at job creation time and the worker commits the actual `4 × mappedCount` on completion. For single-speaker workflows there is no under-reserve. For multi-speaker runs the orchestrator may temporarily reserve fewer credits than the worker commits — the final charge is always correct. Single-node runs (clicking Run on the canvas) reserve the correct dynamic amount up front.
+> **Note (workflow execution):** When running via the workflow orchestrator
+> (server-side), the orchestrator reserves the flat `voice-changer-pro` unit
+> (one minute of one voice) at job creation time, and the charge is capped
+> at that reservation — a longer or multi-speaker workflow run is charged
+> the unit, not the measured amount. Single-node runs (clicking Run on the
+> canvas) and API/SDK/MCP calls reserve the measured amount up front.
 
 ## Video Mode
 

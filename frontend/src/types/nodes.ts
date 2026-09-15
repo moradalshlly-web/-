@@ -7636,7 +7636,10 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     type: "voice-changer-pro",
     label: "Voice Changer Pro",
     category: "ai",
-    creditCost: 4,
+    // The per-MINUTE unit: one minute of one speech-to-speech voice's stem
+    // (ee/billing/voice-changer-pro-credits.ts). The run is priced by the
+    // stems it converts; this is the orchestrator's flat reserve.
+    creditCost: 40,
     inputs: ["audio", "video"],
     outputs: ["audio", "video"],
     defaultData: {

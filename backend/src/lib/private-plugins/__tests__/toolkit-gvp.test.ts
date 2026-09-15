@@ -134,6 +134,36 @@ describe("toolkit.ts — generate-video-pro members", () => {
       ).resolves.toEqual({ id: "row-2", created: true })
     })
 
+    // `makeChain`'s `insert` is an untyped vi.fn, so its recorded calls are
+    // typed as an empty tuple — read the first argument through `unknown`.
+    const insertedRow = (chain: ReturnType<typeof makeChain>): Record<string, unknown> =>
+      (chain.insert.mock.calls as unknown as unknown[][])[0]?.[0] as Record<string, unknown>
+
+    it("stamps the calling surface UNDER the plugin's row when the request is passed (caller wins)", async () => {
+      // A bare request (no Origin, no client header, not internal, no app
+      // authorization) derives to source "api" — see lib/job-source.ts.
+      const chain = makeChain({ data: { id: "row-3" }, error: null })
+      mockFrom.mockReturnValue(chain)
+      const req = { headers: {}, body: {}, isInternalCall: false } as unknown as import("fastify").FastifyRequest
+
+      await tk.http.insertJobWithIdempotencyKey({ user_id: "u1", app_slug: "voice-changer-pro" }, null, undefined, req)
+
+      expect(insertedRow(chain)).toMatchObject({ user_id: "u1", app_slug: "voice-changer-pro", source: "api", source_detail: null })
+
+      // The plugin's own `source` still wins over the derived one.
+      const chain2 = makeChain({ data: { id: "row-4" }, error: null })
+      mockFrom.mockReturnValue(chain2)
+      await tk.http.insertJobWithIdempotencyKey({ user_id: "u1", source: "internal" }, null, undefined, req)
+      expect(insertedRow(chain2).source).toBe("internal")
+    })
+
+    it("leaves the row unstamped when no request is passed (an older plugin)", async () => {
+      const chain = makeChain({ data: { id: "row-5" }, error: null })
+      mockFrom.mockReturnValue(chain)
+      await tk.http.insertJobWithIdempotencyKey({ user_id: "u1" }, null)
+      expect(insertedRow(chain)).not.toHaveProperty("source")
+    })
+
     it("maps a dedup hit (conflict on the idempotency key) to {id, created: false}", async () => {
       // upsert().select() resolves EMPTY (ignoreDuplicates conflict), then the
       // fallback select().eq().eq().single() resolves the winner's row.
