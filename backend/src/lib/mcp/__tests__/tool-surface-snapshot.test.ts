@@ -202,6 +202,23 @@ const SCENE3D_MECHANICAL_PASSES_BYTES = 402
 // move, and neither tool is near the per-tool budget. The 85 B of headroom the
 // list had before is exactly the headroom it has after.
 const SCENE3D_REVIEW_UNAVAILABLE_BYTES = 302
+//
+// RAISED 2026-09-15 by the second REASON an unreviewed scene carries, and
+// nothing else. `metadata.review` with `verdict: "unavailable"` used to have one
+// cause, so "its provider never answered" was the whole clause. Plugin round 10ag
+// adds `reason: "unusable"`: the provider DID answer, with nothing usable, on
+// every asking. An agent told "its provider never answered" relays an outage to
+// its user about a provider that was up, and retries later for nothing. The
+// clause now says "no usable verdict" and names both reasons. Said once per tool,
+// on `generate_3d_scene` and `pro_3d_render`. Measured as the JSON delta of the
+// `generate_3d_scene` description: 60 B. `pro_3d_render` carries the same clause
+// and costs NOTHING here, because it registers only where an advanced engine is
+// installed and so is not in this list at all. No tool was added, so the fixture
+// does NOT move. Measured by this suite on 2026-09-15: 348_759 total against a
+// budget of 350_079 with this raise, so the headroom before and after it is
+// the same 1_320 B — the list had shrunk since the 85 B the entries above record,
+// and this raise spends none of that slack.
+const SCENE3D_REVIEW_UNUSABLE_BYTES = 60
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:

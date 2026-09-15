@@ -100,12 +100,15 @@ the visual reviewer's approval, in two ways:
   lasts; once that budget is spent the scene is delivered rather than withheld.
   `metadata.review` is `{ verdict: "refused", objections[], observed? }`, plus
   one `validation.warnings[]` entry coded `SCENE_REVIEW_REFUSED` per objection.
-- **nobody could ask it.** The review's own provider never answered. A repair
-  cannot help — a repair answers an objection, and an outage raises none — so
-  the review is asked once more after a bounded pause and, if it is still
-  unreachable, the scene is delivered unreviewed. `metadata.review` is
-  `{ verdict: "unavailable", reason: "provider", attempts, objections[],
-  observed? }`, and `validation.warnings[]` **leads** with one
+- **nobody could ask it.** The review produced no usable verdict: its provider
+  never answered, or answered with nothing usable. A repair cannot help — a
+  repair answers an objection, and a missing opinion raises none — so the review
+  is asked once more (after a bounded pause for an outage, at once for an
+  unusable answer, not at all when a provider broke after it had already
+  reported usage) and, if there is still no usable verdict, the scene is
+  delivered unreviewed. `metadata.review` is `{ verdict: "unavailable", reason,
+  attempts, objections[], observed? }` with `reason` `"provider"` or
+  `"unusable"`, and `validation.warnings[]` **leads** with one
   `SCENE_REVIEW_UNAVAILABLE` entry.
 
 Either way the job reaches `completed`, the MP4 is real, and the credits commit.

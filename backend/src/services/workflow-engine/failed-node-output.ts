@@ -11,7 +11,8 @@ import type { NodeOutput } from "./types.js"
  * accepted it, the builder exported it, and `jobs.output_data` carries the
  * draft (`scenePlan`, `sceneRevisionId`, `deliveryId`, `posterAssetId`,
  * `validation`, `metadata.review`). That revision was billed and published.
- * A run whose visual review never reached its provider retains the same shape
+ * A run whose visual review gave no usable verdict (never reached its provider,
+ * or answered unusably) retains the same shape
  * under `SCENE_REVIEW_UNAVAILABLE`, minus the `metadata` block — a scene NOBODY
  * judged, whose `validation.warnings[]` leads with that code instead. Neither
  * error code appears below, which is why the second one needed no change.

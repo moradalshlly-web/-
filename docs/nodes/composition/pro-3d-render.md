@@ -115,7 +115,7 @@ The completed job's `output_data` carries the fields below. A job that failed
 with `SCENE_QUALITY_FAILED` carries a smaller set of the same fields, pointing
 at the draft it kept — see [Errors](#errors). A completed job may also have been
 delivered **without the visual reviewer's approval** — the scene passed every
-mandatory check, and the reviewer either objected or never answered at all —
+mandatory check, and the reviewer either objected or gave no usable verdict at all —
 which adds `metadata.review`; see
 [When a scene that passed is delivered unapproved](#when-a-scene-that-passed-is-delivered-unapproved).
 
@@ -130,7 +130,7 @@ which adds `metadata.review`; see
 | `validation` | `{ status, reportAssetId, warnings[] }` — each warning has a `code`, a `message` and an optional `shotId`. `status` is `passed` here; a **failed** job can carry this field too, with `status: "failed"` (see [Errors](#errors)). See [Warning codes](#warning-codes) for what a `code` can be. |
 | `renderer` | Renderer identity/version the export was produced with. |
 | `metadata` | `{ width, height, fps, frames, duration }` — check these against a downstream model's video-reference limits before wiring the MP4 in. On a run that authored, it also carries `summary`: the planner's own one-or-two-sentence description of what it made, and on a repaired run, of the repair. Optional — a run that returned no summary is not an error. On a delivery the reviewer did not approve it additionally carries `review` (below). |
-| `metadata.review` | Present **only** on a delivery the visual reviewer did not approve. Read `verdict` — it is the discriminant, and it has two values. `{ verdict: "refused", objections[], observed? }` is the scene the reviewer objected to and that was delivered anyway. `{ verdict: "unavailable", reason: "provider", attempts, objections[], observed? }` is the scene **nobody reviewed**: the review never reached its provider in `attempts` asks, so no verdict on it exists. Each objection is `{ category, what, correction?, frames[] }` — `what` is the finding itself, `correction` the recipe-level change it asked for where it named one, and `frames` the frames it cited. There is no `severity`: only blocking findings become objections. `objections` may be **empty**, which reports a refusal that named nothing actionable; on the `unavailable` arm it holds whichever review batches answered before the outage, which are **not** the verdict. Absent on every other result, including a clean one. |
+| `metadata.review` | Present **only** on a delivery the visual reviewer did not approve. Read `verdict` — it is the discriminant, and it has two values. `{ verdict: "refused", objections[], observed? }` is the scene the reviewer objected to and that was delivered anyway. `{ verdict: "unavailable", reason, attempts, objections[], observed? }` is the scene **nobody reviewed**: the review produced no usable verdict in `attempts` asks, so no verdict on it exists. `reason` says why — `"provider"` when the review never reached its provider, `"unusable"` when the provider answered with nothing usable. Each objection is `{ category, what, correction?, frames[] }` — `what` is the finding itself, `correction` the recipe-level change it asked for where it named one, and `frames` the frames it cited. There is no `severity`: only blocking findings become objections. `objections` may be **empty**, which reports a refusal that named nothing actionable; on the `unavailable` arm it holds whichever review batches answered usably first, which are **not** the verdict. Absent on every other result, including a clean one. |
 | `repairPasses` | How many repair passes actually RAN, never the number of authoring passes — so a composition accepted first time reports `0`, not `1`. Optional, and **absent** rather than `0` on a render-only export, which authored nothing and had no repair budget to spend. |
 | `admissionRetries` | Pre-build planner retries: a recipe the compiler would not admit is re-asked of the planner, with no build and no repair pass spent. Counted apart from `repairPasses` and never folded into it — they buy different things. Optional, and absent on a run that needed none. |
 | `mechanicalPasses` | Repairs the engine applied **itself**, from the compiler's own structured remedy, with no planner call. Counted **apart** from `repairPasses` and never folded into it: these passes spend their own quoted allowance — the `mechanical` line, up to 2, released when unspent — rather than one of your repairs, so a run may report more mechanical passes than repairs. The pass identity the pricing keeps is `buildPasses = authoringPasses + repairPasses + mechanicalPasses`. Each one also adds a `REMEDY_AUTO_APPLIED` warning. Optional, and absent both when the run took none and on an engine that does not report it. See [The mechanical-pass allowance](#the-mechanical-pass-allowance). |
@@ -146,11 +146,12 @@ than an error — the list is open-ended by design.
 |---|---|
 | `SCENE_AUTHORING_ASSUMPTION` | The brief did not say, so the run decided. One entry per assumption the planner made, with any normalization the engine applied to it. These appear on a run that **authored**; a render-only export has none. |
 | `SCENE_REVIEW_REFUSED` | One objection the visual reviewer raised against a scene this job **delivered anyway**. One entry per objection, carrying a `shotId` when every frame it cites falls inside one shot. The whole verdict, including any objection the row could not fit, is in `metadata.review`. |
-| `SCENE_REVIEW_UNAVAILABLE` | **Nobody reviewed this scene.** The visual review never reached its provider, so the assertion-passing scene was delivered — or, where the deployment does not deliver unapproved scenes, retained as a draft — with no verdict on it. One entry, and it **leads** the array: it qualifies every line under it, because any `SCENE_REVIEW_REFUSED` entry below came from a review that never finished. The message says how many times the review was asked. |
+| `SCENE_REVIEW_UNAVAILABLE` | **Nobody reviewed this scene.** The visual review produced no usable verdict — it never reached its provider, or the provider answered with nothing usable — so the assertion-passing scene was delivered — or, where the deployment does not deliver unapproved scenes, retained as a draft — with no verdict on it. One entry, and it **leads** the array: it qualifies every line under it, because any `SCENE_REVIEW_REFUSED` entry below came from a review that never finished. The message says which of the two it was, and how many times the review was asked. |
 | `REMEDY_AUTO_APPLIED` | One remedy the engine applied **itself** on a mechanical repair pass, rather than asking the planner for a fix. Names the mandatory assertion that refused the build, the change that was applied, and the measurement before it. One entry per remedy; the count of such passes is `mechanicalPasses`. |
 | `ASSERTION_RESTORED` | One mandatory assertion the engine put **back** after a planner answer re-shaped it without being asked to. A repair may change what the feedback names; an assertion outside that invitation is restored to its last admitted form and the run continues. Names the assertion, the edit that restored it and why. Counted by `restoredAssertions`. |
 | `SCENE_QUALITY_BLOCKING` | The paid visual reviewer found a blocking problem with the built scene. Carries a `shotId` when the cited frames all fall inside one shot. |
 | `SCENE_QUALITY_EVIDENCE_INSUFFICIENT` | The reviewer could not establish the requested behaviour from the frames it was given. |
+| `SCENE_STAGE_AMBIGUOUS` | A paid stage call — the planner's, for example — whose worker stopped mid-call (a deploy or restart), so its outcome is unknown. The run does not repeat a call it may already have paid for; it ends instead, and this entry names the call. It appears among the refusals on a **failed** job that retained its draft. |
 
 The reviewer's findings reach you under **two** different codes, and which one
 you get says what happened to the scene:
@@ -309,7 +310,7 @@ the third is not:
 
 | Code | Retry? | Meaning |
 |---|---|---|
-| `SCENE_PROVIDER_UNAVAILABLE` | Yes, after a few minutes | The scene **planner's** model provider was unavailable, overloaded or rate-limited, or the call never received an answer. The brief was not the problem. A *visual review* whose provider is unreachable no longer ends the run this way: it is asked again after a bounded pause, and the assertion-passing scene is then delivered unreviewed — see [When a scene that passed is delivered unapproved](#when-a-scene-that-passed-is-delivered-unapproved). |
+| `SCENE_PROVIDER_UNAVAILABLE` | Yes, after a few minutes | The scene **planner's** model provider was unavailable, overloaded or rate-limited, or the call never received an answer. The brief was not the problem. A *visual review* that gives no usable verdict no longer ends the run this way. A review whose provider was unreachable before it reported any usage is asked again after a bounded pause. A review whose provider broke after it had already streamed usage goes straight to the unreviewed delivery, with no second paid asking. A review that answered unusably is asked once more, and the retry is not billed. If there is still no usable verdict, the assertion-passing scene is delivered unreviewed, with `metadata.review.reason` saying which — see [When a scene that passed is delivered unapproved](#when-a-scene-that-passed-is-delivered-unapproved). |
 | `SCENE_PLANNING_TIMEOUT` | Yes | Planning ran past its time bound. Retry, or shorten the brief and reference set. |
 | `SCENE_PLANNER_OUTPUT_INVALID` | No, not unchanged | The provider answered, but the recipe it produced could not be accepted by the compiler. Simplify the brief or use fewer references. |
 
@@ -335,19 +336,32 @@ scene:
 | `metadata.review` | the whole verdict: `{ verdict: "refused", objections[], observed? }` |
 | `validation.warnings[]` | one `SCENE_REVIEW_REFUSED` entry per objection, tagged with a `shotId` where the cited frames fall inside one shot |
 
-**Nobody could review it.** The review's own provider never answered. A repair
-cannot help here — a repair answers an objection, and an outage raises none — so
-the run does not wait for the repair budget at all: it asks the review once more
-after a bounded pause, and if it is still unreachable it delivers the
-assertion-passing scene immediately, unreviewed. Nothing is spent on the asking:
-the review unit is **unbilled** on a call the provider never answered, and the
-delivery bills exactly as the refused one does — authoring, build, render and
-export, with the quote's `validation` line (`Validation frames`) settling at
-zero.
+**Nobody could review it.** The review produced no usable verdict. A repair
+cannot help here — a repair answers an objection, and a missing opinion raises
+none — so the run does not wait for the repair budget at all. What it does next
+depends on why the verdict is missing:
+
+- **The provider was never reached**, and the asking reported no usage. The run
+  asks once more after a bounded pause. An asking the provider never answered
+  is **unbilled**.
+- **The provider broke after it had already streamed usage.** That asking was
+  paid for, so it is not asked a second time. The scene is delivered
+  unreviewed at once.
+- **The provider answered, but with nothing usable**: an answer that failed the
+  review contract, one that cited a frame it was never shown, or a refusal that
+  was not a transport fault. The run asks once more straight away. The retry is
+  **not billed**: the review keeps the one validation charge its first asking
+  made.
+
+If there is still no usable verdict, the run delivers the assertion-passing
+scene immediately, unreviewed. The delivery bills exactly as the refused one
+does — authoring, build, render and export — and the quote's `validation` line
+(`Validation frames`) charges only for an asking that reported usage, once per
+review batch however many times it was asked, settling at zero when none did.
 
 | Where | What |
 |---|---|
-| `metadata.review` | `{ verdict: "unavailable", reason: "provider", attempts, objections[], observed? }` — `attempts` is how many times the review was asked, so one unlucky call is distinguishable from a provider that was down throughout |
+| `metadata.review` | `{ verdict: "unavailable", reason, attempts, objections[], observed? }` — `reason` is `"provider"` when no asking reached the provider and `"unusable"` when one did and got nothing usable back; `attempts` is how many times the review was asked, so one unlucky call is distinguishable from a provider that was down throughout |
 | `validation.warnings[]` | **leads** with one `SCENE_REVIEW_UNAVAILABLE` entry, then one `SCENE_REVIEW_REFUSED` per surviving objection |
 
 Three things about reading either are worth stating plainly, because the obvious
@@ -361,9 +375,9 @@ tests all fail:
   hiding it. Counting `SCENE_REVIEW_REFUSED` warnings will not find that one
   either.
 - **objections under an `unavailable` verdict are not the verdict.** A review is
-  batched, and those are whichever batches answered before the provider went
-  away — real findings, but not a judgement of the scene. Reading `objections:
-  []` there as approval is the same mistake, one step further out.
+  batched, and those are whichever batches answered usably before one did not —
+  real findings, but not a judgement of the scene. Reading `objections: []`
+  there as approval is the same mistake, one step further out.
 
 The presence of `metadata.review` is the reliable test, and `verdict` is what
 you branch on:
@@ -371,10 +385,11 @@ you branch on:
 ```typescript
 const review = shot.metadata?.review;
 if (review?.verdict === "unavailable") {
-  // Delivered, and NOBODY judged it: the review never reached its provider in
-  // review.attempts asks. The video is usable; there is simply no opinion on it.
+  // Delivered, and NOBODY judged it: no usable verdict in review.attempts asks.
+  // review.reason is "provider" (never reached) or "unusable" (answered with
+  // nothing usable). The video is usable; there is simply no opinion on it.
   // Any objections here are partial batches, not a verdict.
-  console.log(`unreviewed after ${review.attempts} attempts`);
+  console.log(`unreviewed (${review.reason}) after ${review.attempts} attempts`);
 } else if (review) {
   // Delivered, and the reviewer objected. The video is usable; decide whether
   // this particular objection matters to you.
@@ -412,7 +427,7 @@ MP4 yourself.
 budget without a scene it could stand behind. That happens when a **mandatory**
 check failed on the last build, or when the compiler refused the recipe outright
 — not when the visual reviewer alone objected to a scene that otherwise passed,
-and not when no reviewer could be reached for one, both of which are the
+and not when the review gave no usable verdict on one, both of which are the
 unapproved deliveries above. Where a deployment does *not* deliver unapproved
 scenes, an unreviewed one is retained here instead, and its
 `validation.warnings[]` leads with `SCENE_REVIEW_UNAVAILABLE` — a failed job

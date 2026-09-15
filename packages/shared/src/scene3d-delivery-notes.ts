@@ -4,7 +4,7 @@
  * An advanced authoring engine knows things about the scene it just made that nothing else can
  * reconstruct afterwards: which parts of the brief it had to ASSUME, what it thinks it authored,
  * what it spent getting there, and — when the scene was delivered without the visual reviewer's
- * approval — what that reviewer wanted changed, or that it never answered at all. All of it
+ * approval — what that reviewer wanted changed, or that it gave no usable verdict at all. All of it
  * rides the completed job's `output_data`, in slots the delivery contract already had:
  *
  * | What | Where | Shape |
@@ -18,7 +18,7 @@
  * | mandatory assertions the engine put BACK after a planner answer re-shaped them | `restoredAssertions` | array of {@link Scene3DRestoredAssertion} |
  * | the per-assertion account of one of those restores | `validation.warnings[]` | one entry per restore, `code` = {@link SCENE3D_ASSERTION_RESTORED_CODE} |
  * | the visual reviewer's refusal of a scene that was delivered anyway | `metadata.review` + `validation.warnings[]` | {@link Scene3DReviewVerdict} with `verdict: "refused"`, plus one entry per objection coded {@link SCENE3D_REVIEW_REFUSED_CODE} |
- * | that no reviewer could be reached at all, and the scene was delivered unreviewed | `metadata.review` + `validation.warnings[]` | {@link Scene3DReviewVerdict} with `verdict: "unavailable"`, plus one LEADING entry coded {@link SCENE3D_REVIEW_UNAVAILABLE_CODE} |
+ * | that the review produced no usable verdict at all — its provider was never reached, or answered unusably — and the scene was delivered unreviewed | `metadata.review` + `validation.warnings[]` | {@link Scene3DReviewVerdict} with `verdict: "unavailable"` and a `reason` from {@link SCENE3D_REVIEW_UNAVAILABLE_REASONS}, plus one LEADING entry coded {@link SCENE3D_REVIEW_UNAVAILABLE_CODE} |
  *
  * Every one of them is OPTIONAL, and absent is a first-class answer:
  *
@@ -66,15 +66,18 @@
  *
  * ## The UNREVIEWED delivery
  *
- * The second way a scene is delivered without approval: the review's own provider never answered.
+ * The second way a scene is delivered without approval: the review produced no usable verdict.
  * That is the advisory situation with a different cause, and it differs in exactly one way — a
- * repair answers an objection, and an outage raises none, so waiting for the repair budget to run
- * out buys nothing. The review is asked once more after a bounded pause; if it is still
- * unreachable, the assertion-passing scene is delivered immediately with
- * `{ verdict: "unavailable", reason: "provider", attempts }` on {@link
+ * repair answers an objection, and a missing opinion raises none, so waiting for the repair budget
+ * to run out buys nothing. The review is asked once more — after a bounded pause when its provider
+ * was unreachable, at once when it answered unusably, and not at all when a provider broke after it
+ * had already reported usage — and if there is still no usable answer, the assertion-passing scene
+ * is delivered immediately with `{ verdict: "unavailable", reason, attempts }` on {@link
  * Scene3DAuthoringDeliveryMetadata.review}, and `validation.warnings[]` LEADS with one
- * `SCENE_REVIEW_UNAVAILABLE` entry. `attempts` is how many times the review was asked, so one
- * unlucky call is distinguishable from a provider that was down for the whole minute.
+ * `SCENE_REVIEW_UNAVAILABLE` entry. `reason` is one of {@link SCENE3D_REVIEW_UNAVAILABLE_REASONS}:
+ * `"provider"` when no asking reached the provider, `"unusable"` when one did and answered with
+ * nothing usable. `attempts` is how many times the review was asked, so one unlucky call is
+ * distinguishable from a provider that was down for the whole minute.
  *
  * `objections` may still be non-empty on that arm. A review is BATCHED, and batches that answered
  * before the provider went away are evidence a caller is entitled to; each arrives as a
@@ -105,7 +108,8 @@ export interface Scene3DDeliveryWarning {
    * `SCENE_AUTHORING_ASSUMPTION` for an authoring caveat; `SCENE_REVIEW_REFUSED` for one
    * objection the reviewer raised against a scene that was DELIVERED anyway;
    * `SCENE_REVIEW_UNAVAILABLE` for a scene delivered or retained with NO reviewer verdict at all,
-   * because the review's provider never answered — it leads the array when it is there;
+   * because the review's provider never answered or answered unusably — it leads the array when it
+   * is there;
    * `REMEDY_AUTO_APPLIED` for one remedy the engine applied itself on a mechanical repair;
    * `ASSERTION_RESTORED` for one mandatory assertion it put back after a planner answer
    * re-shaped it; a `SCENE_QUALITY_*` code for a reviewer finding on a job that FAILED.
@@ -235,7 +239,8 @@ export const SCENE3D_REVIEW_REFUSED_CODE = "SCENE_REVIEW_REFUSED"
 
 /**
  * The `code` on the `validation.warnings[]` entry that says NOBODY reviewed this scene, because
- * the review's own provider never answered.
+ * the review produced no usable verdict: its provider never answered, or answered unusably (the
+ * message says which, in the words {@link scene3DReviewNote} uses).
  *
  * Its own code rather than a {@link SCENE3D_REVIEW_REFUSED_CODE} with an apologetic message:
  * "the reviewer objected to X" and "there is no reviewer verdict at all" are different facts
@@ -319,8 +324,8 @@ export interface Scene3DReviewFindings {
   /**
    * Every blocking finding across the run's reviews, de-duplicated. May be EMPTY: a refusal that
    * named nothing actionable is still a refusal, and `[]` reports it honestly. On the
-   * `"unavailable"` arm it holds whichever review BATCHES answered before the provider went away,
-   * and is `[]` in the common case where the first batch is the one that failed.
+   * `"unavailable"` arm it holds whichever review BATCHES answered usably before the one that did
+   * not, and is `[]` in the common case where the first batch is the one that failed.
    */
   objections: Scene3DReviewObjection[]
   /** The reviewer's own account of what it found CORRECT. Never a substitute for an objection. */
@@ -340,22 +345,53 @@ export type Scene3DReviewRefused = { verdict: "refused" } & Scene3DReviewFinding
  */
 export type Scene3DReviewUnavailable = {
   verdict: "unavailable"
-  /** Why the verdict is missing. Only `"provider"` today; a union so a new cause is additive. */
-  reason: "provider"
   /**
-   * How many times the review was ASKED — the call plus its retries, so `2` on the common outage.
-   * A caller can tell one unlucky call apart from a provider that was down for the whole pause.
-   * Always a positive integer.
+   * Why the verdict is missing — one of {@link SCENE3D_REVIEW_UNAVAILABLE_REASONS}. `"provider"`:
+   * the review never reached its provider. `"unusable"`: it was reached, and answered with nothing
+   * usable. The delivery is the same unreviewed scene either way; the reason changes the sentence
+   * ({@link scene3DReviewNote}), because "did not reach its provider" is untrue of a provider that
+   * answered.
+   */
+  reason: Scene3DReviewUnavailableReason
+  /**
+   * How many times the review was ASKED — the call plus its retry, so `2` on the common outage and
+   * on an unusable answer. `1` when a provider broke after it had already reported usage: that
+   * asking was paid, so it is not asked a second time. Always a positive integer.
    */
   attempts: number
 } & Scene3DReviewFindings
+
+/**
+ * Every cause a {@link Scene3DReviewUnavailable} verdict can name, written down ONCE.
+ *
+ * The reader schema (`pro3DRenderReviewVerdictSchema`), {@link scene3DReviewVerdictOf} and
+ * {@link scene3DReviewNote} all read this list rather than spelling their own, so a cause the
+ * engine adds is taught here and nowhere else. A wire value NOT in it is read as `"provider"` by
+ * both tolerant readers — the only cause an older engine emits — instead of discarding a verdict
+ * on a scene that was delivered and paid for.
+ *
+ * - `"provider"` — the review never reached its provider: an outage, or a call that broke before it
+ *   produced an answer.
+ * - `"unusable"` — at least one asking REACHED the provider, and no asking got a usable answer
+ *   back: an answer that failed the review contract, one that cited a frame the batch never
+ *   supplied, or a host refusal that is not a transport fault.
+ */
+export const SCENE3D_REVIEW_UNAVAILABLE_REASONS = ["provider", "unusable"] as const
+
+/** One of {@link SCENE3D_REVIEW_UNAVAILABLE_REASONS}. */
+export type Scene3DReviewUnavailableReason = (typeof SCENE3D_REVIEW_UNAVAILABLE_REASONS)[number]
+
+/** Whether a wire value is a reason this package knows. The one guard both tolerant readers share. */
+export function isScene3DReviewUnavailableReason(value: unknown): value is Scene3DReviewUnavailableReason {
+  return (SCENE3D_REVIEW_UNAVAILABLE_REASONS as readonly unknown[]).includes(value)
+}
 
 /**
  * The visual reviewer's verdict on a scene that was delivered WITHOUT its approval.
  *
  * `verdict` is the discriminant, and it is the only one: an ACCEPTED review produces no verdict
  * at all, because a result that carries this field is by definition one the reviewer did not
- * approve. The two arms say WHY it did not — it objected, or it never answered — and a consumer
+ * approve. The two arms say WHY it did not — it objected, or it gave no usable answer — and a consumer
  * that switches on `verdict` gets a compile-time answer for both.
  *
  * Deliberately NOT a second `status` field beside `verdict`: a caller written against the
@@ -409,7 +445,10 @@ export function scene3DReviewVerdictOf(output: unknown): Scene3DReviewVerdict | 
   if (candidate.verdict === "refused") return { verdict: "refused", ...findings }
   const attempts = typeof candidate.attempts === "number" && Number.isSafeInteger(candidate.attempts)
     && candidate.attempts > 0 ? candidate.attempts : 1
-  return { verdict: "unavailable", reason: "provider", attempts, ...findings }
+  // Kept when it is a cause this package knows, and read as `"provider"` otherwise — the same
+  // fallback the reader schema applies, so the two readers never disagree about one row.
+  const reason = isScene3DReviewUnavailableReason(candidate.reason) ? candidate.reason : "provider"
+  return { verdict: "unavailable", reason, attempts, ...findings }
 }
 
 /**
@@ -432,8 +471,14 @@ export function scene3DReviewNote(verdict: Scene3DReviewVerdict): string {
       ? ` Part of the review did answer first, and its ${verdict.objections.length === 1
         ? "one finding is" : `${verdict.objections.length} findings are`} listed — but they are not the whole verdict.`
       : ""
-    return "The scene built and every mandatory assertion passed, but the visual review did not "
-      + `reach its provider in ${asked}; it was delivered unreviewed.${partial}`
+    // The reason picks the clause, and nothing else: "did not reach its provider" is untrue of a
+    // provider that answered, and the engine's own `SCENE_REVIEW_UNAVAILABLE` warning says the
+    // same run in these same words, so a banner and the warning under it never disagree.
+    const missing = verdict.reason === "unusable"
+      ? `returned no usable verdict in ${asked}`
+      : `did not reach its provider in ${asked}`
+    return `The scene built and every mandatory assertion passed, but the visual review ${missing}; `
+      + `it was delivered unreviewed.${partial}`
   }
   const count = verdict.objections.length
   if (!count) {
