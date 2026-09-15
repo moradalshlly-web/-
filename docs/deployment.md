@@ -1234,8 +1234,17 @@ choose “Re-run all jobs” to regenerate the outputs. Full reruns replace the
 artifacts for that run; artifacts are never reused across workflow runs.
 
 A private-repository runner pilot can route the two main test suites to runners
-labelled `self-hosted,linux,x64,nodaro-ci-pilot` by setting the repository variable
-`CI_RAILWAY_PILOT_BRANCH` to a same-repository PR branch. Public forks and normal
-production runs stay hosted. Clear the variable and rerun to return pilot jobs
-to hosted runners. Docker build contexts exclude local session state, reports
+labelled `self-hosted,linux,x64,nodaro-ci` by setting the repository variable
+`CI_RAILWAY_PILOT_BRANCH` to a same-repository PR branch. After verifying the
+pool's capacity and unattended scheduling, `CI_RAILWAY_ENABLED=true` enables
+routing for trusted PRs and post-merge production tests. Public forks and
+mirrors stay hosted. Clear both variables and rerun to return tests to hosted
+runners. Docker build contexts exclude local session state, reports
 and test files; the full CI test and typecheck jobs continue to use the checkout.
+
+The optional disposable Railway runner pool is documented in
+[`tools/ci-runner/README.md`](../tools/ci-runner/README.md). Its controller holds
+the administrative credentials; each runner receives only a single-use job
+identity and exits after one job. Deploying the pool does not enable CI routing.
+Railway test runners restore npm downloads from the hosted preparation cache
+without saving a second copy. Cache misses still use a clean `npm ci`.

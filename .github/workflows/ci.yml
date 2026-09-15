@@ -112,11 +112,12 @@ jobs:
 
   frontend-tests:
     name: Frontend Tests
+    timeout-minutes: 45
     needs: [changes, prepare-packages]
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.prepare-packages.result != 'success' || needs.changes.outputs.frontend == 'true') }}
-    # Pilot opt-in is restricted to same-repository PRs on the named branch.
-    # An unset pilot branch leaves normal hosted scheduling in place.
-    runs-on: ${{ github.repository == 'nodaroai/app.nodaro.ai-internal' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.CI_RAILWAY_PILOT_BRANCH != '' && github.head_ref == vars.CI_RAILWAY_PILOT_BRANCH && fromJSON('["self-hosted", "linux", "x64", "nodaro-ci-pilot"]') || 'ubuntu-latest' }}
+    # Enable only after validating the disposable pool; forks stay hosted.
+    # A named same-repository pilot branch can opt in before general routing.
+    runs-on: ${{ github.repository == 'nodaroai/app.nodaro.ai-internal' && (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) && (vars.CI_RAILWAY_ENABLED == 'true' || vars.CI_RAILWAY_PILOT_BRANCH != '' && github.head_ref == vars.CI_RAILWAY_PILOT_BRANCH) && fromJSON('["self-hosted", "linux", "x64", "nodaro-ci"]') || 'ubuntu-latest' }}
     steps:
       - name: Require successful preparation
         env:
@@ -128,8 +129,19 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+          package-manager-cache: false
           cache-dependency-path: package-lock.json
+      # Hosted preparation populates this cache. Disposable runners only read
+      # it, avoiding cache uploads on the test job's completion path.
+      - name: Restore npm downloads on Railway
+        if: runner.environment == 'self-hosted'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        timeout-minutes: 2
+        with:
+          path: ~/.npm
+          key: node-cache-${{ runner.os }}-x64-npm-${{ hashFiles('package-lock.json') }}
       - name: Pin npm 11
         run: corepack enable npm && corepack prepare npm@11.12.1 --activate
       - name: Install workspace dependencies
@@ -203,9 +215,9 @@ jobs:
     name: Backend Tests
     needs: [changes, prepare-packages]
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.prepare-packages.result != 'success' || needs.changes.outputs.backend == 'true') }}
-    # Pilot opt-in is restricted to same-repository PRs on the named branch.
-    # An unset pilot branch leaves normal hosted scheduling in place.
-    runs-on: ${{ github.repository == 'nodaroai/app.nodaro.ai-internal' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.CI_RAILWAY_PILOT_BRANCH != '' && github.head_ref == vars.CI_RAILWAY_PILOT_BRANCH && fromJSON('["self-hosted", "linux", "x64", "nodaro-ci-pilot"]') || 'ubuntu-latest' }}
+    # Enable only after validating the disposable pool; forks stay hosted.
+    # A named same-repository pilot branch can opt in before general routing.
+    runs-on: ${{ github.repository == 'nodaroai/app.nodaro.ai-internal' && (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) && (vars.CI_RAILWAY_ENABLED == 'true' || vars.CI_RAILWAY_PILOT_BRANCH != '' && github.head_ref == vars.CI_RAILWAY_PILOT_BRANCH) && fromJSON('["self-hosted", "linux", "x64", "nodaro-ci"]') || 'ubuntu-latest' }}
     # Hang guard (issue #801): the job wedged 48-83 min five times in two days.
     # Every one of those was the runner's apt mirror stalling inside the old
     # `apt-get install ffmpeg` step — vitest was never reached — so that step
@@ -230,8 +242,19 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+          package-manager-cache: false
           cache-dependency-path: package-lock.json
+      # Hosted preparation populates this cache. Disposable runners only read
+      # it, avoiding cache uploads on the test job's completion path.
+      - name: Restore npm downloads on Railway
+        if: runner.environment == 'self-hosted'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        timeout-minutes: 2
+        with:
+          path: ~/.npm
+          key: node-cache-${{ runner.os }}-x64-npm-${{ hashFiles('package-lock.json') }}
       # ffmpeg for the real-ffmpeg e2e tests (assemble-narrated-video,
       # trim-edge-frames): the production-pinned static build, installed by
       # the SAME script the Dockerfile and the characterize job use — NOT apt.

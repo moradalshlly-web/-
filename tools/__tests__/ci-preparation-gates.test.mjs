@@ -69,3 +69,23 @@ test('expensive test steps stop on superseding cancellation', () => {
     assert.match(jobs[name], /!cancelled\(\) && steps\.build-packages/)
   }
 })
+
+for (const name of ['frontend-tests', 'backend-tests']) test(`${name} preserves hosted fallback and excludes untrusted routing`, () => {
+  const expression = jobs[name].match(/^    runs-on: \$\{\{ (.+) \}\}$/m)[1]
+  const repository = 'nodaroai/app.nodaro.ai-internal'
+  const base = { repository, event_name: 'pull_request', ref: 'refs/pull/1/merge', head_ref: 'feat/pilot',
+    event: { pull_request: { head: { repo: { full_name: repository } } } } }
+  const route = (github, vars) => Function('github', 'vars', 'fromJSON', `return (${expression})`)(github,
+    { CI_RAILWAY_ENABLED: '', CI_RAILWAY_PILOT_BRANCH: '', ...vars }, JSON.parse)
+  assert.equal(route(base, {}), 'ubuntu-latest')
+  assert.equal(route(base, { CI_RAILWAY_PILOT_BRANCH: 'another-branch' }), 'ubuntu-latest')
+  assert.deepEqual(route(base, { CI_RAILWAY_PILOT_BRANCH: 'feat/pilot' }), ['self-hosted', 'linux', 'x64', 'nodaro-ci'])
+  assert.deepEqual(route(base, { CI_RAILWAY_ENABLED: 'true' }), ['self-hosted', 'linux', 'x64', 'nodaro-ci'])
+  assert.equal(route({ ...base, repository: 'public/mirror' }, { CI_RAILWAY_ENABLED: 'true' }), 'ubuntu-latest')
+  assert.equal(route({ ...base, event: { pull_request: { head: { repo: { full_name: 'outsider/fork' } } } } },
+    { CI_RAILWAY_ENABLED: 'true', CI_RAILWAY_PILOT_BRANCH: 'feat/pilot' }), 'ubuntu-latest')
+  const main = { ...base, event_name: 'push', ref: 'refs/heads/main', head_ref: '', event: {} }
+  assert.equal(route(main, { CI_RAILWAY_PILOT_BRANCH: 'feat/pilot' }), 'ubuntu-latest')
+  assert.deepEqual(route(main, { CI_RAILWAY_ENABLED: 'true' }), ['self-hosted', 'linux', 'x64', 'nodaro-ci'])
+  assert.equal(route({ ...main, ref: 'refs/heads/other' }, { CI_RAILWAY_ENABLED: 'true' }), 'ubuntu-latest')
+})
