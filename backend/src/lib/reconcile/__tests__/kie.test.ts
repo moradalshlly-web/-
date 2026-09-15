@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
   const uploadToR2Mock = vi.fn()
   const finalizeMock = vi.fn().mockResolvedValue({ ok: true })
   const refundMock = vi.fn().mockResolvedValue(undefined)
+  const recoverEntityMock = vi.fn().mockResolvedValue(undefined)
 
   // KieError subclass — matches the real one's name property so the runtime
   // check `err instanceof KieError` works inside the handler.
@@ -83,6 +84,7 @@ const mocks = vi.hoisted(() => {
     uploadToR2Mock,
     finalizeMock,
     refundMock,
+    recoverEntityMock,
     FakeKieError,
     jobsUpdateMock,
     jobsUpdateInMock,
@@ -156,6 +158,14 @@ const settle = vi.hoisted(() => ({
 vi.mock("../../seedance2-ref-video-settle.js", () => ({
   measureSeedance2RefVideoBaseCredits: settle.measure,
 }))
+
+vi.mock("../entity-recovery.js", async (importOriginal) => {
+  // Keep the REAL `isEntityMediaJobType` (the narrowing under test) and stub
+  // only the recovery itself — its own behavior is covered end-to-end in
+  // `entity-recovery.test.ts`.
+  const actual = await importOriginal<typeof import("../entity-recovery.js")>()
+  return { ...actual, recoverEntityJob: mocks.recoverEntityMock }
+})
 
 import { reconcileKieJob, type KieJobRow } from "../kie.js"
 
@@ -682,15 +692,48 @@ describe("NOT_GENERIC_RECOVERABLE rows", () => {
     expect(lastJobsUpdate().status).toBe("failed")
   })
 
-  it("bumps with a named reason for a route-origin generate-character row", async () => {
+  it("RECOVERS a route-origin generate-character row instead of bumping it", async () => {
+    // This case used to assert the opposite — "bumps with a named reason" —
+    // which is the 2026-09-03/09-07 incident written down as a passing test:
+    // the provider had already produced the image, and riding the bump to 18
+    // attempts refunded the user ~90 minutes later with nothing to show. The
+    // entity studios keep their own completion writer; the reconciler now runs
+    // THAT writer (lib/entity-finalize.ts) instead of discarding the result.
+    mocks.pollKieTaskMock.mockResolvedValue({
+      resultJson: { resultUrls: ["https://cdn.example/char.png"] },
+      providerMs: 120,
+    })
     await reconcileKieJob(row({
       id: "job-entity-char",
       provider_kind: "kie-standard",
       provider_task_id: "task-entity-char",
       job_type: "generate-character",
     }))
+    expect(mocks.recoverEntityMock).toHaveBeenCalledWith({
+      jobId: "job-entity-char",
+      jobType: "generate-character",
+      url: "https://cdn.example/char.png",
+      claimant: "cron",
+    })
+    // Neither the generic finalize (which writes none of the studio rows) nor
+    // the bump-toward-refund may fire.
     expect(mocks.finalizeMock).not.toHaveBeenCalled()
-    expect(lastBumpReason()).toMatch(/not generically recoverable: generate-character/)
+    expect(lastBumpReason()).toBe("")
+  })
+
+  it("bumps the recovery, rather than swallowing it, when the entity tail throws", async () => {
+    mocks.pollKieTaskMock.mockResolvedValue({
+      resultJson: { resultUrls: ["https://cdn.example/char.png"] },
+      providerMs: 120,
+    })
+    mocks.recoverEntityMock.mockRejectedValueOnce(new Error("r2 upload exploded"))
+    await reconcileKieJob(row({
+      id: "job-entity-throw",
+      provider_kind: "kie-standard",
+      provider_task_id: "task-entity-throw",
+      job_type: "generate-character",
+    }))
+    expect(lastBumpReason()).toMatch(/r2 upload exploded/)
   })
 
   it("bumps rather than finalizing as an image when job_type is null", async () => {

@@ -172,11 +172,17 @@ export function isFinalizeJobType(v: string | null | undefined): v is FinalizeJo
  * Job types that MUST NOT take the generic `finalizeJobWithMedia` path even if
  * their provider result could be re-fetched. Four reasons, all load-bearing:
  *
- *  - ENTITY handlers are their own completion writers (`workers/handlers/
- *    entity.ts:199-300`, map at `:781-796`): they call `markJobCompleted` and then
- *    `setCharacterPortrait` / `attachAssetToCharacter` / `autoAttach*Asset`.
- *    Generic finalize writes `buildImageOutputData` + `createAssetFromJob` and
- *    NONE of the entity-row writes — the Studio would never see the result.
+ *  - ENTITY handlers are their own completion writers — they write an
+ *    entity-shaped `output_data` and then `setCharacterPortrait` /
+ *    `attachAssetToCharacter` / `autoAttach*Asset`, none of which generic
+ *    finalize performs. That is still true, but it is no longer a reason to
+ *    DISCARD a recovered result: since PR "entity reconcile recovery" the 13
+ *    entity MEDIA types finalize through the shared tail in
+ *    `lib/entity-finalize.ts` (worker and cron call the same function) and the
+ *    reconcile writers route them there BEFORE this denylist is consulted. Only
+ *    `generate-script` remains listed: it is the LLM lane, never calls
+ *    `onTaskCreated`, and so never persists a `provider_task_id` a reconcile
+ *    tick could poll.
  *  - DAG rows are INSERTED with `job_type = node.type` (the
  *    `insertInternalJob("orchestrator", …)` call in `node-executor.ts`), while
  *    payload-builder dispatches under a different `jobName`
@@ -208,17 +214,14 @@ export function isFinalizeJobType(v: string | null | undefined): v is FinalizeJo
  * 18 attempts and REFUNDED a job whose provider call had succeeded.
  */
 export const NOT_GENERIC_RECOVERABLE: ReadonlySet<string> = new Set<string>([
-  // Entity handlers — all 14 keys of workers/handlers/entity.ts:781-796.
-  // `generate-script` is in that map too (it produces text, not media) and is
-  // listed here for the same reason as the rest: the coverage guard in Task 5
-  // requires a decision for every handler name (M-D8).
-  "generate-character", "generate-face", "generate-character-asset",
-  "generate-object", "generate-object-asset",
-  "generate-creature", "generate-creature-asset",
-  "generate-location", "generate-location-asset",
+  // Entity handlers — the ONE non-media key of workers/handlers/entity.ts.
+  // The other 13 are entity MEDIA types and now live in
+  // `ENTITY_MEDIA_JOB_SPECS` (lib/entity-finalize.ts), which the reconcile
+  // writers dispatch on before reaching this set — they are recovered through
+  // the same completion tail the worker runs, not discarded. `generate-script`
+  // produces text through the LLM lane and persists no provider task id, so it
+  // stays here: listed, decided, unreachable.
   "generate-script",
-  "generate-character-motion", "generate-location-motion",
-  "generate-object-motion", "generate-creature-motion",
   // DAG node types (node-executor.ts inserts job_type = node.type; the
   // video-worker pickup CAS overwrites it with the queue name, so these are
   // reachable only before a worker picks the row up — see the doc comment)
@@ -329,7 +332,7 @@ export type FinalizeClaimant = "worker" | "cron"
  * benign — an idempotent overwrite plus a CAS-guarded `markJobCompleted` —
  * while refusing to finalize would strand a deliverable job on a DB hiccup.
  */
-async function claimJobFinalize(
+export async function claimJobFinalize(
   jobId: string,
   claimant: FinalizeClaimant,
 ): Promise<{ won: boolean; ts: string | null }> {
@@ -355,7 +358,7 @@ async function claimJobFinalize(
  * Scoped to our own claim timestamp — never clears a claim a newer finalizer
  * took. Best-effort: the TTL is the backstop if this write fails.
  */
-async function releaseJobFinalizeClaim(jobId: string, claimTs: string): Promise<void> {
+export async function releaseJobFinalizeClaim(jobId: string, claimTs: string): Promise<void> {
   try {
     const { error } = await supabase
       .from("jobs")

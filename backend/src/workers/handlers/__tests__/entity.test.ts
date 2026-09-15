@@ -1044,15 +1044,10 @@ describe("generate-object-motion handler", () => {
     })
     await expect(handler(job as never, makeCtx())).resolves.toBeUndefined()
 
-    // autoAttachObjectAsset is still called (helper no-ops when objectId
-    // undefined per Phase C1a) — verify it received undefined IDs.
-    expect(mocks.mockAutoAttachObject).toHaveBeenCalledWith({
-      objectId: undefined,
-      column: undefined,
-      name: undefined,
-      userId: "user-1",
-      url: "https://r2.example.com/videos/job-1.mp4",
-    })
+    // The shared entity tail (lib/entity-finalize.ts) skips the object block
+    // outright when the job carries no object id — same outcome as before (the
+    // helper always no-opped on an undefined id), one fewer pointless call.
+    expect(mocks.mockAutoAttachObject).not.toHaveBeenCalled()
     // Video upload + completion + credit commit still happen.
     expect(mocks.mockUploadVideoMaybeWatermark).toHaveBeenCalledTimes(1)
     expect(mocks.mockMarkJobCompleted).toHaveBeenCalledTimes(1)

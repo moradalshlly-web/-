@@ -79,15 +79,26 @@ describe("NOT_GENERIC_RECOVERABLE", () => {
     }
   })
 
-  // 14 entity + 10 DAG + 3 composite + 43 Task-5 coverage-guard additions
-  // (24 ffmpeg + 12 suno + reference-sheet + motion-graphics-lottie + 5
-  // audio-ai stragglers: extract-youtube-audio, audio-separation,
-  // forced-alignment, voice-changer, dubbing) = 70. The pre-Task-5 count was
-  // 27 — this pin necessarily grew when finalize-job-type-coverage.test.ts's
-  // "classifies every statically-registered worker handler name" case
-  // resolved its findings into this set (see job-finalize.ts for the
-  // per-handler evidence).
-  it("has exactly 71 members", () => {
-    expect(NOT_GENERIC_RECOVERABLE.size).toBe(71)
+  // 1 entity (generate-script — the LLM lane, which never calls onTaskCreated
+  // and so persists no provider task id to poll) + 10 DAG + 3 composite + 44
+  // Task-5 coverage-guard additions (24 ffmpeg + 12 suno + reference-sheet +
+  // motion-graphics-lottie + 5 audio-ai stragglers: extract-youtube-audio,
+  // audio-separation, forced-alignment, voice-changer, dubbing) = 58.
+  //
+  // It was 71 until the entity studios stopped being denied: their 13 MEDIA
+  // types moved to `ENTITY_MEDIA_JOB_SPECS` (lib/entity-finalize.ts), where
+  // the reconciler runs the SAME completion tail the worker runs instead of
+  // discarding a finished provider result and refunding the user 90 minutes
+  // later. `finalize-job-type-coverage.test.ts` is what keeps the three sets
+  // total and pairwise disjoint; this pin is only the ratchet.
+  it("has exactly 58 members", () => {
+    expect(NOT_GENERIC_RECOVERABLE.size).toBe(58)
+  })
+
+  it("denies generate-script and no other entity handler key", () => {
+    expect(NOT_GENERIC_RECOVERABLE.has("generate-script")).toBe(true)
+    for (const t of ["generate-character", "generate-object-asset", "generate-character-motion"]) {
+      expect(NOT_GENERIC_RECOVERABLE.has(t), t).toBe(false)
+    }
   })
 })

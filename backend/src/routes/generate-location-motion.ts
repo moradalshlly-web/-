@@ -154,9 +154,12 @@ export async function generateLocationMotionRoutes(app: FastifyInstance) {
       const usageLogId = reservation?.usageLogId
 
       // ───────────────────────────────────────────────────────────────────
-      // 6. Enqueue worker job. `attachToColumn` is route-side — locations
-      //    have a single motion column (`atmosphere_motions`) so unlike the
-      //    asset route, callers don't supply it.
+      // 6. Enqueue worker job. The attach COLUMN is not sent: locations have a
+      //    single motion column (`atmosphere_motions`) and callers never supply one, so it
+      //    is the job type's own `defaultColumn` in `ENTITY_MEDIA_JOB_SPECS`
+      //    (lib/entity-finalize.ts). Inlining it here made it reachable by the
+      //    live worker and by nothing else — a crashed worker's recovered clip
+      //    had no column to attach to.
       // ───────────────────────────────────────────────────────────────────
       await videoQueue.add("generate-location-motion", {
         jobId: job.id,
@@ -167,7 +170,6 @@ export async function generateLocationMotionRoutes(app: FastifyInstance) {
         aspectRatio,
         usageLogId,
         attachToLocationId: parsed.data.attachToLocationId,
-        attachToColumn: "atmosphere_motions" as const,
         attachName: parsed.data.attachName,
       })
 

@@ -239,6 +239,61 @@ CAS guard at step 4 means the worker and the reconciliation cron can race on the
 
 Per audit-finding: the existing `markJobCompleted` in `workers/shared.ts:185` already implements this CAS pattern with `.select("id")` to verify the update happened. `finalizeJobWithMedia` reuses it verbatim.
 
+### 5.4a The entity lane — job types that are their own completion writer
+
+`finalizeJobWithMedia` is the GENERIC tail: it writes `buildImageOutputData` /
+`{videoUrl}` / `{audioUrl}`, creates the gallery asset row, and reopens a
+sole-cause-failed execution. A handful of job types cannot use it because they
+write something else — and the entity studios (Character / Face / Object /
+Creature / Location: main images, asset variants, motion clips) are the largest
+group. Their handlers complete the job AND write the result back onto the user's
+`characters` / `locations` / `objects` / `creatures` row; a generic finalize
+would complete the job with the result invisible in the studio.
+
+For a long time that fact was encoded as a denylist (`NOT_GENERIC_RECOVERABLE`),
+consulted by every reconcile writer AFTER a successful poll. The consequence was
+silent and expensive: when a worker died between "provider task created" and
+"result uploaded", the cron polled the provider, got the FINISHED image back —
+and discarded it, bumped `reconcile_attempts`, and ~90 minutes later force-failed
+the job and refunded the user. We had already paid the provider, and the asset
+that existed upstream never reached the studio. **Every** entity job whose worker
+died mid-flight was unrecoverable by construction.
+
+The fix is not to loosen the denylist; it is to give the reconciler the entity
+completion tail itself:
+
+- `backend/src/lib/entity-finalize.ts` holds THE entity tail — upload →
+  CAS-complete → commit credits → write the studio row. `ENTITY_MEDIA_JOB_SPECS`
+  names the 13 recoverable entity types, their media kind, and (for the motion
+  lanes) the attach column, which used to be a literal inside each route's
+  `videoQueue.add` payload and was therefore invisible to the persisted job row.
+- `workers/handlers/entity.ts` (live worker) and
+  `lib/reconcile/entity-recovery.ts` (cron / stall re-pick) both call it. Same
+  function, so "a recovered result completes the job exactly as the worker would
+  have" is an invariant, not a convention.
+- `entityAttachSpecFrom` is the one reader of the attach fields, off the BullMQ
+  payload on the worker side and off `jobs.input_data` on the recovery side.
+- `recoverEntityJob` mirrors finalize's guards: terminal rows are a graceful
+  skip, the `claim_job_finalize` CAS makes a losing finalizer exit before any
+  media work, the claim is released on a failed media step, and the watermark
+  flag is re-derived with the WORKER's `hasCredits()`-gated expression.
+- Credits settle at the reservation (`cost: null`), and null cost/provider fields
+  are omitted from the completion write rather than written as NULL.
+
+`generate-script` is the one entity handler that stays denied: it is the LLM
+lane, never calls `onTaskCreated`, and so persists no provider task id a
+reconcile tick could poll.
+
+**Guards.** `lib/reconcile/__tests__/finalize-job-type-coverage.test.ts` requires
+every producible `job_type` to fall in exactly one of the three sets (finalize /
+entity / denied) and keeps them pairwise disjoint;
+`lib/__tests__/entity-finalize-single-writer.test.ts` fails the build if
+`entity.ts` grows its own `markJobCompleted` / `commitJobCredits` / studio-row
+write again; `lib/reconcile/__tests__/entity-recovery.test.ts` drives the real
+`reconcileKieJob → recoverEntityJob → finalizeEntityJob` path and asserts the
+recovered job completes with the asset, commits its credits, and neither bumps
+nor refunds.
+
 ### 5.5 Reconciliation cron
 
 ```ts

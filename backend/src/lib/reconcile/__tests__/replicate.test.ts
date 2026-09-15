@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => {
   const fetchMock = vi.fn()
   const finalizeMock = vi.fn().mockResolvedValue({ ok: true })
   const refundMock = vi.fn().mockResolvedValue(undefined)
+  const recoverEntityMock = vi.fn().mockResolvedValue(undefined)
   const jobsSingleMock = vi.fn().mockResolvedValue({
     data: { reconcile_attempts: 0 },
     error: null,
@@ -115,6 +116,7 @@ const mocks = vi.hoisted(() => {
     // G-7: the prediction the mocked fetch/prediction fetcher resolves with,
     // set per-test via setPrediction below.
     prediction: null as Record<string, unknown> | null,
+    recoverEntityMock,
   }
 })
 
@@ -127,6 +129,12 @@ vi.mock("../../job-finalize.js", async (importOriginal) => {
   return { ...actual, finalizeJobWithMedia: mocks.finalizeMock, loadUsageLogId: mocks.loadUsageLogIdMock }
 })
 vi.mock("../../credits-job-lifecycle.js", () => ({ refundReservedCreditsForJob: mocks.refundMock }))
+vi.mock("../entity-recovery.js", async (importOriginal) => {
+  // Real `isEntityMediaJobType` (the narrowing under test), stubbed recovery —
+  // its own behavior is covered end-to-end in `entity-recovery.test.ts`.
+  const actual = await importOriginal<typeof import("../entity-recovery.js")>()
+  return { ...actual, recoverEntityJob: mocks.recoverEntityMock }
+})
 vi.mock("../../config.js", () => ({ config: { REPLICATE_API_TOKEN: "test-token" } }))
 vi.mock("../../../workers/shared.js", () => ({
   markJobCompleted: mocks.markCompletedMock,
@@ -638,6 +646,8 @@ describe("reconcileReplicateJob", () => {
     })
 
     it("succeeded with an OBJECT output on a NOT_GENERIC_RECOVERABLE row → still bumps (object output counts as 'has output')", async () => {
+      // `scene`, not `generate-character`: the entity types are recovered
+      // before this denylist now, so a DAG-origin type is what exercises it.
       mocks.fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -651,12 +661,62 @@ describe("reconcileReplicateJob", () => {
         provider_kind: "replicate-prediction",
         provider_task_id: "p-dag-object",
         reconcile_attempts: 0,
-        job_type: "generate-character",
+        job_type: "scene",
       }
       await reconcileReplicateJob(row)
       expect(mocks.finalizeMock).not.toHaveBeenCalled()
       expect(lastJobsUpdate().reconcile_last_error).toMatch(/not generically recoverable/)
       expect(mocks.refundMock).not.toHaveBeenCalled()
+    })
+  })
+
+  // Entity images reach Replicate through providerKindForImageModel (every
+  // REPLICATE_IMAGE_MODEL_IDS member + flux-lora-character), so this writer
+  // discarded finished studio results exactly like the KIE twin did.
+  describe("entity recovery lane", () => {
+    it("recovers a generate-character prediction instead of bumping it", async () => {
+      mocks.fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "p-entity",
+          status: "succeeded",
+          output: ["https://replicate.example/char.png"],
+        }),
+      })
+      await reconcileReplicateJob({
+        id: "j-entity",
+        provider_kind: "replicate-prediction",
+        provider_task_id: "p-entity",
+        reconcile_attempts: 0,
+        job_type: "generate-character",
+      })
+      expect(mocks.recoverEntityMock).toHaveBeenCalledWith({
+        jobId: "j-entity",
+        jobType: "generate-character",
+        url: "https://replicate.example/char.png",
+        claimant: "cron",
+      })
+      expect(mocks.finalizeMock).not.toHaveBeenCalled()
+      expect(mocks.refundMock).not.toHaveBeenCalled()
+    })
+
+    it("fails+refunds an entity prediction whose succeeded output carries no URL", async () => {
+      // An object output is not a URL list and never will be on a re-poll, so
+      // failing honestly beats 18 ticks of bumping toward the same answer.
+      mocks.fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "p-entity-obj", status: "succeeded", output: {} }),
+      })
+      await reconcileReplicateJob({
+        id: "j-entity-obj",
+        provider_kind: "replicate-prediction",
+        provider_task_id: "p-entity-obj",
+        reconcile_attempts: 0,
+        job_type: "generate-object-asset",
+      })
+      expect(mocks.recoverEntityMock).not.toHaveBeenCalled()
+      expect(lastJobsUpdate().status).toBe("failed")
+      expect(mocks.refundMock).toHaveBeenCalledWith("j-entity-obj")
     })
   })
 
