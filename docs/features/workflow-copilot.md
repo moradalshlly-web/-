@@ -35,7 +35,7 @@ A character row with saved looks carries a small arrow: open it to pick a specif
 
 To use a file that is not in your library yet, press the paperclip and pick it from your computer. It uploads to your library and is attached to the message in one step, exactly as if you had mentioned it.
 
-**An attached image is one the copilot can actually see.** Attach a screenshot, a sketch or a reference photo and ask for "something like this" — it reads the image itself: the layout of a template, the style of a shot, the text in a mock-up — and builds from what it sees. Up to four images per message.
+**An attached image is one the copilot can actually see.** Attach a screenshot, a sketch or a reference photo and ask for "something like this" — it reads the image itself: the layout of a template, the style of a shot, the text in a mock-up — and builds from what it sees. Up to four images per message. JPEG, PNG, GIF and WebP are the formats it can read; an attachment in another format (AVIF, HEIC) is still uploaded to your library and still named in your message, but the copilot answers from your words alone rather than failing the message.
 
 Mentions travel as names and ids, never as file addresses — the same rule as *What it will not do* below. When the copilot uses one of your files it puts the **id** on the node and Nodaro fills in the address, so the rule that it can never type a URL holds even while it is wiring your own media.
 

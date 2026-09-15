@@ -179,3 +179,37 @@ describe("extractUserLinks", () => {
     expect(extractUserLinks([], many).size).toBe(32)
   })
 })
+
+/**
+ * A thread that stored one attachment Claude cannot read replays it on every
+ * later turn, so the 400 is not one lost answer — it is a dead conversation.
+ * Admission keeps new ones out; this is what un-bricks the threads that
+ * already have one.
+ */
+describe("replay drops an image block the model cannot read", () => {
+  it("strips a stored AVIF attachment and keeps the rest of the turn", () => {
+    const rows = [
+      row("t1", "user", [
+        { type: "text", text: "<workflow-context-a1>…</workflow-context-a1>" },
+        { type: "image", source: { type: "url", url: "https://cdn.example/shot.avif" } },
+        { type: "image", source: { type: "url", url: "https://cdn.example/shot.png" } },
+        { type: "text", text: "like this one" },
+      ]),
+      row("t1", "assistant", [{ type: "text", text: "on it" }]),
+    ]
+    const [user] = buildHistory(rows)
+    expect(user!.content).toEqual([
+      { type: "image", source: { type: "url", url: "https://cdn.example/shot.png" } },
+      { type: "text", text: "like this one" },
+    ])
+  })
+
+  it("leaves a turn whose images are all readable byte-identical", () => {
+    const content = [
+      { type: "image", source: { type: "url", url: "https://cdn.example/a.webp" } },
+      { type: "text", text: "hi" },
+    ]
+    const rows = [row("t1", "user", content), row("t1", "assistant", [{ type: "text", text: "ok" }])]
+    expect(buildHistory(rows)[0]!.content).toEqual(content)
+  })
+})

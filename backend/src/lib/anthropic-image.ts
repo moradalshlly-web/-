@@ -2,6 +2,58 @@ import sharp from "sharp"
 import { safeFetch } from "./safe-fetch.js"
 import type { LlmContentBlock } from "./llm-client.js"
 
+/**
+ * The four image formats the Anthropic API accepts. Anything else — AVIF,
+ * HEIC, TIFF, BMP, SVG — is rejected with
+ * `image.source.…: The file format is invalid or unsupported`, whether it
+ * arrives as base64 or as a URL the API fetches itself.
+ *
+ * This platform ACCEPTS more than that on upload (`routes/upload.ts` allows
+ * `image/avif`; only HEIC/HEIF is transcoded), so "a valid image here" and "a
+ * valid image to Claude" are two different sets and every vision lane has to
+ * cross that gap deliberately. This constant is where the gap is named, once.
+ */
+export const ANTHROPIC_IMAGE_MEDIA_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+])
+
+/** Extension → media type, for the lanes that only ever see a URL. Covers the
+ *  supported four AND the unsupported formats we can store, so an unknown
+ *  extension stays unknown rather than being guessed at. */
+const EXTENSION_MEDIA_TYPES: Record<string, string> = {
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp",
+  avif: "image/avif", heic: "image/heic", heif: "image/heic", tif: "image/tiff", tiff: "image/tiff",
+  bmp: "image/bmp", svg: "image/svg+xml",
+}
+
+/** The media type a URL's extension implies, or undefined when it implies none. */
+export function mediaTypeFromUrl(url: string): string | undefined {
+  const path = url.split("?")[0]?.split("#")[0] ?? url
+  const dot = path.lastIndexOf(".")
+  if (dot === -1) return undefined
+  return EXTENSION_MEDIA_TYPES[path.slice(dot + 1).toLowerCase()]
+}
+
+/**
+ * Would Anthropic accept this image?
+ *
+ * Declared type first (an upload row knows its own `mime_type`), then the
+ * URL's extension. When NEITHER says anything the answer is yes: an unknown
+ * format is Anthropic's call to make, and refusing it here would drop images
+ * that work today (job outputs served from paths with no extension).
+ */
+export function anthropicVisionAccepts(url: string, mediaType?: string | null): boolean {
+  // `image/jpg` is not a registered type but real uploaders send it; reading it
+  // as "not JPEG" would drop an image Claude reads fine.
+  const declared = mediaType?.split(";")[0]?.trim().toLowerCase().replace(/^image\/jpg$/, "image/jpeg")
+  if (declared && declared.startsWith("image/")) return ANTHROPIC_IMAGE_MEDIA_TYPES.has(declared)
+  const implied = mediaTypeFromUrl(url)
+  return implied === undefined || ANTHROPIC_IMAGE_MEDIA_TYPES.has(implied)
+}
+
 // Anthropic rejects any single base64 image whose encoded payload exceeds 5 MB
 // (5_242_880 bytes). base64 inflates raw bytes by 4/3, so the raw image must stay
 // under ~3.9 MB; we re-encode past a conservative 3.5 MB budget to leave headroom.
@@ -10,9 +62,11 @@ const ANTHROPIC_B64_RAW_BUDGET = 3_500_000
 // there before sending costs the model no fidelity it would otherwise have used.
 const ANTHROPIC_NATIVE_LONG_EDGE = 1568
 
-/** Fetch an image and return an Anthropic-ready content block. Downscales past
- *  a 3.5 MB raw budget so the base64 payload clears Anthropic's 5 MB cap;
- *  falls back to URL pass-through on any error. */
+/** Fetch an image and return an Anthropic-ready content block. Re-encodes any
+ *  format Anthropic does not accept (AVIF, HEIC, TIFF, BMP), downscales past a
+ *  3.5 MB raw budget so the base64 payload clears Anthropic's 5 MB cap; falls
+ *  back to URL pass-through on any error. The block it returns NEVER carries a
+ *  media type outside {@link ANTHROPIC_IMAGE_MEDIA_TYPES}. */
 export async function prefetchAsBase64(url: string): Promise<LlmContentBlock> {
   try {
     const r = await safeFetch(url, { timeoutMs: 30_000 })
@@ -22,12 +76,16 @@ export async function prefetchAsBase64(url: string): Promise<LlmContentBlock> {
     const mediaType =
       (r.headers.get("content-type") ?? "image/jpeg").split(";")[0].trim()
 
-    // Small enough to send verbatim — preserve the original encoding.
-    if (buf.byteLength <= ANTHROPIC_B64_RAW_BUDGET) {
+    // Small enough to send verbatim — preserve the original encoding, but only
+    // when Anthropic can read it. An AVIF upload sent verbatim is a 400 on the
+    // whole request ("The file format is invalid or unsupported"), so an
+    // unsupported format falls through to the re-encode below regardless of
+    // size.
+    if (buf.byteLength <= ANTHROPIC_B64_RAW_BUDGET && ANTHROPIC_IMAGE_MEDIA_TYPES.has(mediaType)) {
       return { type: "image_base64", mediaType, data: buf.toString("base64") }
     }
 
-    // Oversized: downscale to the model's native long edge and re-encode as JPEG
+    // Oversized or unreadable-by-Claude: downscale to the model's native long edge and re-encode as JPEG
     // so the base64 payload clears Anthropic's 5 MB-per-image cap. Flatten any
     // alpha onto white so transparent PNGs don't pick up a black background.
     const jpeg = await sharp(buf)

@@ -44,6 +44,7 @@ import {
   type CopilotTurn,
 } from "./store.js"
 import { resolveCopilotAssetRefs } from "./tools/asset-refs.js"
+import { anthropicVisionAccepts, mediaTypeFromUrl } from "../../lib/anthropic-image.js"
 import type { ActionProposal, CopilotToolContext } from "./tools/types.js"
 
 export interface TurnEmit {
@@ -237,9 +238,25 @@ export async function runCopilotTurn(input: RunTurnInput): Promise<TurnOutcome> 
     if (imageRefIds.length > 0) {
       try {
         const resolvedRefs = await resolveCopilotAssetRefs(imageRefIds, input.userId)
-        imageUrls = imageRefIds
+        const images = imageRefIds
           .map((id) => resolvedRefs.get(id))
           .filter((ref): ref is NonNullable<typeof ref> => Boolean(ref && ref.kind === "image" && ref.url))
+        // This platform stores image formats Anthropic cannot read (an
+        // `image/avif` upload is accepted by routes/upload.ts and kept as
+        // AVIF). One of those in the content array 400s the ENTIRE request —
+        // and because the turn's blocks are persisted and replayed, it 400s
+        // every LATER turn in the thread too, which is a dead conversation
+        // rather than one lost answer. Vision is an enhancement, so an
+        // unreadable attachment is dropped and the text turn still runs.
+        const unreadable = images.filter((ref) => !anthropicVisionAccepts(ref.url, ref.mimeType))
+        if (unreadable.length > 0) {
+          input.req.log.warn(
+            { turnId: input.turn.id, mediaTypes: unreadable.map((ref) => ref.mimeType || mediaTypeFromUrl(ref.url)) },
+            "[copilot] attachment format the model cannot read; sending the turn without it",
+          )
+        }
+        imageUrls = images
+          .filter((ref) => anthropicVisionAccepts(ref.url, ref.mimeType))
           .map((ref) => ref.url)
       } catch (err) {
         // Vision is an enhancement, never a turn-blocker: a resolver hiccup
