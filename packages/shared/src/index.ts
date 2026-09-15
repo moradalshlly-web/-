@@ -167,6 +167,7 @@ export {
   DEFAULT_VIDEO_DURATION_SEC,
   applyDefaultVideoSelection,
   PRICING_DEFAULT_DURATION_SEC,
+  pricedOutputDurationSec,
   PRICING_DEFAULT_RESOLUTION,
 } from "./model-constants.js"
 

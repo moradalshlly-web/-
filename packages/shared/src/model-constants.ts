@@ -2513,6 +2513,33 @@ export const VIDEO_VARIABLE_PRICING: Record<string, "duration" | "duration+audio
  */
 export const PRICING_DEFAULT_DURATION_SEC: Record<string, number> = {
   "minimax-h3": 6,
+  // KIE renders 8s when `duration` is omitted (kie/models.ts extraParams), and
+  // Seedance 2.5 prices one tier per second across 4–30s, so the 5s fallback
+  // billed a 5s tier against an 8s render — and under-reserved every
+  // reference-video run's output seconds by three (#1397).
+  "seedance-2-5": 8,
+  // Same shape: KIE renders 8s by default and the ladder is priced per second,
+  // so the 5s fallback billed a 5s tier against an 8s render (caught by the
+  // render-default ↔ priced-tier invariant in
+  // backend/src/providers/__tests__/pricing-default-duration-sync.test.ts).
+  "grok-imagine-video-1.5": 8,
+}
+
+/**
+ * The output seconds a request is PRICED at: the requested duration when the
+ * caller gave one, else the provider's own default render length
+ * ({@link PRICING_DEFAULT_DURATION_SEC}), else the historical 5s fallback.
+ *
+ * The ONE source for `buildVideoCreditModelIdentifier`'s tier AND for every
+ * dynamic reservation that scales by output seconds (the Seedance 2 and
+ * MiniMax Hailuo 3 reference-video overrides on both the route and the DAG
+ * lane) — a literal `?? 5` in any of those places re-opens the gap this map
+ * closes.
+ */
+export function pricedOutputDurationSec(provider: string, requested: number | string | undefined): number {
+  const fallback = PRICING_DEFAULT_DURATION_SEC[provider] ?? 5
+  const parsed = typeof requested === "string" ? parseInt(requested, 10) : requested
+  return parsed === undefined || Number.isNaN(parsed) ? fallback : parsed
 }
 
 /**

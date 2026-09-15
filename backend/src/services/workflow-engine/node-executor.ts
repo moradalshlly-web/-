@@ -29,7 +29,7 @@ import { resolveFieldMappings, NODE_MAPPABLE_FIELDS } from "./resolve-field-mapp
 
 import { executeCombineText, executeSplitText, executeComposite, executeWebhookOutput, executePreview, executeTeleporterPassthrough, executeRouter, executeExtractField, executeJsonProcess, executeFilterList, executeDeduplicateList, executeMergeLists, executeSortList, executeSelector } from "./inline-executor.js"
 import { executeSubWorkflow } from "./sub-workflow-handler.js"
-import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER } from "@nodaro/shared"
+import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER } from "@nodaro/shared"
 import { computeLlmChatFields, computeNodePrompt, pickerFanoutTargets, applyPromptAffixes } from "@nodaro/prompts"
 import type { ComponentMetadata } from "@nodaro/shared"
 import { getAppSettings } from "../../lib/app-settings.js"
@@ -1138,7 +1138,10 @@ async function computeSeedance2RefVideoCreditOverride(
   const priceArgs = {
     provider: provider as string,
     resolution: (payload.resolution as string | undefined) ?? "720p",
-    outputDurationSec: Number(payload.duration ?? 5),
+    // The seconds the run RENDERS when the node carries no duration — the
+    // provider's own default, the same source the identifier's tier reads
+    // (#1397: a literal 5 under-reserved seedance-2-5's 8s render).
+    outputDurationSec: pricedOutputDurationSec(provider as string, payload.duration as number | string | undefined),
   }
   // Probe once, use twice (R15) — the duration gate above already ffprobed
   // this payload for any provider with a declared bound, so the DEBIT prices
@@ -1190,7 +1193,7 @@ async function computeMinimaxH3CreditOverride(
   if (refVideos.length === 0 && refImageCount <= MINIMAX_H3_FREE_INPUT_IMAGES) return undefined
 
   const h3PriceArgs = {
-    outputDurationSec: Number(payload.duration ?? 6),
+    outputDurationSec: pricedOutputDurationSec(provider as string, payload.duration as number | string | undefined),
     referenceImageCount: refImageCount,
     resolution: payload.resolution,
   }

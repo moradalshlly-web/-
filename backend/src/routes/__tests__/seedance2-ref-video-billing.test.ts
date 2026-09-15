@@ -178,6 +178,28 @@ describe("/v1/generate-video Seedance 2 reference-video billing", () => {
     await app.close()
   })
 
+  it("an omitted duration reserves the provider's own 8s render, not a literal 5 (seedance-2-5, #1397)", async () => {
+    const app = await buildGenerateVideoApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/generate-video",
+      payload: {
+        provider: "seedance-2-5",
+        resolution: "720p",
+        referenceVideoUrls: ["https://r2.example.com/ref.mp4"],
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    // perSec = 760/8 = 95; 5s clip in + the 8s KIE renders when duration is
+    // omitted = ceil(95 × 13) = 1235 — priced under the 8s -ref identifier.
+    expect(reserveSpy).toHaveBeenCalledWith(
+      "u-1", "job-1", "seedance-2-5:8s:720p-ref", 0, 0,
+      expect.objectContaining({ creditOverride: 1235 }),
+    )
+    expect(refCreditsSpy).toHaveBeenCalledWith(expect.objectContaining({ outputDurationSec: 8, durationsSec: [5] }))
+    await app.close()
+  })
+
   it("a run the handler sends down the voiced-video lane (dialogue on a Seedance model) is NOT reserved at the ref-scaled worst case — that lane forwards no reference videos", async () => {
     const app = await buildGenerateVideoApp()
     const res = await app.inject({

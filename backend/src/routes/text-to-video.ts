@@ -13,7 +13,7 @@ import { probeRefVideoDurations } from "../lib/ref-video-probe.js"
 import { insertJobIdempotent } from "../lib/insert-job.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { applyPromptPolicies } from "../lib/prompt-policy.js"
-import { TEXT_TO_VIDEO_PROVIDERS, SEEDANCE_2_5_REF_LIMITS, PROMPT_HARD_CEILING, videoProviderRequiresImage, isSeedance2Provider, isMinimaxH3Provider, applyDefaultVideoSelection, buildVideoCreditModelIdentifier, type ConnectedReference, type DescribedReference } from "@nodaro/shared"
+import { TEXT_TO_VIDEO_PROVIDERS, SEEDANCE_2_5_REF_LIMITS, PROMPT_HARD_CEILING, videoProviderRequiresImage, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, applyDefaultVideoSelection, buildVideoCreditModelIdentifier, type ConnectedReference, type DescribedReference } from "@nodaro/shared"
 import { imageRequiredError } from "../lib/video-image-required.js"
 import { composeVideoPromptText } from "@nodaro/prompts"
 import { connectedReferenceSchema, describedReferenceSchema, referenceCaptionSchema, DESCRIBED_REFERENCE_LIMIT } from "../lib/connected-reference-schema.js"
@@ -124,7 +124,10 @@ export async function textToVideoRoutes(app: FastifyInstance) {
             const priceArgs = {
               provider: b.provider as string,
               resolution: normResolution ?? "720p",
-              outputDurationSec: Number(b.duration ?? 5),
+              // The seconds this run RENDERS when the caller omitted a duration
+              // — the provider's own default, the same source the credit
+              // identifier's tier reads (#1397).
+              outputDurationSec: pricedOutputDurationSec(b.provider as string, b.duration as number | string | undefined),
             }
             // Probe once, use twice: when validateRefVideoDurationPreHandler
             // already ffprobed this request (it runs first, for every provider
@@ -180,7 +183,7 @@ export async function textToVideoRoutes(app: FastifyInstance) {
             })
             if (hasVideoRef || refImageCount > MINIMAX_H3_FREE_INPUT_IMAGES) {
               const h3PriceArgs = {
-                outputDurationSec: Number(b.duration ?? 6),
+                outputDurationSec: pricedOutputDurationSec(b.provider as string, b.duration as number | string | undefined),
                 referenceImageCount: refImageCount,
                 resolution: normResolution,
               }

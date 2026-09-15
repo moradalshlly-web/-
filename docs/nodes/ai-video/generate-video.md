@@ -338,7 +338,7 @@ If neither has the identifier, the route returns HTTP 503 `price_not_configured`
 | `gemini-omni-flash` | 10s | 4K | any | no ref | 530 |
 | `gemini-omni-flash` | — | 720p | video-edit | 1 source video | 420 |
 
-**Grok Imagine 1.5** uses true per-second pricing via the composite identifier `grok-imagine-video-1.5:<N>s:<resolution>` (N = 1–15, resolution = `480p` / `720p`). Credits = `ceil((rate × seconds + 2) / 4) × 10`, where the per-second KIE rate is 14.5 @ 480p and 25 @ 720p and the `+2` covers the required input image. Examples: 4s/480p = 150, 8s/480p = 300, 8s/720p = 510, 15s/720p = 950.
+**Grok Imagine 1.5** uses true per-second pricing via the composite identifier `grok-imagine-video-1.5:<N>s:<resolution>` (N = 1–15, resolution = `480p` / `720p`). Credits = `ceil((rate × seconds + 2) / 4) × 10`, where the per-second KIE rate is 14.5 @ 480p and 25 @ 720p and the `+2` covers the required input image. Examples: 4s/480p = 150, 8s/480p = 300, 8s/720p = 510, 15s/720p = 950. **A request that omits `duration` renders and bills 8 s** (`grok-imagine-video-1.5:8s:…`).
 
 **HappyHorse 1.1** (`happyhorse` T2V / `happyhorse-i2v` / `happyhorse-ref2v`) is per-second priced via the composite identifier `<id>:<N>s:<resolution>` (N = 3–15, resolution = `720p` / `1080p`), with identical rates across all three modes. Credits = `ceil(rate × seconds / 4) × 10`, where the per-second KIE rate is 22.5 @ 720p and 29 @ 1080p. Examples: 5s/720p = 290, 5s/1080p = 370, 10s/720p = 570, 15s/1080p = 1090. When resolution is unspecified the run renders and bills at 720p.
 
@@ -361,7 +361,7 @@ So at 8s: 1080p = `ceil(102×8/4) × 10` = **2040** no-ref / `ceil(62×8/4) × 1
 | 720p | 63 | 38 |
 | 480p | 28 | 17 |
 
-So at 8s: 1080p = `ceil(114×8/4) × 10` = **2280** no-ref / `ceil(68.5×8/4) × 10` = **1370** with-ref; 720p = **1260** / **760**; 480p = **560** / **340**. At its 30s maximum: 1080p = `ceil(114×30/4) × 10` = **8550** no-ref / **5140** with-ref; 720p = **4730** / **2850**; 480p = **2100** / **1280**. The 1080p tier arrived on KIE 2026-08-17; Seedance 2.5 still has **no 4K SKU** — for 4K, use the full `seedance-2`.
+So at 8s: 1080p = `ceil(114×8/4) × 10` = **2280** no-ref / `ceil(68.5×8/4) × 10` = **1370** with-ref; 720p = **1260** / **760**; 480p = **560** / **340**. At its 30s maximum: 1080p = `ceil(114×30/4) × 10` = **8550** no-ref / **5140** with-ref; 720p = **4730** / **2850**; 480p = **2100** / **1280**. The 1080p tier arrived on KIE 2026-08-17; Seedance 2.5 still has **no 4K SKU** — for 4K, use the full `seedance-2`. **A request that omits `duration` renders and bills 8 s** (`seedance-2-5:8s:…`), and a reference-video reservation counts those 8 output seconds.
 
 **MiniMax Hailuo 3** (`minimax-h3`) is per-second priced at two resolution rates. The composite is `minimax-h3:<N>s` (N = 4–15) for **2K** — the default, and what any non-768P resolution value renders and bills as — and `minimax-h3:<N>s:768p` for **768P**, the cheaper tier. Credits = `ceil(rate × seconds / 4) × 10`, with rate = 36.5 KIE cr/s @2K and 22.5 @768P. Examples: @2K 4s = 370, 6s = 550 (the default duration), 8s = 730, 15s = 1370; @768P 4s = 230, 6s = 340, 8s = 450, 15s = 850. There is no `-ref` dimension. Two extra billing dimensions are reserved dynamically on top of the composite:
 
