@@ -37,7 +37,6 @@ describe("generate-video-pro node registry", () => {
       "seedance-2-mini",
       "seedance-2-5",
       "minimax-h3",
-      "veo3",
       "veo3.1",
       "veo3_lite",
       "gemini-omni-video",
@@ -50,6 +49,11 @@ describe("generate-video-pro node registry", () => {
     // kling-3-omni is deliberately absent: it passes every capability check
     // but has no working dispatch path (VIDEO_PROVIDERS_WITHOUT_DISPATCH).
     expect(d?.providers).not.toContain("kling-3-omni")
+    // `veo3` (VEO 3.1 Quality) left on 2026-09-15: KIE serves
+    // reference-to-video on the Fast and Lite SKUs only, so the anchor wave
+    // has nowhere to put the identity refs the keyframes bar requires. The
+    // other two VEO SKUs are unaffected.
+    expect(d?.providers).not.toContain("veo3")
   })
 
   it("names the offered models whose duration menu is SPARSE", () => {
@@ -58,7 +62,6 @@ describe("generate-video-pro node registry", () => {
     // from the catalog, never hand-kept — same rule as `providers` above.
     const d = NODE_REGISTRY.find((n) => n.type === "generate-video-pro")
     expect(d?.sparseProviders).toEqual([
-      "veo3",
       "veo3.1",
       "veo3_lite",
       "gemini-omni-video",
@@ -95,7 +98,7 @@ describe("generate-video-pro node registry", () => {
     }
     expect(res!["seedance-2"]).toEqual(["480p", "720p", "1080p", "4k"])
     expect(res!["seedance-2-fast"]).toEqual(["480p", "720p"])
-    expect(res!["veo3"]).toEqual(["720p", "1080p", "4k"])
+    expect(res!["veo3.1"]).toEqual(["720p", "1080p", "4k"])
     expect(res!["grok-i2v"]).toEqual(["480p", "720p"])
     expect(res!["happyhorse-ref2v"]).toEqual(["720p", "1080p"])
   })

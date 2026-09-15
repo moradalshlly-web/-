@@ -1210,15 +1210,19 @@ orchestrator already use):
   support attach references; on any other model the `{image:N}` tokens are stripped
   to their bare labels and nothing is attached. Supported models and their
   image-reference caps: **Seedance 2** family (9), **HappyHorse Ref2V** (9),
-  **Gemini Omni** / **Kling 3 Omni** / **Grok i2v** (7), **VEO 3.x**
-  (`veo3` / `veo3.1` / `veo3_lite`, 3). This set is kept in lock-step with the
-  model catalog by a drift guard, so it can't silently fall out of sync.
+  **Gemini Omni** / **Kling 3 Omni** / **Grok i2v** (7), **VEO 3.1 Fast and
+  Lite** (`veo3.1` / `veo3_lite`, 3). **VEO 3.1 Quality (`veo3`) is not on the
+  list** — the provider serves reference-to-video on Fast and Lite only, so
+  references sent with `veo3` are ignored and the run proceeds with its frames.
+  This set is kept in lock-step with the model catalog by a drift guard, so it
+  can't silently fall out of sync.
 - **References-only runs (no `imageUrl`).** On `POST /v1/generate-video` the
   start frame is optional whenever at least one supplied reference kind is
   supported by the selected provider (per the caps above) — e.g. Kling 3 Omni
-  with `referenceImageUrls` alone. VEO 3.x references-only runs are
-  auto-normalized to `REFERENCE_2_VIDEO`, so passing `generationType` is not
-  required. Reference kinds the provider can't carry don't lift the
+  with `referenceImageUrls` alone. VEO 3.1 Fast / Lite references-only runs
+  are auto-normalized to `REFERENCE_2_VIDEO`, so passing `generationType` is
+  not required; `veo3` (Quality) carries no references, so a references-only
+  run on it still needs `imageUrl`. Reference kinds the provider can't carry don't lift the
   requirement: a provider with no reference support still needs `imageUrl`,
   and e.g. audio-only references on an images-only model are rejected with a
   400 rather than silently dropped. An **end frame alone** is accepted the same

@@ -233,7 +233,7 @@ describe("POST /v1/generate-video", () => {
       url: "/v1/generate-video",
       payload: {
         prompt: "a cat",
-        provider: "veo3",
+        provider: "veo3.1",
         userId: "00000000-0000-4000-8000-000000000001",
       },
     })
@@ -949,15 +949,16 @@ describe("assembleVideoConnectedReferences (server-side video reference assembly
     expect(out.referenceImageUrls).toHaveLength(9)
   })
 
-  it("never emits an @image_N directive past the cap (veo3 = 3)", () => {
-    // VEO carries up to 3 reference images (REFERENCE_2_VIDEO). Four wired refs
+  it("never emits an @image_N directive past the cap (veo3.1 = 3)", () => {
+    // The ref-capable VEO SKUs carry up to 3 reference images
+    // (REFERENCE_2_VIDEO; `veo3` / Quality carries none). Four wired refs
     // must assemble to THREE URLs AND three directives — never a dangling
     // @image_4 pointing at the dropped slot. (Regression: the core numbered every
     // ref, then the route sliced URLs to the cap AFTER assembly, leaving @image_N+
     // binding nothing.)
     const out = assembleVideoConnectedReferences({
       prompt: "a chase scene",
-      provider: "veo3",
+      provider: "veo3.1",
       connectedReferences: [
         cref({ source: "wired-image", url: "https://r2/a.png", description: "a red car" }),
         cref({ source: "wired-image", url: "https://r2/b.png", description: "a brown dog" }),
@@ -989,12 +990,12 @@ describe("assembleVideoConnectedReferences (server-side video reference assembly
     expect(out.prompt).not.toContain("@image_11")
   })
 
-  it("resolves a {image:N} body token only within the cap; out-of-range drops to its bare label (veo3 = 3)", () => {
+  it("resolves a {image:N} body token only within the cap; out-of-range drops to its bare label (veo3.1 = 3)", () => {
     // {image:4:truck} exceeds the 3-image cap → must NOT bind to a dropped slot;
     // it falls back to the bare label "truck" (the resolveReferenceTokens contract).
     const out = assembleVideoConnectedReferences({
       prompt: "drive {image:1:car} past the {image:4:truck}",
-      provider: "veo3",
+      provider: "veo3.1",
       connectedReferences: [
         cref({ source: "wired-image", url: "https://r2/a.png", description: "a red car" }),
         cref({ source: "wired-image", url: "https://r2/b.png", description: "a brown dog" }),
@@ -1506,10 +1507,10 @@ describe("assembleVideoConnectedReferences — {ref:<id>} id-addressed tokens", 
     expect(out.prompt).not.toMatch(/\{ref:/i)
   })
 
-  it("a ref capped out by the provider limit keeps its name — never a binding onto a dropped seat (veo3 = 3)", () => {
+  it("a ref capped out by the provider limit keeps its name — never a binding onto a dropped seat (veo3.1 = 3)", () => {
     const out = assembleVideoConnectedReferences({
       prompt: "{ref:d} chases {ref:c}",
-      provider: "veo3",
+      provider: "veo3.1",
       connectedReferences: [
         cref({ id: "a", source: "wired-image", url: "https://r2/a.png", defaultName: "car", description: "a red car" }),
         cref({ id: "b", source: "wired-image", url: "https://r2/b.png", defaultName: "dog", description: "a brown dog" }),

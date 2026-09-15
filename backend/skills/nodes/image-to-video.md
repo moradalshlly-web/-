@@ -1,7 +1,7 @@
 ---
 node_type: image-to-video
-generated_at: 2026-09-06T10:23:30.787Z
-generated_from: 88a6e05b4
+generated_at: 2026-09-15T12:15:54.270Z
+generated_from: 026f94462
 ---
 
 # image-to-video
@@ -126,7 +126,7 @@ Two modes, auto-selected from the inputs you provide:
 - **`frames`** (default) — start/end-frame mode: `image_url` is the first frame and `end_frame_url` optionally the last. With a start AND end frame, pick a model whose `features` includes `end-frame` (VEO, MiniMax, Hailuo Standard, Bytedance Lite, Kling Turbo, Seedance).
 - **`references`** — reference-media mode: reference images via `reference_image_urls`, reference videos via `reference_video_urls` (style/motion transfer), audio clips via `reference_audio_urls` (soundtrack-driven motion). `image_url` / `end_frame_url` are ignored in this mode, and reference videos/audio cannot be combined with `end_frame_url`.
 
-Every model takes references at its OWN caps: `seedance-2-5` 30 images / 10 videos / 10 audio clips; the `seedance-2` family and `minimax-h3` 9/3/3; `wan-3` / `wan-3-prime` 10/5/5 (each reference video and audio clip 1–15 s, ≤15 s combined; input video seconds + output duration ≤30 s); `gemini-omni-video` / `gemini-omni-flash` 7 images (the first image is the opening frame, the rest are identity refs; images + 2×videos ≤ 7); `kling-3-omni` / `grok-i2v` 7; `veo3` / `veo3.1` 3 images.
+Every model takes references at its OWN caps: `seedance-2-5` 30 images / 10 videos / 10 audio clips; the `seedance-2` family and `minimax-h3` 9/3/3; `wan-3` / `wan-3-prime` 10/5/5 (each reference video and audio clip 1–15 s, ≤15 s combined; input video seconds + output duration ≤30 s); `gemini-omni-video` / `gemini-omni-flash` 7 images (the first image is the opening frame, the rest are identity refs; images + 2×videos ≤ 7); `kling-3-omni` / `grok-i2v` 7; `veo3.1` / `veo3_lite` 3 images (`veo3`, VEO 3.1 Quality, takes NO references — the provider serves reference-to-video on Fast and Lite only).
 
 - **Reference order = priority.** Put the identity-critical image FIRST and refer by ordinal in the prompt (`@Image 1`, `Video 2`). Identity = ONE headshot + ONE full-body image — multi-view character sheets cause identity drift and twin duplicates. 4–5 assets total beats maxing the caps.
 - **Edit/extend phrasing.** Name clips directly (`Extend Video 1 backward`, `Remove X from Video 1`) — saying `reference Video 1` flips the model into reference mode and breaks the edit. Track completion: `Video 1 + [transition] + followed by Video 2` (≤3 clips, ≤15 s total).
@@ -312,7 +312,7 @@ Example: "Medium shot, a tired corporate worker, rubbing his temples in exhausti
 
 **Frames & references**
 - Start + end frame: wire both (imageUrls [start, end]) and describe the camera path between them — "a smooth 180-degree arc shot, starting front-facing and circling to end on the POV from behind her".
-- Reference images (ingredients): attach character/object/scene refs and name them in the prompt ("using the provided images for the detective and the office, …"). Reference runs DO generate audio.
+- Reference images (ingredients) — **Fast (veo3.1) and Lite (veo3_lite) only**; the Quality SKU (veo3) has no reference-to-video mode at the provider, so wire it with frames alone. Where they are available: attach character/object/scene refs and name them in the prompt ("using the provided images for the detective and the office, …"). Reference runs DO generate audio.
 
 **Constraints**
 - Negative prompting works by positive description: write "a desolate landscape with no buildings or roads", not "no buildings".

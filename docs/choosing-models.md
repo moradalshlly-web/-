@@ -153,7 +153,7 @@ Many video models support **both** `t2v` and `i2v` from the same id — the Gene
 | Kling Avatar Pro | Kuaishou | Premium | 560 | lip-sync | Premium lip-sync — better mouth shape and timing. |
 | Video Analysis (Fast — legacy) | Nodaro | Premium | 849 | video-analysis | Legacy fast-tier analysis model (pre-2026-07). Kept so stored raw-model configs keep running and keep pricing under their own identifier; new fast-tier runs use the current fast model. |
 | Video Analysis (Fast) | Nodaro | Premium | 995 | video-analysis | Analyze a video into a structured shot list (scenes, camera, audio) — fast, economy tier. Billed per duration bucket. |
-| ⭐ VEO 3.1 Quality | Google | Premium | 1000 | i2v, t2v | Google VEO 3.1 Quality — premium cinematic video. 4/6/8s clips, optional end frame, native audio. Flat per-generation pricing across durations. |
+| ⭐ VEO 3.1 Quality | Google | Premium | 1000 | i2v, t2v | Google VEO 3.1 Quality — premium cinematic video. 4/6/8s clips, optional end frame, native audio. No reference-to-video mode (Fast/Lite only). Flat per-generation pricing across durations. |
 | Video Analysis (Pro) | Nodaro | Premium | 1059 | video-analysis | Analyze a video into a structured shot list (scenes, camera, audio) — higher-fidelity, default tier. Billed per duration bucket. |
 | AI Audit | Nodaro | Premium | 1075 | video-audit | Re-watches a clip against a wired analysis, applies video-verified corrections under guards, and returns a disclosed report of what changed. Billed per duration bucket. |
 | Video Analysis (Mixed) | Nodaro | Premium | 1181 | video-analysis | Our most advanced analysis tier — multiple analysis engines combined into one result for maximum completeness and accuracy. Billed per duration bucket. |

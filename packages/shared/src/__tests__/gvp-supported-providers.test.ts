@@ -41,13 +41,21 @@ describe("GVP_SUPPORTED_PROVIDERS", () => {
     // Not a hand-kept list any more — this pin documents the CURRENT result so
     // a catalog edit that changes the offered SKUs is visible in review, while
     // the derivation itself is what ships.
+    //
+    // `veo3` (VEO 3.1 QUALITY) LEFT the set on 2026-09-15 and the removal is
+    // the derivation working: the bar is "takes a generated start still AND
+    // can carry the identity/continuity reference images the anchor wave
+    // attaches", and KIE serves reference-to-video on the Fast and Lite SKUs
+    // only ("Reference to video only supports the Veo Fast model and Veo Lite
+    // model.", production 2026-09-04). A Quality run that reached the anchor
+    // wave with identity refs was a 422 mid-render, after the credits for a
+    // multi-segment job were reserved. The Fast and Lite SKUs stay.
     expect([...GVP_SUPPORTED_PROVIDERS]).toEqual([
       "seedance-2",
       "seedance-2-fast",
       "seedance-2-mini",
       "seedance-2-5",
       "minimax-h3",
-      "veo3",
       "veo3.1",
       "veo3_lite",
       "gemini-omni-video",
@@ -121,6 +129,12 @@ describe("GVP_SUPPORTED_PROVIDERS", () => {
     expect(isGvpSupportedProvider("hailuo-2.3-pro")).toBe(false)
     expect(isGvpSupportedProvider("bytedance-pro")).toBe(false)
     expect(isGvpSupportedProvider("grok-imagine-video-1.5")).toBe(false)
+    // VEO 3.1 Quality joins them: i2v and segmentable, but no reference
+    // transport at KIE (Fast/Lite only), so the anchor wave has nowhere to
+    // put identity refs.
+    expect(isGvpSupportedProvider("veo3")).toBe(false)
+    expect(isGvpSupportedProvider("veo3.1")).toBe(true)
+    expect(isGvpSupportedProvider("veo3_lite")).toBe(true)
     // Not i2v at all.
     expect(isGvpSupportedProvider("seedance-2-extend")).toBe(false)
     expect(isGvpSupportedProvider("runway-aleph")).toBe(false)
@@ -170,7 +184,7 @@ describe("GVP_EXTEND_PROVIDERS", () => {
   })
 
   it("keyframes-only SKUs reject extend", () => {
-    for (const p of ["veo3", "veo3.1", "veo3_lite", "gemini-omni-video", "gemini-omni-flash", "grok-i2v", "happyhorse-ref2v", "wan-3", "wan-3-prime"]) {
+    for (const p of ["veo3.1", "veo3_lite", "gemini-omni-video", "gemini-omni-flash", "grok-i2v", "happyhorse-ref2v", "wan-3", "wan-3-prime"]) {
       expect(isGvpSupportedProvider(p)).toBe(true)
       expect(supportsExtendRender(p)).toBe(false)
     }
@@ -186,7 +200,10 @@ describe("GVP_END_FRAME_PROVIDERS", () => {
       "seedance-2-mini",
       "seedance-2-5",
       "minimax-h3",
-      "veo3",
+      // `veo3` is absent because GVP_END_FRAME_PROVIDERS is a subset of
+      // GVP_SUPPORTED_PROVIDERS, which VEO 3.1 Quality left — see above. The
+      // catalog still declares "end-frame" for the SKU; it is simply not a
+      // pro-node SKU any more.
       "veo3.1",
       "veo3_lite",
       "wan-3",

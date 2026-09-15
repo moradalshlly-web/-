@@ -1986,8 +1986,13 @@ export const VIDEO_REF_LIMITS_BY_PROVIDER: Record<
   "kling-3-omni": { images: 7 },     // catalog/docs: "end frame + up to 7 reference images"
   "grok-i2v": { images: 7 },         // backend kie/models.ts maxRefImages: 7
   "happyhorse-ref2v": { images: 9 }, // backend kie/models.ts maxRefImages: 9
-  // VEO 3.x — REFERENCE_2_VIDEO path caps refs at 3 (kie/video.ts slice(0, 3)).
-  "veo3": { images: 3 },
+  // VEO 3.x — REFERENCE_2_VIDEO path caps refs at 3 (kie/video.ts slices to
+  // this number). `veo3` (VEO 3.1 QUALITY) is deliberately ABSENT: KIE serves
+  // reference-to-video on the Fast and Lite SKUs only and rejects it on
+  // Quality with "Reference to video only supports the Veo Fast model and Veo
+  // Lite model." (production, 2026-09-04). Absent ⇒ 0 ⇒ the handle dims, the
+  // `connectedReferences` assembly strips image tokens, and kie/video.ts never
+  // flips a Quality call to REFERENCE_2_VIDEO.
   "veo3.1": { images: 3 },
   "veo3_lite": { images: 3 },
   // NOTE: wan-i2v / hailuo-2.3[-pro] / bytedance-pro[-fast] / grok-imagine-video-1.5

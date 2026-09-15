@@ -1510,11 +1510,32 @@ export class KieVideoProvider
       let imageUrls: string[]
       let veoGenerationType = options?.generationType
       let veoPrompt = effectivePrompt ?? "smooth cinematic motion"
-      if (options?.generationType === "REFERENCE_2_VIDEO" && options?.referenceImageUrls?.length) {
+      // How many reference INGREDIENTS this VEO SKU can carry, read from the
+      // catalog-bound map rather than the hard-coded 3 this branch used to
+      // assume. 0 (absent from the map) means the SKU has no
+      // reference-to-video mode at all: KIE serves REFERENCE_2_VIDEO on Fast
+      // and Lite only and answers Quality with "Reference to video only
+      // supports the Veo Fast model and Veo Lite model." — a 422 AFTER the
+      // credits are reserved. Reading the declared capacity here (rather than
+      // trusting the caller) is what makes that unreachable from EVERY entry
+      // point: the editor dims the handle, but the orchestrator, the REST API
+      // and an imported workflow all hand `referenceImageUrls` straight
+      // through, and this is the only thing between them and the provider.
+      const veoRefSlots = VIDEO_REF_LIMITS_BY_PROVIDER[provider]?.images ?? 0
+      const veoRefsRequested = options?.referenceImageUrls?.filter(Boolean).length ?? 0
+      if (veoRefsRequested > 0 && veoRefSlots === 0) {
+        console.log(
+          `[KIE.ai] VEO ${provider}: ${veoRefsRequested} reference image(s) ignored — this SKU has no reference-to-video mode (Fast/Lite only); running plain frame mode`,
+        )
+        // Never send the flag without ingredients: a REFERENCE_2_VIDEO call
+        // carrying frame URLs is the 422 this guard exists to prevent.
+        if (veoGenerationType === "REFERENCE_2_VIDEO") veoGenerationType = undefined
+      }
+      if (veoRefSlots > 0 && options?.generationType === "REFERENCE_2_VIDEO" && options?.referenceImageUrls?.length) {
         // Caller-driven reference mode (the t2v-style explicit path): the
         // list is the caller's own — no anchor prepend, no binding.
-        imageUrls = options.referenceImageUrls.slice(0, 3)
-      } else if (imageUrl && options?.referenceImageUrls?.length) {
+        imageUrls = options.referenceImageUrls.slice(0, veoRefSlots)
+      } else if (veoRefSlots > 0 && imageUrl && options?.referenceImageUrls?.length) {
         // ANCHORED CALL WITH IDENTITY REFS (2026-08-15): VEO's single ≤3
         // imageUrls array makes frames and reference ingredients mutually
         // exclusive, so the resolver flips the call to REFERENCE_2_VIDEO
@@ -1966,7 +1987,18 @@ export class KieVideoProvider
       // imageUrls with an explicit REFERENCE_2_VIDEO generationType so the
       // refs condition the output (a bare single image would otherwise be
       // misread as an IMAGE_2_VIDEO start frame).
-      const veoRefUrls = (options?.referenceImageUrls ?? []).filter((u): u is string => !!u).slice(0, 3)
+      // Slice to the SKU's DECLARED capacity, not a hard-coded 3: a VEO SKU
+      // with no reference-to-video mode (Quality — see the i2v branch) slices
+      // to 0, so `veoGenerationType` stays undefined, the run remains a plain
+      // t2v instead of a guaranteed 422, and `veoDurationFor` therefore takes
+      // its NON-reference branch and honours the requested length.
+      const veoRefSlots = VIDEO_REF_LIMITS_BY_PROVIDER[provider]?.images ?? 0
+      const veoRefUrls = (options?.referenceImageUrls ?? []).filter((u): u is string => !!u).slice(0, veoRefSlots)
+      if (veoRefSlots === 0 && (options?.referenceImageUrls?.filter(Boolean).length ?? 0) > 0) {
+        console.log(
+          `[KIE.ai] VEO ${provider}: reference image(s) ignored — this SKU has no reference-to-video mode (Fast/Lite only)`,
+        )
+      }
       const veoGenerationType = veoRefUrls.length > 0 ? "REFERENCE_2_VIDEO" : undefined
       const snappedDuration = veoDurationFor(veoGenerationType, duration, modelConfig.allowedDurations)
       const veoResult = await runVeoTask(

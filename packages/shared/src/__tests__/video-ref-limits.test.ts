@@ -57,10 +57,19 @@ describe("VIDEO_REF_LIMITS_BY_PROVIDER ⇄ MODEL_CATALOG drift guard", () => {
 })
 
 describe("VIDEO_REF_LIMITS_BY_PROVIDER caps for the newly-covered models", () => {
-  it("VEO family carries images:3 (the REFERENCE_2_VIDEO slice cap in kie/video.ts)", () => {
-    expect(VIDEO_REF_LIMITS_BY_PROVIDER["veo3"]).toEqual({ images: 3 })
+  it("the ref-capable VEO SKUs carry images:3 (the REFERENCE_2_VIDEO slice cap in kie/video.ts)", () => {
     expect(VIDEO_REF_LIMITS_BY_PROVIDER["veo3.1"]).toEqual({ images: 3 })
     expect(VIDEO_REF_LIMITS_BY_PROVIDER["veo3_lite"]).toEqual({ images: 3 })
+  })
+
+  it("veo3 (VEO 3.1 QUALITY) carries NO cap — KIE serves reference-to-video on Fast/Lite only", () => {
+    // Its own words on a production job (2026-09-04, app-reports lane G):
+    // "Reference to video only supports the Veo Fast model and Veo Lite
+    // model." Until 2026-09-15 this entry claimed images:3, so every
+    // reference-carrying Quality run was a 422 after the credits were
+    // reserved. Absent ⇒ 0 everywhere the map is read.
+    expect(VIDEO_REF_LIMITS_BY_PROVIDER["veo3"]).toBeUndefined()
+    expect(MODEL_CATALOG["veo3"]?.features).not.toContain("reference-image")
   })
   it("kling-3-omni and grok-i2v carry images:7", () => {
     expect(VIDEO_REF_LIMITS_BY_PROVIDER["kling-3-omni"]).toEqual({ images: 7 })
