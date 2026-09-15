@@ -9,6 +9,7 @@ import { Readable, Transform } from "node:stream"
 import { config } from "./config.js"
 import { safeFetch } from "./safe-fetch.js"
 import { assertOrdinaryMediaKey } from "./retained-image-keys.js"
+import { templatePreviewKey } from "./template-preview-key.js"
 import {
   updateStorageUsage,
   reserveStorageIfWithinLimit,
@@ -722,8 +723,11 @@ function extractExtensionFromUrl(url: string): string | null {
  * fall back to a bounded safeFetch + streamToR2. Storage is tracked against
  * the creator (matches who owns the template).
  *
- * Idempotent: re-publishing overwrites the same `templates/<id>/preview.<ext>`
- * key. CDN URL stays stable; edge caches refresh on their own TTL.
+ * The key is stamped from the source url (see `templatePreviewKey`): the CDN
+ * caches every object for a year, immutable, with no purge, so a cover written
+ * over a fixed key never reached viewers again. A new cover now lands on a new
+ * key; re-publishing the same cover stays idempotent (same key, overwritten in
+ * place).
  *
  * TODO(thumbnails): cap video preview size or convert video previews to a
  * single-frame poster — currently copies videos at full size. Tracked as a
@@ -736,7 +740,7 @@ export async function copyToTemplatePreview(
   creatorUserId: string,
 ): Promise<string> {
   const ext = extractExtensionFromUrl(sourceUrl) ?? MEDIA_EXT[mediaType]
-  const destKey = `templates/${templateId}/preview.${ext}`
+  const destKey = templatePreviewKey(templateId, sourceUrl, ext)
   const contentType = PREVIEW_EXT_TO_MIME[ext] ?? MEDIA_MIME[mediaType]
 
   const sourceKey = r2KeyFromOurUrl(sourceUrl)
