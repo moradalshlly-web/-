@@ -4314,7 +4314,7 @@ Returns the persisted asset's public URL and storage metadata. Throws
 | `thumbnailUrl` | `string \| null` | Generated thumbnail URL (images/video); `null` for audio or on failure. |
 | `category` | `string` | Server-classified asset category (`"image"` / `"video"` / `"audio"`). |
 | `filename` | `string` | Display filename (server override or original). |
-| `mimeType` | `string` | Final MIME type after server normalization. |
+| `mimeType` | `string` | Final MIME type after server normalization — the CANONICAL type, which may differ from the one the browser declared (`audio/vnd.dlna.adts` → `audio/aac`, `application/octet-stream` + `clip.mp4` → `video/mp4`). See [Direct uploads](./api-integration.md#direct-uploads). |
 | `sizeBytes` | `number` | Stored byte size. |
 | `r2Key` | `string` | R2 object key. |
 

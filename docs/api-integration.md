@@ -1838,6 +1838,17 @@ Accepted audio formats include MP3, WAV, M4A/AAC, OGG, WebM and FLAC
 (50 MB for audio). The SDK wraps this as `client.uploads`; MCP clients use
 `prepare_audio_upload` / `request_audio_upload` and friends.
 
+**The declared content type does not have to be the canonical one.** The
+server resolves the part's `Content-Type` before validating it: parameters are
+stripped (`audio/webm;codecs=opus` → `audio/webm`), well-known vendor
+spellings map to the format they mean (`audio/vnd.dlna.adts` — what Windows
+calls a plain `.aac` — → `audio/aac`; `image/jpg` → `image/jpeg`;
+`video/mov` → `video/quicktime`), and an uninformative type
+(`application/octet-stream`, or none at all) is resolved from the **filename
+extension**. A type that still resolves to nothing we accept is rejected with
+`400 validation_error` listing the accepted formats. The resolved type is what
+comes back as `mimeType` and what the stored object is served as.
+
 ### Media processing (free, synchronous)
 
 `POST /v1/media/process` cuts or crops a stored file: body
