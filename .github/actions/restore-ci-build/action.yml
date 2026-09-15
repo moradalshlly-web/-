@@ -1,0 +1,17 @@
+name: Restore CI build
+description: Restore and verify outputs built by this workflow run
+inputs:
+  kind:
+    description: packages or backend
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@v5
+      with:
+        name: ci-build-${{ inputs.kind }}
+        path: ${{ runner.temp }}/ci-build-${{ inputs.kind }}
+    - shell: bash
+      env:
+        BUILD_KIND: ${{ inputs.kind }}
+      run: node tools/ci-build-artifact.mjs restore "$BUILD_KIND" "$RUNNER_TEMP/ci-build-$BUILD_KIND"
