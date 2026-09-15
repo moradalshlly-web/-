@@ -690,7 +690,13 @@ otherwise.) Unlike `safety-block`, the platform does not retry a policy rejectio
 and offers no fallback model: whether the same request would be judged
 differently is the deployment's policy's business, not the platform's.
 
-`error_hint` is `null`/absent on every other failure. For `safety-block`,
+`error_hint` is `null`/absent on every other failure — including a **request
+reject**, where the provider answered the submission with a 4xx because the
+settings or input media are invalid for that model. That one has no structured
+hint, but its `error_message` says the provider *rejected these settings for
+this model* and `retryable` is `false`: change the settings or the media before
+re-running. A provider 5xx stays retryable however validation-shaped its
+wording is. For `safety-block`,
 `class` distinguishes a
 deterministic block (`copyright`, `likeness` — retrying the identical request
 never helps) from `safety`, whose filter is known to be non-deterministic for

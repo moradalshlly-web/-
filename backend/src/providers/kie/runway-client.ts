@@ -218,7 +218,9 @@ async function pollRunwayRecordDetail(
     if (state === "fail") {
       const failMsg = detailData.data?.failMsg ?? "Unknown error"
       const failCode = detailData.data?.failCode ?? "no_code"
-      throw createUpstreamFailureError(`${label} failed: [${failCode}] ${failMsg}`, "Video generation")
+      throw createUpstreamFailureError(`${label} failed: [${failCode}] ${failMsg}`, "Video generation", {
+        upstreamStatus: failCode,
+      })
     }
   }
 

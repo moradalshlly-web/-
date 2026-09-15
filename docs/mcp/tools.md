@@ -1153,10 +1153,20 @@ provider. Visible for your own jobs (any status) and any user's public
 completed jobs. For a **failed** job it returns the failure reason plus a
 `retryable` flag, a `guidance` sentence, and — when the provider's safety
 filter blocked the output and the catalog offers a fallback model —
-`suggestedProvider`. `retryable: false` (e.g. a content-policy block) means
-the same request will fail again unchanged; when `suggestedProvider` is
+`suggestedProvider`. `retryable: false` (a content-policy block, or a
+provider that refused the request outright — see below) means the same request
+will fail again unchanged; when `suggestedProvider` is
 present, retry the SAME prompt and references with that model id instead of
-guessing at a new one. For a job in **`pending_review`** (a deployment's job
+guessing at a new one.
+
+A job whose `error_message` says the provider **rejected these settings for
+this model** is the request-reject case: the provider answered the submission
+with a 4xx, so the combination of settings and input media is invalid for that
+model. It comes back `retryable: false` — change the settings or the input
+media (duration, aspect ratio, resolution, or the reference image/video/audio)
+before re-running, or pick a model whose `list_models` capability sheet allows
+the combination. A provider 5xx is the opposite case and stays `retryable`,
+even when its wording reads like a validation complaint. For a job in **`pending_review`** (a deployment's job
 policy held the output for human review) it returns `status: "pending_review"`,
 `outputUrl: null`, `retryable: false` and a `guidance` sentence: the status is
 in-flight, so keep polling and do **not** re-run the request — a duplicate

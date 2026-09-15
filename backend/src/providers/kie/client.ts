@@ -91,6 +91,22 @@ export class KieError extends Error {
   }
 }
 
+/** The upstream status a KIE call answered with. `string` because KIE's
+ *  `failCode` is typed as one; "no_code" and friends simply never parse. */
+export type UpstreamStatus = number | string | null | undefined
+
+/**
+ * True for the two statuses that mean "the REQUEST was wrong", not "the
+ * provider had a bad minute": 400 and 422. Everything else — 5xx, 429 (already
+ * claimed by the rate-limit branch), 401/403 (our key, not the user's inputs),
+ * a missing/unparseable code — is left alone, so a status we cannot read can
+ * never turn a transient into a permanent verdict.
+ */
+export function isRequestRejectStatus(status: UpstreamStatus): boolean {
+  const n = typeof status === "number" ? status : Number.parseInt(String(status ?? ""), 10)
+  return n === 400 || n === 422
+}
+
 /**
  * Create a sanitized error for user display while logging full details.
  * In cloud edition, we don't want to expose "KIE.ai" provider name to customers.
@@ -101,7 +117,7 @@ export function createSanitizedError(
   context: string,
   isUpstreamFailure = false,
   contentPolicy = false,
-  opts?: { userSafeMessage?: string | null },
+  opts?: { userSafeMessage?: string | null; upstreamStatus?: UpstreamStatus },
 ): KieError {
   // Log the full internal error for debugging (visible in Railway logs)
   console.error(
@@ -219,7 +235,11 @@ export function createSanitizedError(
     // without this the two layers disagree on one string: classifier `null`
     // (retryable), sanitizer "Content policy violation" (permanent).
     (lowerMsg.includes("input was rejected") && !PARAM_REJECT_RE.test(internalMessage)) ||
-    lowerMsg.includes("moderation") ||
+    // "moderat", not "moderation": the provider says "caught by our AI
+    // moderator" (prod report 2026-09-07, nano-banana-2-lite) and the noun
+    // form matched nothing, so an unfixable moderation block was told to
+    // "try again". Same widening in SAFETY_RE and in _job-error.ts.
+    lowerMsg.includes("moderat") ||
     lowerMsg.includes("violat") ||
     lowerMsg.includes("nsfw") ||
     lowerMsg.includes("inappropriate") ||
@@ -230,6 +250,26 @@ export function createSanitizedError(
   ) {
     sanitizedMessage =
       "Content policy violation: The output was blocked by the provider's safety filter. Try modifying your prompt or input image."
+  } else if (isRequestRejectStatus(opts?.upstreamStatus)) {
+    // LAST, immediately before the generic fallback: every branch above reads
+    // the provider's WORDS, this one reads its STATUS. A 400/422 means the
+    // provider refused the REQUEST — deterministic on the same inputs — so the
+    // generic "please try again" is actively wrong advice, and it is what 13
+    // production reports got (2026-09-15 lane-G triage): seedance-2.5's
+    // ratio/duration video-edit reject, its 2-30s reference-audio bound and
+    // its r2v pixel-count floor, wan-3's 1-15s reference-video bound, VEO's
+    // "reference to video is Fast/Lite only". Not one of them shares a keyword
+    // with another, which is exactly why the keyword list keeps missing them
+    // and the status does not.
+    //
+    // 5xx deliberately keeps the retry message: KIE answers a genuinely
+    // transient internal error with a validation-shaped sentence
+    // ("code 500: This field is required"), and the SAME payload succeeded
+    // minutes later in production — the words lie there, the status does not.
+    sanitizedMessage =
+      `${context} failed: the provider rejected these settings for this model. ` +
+      "Retrying the same request will fail again — change the settings or the input media " +
+      "(duration, aspect ratio, resolution, or the reference image/video/audio) and try again."
   } else {
     // Generic fallback - hide all provider-specific details
     sanitizedMessage = `${context} failed. Please try again or contact support if the issue persists.`
@@ -254,7 +294,13 @@ export function createSanitizedError(
 export function createUpstreamFailureError(
   internalMessage: string,
   context: string,
-  options?: { contentPolicy?: boolean; contentPolicyClass?: ContentPolicyClass | null; userMessage?: string },
+  options?: {
+    contentPolicy?: boolean
+    contentPolicyClass?: ContentPolicyClass | null
+    userMessage?: string
+    /** The provider's own status for this failure — see isRequestRejectStatus. */
+    upstreamStatus?: UpstreamStatus
+  },
 ): KieError {
   // W0: every terminal upstream failure is classified HERE, so the 9
   // non-`pollKieTask` throw sites across six client files (kie/veo in this file,
@@ -276,7 +322,9 @@ export function createUpstreamFailureError(
     console.error(`[KIE.ai INTERNAL ERROR] ${context}: ${internalMessage}`)
     return new KieError(userMessage, internalMessage, context, true, contentPolicy, cls)
   }
-  return createSanitizedError(internalMessage, context, true, contentPolicy)
+  return createSanitizedError(internalMessage, context, true, contentPolicy, {
+    upstreamStatus: options?.upstreamStatus,
+  })
 }
 
 /** True for a KieError marking a terminal upstream provider failure (vs a
@@ -312,7 +360,7 @@ const LIKENESS_RE = /public.?figure|celebrit|real.?person|likeness/i
  * `flagged.?by.?the.?safety` is belt-and-braces for the first group; keeping
  * both means a provider that drops the noun still classifies.
  */
-const SAFETY_RE = /content.?polic|prohibited.?content|sensitive.?content|safety.?(?:filter|policy|system)|flagged.?by.?the.?safety|flagged.?as.?sensitive|moderation|nsfw|inappropriate|\bunsafe\b/i
+const SAFETY_RE = /content.?polic|prohibited.?content|sensitive.?content|safety.?(?:filter|policy|system)|flagged.?by.?the.?safety|flagged.?as.?sensitive|moderat|nsfw|inappropriate|\bunsafe\b/i
 
 /**
  * The one WEAK signal from the log pull (1 row): "Your input was rejected."
@@ -559,7 +607,7 @@ export async function createKieTask(
       "Generation",
       false,
       false,
-      { userSafeMessage: readUserSafeMessage(createResponse) },
+      { userSafeMessage: readUserSafeMessage(createResponse), upstreamStatus: createResponse.status },
     )
   }
 
@@ -583,7 +631,10 @@ export async function createKieTask(
     )
     throw createSanitizedError(
       `createTask error (code ${createData.code}): ${createData.message ?? JSON.stringify(createData)}`,
-      "Generation"
+      "Generation",
+      false,
+      false,
+      { upstreamStatus: createData.code },
     )
   }
 
@@ -733,7 +784,7 @@ export async function pollKieTask(
       throw createUpstreamFailureError(
         `task failed: [${failCode}] ${failMsg}`,
         "Generation",
-        { contentPolicy: cls !== null, contentPolicyClass: cls },
+        { contentPolicy: cls !== null, contentPolicyClass: cls, upstreamStatus: failCode },
       )
     }
 
@@ -900,7 +951,10 @@ export async function runVeoTask(
   if (!createResponse.ok) {
     throw createSanitizedError(
       `VEO generate failed: ${createResponse.status} - ${responseText}`,
-      "Video generation"
+      "Video generation",
+      false,
+      false,
+      { upstreamStatus: createResponse.status },
     )
   }
 
@@ -921,7 +975,10 @@ export async function runVeoTask(
   ) {
     throw createSanitizedError(
       `VEO generate error (code ${createData.code}): ${createData.message ?? JSON.stringify(createData)}`,
-      "Video generation"
+      "Video generation",
+      false,
+      false,
+      { upstreamStatus: createData.code },
     )
   }
 
