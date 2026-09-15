@@ -21,6 +21,10 @@ const mocks = vi.hoisted(() => {
 
   // Handler mock — a single spy we can configure per test
   const mockHandler = vi.fn().mockResolvedValue(undefined)
+  // A handler the private-plugin LOADER contributes (keyed "pro-3d-render"
+  // below) and the pre-task refresh it must beat while it runs.
+  const mockPluginHandler = vi.fn().mockResolvedValue(undefined)
+  const mockRefreshPreTaskSentinel = vi.fn().mockResolvedValue(undefined)
 
   // Supabase mock
   const mockSingle = vi.fn().mockResolvedValue({ data: null, error: null })
@@ -50,6 +54,8 @@ const mocks = vi.hoisted(() => {
     mockInitProviders,
     mockTryInlineReconcile,
     mockHandler,
+    mockPluginHandler,
+    mockRefreshPreTaskSentinel,
     mockFrom,
     mockSingle,
     mockEq,
@@ -152,15 +158,25 @@ vi.mock("../handlers/entity.js", () => ({
 // Private-plugins loader (Stage 1 VCP extraction) — mocked to a no-op so this
 // suite never attempts a real `@nodaroai/cloud-plugins` import or builds the
 // real toolkit (which eagerly constructs a real BullMQ `Queue` via
-// lib/queue.js — this file's `bullmq` mock above only stubs `Worker`). None
-// of these tests exercise a private-plugin-contributed handler; load.ts's own
-// suite (lib/private-plugins/__tests__/load.test.ts) covers the merge logic.
-// `engines: {}` mirrors `emptyResult()`'s real shape (S8) — `video-worker.ts`
-// destructures `engines` off this result and reads `engines.surround`
-// unconditionally, so an incomplete mock here throws at module-import time,
-// not inside a test body.
+// lib/queue.js — this file's `bullmq` mock above only stubs `Worker`). It
+// contributes ONE handler, so the liveness tests can tell a loader-contributed
+// handler (wrapped in the pre-task heartbeat) from a core one (not wrapped);
+// load.ts's own suite (lib/private-plugins/__tests__/load.test.ts) covers the
+// merge logic. `engines: {}` mirrors `emptyResult()`'s real shape (S8) —
+// `video-worker.ts` destructures `engines` off this result and reads
+// `engines.surround` unconditionally, so an incomplete mock here throws at
+// module-import time, not inside a test body.
 vi.mock("@/lib/private-plugins/load.js", () => ({
-  loadPrivatePlugins: vi.fn().mockResolvedValue({ handlers: {}, loaded: [], engines: {} }),
+  loadPrivatePlugins: vi.fn().mockResolvedValue({
+    handlers: { "pro-3d-render": mocks.mockPluginHandler }, loaded: [], engines: {},
+  }),
+}))
+
+// Only the liveness refresh is replaced; the rest of the module stays real for
+// the core handlers this suite imports unmocked.
+vi.mock("@/lib/reconcile/persistence.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/reconcile/persistence.js")>()),
+  refreshPreTaskSentinel: mocks.mockRefreshPreTaskSentinel,
 }))
 
 // Mock KieError — must be a real class for instanceof checks
@@ -182,7 +198,11 @@ vi.mock("@/providers/kie/client.js", () => {
 // Import module under test
 // ---------------------------------------------------------------------------
 
-import { createVideoWorker } from "../video-worker.js"
+import { createVideoWorker, DRAIN_REQUEUE_DELAY_MS } from "../video-worker.js"
+import { PRE_TASK_HEARTBEAT_MS } from "../pre-task-heartbeat.js"
+import { STALE_THRESHOLD_MS } from "../../lib/reconcile/types.js"
+import { SCENE3D_HEARTBEAT_MS } from "../handlers/scene3d.js"
+import { LLM_STRUCTURED_HEARTBEAT_MS } from "../handlers/llm-structured.js"
 import { KieError } from "../../providers/kie/client.js"
 // Real class (module not mocked) — the worker's self-heal branch discriminates
 // on isPostProcessingError, so tests must throw the genuine type.
@@ -850,6 +870,81 @@ describe("video worker processor", () => {
     expect(mocks.mockUpdate).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: "failed" }),
     )
+  })
+
+  // -------------------------------------------------------------------------
+  // Private-plugin liveness (2026-09-15, staging Pro 3D Render job 99ede351).
+  //
+  // The pickup above stamps `pre-task` on every row, and the reconcile cron
+  // fails + refunds a row whose stamp is 30 minutes old. The Pro run never
+  // refreshed it and was failed at minute 31 with its worker alive. Every
+  // handler the plugin LOADER returns is wrapped in the pre-task heartbeat —
+  // derived from the loader's map, so a plugin job type nobody listed is
+  // covered the day it ships.
+  // -------------------------------------------------------------------------
+  describe("private-plugin liveness (pre-task heartbeat)", () => {
+    afterEach(() => { vi.useRealTimers() })
+
+    const runsFor = (ms: number) => () => new Promise<void>((resolve) => { setTimeout(resolve, ms) })
+
+    it("a loader-contributed handler beats the pre-task sentinel for its job for as long as it runs", async () => {
+      vi.useFakeTimers()
+      mocks.mockPluginHandler.mockImplementationOnce(runsFor(35 * 60_000))
+      const job = makeBullJob("pro-3d-render")
+
+      const run = processor(job, "lock-token")
+      await vi.advanceTimersByTimeAsync(35 * 60_000)
+      await run
+
+      expect(mocks.mockPluginHandler).toHaveBeenCalledWith(job, expect.objectContaining({ jobId: "job-1" }))
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBeGreaterThanOrEqual(34)
+      expect(new Set(mocks.mockRefreshPreTaskSentinel.mock.calls.map(([id]) => id))).toEqual(new Set(["job-1"]))
+
+      const beats = mocks.mockRefreshPreTaskSentinel.mock.calls.length
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBe(beats)
+    })
+
+    it("a core handler is NOT wrapped: its own heartbeat, or the 30-minute hung-handler backstop, stays its business", async () => {
+      vi.useFakeTimers()
+      mocks.mockHandler.mockImplementationOnce(runsFor(5 * 60_000))
+
+      const run = processor(makeBullJob("generate-image"), "lock-token")
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      await run
+
+      expect(mocks.mockHandler).toHaveBeenCalled()
+      expect(mocks.mockRefreshPreTaskSentinel).not.toHaveBeenCalled()
+    })
+
+    it("a drain hand-off stops the beats and still goes back to the queue at no attempt cost", async () => {
+      vi.useFakeTimers()
+      mocks.mockPluginHandler.mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => { setTimeout(resolve, 5 * 60_000) })
+        throw new Error("Scene processing did not complete", { cause: new DrainAbortError() })
+      })
+      const job = makeBullJob("pro-3d-render")
+
+      const run = processor(job, "lock-token").catch((error: unknown) => error)
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      expect(await run).toBeInstanceOf(DelayedError)
+      expect(job.moveToDelayed).toHaveBeenCalledTimes(1)
+
+      const beats = mocks.mockRefreshPreTaskSentinel.mock.calls.length
+      expect(beats).toBeGreaterThanOrEqual(4)
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBe(beats)
+    })
+
+    it("budget: a handed-back row waits out the requeue delay on a stamp at most one beat old, far inside the threshold", () => {
+      expect(DRAIN_REQUEUE_DELAY_MS + 2 * PRE_TASK_HEARTBEAT_MS).toBeLessThan(STALE_THRESHOLD_MS["pre-task"])
+    })
+
+    it("budget: the core long-running handlers' own pre-task heartbeats beat well inside the threshold too", () => {
+      for (const interval of [SCENE3D_HEARTBEAT_MS, LLM_STRUCTURED_HEARTBEAT_MS]) {
+        expect(2 * interval).toBeLessThan(STALE_THRESHOLD_MS["pre-task"])
+      }
+    })
   })
 
   // -------------------------------------------------------------------------

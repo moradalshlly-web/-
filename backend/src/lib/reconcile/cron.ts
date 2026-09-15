@@ -309,7 +309,9 @@ async function sweepNeverStartedJobs(result: ReconcileResult): Promise<void> {
  *  (`lib/private-plugins/toolkit.ts`). That clearing — not an absence of
  *  initial instrumentation — is the invariant making these rows invisible to
  *  the main scan for the rest of the run, and catchable only by this 90-min
- *  sweep.
+ *  sweep. The host's pre-task heartbeat for plugin handlers
+ *  (`workers/pre-task-heartbeat.ts`) is a CAS on `provider_kind = "pre-task"`,
+ *  so it leaves a cleared sentinel null and these rows on this sweep.
  *
  *  Render stalls: BullMQ's maxStalledCount OOM-kill scenario — handler catch never
  *  runs, row stays 'processing', reserved credits (render-video = 5cr) never refund.

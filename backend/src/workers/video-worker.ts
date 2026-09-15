@@ -36,13 +36,16 @@ import { scene3dHandlers } from "./handlers/scene3d.js"
 import { buildStatsKey, upsertExecutionStats } from "../services/execution-stats.js"
 import { tryInlineReconcile } from "./inline-reconcile.js"
 import { loadPrivatePlugins } from "../lib/private-plugins/load.js"
+import { withPreTaskHeartbeats } from "./pre-task-heartbeat.js"
 import { signScene3DDeliveryUrlsForProvider } from "../services/scene3d-artifacts/delivery-provider-access.js"
 
 /** How far back into the queue a drain-interrupted job is moved (ms) — a
  *  moment, not a park: Railway brings the replacement container up BEFORE
  *  draining this one, so a worker is already listening. See the DrainAbortError
- *  branch below. */
-const DRAIN_REQUEUE_DELAY_MS = 2_000
+ *  branch below. Exported for the liveness guard: a handed-back row keeps its
+ *  last `pre-task` stamp through this delay, so it must stay far below the
+ *  sweep threshold. */
+export const DRAIN_REQUEUE_DELAY_MS = 2_000
 
 const allHandlers: Record<string, HandlerFn> = {
   ...imageAIHandlers,
@@ -83,7 +86,13 @@ if (!hasCredits()) {
 }
 const { handlers: privatePluginHandlers, engines } = await loadPrivatePlugins({})
 Object.assign(allHandlers, createSurroundHandlers(engines.surround))
-Object.assign(allHandlers, privatePluginHandlers)
+// Every plugin-contributed handler beats the `pre-task` sentinel while it runs
+// (`pre-task-heartbeat.ts`): the pickup below stamps it on every row, the
+// reconcile cron fails + refunds a row whose stamp is 30 minutes old, and a
+// plugin run can legitimately take longer (staging Pro 3D Render job 99ede351
+// was failed at minute 31 with its worker still running). Wrapping the loader's
+// map — not naming types — covers every plugin job type, present and future.
+Object.assign(allHandlers, withPreTaskHeartbeats(privatePluginHandlers))
 // `engines.smartCut` (2026-07-24): the combine-videos boundary matcher —
 // the cut-point algorithms moved private, so `combineVideos` (and the
 // gvp/evp stitches that reach it through the plugin toolkit, which run in
