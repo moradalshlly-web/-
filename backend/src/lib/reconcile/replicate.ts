@@ -1,4 +1,5 @@
 import { replicateOutputCost } from "../../providers/replicate/output-cost.js"
+import { replicateFailureMessage } from "../../providers/replicate/failure-messages.js"
 import { config } from "../config.js"
 import { supabase } from "../supabase.js"
 import { markJobFailed, FAILABLE_STATUSES } from "../job-failure.js"
@@ -293,11 +294,17 @@ export async function reconcileReplicateJob(row: ReplicateJobRow, opts?: Reconci
   }
 
   if (pred.status === "failed" || pred.status === "canceled") {
+    // A recognised failure signature gets the honest sentence instead of the
+    // generic "please try again" — the SAME normalizer the worker lane uses
+    // (providers/replicate/failure-messages.ts), scoped by job_type so a
+    // generic library error is never read as a verdict for another model.
+    const recognised =
+      pred.status === "failed" ? replicateFailureMessage(row.job_type, pred.error) : null
     await markFailed(
       row.id,
       pred.status === "canceled"
         ? "Generation was cancelled by the provider."
-        : "Generation failed on the provider. Please try again.",
+        : recognised ?? "Generation failed on the provider. Please try again.",
       // pred.error is raw provider text — redact it before it reaches
       // error_detail (M-2b); never pass it through as-is.
       redactProviderDetail(pred.error) ?? `upstream ${pred.status}`,

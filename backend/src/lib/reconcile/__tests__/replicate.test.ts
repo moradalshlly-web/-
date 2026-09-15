@@ -142,6 +142,7 @@ vi.mock("../../../workers/shared.js", () => ({
 }))
 
 import { reconcileReplicateJob, type ReplicateJobRow } from "../replicate.js"
+import { MASK_NO_REGION_MESSAGE } from "../../../providers/replicate/failure-messages.js"
 
 // G-7 harness accessors (did not exist before this task).
 const lastJobsUpdate = (): Record<string, unknown> => mocks.jobsUpdates.at(-1) ?? {}
@@ -519,6 +520,57 @@ describe("reconcileReplicateJob", () => {
     expect(update.error_message).not.toContain("CUDA")
     expect(update.error_detail).toContain("CUDA out of memory")
     expect(update.error_detail).not.toContain("token=abc")
+  })
+
+  // app-reports lane G: two generate-mask rows failed with Grounded SAM's
+  // zero-detection crash and were written as the generic retryable sentence,
+  // so the user was told to re-run a request that cannot succeed. The
+  // recognised signature now gets the honest sentence — from the SAME
+  // normalizer the worker lane uses (providers/replicate/failure-messages.ts).
+  it("writes the no-region sentence for a generate-mask zero-detection crash", async () => {
+    setPrediction({
+      id: "pred-mask-1",
+      status: "failed",
+      error:
+        "cannot reshape tensor of 0 elements into shape [0, -1, 256, 256] because " +
+        "the unspecified dimension size -1 can be any value and is ambiguous",
+    })
+    const row: ReplicateJobRow = {
+      id: "job-mask-1",
+      provider_kind: "replicate-prediction",
+      provider_task_id: "pred-mask-1",
+      reconcile_attempts: 0,
+      job_type: "generate-mask",
+    }
+    await reconcileReplicateJob(row)
+    const update = lastJobsUpdate()
+    expect(update.status).toBe("failed")
+    expect(update.error_message).toBe(MASK_NO_REGION_MESSAGE)
+    expect(update.error_message).not.toContain("Please try again")
+    // The raw provider text still reaches the operator-facing column.
+    expect(update.error_detail).toContain("0 elements")
+    expect(mocks.refundMock).toHaveBeenCalled()
+  })
+
+  // The signature is a generic PyTorch string — it is only a verdict for the
+  // job type whose model is known to fail that way.
+  it("keeps the generic sentence for the same text on another job type", async () => {
+    setPrediction({
+      id: "pred-notmask-1",
+      status: "failed",
+      error: "cannot reshape tensor of 0 elements into shape [0, -1, 256, 256]",
+    })
+    const row: ReplicateJobRow = {
+      id: "job-notmask-1",
+      provider_kind: "replicate-prediction",
+      provider_task_id: "pred-notmask-1",
+      reconcile_attempts: 0,
+      job_type: "generate-image",
+    }
+    await reconcileReplicateJob(row)
+    expect(lastJobsUpdate().error_message).toBe(
+      "Generation failed on the provider. Please try again.",
+    )
   })
 
   // Task 4 (B2b): DAG-node-type and unknown/NULL job_type rows must bump with

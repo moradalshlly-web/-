@@ -22,6 +22,18 @@ describe("isRetryableFailure", () => {
     expect(isRetryableFailure("Image too large")).toBe(false)
   })
 
+  it("marks a provider no-match NON-retryable without calling it a rejection", () => {
+    // Grounded SAM found zero regions for the mask prompt
+    // (providers/replicate/failure-messages.ts). Re-running the identical
+    // request fails identically, but nothing was blocked.
+    const noMatch =
+      "No region matched the mask prompt. Try a shorter, plainer subject phrase " +
+      '(for example "the hat" rather than a long description) and run again.'
+    expect(isRetryableFailure(noMatch)).toBe(false)
+    expect(isContentRejection(noMatch)).toBe(false)
+    expect(rejectionClassOf(noMatch)).toBeNull()
+  })
+
   it("treats transient / unknown failures as retryable", () => {
     expect(
       isRetryableFailure("Generation failed. Please try again or contact support."),
