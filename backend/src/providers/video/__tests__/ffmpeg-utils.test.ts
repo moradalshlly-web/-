@@ -136,6 +136,7 @@ import {
   normalizeVideoForCombine,
   BROWSER_SAFE_VIDEO_ARGS,
   REMOTION_INPUT_VIDEO_ARGS,
+  ffmpegFailureMessage,
 } from "../ffmpeg-utils.js"
 
 beforeEach(() => {
@@ -334,6 +335,61 @@ describe("runFfmpeg", () => {
     await expect(runFfmpeg(["bad"])).rejects.toThrow(
       /ffmpeg failed: Conversion failed/,
     )
+  })
+
+  // jobs.error_message keeps only the FIRST 500 chars (lib/job-failure.ts) and
+  // ffmpeg opens every run with a multi-KB banner — so the cause must ride in
+  // the message TAIL or it never reaches /admin/app-reports (prod 2026-09-06).
+  it("drops ffmpeg's banner and keeps the cause within the stored 500 chars", async () => {
+    const banner = [
+      "ffmpeg version n8.1.2-21-gce3c09c101-20260630 Copyright (c) 2000-2026 the FFmpeg developers",
+      "  built with gcc 15.2.0 (crosstool-NG 1.28.0.23_185f348)",
+      `  configuration: ${"--enable-something ".repeat(120)}`,
+      ...Array.from({ length: 20 }, (_, i) => `  libavcodec${i} 62. ${i}.100 / 62. ${i}.100`),
+    ].join("\n")
+    execFileOnce(
+      "",
+      new Error("exit 1") as NodeJS.ErrnoException,
+      `${banner}\nStream map '0:v' matches no streams.\n`,
+    )
+
+    const err = await runFfmpeg(["bad"]).then(() => null, (e: Error) => e)
+
+    expect(err?.message).toMatch(/^ffmpeg failed: /)
+    expect(err?.message).toContain("Stream map '0:v' matches no streams.")
+    expect(err?.message).not.toContain("ffmpeg version")
+    expect(err?.message.slice(0, 500)).toContain("matches no streams")
+  })
+
+  // No stderr at all (a spawn/exit failure): Node's execFile message is
+  // "Command failed: ffmpeg -y -i … <every arg>", which would itself eat the
+  // budget. Tail that too rather than storing the head of the command line.
+  it("falls back to the tail of the spawn error when stderr is empty", async () => {
+    const longCommand = `Command failed: ffmpeg -y -i ${"input-".repeat(200)}0.mp4 out.mp4`
+    execFileOnce("", new Error(longCommand) as NodeJS.ErrnoException, "")
+
+    const err = await runFfmpeg(["bad"]).then(() => null, (e: Error) => e)
+
+    expect(err?.message).toMatch(/^ffmpeg failed: /)
+    expect(err?.message).toContain("out.mp4")
+    expect(err?.message.length).toBeLessThan(500)
+  })
+})
+
+describe("ffmpegFailureMessage", () => {
+  it("keeps the last lines, newest last", () => {
+    expect(ffmpegFailureMessage("one\ntwo\nthree\n", "unused")).toBe("ffmpeg failed: one\ntwo\nthree")
+  })
+
+  it("says so rather than throwing an empty message", () => {
+    expect(ffmpegFailureMessage("", "")).toBe("ffmpeg failed: no output")
+  })
+
+  it("tail-cuts a single over-long line instead of dropping it", () => {
+    const line = `Error: ${"x".repeat(900)}END`
+    const msg = ffmpegFailureMessage(line, "unused")
+    expect(msg).toContain("END")
+    expect(msg.length).toBeLessThan(500)
   })
 
   it("FIFO semaphore caps concurrent invocations at FFMPEG_CONCURRENCY", async () => {
