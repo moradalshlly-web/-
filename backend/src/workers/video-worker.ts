@@ -11,7 +11,7 @@ import { isPostProcessingError } from "../lib/post-processing-error.js"
 import { providerDetailOf } from "../lib/provider-error-detail.js"
 import { markJobFailed } from "../lib/job-failure.js"
 import { isReconcileRecoverable } from "../lib/reconcile/types.js"
-import { DrainAbortError } from "../lib/worker-drain.js"
+import { isDrainAbortError } from "../lib/worker-drain.js"
 import {
   safetyBlockOf,
   errorHintFor,
@@ -372,7 +372,16 @@ export function createVideoWorker() {
         // for 30 minutes until the reconcile sweep failed it. A short delay,
         // not a park: Railway brings the new container up BEFORE draining the
         // old one, so a worker is already listening.
-        if (err instanceof DrainAbortError) {
+        //
+        // ANYWHERE IN THE CAUSE CHAIN (2026-09-15): a private plugin hands a
+        // job back at a stage boundary by letting the journal's claim-time
+        // DrainAbortError leave its handler (`handOffOnDrain`,
+        // lib/private-plugins/stage-journal.ts), and may wrap it in its own run
+        // error on the way out. That is still the worker dying, not the job
+        // failing — Pro jobs 351f0270 / 35bd1f1f were refunded because nothing
+        // handed them back and the successor found a paid call it could not
+        // resolve.
+        if (isDrainAbortError(err)) {
           try {
             await job.moveToDelayed(Date.now() + DRAIN_REQUEUE_DELAY_MS, token)
           } catch (moveErr) {

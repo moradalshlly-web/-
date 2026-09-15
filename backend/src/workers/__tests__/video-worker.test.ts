@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { randomUUID } from "node:crypto"
 
 // ---------------------------------------------------------------------------
 // Mocks — vi.hoisted() for variables used inside vi.mock()
@@ -188,7 +189,11 @@ import { KieError } from "../../providers/kie/client.js"
 import { PostProcessingError } from "../../lib/post-processing-error.js"
 // Real class (module not mocked) — the drain branch discriminates on
 // instanceof DrainAbortError, so tests must throw the genuine type.
-import { DrainAbortError } from "../../lib/worker-drain.js"
+import { DrainAbortError, beginWorkerDrain, _resetWorkerDrainForTests } from "../../lib/worker-drain.js"
+// Real journal (module not mocked) with a scripted Redis — the hand-off tests
+// drive the actual claim-time refusal, not a stand-in for it.
+import { createStageJournal } from "../../lib/private-plugins/stage-journal.js"
+import type { PluginStageKey, PluginStageToolkit } from "../../lib/private-plugins/scene3d-contract.js"
 import { DelayedError } from "bullmq"
 
 // ---------------------------------------------------------------------------
@@ -845,5 +850,135 @@ describe("video worker processor", () => {
     expect(mocks.mockUpdate).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: "failed" }),
     )
+  })
+
+  // -------------------------------------------------------------------------
+  // A private plugin's PAID stage when the deploy SIGTERM lands
+  // (2026-09-15, staging, Pro jobs 351f0270 and 35bd1f1f).
+  //
+  // Both jobs were mid planner call when their container was replaced. The
+  // process was killed, the successor re-ran the job, found the stage's
+  // invocation marker with no result and — refusing to pay twice — failed and
+  // refunded the whole run. The hand-off contract: the in-flight call finishes
+  // and completes its stage; the NEXT claim (made with `handOffOnDrain`)
+  // throws DrainAbortError before any journal write; the plugin lets it leave
+  // its handler (wrapped or not); and this catch moves the job back to the
+  // queue without failing, refunding or spending an attempt.
+  // -------------------------------------------------------------------------
+  describe("private-plugin stage hand-off on SIGTERM", () => {
+    afterEach(() => _resetWorkerDrainForTests())
+
+    function scriptedJournal() {
+      const ops: string[] = []
+      const redis = {
+        eval: vi.fn(async (_script: string, _keys: number, _key: string, op: string, token: string, fence: number | string) => {
+          ops.push(op)
+          if (op === "claim") {
+            return JSON.stringify({ status: "claimed", checkpoint: null,
+              lease: { token, fence: Number(fence) + 1, expiresAt: Date.now() + 60_000 } })
+          }
+          return "true"
+        }),
+      }
+      return { journal: createStageJournal(redis, async () => {}), ops }
+    }
+
+    /** The plugin stage runner's shape: claim → invocation marker → paid work → complete → release. */
+    async function runStage(journal: PluginStageToolkit, key: PluginStageKey,
+      work: () => Promise<Record<string, unknown>>, handOffOnDrain: boolean) {
+      const claim = await journal.claim(key, 60_000, handOffOnDrain ? { handOffOnDrain } : undefined)
+      if (claim.status === "completed") return claim.output
+      if (claim.status !== "claimed") throw new Error("busy")
+      await journal.checkpoint(key, claim.lease, { invoked: true, receipt: null })
+      const output = await work()
+      await journal.complete(key, claim.lease, output)
+      await journal.release(key, claim.lease)
+      return output
+    }
+
+    /** A two-stage run whose loop wraps whatever a stage throws in its own run error. */
+    function planThenReview(journal: PluginStageToolkit, hooks: {
+      duringPlannerCall?: () => void; betweenStages?: () => void; handOffOnDrain?: boolean
+    }) {
+      const handOff = hooks.handOffOnDrain ?? true
+      const jobId = randomUUID(), userId = randomUUID()
+      const key = (stage: string): PluginStageKey =>
+        ({ jobId, userId, attemptIndex: 0, stage, inputHash: "c".repeat(64), engineVersion: "1.0.0" })
+      return async () => {
+        try {
+          await runStage(journal, key("planning"), async () => {
+            hooks.duringPlannerCall?.()
+            return { artifactId: "plan-1" }
+          }, handOff)
+          hooks.betweenStages?.()
+          await runStage(journal, key("review"), async () => ({ artifactId: "review-1" }), handOff)
+        } catch (error) {
+          throw new Error("Scene processing did not complete", { cause: error })
+        }
+      }
+    }
+
+    function expectHandedBackUnfailed(job: ReturnType<typeof makeBullJob>) {
+      expect(job.moveToDelayed).toHaveBeenCalledTimes(1)
+      expect(job.moveToDelayed.mock.calls[0][1]).toBe("lock-token")
+      expect(mocks.mockRefundJobCredits).not.toHaveBeenCalled()
+      expect(mocks.mockUpdate).not.toHaveBeenCalledWith(expect.objectContaining({ status: "failed" }))
+    }
+
+    it("SIGTERM during the in-flight paid call: the call completes its stage, the next stage is never opened, the job is handed back", async () => {
+      mocks.mockIsFinalJobAttempt.mockReturnValue(true) // even on the final attempt
+      const { journal, ops } = scriptedJournal()
+      mocks.mockHandler.mockImplementationOnce(planThenReview(journal, { duringPlannerCall: beginWorkerDrain }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).rejects.toBeInstanceOf(DelayedError)
+
+      // The planner stage recorded its result through the drain; the review
+      // stage left NOTHING in the journal for the successor to find ambiguous.
+      expect(ops).toEqual(["claim", "checkpoint", "complete", "release"])
+      expectHandedBackUnfailed(job)
+    })
+
+    it("SIGTERM at the boundary between two stages: handed back before the next stage opens", async () => {
+      const { journal, ops } = scriptedJournal()
+      mocks.mockHandler.mockImplementationOnce(planThenReview(journal, { betweenStages: beginWorkerDrain }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).rejects.toBeInstanceOf(DelayedError)
+
+      expect(ops).toEqual(["claim", "checkpoint", "complete", "release"])
+      expectHandedBackUnfailed(job)
+    })
+
+    it("a plugin bundle's own copy of DrainAbortError (matched by name) is handed back too", async () => {
+      const foreign = Object.assign(new Error("worker draining"), { name: "DrainAbortError" })
+      mocks.mockHandler.mockRejectedValueOnce(new Error("Scene processing did not complete", { cause: foreign }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).rejects.toBeInstanceOf(DelayedError)
+      expectHandedBackUnfailed(job)
+    })
+
+    it("control — a plugin that does not opt in keeps running its next stage through the drain (no change until it adopts the contract)", async () => {
+      const { journal, ops } = scriptedJournal()
+      mocks.mockHandler.mockImplementationOnce(planThenReview(journal,
+        { duringPlannerCall: beginWorkerDrain, handOffOnDrain: false }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).resolves.toBeUndefined()
+
+      expect(ops).toEqual(["claim", "checkpoint", "complete", "release", "claim", "checkpoint", "complete", "release"])
+      expect(job.moveToDelayed).not.toHaveBeenCalled()
+    })
+
+    it("an ordinary failure during a drain is NOT mistaken for a hand-back", async () => {
+      beginWorkerDrain()
+      mocks.mockHandler.mockRejectedValueOnce(new Error("Scene processing did not complete", { cause: new Error("provider 503") }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).rejects.toThrow("Scene processing did not complete")
+      expect(job.moveToDelayed).not.toHaveBeenCalled()
+      expect(mocks.mockRefundJobCredits).toHaveBeenCalled()
+    })
   })
 })

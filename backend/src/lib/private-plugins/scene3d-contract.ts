@@ -81,11 +81,48 @@ export type PluginStageClaim =
   | { status: "busy"; expiresAt: number }
   | { status: "completed"; output: Record<string, unknown> }
 
+/**
+ * Options for `PluginStageToolkit.claim`. ADDITIVE-OPTIONAL (no CONTRACT_VERSION
+ * bump): an older host ignores the argument, so a plugin passing it on such a
+ * host keeps that host's behaviour.
+ */
+export interface PluginStageClaimOptions {
+  /**
+   * Deploy-drain hand-off. When the worker process has begun draining
+   * (SIGTERM), refuse to OPEN this stage: the claim throws the host's
+   * `DrainAbortError` (stable `name === "DrainAbortError"`) before any journal
+   * write, so there is no lease, fence or invocation marker left behind.
+   *
+   * The caller's obligation is to let that error leave its handler UNCHANGED
+   * in meaning: never finalize the job, never refund, never classify it as a
+   * verdict or a stop that ends the run. Wrapping it is tolerated — the host
+   * recognises it anywhere in the `cause` chain — and the host then moves the
+   * job back to the queue without spending an attempt. The replacement worker
+   * replays the completed stages from the journal and opens this one fresh.
+   *
+   * Pass it on every claim, from the one place stages are opened. A stage that
+   * is ALREADY in flight is unaffected: renew/checkpoint/complete/release keep
+   * working through the drain so its result is recorded before hand-off.
+   */
+  handOffOnDrain?: boolean
+}
+
 /** Private durable stage metadata, never placed in user-readable job output. */
 export interface PluginStageToolkit {
-  claim(key: PluginStageKey, leaseMs: number): Promise<PluginStageClaim>
+  claim(key: PluginStageKey, leaseMs: number, options?: PluginStageClaimOptions): Promise<PluginStageClaim>
   renew(key: PluginStageKey, lease: PluginStageLease, leaseMs: number): Promise<PluginStageLease | null>
   checkpoint(key: PluginStageKey, lease: PluginStageLease, checkpoint: Record<string, unknown>): Promise<boolean>
   complete(key: PluginStageKey, lease: PluginStageLease, output: Record<string, unknown>): Promise<boolean>
   release(key: PluginStageKey, lease: PluginStageLease): Promise<boolean>
+  /**
+   * The worker process's deploy drain as an `AbortSignal`, aborted on SIGTERM
+   * with a `DrainAbortError` reason. ADDITIVE-OPTIONAL — absent on older hosts;
+   * `?.`-guard it. Never aborted in the API server process.
+   *
+   * For stopping a WAIT the moment the process drains (a replay-safe stage
+   * polling a render child or a builder): abort it and hand the job back. Never
+   * race a paid provider call against it — a paid call finishes, persists, and
+   * hands off at the next claim instead.
+   */
+  drainSignal?(): AbortSignal
 }
