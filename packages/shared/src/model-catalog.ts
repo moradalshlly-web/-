@@ -2204,7 +2204,7 @@ const VIDEO_MODELS: Record<string, ModelCatalogEntry> = {
     id: "omnihuman-1-5",
     kind: "video",
     modes: ["lip-sync"] as const,
-    family: "ByteDance",
+    family: "Bytedance",
     label: "OmniHuman 1.5",
     series: "OmniHuman",
     description: "Premium prompt-directed talking avatar from a still image + audio. 720p / 1080p, up to 60s. People, pets, anime.",
@@ -2687,6 +2687,29 @@ export function groupByFamily(
     else groups.set(m.family, [m])
   }
   return Array.from(groups.entries()).map(([family, models]) => ({ family, models }))
+}
+
+export const MODEL_KINDS = ["image", "video", "audio"] as const satisfies readonly ModelKind[]
+
+/**
+ * The Image / Video / Audio envelope every model-discovery surface renders
+ * (`GET /v1/models`, MCP `list_models`): each model is filed under ITS OWN
+ * kind, then by vendor family within that kind — so a vendor that ships more
+ * than one kind (Google: Imagen + VEO, ByteDance: Seedream + Seedance, …)
+ * appears once per kind it actually ships.
+ *
+ * This is the ONE grouping both surfaces call. Grouping by family first and
+ * letting the family's first model pick the section filed every VEO, Seedance,
+ * Wan and ByteDance video model under "image" whenever the call carried no
+ * `kind` filter (#1332) — an explicit `kind` pre-filtered the list and hid it.
+ * Empty sections are omitted; section order is fixed image → video → audio.
+ */
+export function groupByKindAndFamily(
+  entries: ModelCatalogEntry[],
+): Array<{ kind: ModelKind; families: Array<{ family: string; models: ModelCatalogEntry[] }> }> {
+  return MODEL_KINDS
+    .map((kind) => ({ kind, families: groupByFamily(entries.filter((m) => m.kind === kind)) }))
+    .filter((section) => section.families.length > 0)
 }
 
 export function getModel(id: string): ModelCatalogEntry | undefined {

@@ -732,6 +732,8 @@ export {
   MODEL_RECOMMENDATIONS,
   listModels,
   groupByFamily,
+  groupByKindAndFamily,
+  MODEL_KINDS,
   getModel,
   validateModelInput,
   // Frontend picker derivers

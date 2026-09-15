@@ -19,6 +19,30 @@ function modelIds(body: { sections: { families: { models: { id: string }[] }[] }
   return body.sections.flatMap((s) => s.families.flatMap((f) => f.models.map((m) => m.id)))
 }
 
+/**
+ * #1332: with no `kind` filter the route grouped by family first and let the
+ * family's first model pick the section, so every VEO / Seedance / Wan /
+ * ByteDance video model shipped under "image". The invariant: a model sits in
+ * the section of its own kind, filter or no filter.
+ */
+describe("GET /v1/models files every model under its own kind", () => {
+  it("an unfiltered call puts VEO and Seedance under video, never under image", async () => {
+    const body = (await app.inject({ method: "GET", url: "/v1/models" })).json() as {
+      sections: { kind: string; families: { family: string; models: { id: string; kind?: string }[] }[] }[]
+    }
+    const idsOf = (kind: string) => body.sections.find((s) => s.kind === kind)?.families.flatMap((f) => f.models.map((m) => m.id)) ?? []
+    expect(idsOf("video")).toEqual(expect.arrayContaining(["veo3", "seedance-2-5", "wan-3"]))
+    expect(idsOf("image")).not.toEqual(expect.arrayContaining(["veo3"]))
+    expect(idsOf("image")).not.toContain("seedance-2-5")
+    // A mixed vendor appears once per kind it ships.
+    expect(body.sections.find((s) => s.kind === "video")?.families.map((f) => f.family)).toContain("Google")
+    expect(body.sections.find((s) => s.kind === "image")?.families.map((f) => f.family)).toContain("Google")
+    // The unfiltered video section is the same set an explicit filter returns.
+    const filtered = (await app.inject({ method: "GET", url: "/v1/models?kind=video" })).json()
+    expect(idsOf("video").sort()).toEqual(modelIds(filtered).sort())
+  }, 30_000)
+})
+
 describe("GET /v1/models honours models.deny (B1)", () => {
   afterEach(() => {
     delete process.env.NODARO_SURFACE_PROFILE

@@ -7,7 +7,7 @@ import { hasCredits } from "../../config.js"
 import { supabase } from "../../supabase.js"
 import { CreditsService } from "../../../ee/billing/credits.js"
 import { deploymentPayerActive, deploymentPayerId } from "../../deployment-payer.js"
-import { MODEL_CATALOG, MODEL_RECOMMENDATIONS, listModels, groupByFamily, type ModelCatalogEntry, type ModelKind, type ModelMode } from "@nodaro/shared"
+import { MODEL_CATALOG, MODEL_RECOMMENDATIONS, listModels, groupByKindAndFamily, type ModelCatalogEntry, type ModelKind, type ModelMode } from "@nodaro/shared"
 import { isModelDenied } from "../../surface-deny.js"
 import { getPromptTips, getPromptDoctrine } from "@nodaro/prompts"
 
@@ -102,22 +102,14 @@ export function registerModels({ server, session }: RegisterModelsOpts): void {
         // Deployment surface deny (B1): a denied model is invisible to agents too.
         .filter((m) => !isModelDenied(m.id))
 
-      const grouped = groupByFamily(filtered)
-      // Group again by kind for the outer envelope — Image / Video / Audio
-      // sectioning so the agent can scan one media kind at a time.
-      const byKind: Record<ModelKind, Array<{ family: string; models: Record<string, unknown>[] }>> = {
-        image: [],
-        video: [],
-        audio: [],
-      }
-      for (const { family, models } of grouped) {
-        const kind = models[0]!.kind
-        byKind[kind].push({ family, models: models.map(projectModel) })
-      }
-
-      const sections = (["image", "video", "audio"] as const)
-        .filter((k) => byKind[k].length > 0)
-        .map((k) => ({ kind: k, families: byKind[k] }))
+      // Image / Video / Audio sectioning so the agent can scan one media kind
+      // at a time — each model under ITS OWN kind, then by family (the same
+      // shared envelope GET /v1/models renders; a mixed vendor appears once
+      // per kind it ships, #1332).
+      const sections = groupByKindAndFamily(filtered).map(({ kind, families }) => ({
+        kind,
+        families: families.map(({ family, models }) => ({ family, models: models.map(projectModel) })),
+      }))
 
       // Trim recommendations to those whose target intent matches the kind
       // filter (otherwise audio recs leak into a "kind=image" call).
