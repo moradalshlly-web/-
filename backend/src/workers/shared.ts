@@ -398,31 +398,49 @@ export async function commitJobCredits(
       // Count-based metered actual (no provider USD cost) — used by features
       // that reserve credits against one count and commit against a
       // different, run-time-determined count.
-      // `extraNonProviderCredits` is the BASE (pre-markup) actual; apply the
-      // SAME post-markup formula the reserve path uses (credit-guard-impl.ts
-      // lines ~64-68: ceil(base × (1 + markup/100)) when markup>0, from
-      // getAppSettings()) so reserved and committed share one basis. Without
-      // this, the count-based actual would fall through to the reserved-tier
-      // `else` and the count-based scaling would be silently dropped.
-      const baseActual = Math.max(0, extraNonProviderCredits)
-      const settings = await getAppSettings()
-      const actualCredits =
-        settings.cost_markup_percent > 0 && baseActual > 0
-          ? Math.ceil(baseActual * (1 + settings.cost_markup_percent / 100))
-          : baseActual
-
+      // `extraNonProviderCredits` is the BASE (pre-markup) actual. The usage
+      // log is read FIRST because its `action` is the model identifier the
+      // reserve was marked up under: the same identifier's effective margin
+      // (`applyServiceMarkup` — a per-service margin when the admin set one,
+      // else the global markup, exactly as credit-guard-impl.ts applies it)
+      // must mark the actual up too, or reserved and committed sit on two
+      // different bases and a measured settlement's refund silently shrinks.
       const { data: usageLog } = await supabase
         .from("usage_logs")
         .select("credits_used, user_id, action, provider")
         .eq("id", usageLogId)
         .single()
+      const baseActual = Math.max(0, extraNonProviderCredits)
+      const settings = await getAppSettings()
+      const { applyServiceMarkup } = await import("../ee/billing/service-margin.js")
+      const markedUp = applyServiceMarkup(baseActual, settings, usageLog?.action ?? "")
 
-      // checkAndLogAnomaly has internal try/catch so it never rejects.
+      // A count-based reservation is a CEILING (a worst case measured down at
+      // completion), and `commit_credits` cannot collect above it anyway — it
+      // would only record a `credits_charged` the user never paid. A measured
+      // actual that lands a hair above the reservation (a delivered clip a
+      // frame longer than its probed source) therefore settles AT the
+      // reservation, never past it.
+      const reserved = typeof usageLog?.credits_used === "number" ? usageLog.credits_used : undefined
+      const actualCredits = reserved !== undefined ? Math.min(markedUp, reserved) : markedUp
+      if (actualCredits !== markedUp) {
+        console.warn(`[worker] count-based actual ${markedUp} exceeds the reservation ${reserved} for job ${jobId}; committing the reservation`)
+      }
+
+      // checkAndLogAnomaly has internal try/catch so it never rejects. Settling
+      // BELOW a ceiling is the expected outcome of this branch, not an
+      // "overcharge" (the USD branch's `belowCeiling` rule) — without this
+      // every style run refunded down from its edit-mode reservation would
+      // file a pending anomaly describing the feature working. The comparison
+      // reads the PRE-clamp figure, and so does the anomaly row: an actual
+      // ABOVE the reservation is the real money leak (an under-reservation)
+      // and must still be recorded even though the clamp cannot collect it.
+      const belowCeiling = reserved !== undefined && markedUp <= reserved
       const tasks: PromiseLike<unknown>[] = [
         CreditsService.commitCredits(usageLogId, actualCredits),
         supabase.from("jobs").update({ credits_actual: actualCredits }).eq("id", jobId),
       ]
-      if (usageLog) {
+      if (usageLog && !belowCeiling) {
         tasks.push(checkAndLogAnomaly({
           jobId,
           userId: usageLog.user_id,
@@ -430,7 +448,7 @@ export async function commitJobCredits(
           modelIdentifier: usageLog.action ?? "unknown",
           provider: usageLog.provider ?? null,
           reservedCredits: usageLog.credits_used,
-          actualCredits,
+          actualCredits: markedUp,
           // No provider USD cost on this path — it's a count-based charge.
           providerCostUsd: 0,
         }))

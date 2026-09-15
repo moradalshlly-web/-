@@ -132,7 +132,7 @@ describe("buildCreditModelIdentifier", () => {
 
   // --- Ideogram providers ---
   describe("ideogram providers", () => {
-    const ideogramProviders = ["ideogram-edit", "ideogram-remix", "ideogram-reframe", "ideogram-v3"]
+    const ideogramProviders = ["ideogram-edit", "ideogram-remix", "ideogram-v3"]
 
     it.each(ideogramProviders)(
       '%s + renderingSpeed="TURBO" returns composite identifier',

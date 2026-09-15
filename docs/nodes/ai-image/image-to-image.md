@@ -49,7 +49,6 @@ Image to Image takes a source image and a text prompt to generate a transformed 
 | gpt-image-2-5-sunburst-i2i | GPT Image 2.5 Sunburst | Precision GPT Image 2.5 edits, up to 16 source images — tightest control for demanding retouches, slower; same **15 / 25 / 40 credits** | Resolution options |
 | ideogram-edit | Ideogram Edit | AI-guided image editing | Mask-based inpainting |
 | ideogram-remix | Ideogram Remix | Restyle with character consistency | Character-consistent restyling |
-| ideogram-reframe | Ideogram Reframe | Change aspect ratio intelligently | Aspect ratio adjustment |
 | qwen-i2i | Qwen | Versatile image transformation | General I2I |
 | qwen-edit | Qwen Edit | Targeted image editing | Targeted edits |
 | seedream-edit | Seedream Edit | Photorealistic image editing | Quality options (basic/high) |
@@ -65,7 +64,7 @@ Image to Image takes a source image and a text prompt to generate a transformed 
 
 - Start with a low strength value (0.3-0.5) to preserve more of the original image structure, then increase if you want more dramatic changes.
 - Use Ideogram Edit with the mask painter for precise inpainting -- paint over the region you want changed and describe the replacement in the prompt.
-- Ideogram Reframe is purpose-built for aspect ratio changes (e.g., converting a 1:1 image to 16:9) while intelligently filling new regions.
+- Ideogram Reframe (`ideogram-reframe`) was retired on 2026-09-15 — the provider stopped serving the model, so it is no longer selectable. For an aspect-ratio change with AI fill, use `nano-banana-edit` with the target `aspectRatio` and a prompt such as "extend the scene naturally into the new space, matching light and perspective".
 - For character-consistent restyling, use Ideogram Remix which preserves identity while changing the artistic style.
 - Use Flux Kontext or Flux Kontext Max when you need context-aware editing that understands the semantic content of the image.
 

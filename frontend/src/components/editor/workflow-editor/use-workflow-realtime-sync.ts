@@ -18,12 +18,25 @@
  * (deleting a node in one tab silently popping back when another tab
  * autosaves stale state).
  *
- * Reconcile contract (v2)
+ * Reconcile contract (v3)
  * -----------------------
  * Each UPDATE payload carries the full new row (REPLICA IDENTITY FULL).
  *
- *   - If `payload.updated_at === loadedUpdatedAt`: the broadcast is our
- *     own save (or a version we've already applied) — skip entirely.
+ *   - If `payload.version <= loadedVersion` (both known): the broadcast is
+ *     this tab's own save echo — possibly a LATE one that lands after a
+ *     newer save already advanced the cursor — or an `updated_at`-only
+ *     write (thumbnail, share toggle) with no content change. Skip.
+ *     `updated_at` equality alone only recognised the echo of the LATEST
+ *     save: with saves ~500 ms apart (the pre-Run save, the poll-start
+ *     save, a job finishing) an older echo routinely arrived after the
+ *     next save's response and read as "another device" — rewinding the
+ *     canvas and the CAS token when clean, pausing autosave when dirty.
+ *     Relies on `workflows.version` being bumped by the content trigger
+ *     (migration 218): on an install without it every row sits at 1 and
+ *     this rule skips every broadcast — the CAS in use-workflow-persistence
+ *     is blind on such an install for the same reason.
+ *   - If `payload.updated_at === loadedUpdatedAt`: same echo rule for rows
+ *     that carry no version — skip entirely.
  *   - If local state is CLEAN (`isDirty === false`): apply as a full
  *     reconcile — replace nodes/edges with the payload, advance
  *     `loadedUpdatedAt`. This makes a passive tab snap to the latest
@@ -127,6 +140,13 @@ export interface UseWorkflowRealtimeSyncParams {
    */
   readonly getLoadedUpdatedAt: () => string | null
   /**
+   * Returns the `workflows.version` this tab's local state was last
+   * synced from — the CAS token of its next save — or null when unknown.
+   * A broadcast at or below it is an echo of this tab's own writes (a
+   * late one included) or a write that changed no content; both skip.
+   */
+  readonly getLoadedVersion: () => number | null
+  /**
    * Apply the broadcast as a full reconcile: replace local nodes/edges
    * (and `settings`-derived fields) with the payload and advance
    * `loadedUpdatedAt`. Only called when local state is clean. The
@@ -175,6 +195,7 @@ export function useWorkflowRealtimeSync(
     getCurrentEdges,
     getIsDirty,
     getLoadedUpdatedAt,
+    getLoadedVersion,
     onReconcile,
     onAppendNodes,
     onAppendEdges,
@@ -189,6 +210,7 @@ export function useWorkflowRealtimeSync(
   const getCurrentEdgesRef = useRef(getCurrentEdges)
   const getIsDirtyRef = useRef(getIsDirty)
   const getLoadedUpdatedAtRef = useRef(getLoadedUpdatedAt)
+  const getLoadedVersionRef = useRef(getLoadedVersion)
   const onReconcileRef = useRef(onReconcile)
   const onAppendNodesRef = useRef(onAppendNodes)
   const onAppendEdgesRef = useRef(onAppendEdges)
@@ -200,6 +222,7 @@ export function useWorkflowRealtimeSync(
   getCurrentEdgesRef.current = getCurrentEdges
   getIsDirtyRef.current = getIsDirty
   getLoadedUpdatedAtRef.current = getLoadedUpdatedAt
+  getLoadedVersionRef.current = getLoadedVersion
   onReconcileRef.current = onReconcile
   onAppendNodesRef.current = onAppendNodes
   onAppendEdgesRef.current = onAppendEdges
@@ -231,10 +254,19 @@ export function useWorkflowRealtimeSync(
           const incomingUpdatedAt = next.updated_at
           if (!incomingUpdatedAt) return
 
-          // Skip our own save's broadcast (and any version already
-          // applied). Without this short-circuit, every successful save
-          // would briefly toggle remoteUpdatedAt and could re-trigger a
-          // no-op reconcile.
+          // Skip our own save's broadcasts — on the monotonic content
+          // version first, so a LATE echo of an older own save (its
+          // updated_at no longer equals the cursor, which a newer save has
+          // already moved) is recognised as ours and not as another device.
+          // An `updated_at`-only write (same version) changed no content and
+          // has nothing to reconcile either.
+          const localVersion = getLoadedVersionRef.current()
+          if (typeof next.version === "number" && localVersion != null && next.version <= localVersion) return
+
+          // Rows without a version: the echo of the latest save only.
+          // Without this short-circuit, every successful save would
+          // briefly toggle remoteUpdatedAt and could re-trigger a no-op
+          // reconcile.
           const localUpdatedAt = getLoadedUpdatedAtRef.current()
           if (incomingUpdatedAt === localUpdatedAt) return
 

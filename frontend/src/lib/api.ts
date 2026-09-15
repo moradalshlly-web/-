@@ -259,6 +259,33 @@ function throwApiError(errJson: Record<string, unknown> | null, fallback: string
 }
 
 /**
+ * True when the server answered 404 `not_found`. The owner-scoped DELETE
+ * routes say so (instead of a lying 200) when nothing matched — a row another
+ * tab already removed, or a click on a list rendered before a refetch. For a
+ * delete that IS the desired end state, so a handler treats it as "already
+ * gone": refresh the list and move on, never a failure toast for a row that is
+ * genuinely gone (#722).
+ */
+export function isNotFoundError(err: unknown): boolean {
+  return err instanceof Error && (err as { code?: unknown }).code === "not_found"
+}
+
+/**
+ * Resolve a delete that raced a concurrent removal as success (`undefined`
+ * result); every other failure propagates. For React Query mutations: wrap the
+ * `mutationFn` so `onSuccess` (the list invalidation) runs for the already-gone
+ * case too.
+ */
+export async function deleteOrAlreadyGone<T>(request: Promise<T>): Promise<T | undefined> {
+  try {
+    return await request
+  } catch (err) {
+    if (isNotFoundError(err)) return undefined
+    throw err
+  }
+}
+
+/**
  * Thrown when the backend signals a dedup-race winner-unresolvable
  * condition (HTTP 503 + body code `dedup_race_winner_unresolvable`).
  * The recommended response is to retry the same request with the same
@@ -8268,7 +8295,7 @@ export async function browseTemplates(params: {
   outputType?: string
   tag?: string
   search?: string
-  sort?: "popular" | "newest" | "most-favorited"
+  sort?: "popular" | "newest" | "most-favorited" | "cheapest"
   nodeType?: string
   provider?: string
   complexity?: string

@@ -3,7 +3,7 @@
   "name": "Getting Started with the Person Node",
   "description": "Pick attributes from dropdowns and the node writes the character prompt for you. Three runs, from one node to a full stack.",
   "markdownDescription": null,
-  "category": "image-generation",
+  "category": "product-imagery",
   "outputTypes": [
     "image"
   ],

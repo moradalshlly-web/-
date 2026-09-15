@@ -31,6 +31,7 @@ import {
   DEFAULT_REQUEST_BLOCK_MESSAGE,
   DEFAULT_RESULT_BLOCK_MESSAGE,
   HELD_COMMIT_REPLAY_KEYS,
+  heldCommitArgs,
   splitHeldCompletionFields,
   type JobRequestContext,
   type JobResultContext,
@@ -302,11 +303,34 @@ describe("splitHeldCompletionFields", () => {
 
   it("HELD_COMMIT_REPLAY_KEYS names every settlement input approve replays", () => {
     expect([...HELD_COMMIT_REPLAY_KEYS]).toEqual([
-      "metered", "extraNonProviderCredits", "meteredCost", "loopTrimAddonRefundCredits",
+      "metered", "extraNonProviderCredits", "meteredCost", "loopTrimAddonRefundCredits", "meteredBaseCredits",
     ])
   })
 
   it("null / empty held fields split into two empty objects", () => {
     expect(splitHeldCompletionFields(null)).toEqual({ columns: {}, commit: {} })
+  })
+})
+
+/**
+ * The ONE mapping from the replay fields to `commitJobCredits`'s positional
+ * tail, shared by the finalize commit and the approve replay.
+ */
+describe("heldCommitArgs", () => {
+  it("legacy shape: provider cost (or the caller's fallback), the add-on and the metered flag, verbatim", () => {
+    expect(heldCommitArgs({ metered: true, extraNonProviderCredits: 3, meteredCost: 0.4 }, 0.9)).toEqual([0.4, 3, true])
+    expect(heldCommitArgs({}, 0.9)).toEqual([0.9, undefined, undefined])
+    // A recorded null cost is a real value ("unknown"), not an absence — the
+    // fallback fills it, exactly as `??` did at both call sites before.
+    expect(heldCommitArgs({ meteredCost: null }, 0.9)).toEqual([0.9, undefined, undefined])
+  })
+
+  it("a metered charge wins: count-based (metered, no USD cost), the base plus the retained add-on", () => {
+    expect(heldCommitArgs({ metered: false, meteredCost: 0.4, meteredBaseCredits: 7193 }, 0.4)).toEqual([null, 7193, true])
+    expect(heldCommitArgs({ meteredBaseCredits: 7193, extraNonProviderCredits: 3 }, 0.4)).toEqual([null, 7196, true])
+  })
+
+  it("a measured charge of 0 is still a measurement, not an absence", () => {
+    expect(heldCommitArgs({ meteredBaseCredits: 0, meteredCost: 0.4 }, 0.4)).toEqual([null, 0, true])
   })
 })

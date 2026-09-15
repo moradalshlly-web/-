@@ -98,7 +98,7 @@ export const MAX_IMAGE_PROMPT_CHARS_BY_PROVIDER: Record<string, number> = {
   // grok-i2i: doc states 390000 (78× its t2i sibling) — treated as a KIE schema
   //   typo and left at the 5000 default per the sanity-cap decision.
   // UNVERIFIED (no limit stated in schema) → 5000 default: flux-kontext(-max)
-  //   gpt-image, gpt-image-i2i, flux-i2i, flux-pro-i2i, ideogram-reframe.
+  //   gpt-image, gpt-image-i2i, flux-i2i, flux-pro-i2i.
 }
 
 /** Max assembled image-prompt length (chars) for a provider: its verified
@@ -508,7 +508,6 @@ export const MODELS_WITH_REFERENCE_IMAGE_SUPPORT = new Set([
   "flux-kontext-max",
   "ideogram-edit",
   "ideogram-remix",
-  "ideogram-reframe",
   "qwen-i2i",
   "qwen-edit",
   "seedream-edit",
@@ -588,7 +587,6 @@ export const REF_IMAGE_MAX_LIMITS: Record<string, number> = {
   "flux-kontext-max": 1,
   "ideogram-edit": 1,
   "ideogram-remix": 1,
-  "ideogram-reframe": 1,
   "qwen-i2i": 1,
   "qwen-edit": 1,
   "grok-i2i": 1,
@@ -662,7 +660,6 @@ export const VARIABLE_PRICING_MODELS: Record<string, "quality" | "resolution" | 
   "topaz-image-upscale": "resolution",
   "ideogram-edit": "rendering-speed",
   "ideogram-remix": "rendering-speed",
-  "ideogram-reframe": "rendering-speed",
   "ideogram-v3": "rendering-speed",
   "wan-2.7": "resolution",
   "wan-2.7-pro": "resolution",
@@ -689,7 +686,12 @@ export const RESOLUTION_2K_4K_TIERED_PROVIDERS = new Set([
 ])
 
 // Ideogram family models with TURBO/QUALITY pricing variants
-export const IDEOGRAM_PROVIDERS = new Set(["ideogram-edit", "ideogram-remix", "ideogram-reframe", "ideogram-v3"])
+// `ideogram-reframe` (KIE `ideogram/v3-reframe`) was retired 2026-09-15: KIE no
+// longer documents the model and every task — the minimal documented payload
+// included — fails upstream with "[500] internal error" (#1331). Its price rows
+// are removed by migration 424; re-add everywhere per the Provider Enum Sync
+// table if KIE brings it back.
+export const IDEOGRAM_PROVIDERS = new Set(["ideogram-edit", "ideogram-remix", "ideogram-v3"])
 
 // =====================================================================
 // Provider arrays (single source of truth for route Zod validation)
@@ -744,7 +746,6 @@ export const IMAGE_I2I_PROVIDERS = [
   "grok-2-i2i",
   "ideogram-edit",
   "ideogram-remix",
-  "ideogram-reframe",
   "qwen-i2i",
   "qwen-edit",
   "seedream-edit",
@@ -1365,7 +1366,7 @@ export const I2I_STRENGTH_SUPPORT: Record<string, { min: number; max: number; st
 
 /** Models that accept a seed parameter for reproducible generation */
 export const SEED_SUPPORT = new Set([
-  "ideogram-remix", "ideogram-reframe", "ideogram-v3",
+  "ideogram-remix", "ideogram-v3",
   "qwen", "qwen-i2i", "qwen-edit",
   "flux", "flux-flex", "flux-i2i", "flux-pro-i2i", "flux-kontext", "flux-kontext-max",
   "flux-2-klein", "kontext-multi",
@@ -1373,7 +1374,7 @@ export const SEED_SUPPORT = new Set([
 
 /** Ideogram models that support rendering_speed selection (TURBO/BALANCED/QUALITY) */
 export const RENDERING_SPEED_SUPPORT = new Set([
-  "ideogram-remix", "ideogram-reframe", "ideogram-v3",
+  "ideogram-remix", "ideogram-v3",
 ])
 
 /** Models that accept guidance_scale for controlling prompt adherence */
@@ -2513,6 +2514,33 @@ export const VIDEO_VARIABLE_PRICING: Record<string, "duration" | "duration+audio
  */
 export const PRICING_DEFAULT_DURATION_SEC: Record<string, number> = {
   "minimax-h3": 6,
+  // KIE renders 8s when `duration` is omitted (kie/models.ts extraParams), and
+  // Seedance 2.5 prices one tier per second across 4–30s, so the 5s fallback
+  // billed a 5s tier against an 8s render — and under-reserved every
+  // reference-video run's output seconds by three (#1397).
+  "seedance-2-5": 8,
+  // Same shape: KIE renders 8s by default and the ladder is priced per second,
+  // so the 5s fallback billed a 5s tier against an 8s render (caught by the
+  // render-default ↔ priced-tier invariant in
+  // backend/src/providers/__tests__/pricing-default-duration-sync.test.ts).
+  "grok-imagine-video-1.5": 8,
+}
+
+/**
+ * The output seconds a request is PRICED at: the requested duration when the
+ * caller gave one, else the provider's own default render length
+ * ({@link PRICING_DEFAULT_DURATION_SEC}), else the historical 5s fallback.
+ *
+ * The ONE source for `buildVideoCreditModelIdentifier`'s tier AND for every
+ * dynamic reservation that scales by output seconds (the Seedance 2 and
+ * MiniMax Hailuo 3 reference-video overrides on both the route and the DAG
+ * lane) — a literal `?? 5` in any of those places re-opens the gap this map
+ * closes.
+ */
+export function pricedOutputDurationSec(provider: string, requested: number | string | undefined): number {
+  const fallback = PRICING_DEFAULT_DURATION_SEC[provider] ?? 5
+  const parsed = typeof requested === "string" ? parseInt(requested, 10) : requested
+  return parsed === undefined || Number.isNaN(parsed) ? fallback : parsed
 }
 
 /**

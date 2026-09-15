@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   mockWatermarkLocalVideoAndUpload: vi.fn(),
   mockGenerateAndUploadThumbnail: vi.fn(),
   mockFinalizeJobWithMedia: vi.fn(),
+  mockMeasure: vi.fn(),
   mockSetJobProgress: vi.fn(async () => {}),
   mockReadFile: vi.fn(),
   mockFrom: vi.fn().mockReturnValue({ update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
@@ -78,6 +79,10 @@ vi.mock("../../../lib/job-finalize.js", () => ({
   finalizeJobWithMedia: mocks.mockFinalizeJobWithMedia,
 }))
 
+vi.mock("../../../lib/seedance2-ref-video-settle.js", () => ({
+  measureSeedance2RefVideoBaseCredits: mocks.mockMeasure,
+}))
+
 vi.mock("../../shared.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../shared.js")>()
   return {
@@ -120,7 +125,109 @@ beforeEach(() => {
   mocks.mockUploadVideoMaybeWatermark.mockResolvedValue("https://r2.example.com/job-1.mp4")
   mocks.mockGenerateAndUploadThumbnail.mockResolvedValue("https://r2.example.com/thumb.png")
   mocks.mockFinalizeJobWithMedia.mockResolvedValue({ ok: true })
+  mocks.mockMeasure.mockResolvedValue(undefined)
   mocks.mockReadFile.mockResolvedValue(Buffer.from("audio"))
+})
+
+/**
+ * #1396 — the voiced lane used to run the video with audio references only,
+ * silently dropping every reference video (and, on VEO, the reference images)
+ * the node had wired. The references now ride along exactly as on an unvoiced
+ * run, and a Seedance reference-video run settles to the clip the provider
+ * delivered like the unvoiced handlers do.
+ */
+describe("voiced-video handler — wired references ride along (#1396)", () => {
+  const REFS = ["https://r2.example.com/videos/ref.mp4"]
+
+  it("audio_driven: the reference video reaches the model next to the synthesised track, and the run settles to the RAW delivered clip", async () => {
+    mocks.mockMeasure.mockResolvedValueOnce(7193)
+    await handler(
+      makeJob({
+        imageUrl: "https://x.png",
+        prompt: "she greets",
+        provider: "seedance-2-5",
+        resolution: "1080p",
+        duration: 12,
+        referenceVideoUrls: REFS,
+        refVideoDurationsSec: [30],
+        characterVoices: [{ voiceId: "W3C2vBPukr5b5jvoXhPK", voiceType: "library", speaker: "Natalie" }],
+        dialogue: [{ speaker: "Natalie", line: "good morning" }],
+        voicedAudioAddon: 25,
+      }) as never,
+      ctx,
+    )
+    expect(mocks.mockImageToVideo).toHaveBeenCalledWith(
+      "https://x.png", "seedance-2-5", "she greets", 12, undefined,
+      expect.objectContaining({ referenceVideoUrls: REFS, referenceAudioUrls: ["https://r2.example.com/tts.mp3"] }),
+    )
+    // Measured from the raw provider output, before the voice mux.
+    expect(mocks.mockMeasure).toHaveBeenCalledWith({
+      provider: "seedance-2-5",
+      resolution: "1080p",
+      outputUrl: "https://r2.example.com/raw.mp4",
+      referenceVideoUrls: REFS,
+      refVideoDurationsSec: [30],
+    })
+    expect(mocks.mockFinalizeJobWithMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ meteredBaseCredits: 7193, extraNonProviderCredits: 25 }),
+    )
+  })
+
+  it("no voice resolvable: the plain clip still carries the wired video AND audio references", async () => {
+    await handler(
+      makeJob({
+        imageUrl: "https://x.png",
+        prompt: "a plain clip",
+        provider: "seedance-2",
+        duration: 8,
+        referenceVideoUrls: REFS,
+        referenceAudioUrls: ["https://r2.example.com/audio/ref.mp3"],
+        characterVoices: [],
+        dialogue: [],
+        voicedAudioAddon: 4,
+      }) as never,
+      ctx,
+    )
+    const opts = mocks.mockImageToVideo.mock.calls[0]![5] as Record<string, unknown>
+    expect(opts.referenceVideoUrls).toEqual(REFS)
+    expect(opts.referenceAudioUrls).toEqual(["https://r2.example.com/audio/ref.mp3"])
+  })
+
+  it("native_speech (VEO): the wired image and video references are forwarded too", async () => {
+    await handler(
+      makeJob({
+        imageUrl: "https://x.png",
+        prompt: "he speaks",
+        provider: "veo3.1",
+        duration: 8,
+        referenceImageUrls: ["https://r2.example.com/images/style.png"],
+        referenceVideoUrls: REFS,
+        characterVoices: [{ voiceId: "anna-voice", speaker: "Anna" }],
+        dialogue: [{ speaker: "Anna", line: "hello" }],
+        voicedAudioAddon: 40,
+      }) as never,
+      ctx,
+    )
+    const opts = mocks.mockImageToVideo.mock.calls[0]![5] as Record<string, unknown>
+    expect(opts.referenceImageUrls).toEqual(["https://r2.example.com/images/style.png"])
+    expect(opts.referenceVideoUrls).toEqual(REFS)
+  })
+
+  it("a run with no reference video finalizes without a measured charge (the reservation is committed, as before)", async () => {
+    await handler(
+      makeJob({
+        imageUrl: "https://x.png",
+        prompt: "a plain clip",
+        provider: "seedance-2",
+        duration: 8,
+        characterVoices: [],
+        dialogue: [],
+        voicedAudioAddon: 4,
+      }) as never,
+      ctx,
+    )
+    expect(mocks.mockFinalizeJobWithMedia).toHaveBeenCalledWith(expect.objectContaining({ meteredBaseCredits: undefined }))
+  })
 })
 
 describe("voiced-video handler — audio_driven (Seedance 2)", () => {

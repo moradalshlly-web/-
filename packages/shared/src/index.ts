@@ -167,6 +167,7 @@ export {
   DEFAULT_VIDEO_DURATION_SEC,
   applyDefaultVideoSelection,
   PRICING_DEFAULT_DURATION_SEC,
+  pricedOutputDurationSec,
   PRICING_DEFAULT_RESOLUTION,
 } from "./model-constants.js"
 
@@ -731,6 +732,8 @@ export {
   MODEL_RECOMMENDATIONS,
   listModels,
   groupByFamily,
+  groupByKindAndFamily,
+  MODEL_KINDS,
   getModel,
   validateModelInput,
   // Frontend picker derivers
@@ -1012,6 +1015,9 @@ export * from "./reference-sheet/index.js"
 
 // --- Reference Board (templates + provider constant) ---
 export * from "./reference-board-templates.js"
+
+// --- Marketplace template categories (the eight use cases) ---
+export * from "./template-categories.js"
 
 // --- Model tree (derive node targets + product-line grouping for the Models tab) ---
 export * from "./model-tree.js"

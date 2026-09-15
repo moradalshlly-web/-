@@ -5539,6 +5539,9 @@ export type SelectorNodeData = {
 export type StickyNoteData = {
   [key: string]: unknown
   label: string
+  /** Heading rendered inside the note, above the body. Absent on notes made
+   *  before titles existed — the floating label then still names the note. */
+  title?: string
   text: string
   color: string // Background hex color (e.g., "#fef3c7")
   textColor: string // Text hex color (e.g., "#000000")
@@ -9024,11 +9027,12 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     outputs: [],
     defaultData: {
       label: "Sticky Note",
-      text: "I'm a note\nDouble click to customize",
-      color: "#2d2d44", // Dark background
-      textColor: "#ffffff", // White text
-      width: 840,
-      height: 540,
+      title: "Note",
+      text: "",
+      color: "#26221a", // "paper" — cream in light mode, warm near-black in dark (node-colors.ts)
+      textColor: "#ffffff",
+      width: 320,
+      height: 200,
       fontSize: "base",
       bold: false,
       italic: false,

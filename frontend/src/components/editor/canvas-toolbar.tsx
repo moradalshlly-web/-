@@ -60,16 +60,13 @@ function ToolbarButton({ icon, label, shortcut, onClick, active, disabled }: Too
             onClick={disabled ? undefined : onClick}
             className={cn(
               "w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200",
-              // Light mode: slate icons
-              "text-[#64748B]",
-              "hover:bg-[#F1F5F9] hover:text-[#0F172A]",
-              // Dark mode: muted icons with dark hover
-              "dark:text-[#94A3B8]",
-              "dark:hover:bg-[#2D2D2D] dark:hover:text-white",
+              // Muted icon, full-strength on hover — the pill tokens (globals.css)
+              "text-[var(--pill-fg-muted)]",
+              "hover:bg-black/5 hover:text-[var(--pill-fg)] dark:hover:bg-white/10",
               // Active state (same for both modes)
               active && "bg-[#ff0073]/10 text-[#ff0073] dark:bg-[#ff0073]/20 dark:text-[#ff0073]",
               // Disabled state
-              disabled && "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-[#64748B] dark:hover:bg-transparent dark:hover:text-[#94A3B8]"
+              disabled && "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-[var(--pill-fg-muted)] dark:hover:bg-transparent"
             )}
           >
             {icon}
@@ -80,19 +77,14 @@ function ToolbarButton({ icon, label, shortcut, onClick, active, disabled }: Too
           sideOffset={8}
           className={cn(
             "rounded-lg px-3 py-2 flex items-center gap-2",
-            // Light mode: white tooltip with subtle shadow
-            "bg-white text-[#1E293B] border border-[#E2E8F0] shadow-sm",
-            // Dark mode: dark tooltip with deeper shadow
-            "dark:bg-[#2D2D2D] dark:text-[#E2E8F0] dark:border-[#3D3D3D] dark:shadow-xl"
+            // Same surface as every other canvas pill (globals.css tokens)
+            "bg-[var(--pill-bg)] text-[var(--pill-fg)] border border-[var(--pill-border)] shadow-[var(--node-shadow)]"
           )}
         >
           <span className="text-sm">{label}</span>
           <span className={cn(
             "text-xs px-1.5 py-0.5 rounded font-mono",
-            // Light mode: light gray badge
-            "bg-[#F1F5F9] text-[#64748B]",
-            // Dark mode: dark badge
-            "dark:bg-[#121212] dark:text-[#94A3B8]"
+            "bg-black/5 text-[var(--pill-fg-muted)] dark:bg-white/10"
           )}>
             {shortcut}
           </span>
@@ -110,9 +102,8 @@ function MobileToolbarButton({ icon, label, onClick, active, disabled }: Omit<To
       onClick={disabled ? undefined : onClick}
       className={cn(
         "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 touch-manipulation",
-        "text-[#64748B] dark:text-[#94A3B8]",
-        "active:bg-[#F1F5F9] active:text-[#0F172A]",
-        "dark:active:bg-[#2D2D2D] dark:active:text-white",
+        "text-[var(--pill-fg-muted)]",
+        "active:bg-black/5 active:text-[var(--pill-fg)] dark:active:bg-white/10",
         active && "bg-[#ff0073]/10 text-[#ff0073] dark:bg-[#ff0073]/20 dark:text-[#ff0073]",
         disabled && "opacity-40 cursor-not-allowed"
       )}
@@ -123,7 +114,7 @@ function MobileToolbarButton({ icon, label, onClick, active, disabled }: Omit<To
 }
 
 function ToolbarDivider() {
-  return <div className="w-6 h-px bg-[#E2E8F0] dark:bg-[#2D2D2D] mx-auto my-1" />
+  return <div className="w-6 h-px bg-[var(--pill-border)] mx-auto my-1" />
 }
 
 const isMac = isMacPlatform()
@@ -240,8 +231,7 @@ export function CanvasToolbar({
           "p-1.5 rounded-xl",
           "flex items-center gap-1",
           "backdrop-blur-md",
-          "bg-white/80 border border-[#E2E8F0] shadow-lg",
-          "dark:bg-[#1E1E1E]/90 dark:border-[#2D2D2D] dark:shadow-2xl dark:shadow-black/20"
+          "bg-[var(--pill-bg)] border border-[var(--pill-border)] shadow-[var(--node-shadow)]"
         )}
       >
         <MobileToolbarButton
@@ -249,7 +239,7 @@ export function CanvasToolbar({
           label={t("common.back")}
           onClick={() => navigate(-1)}
         />
-        <div className="w-px h-5 bg-[#E2E8F0] dark:bg-[#2D2D2D]" />
+        <div className="w-px h-5 bg-[var(--pill-border)]" />
         <MobileToolbarButton
           icon={<Plus className="w-5 h-5" />}
           label={t("toolbar.addNode")}
@@ -312,10 +302,8 @@ export function CanvasToolbar({
           "p-2 rounded-2xl",
           "flex-col gap-1",
           "backdrop-blur-md",
-          // Light mode: frosted white glass with subtle shadow
-          "bg-white/80 border border-[#E2E8F0] shadow-xl shadow-slate-200/50",
-          // Dark mode: dark glass with deeper shadow
-          "dark:bg-[#1E1E1E]/90 dark:border-[#2D2D2D] dark:shadow-2xl dark:shadow-black/20"
+          // Same surface as every other canvas pill (globals.css tokens)
+          "bg-[var(--pill-bg)] border border-[var(--pill-border)] shadow-[var(--node-shadow)]"
         )}
         style={
           pos

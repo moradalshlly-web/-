@@ -5,6 +5,7 @@ import {
   createApiToken,
   updateApiToken,
   deleteApiToken,
+  deleteOrAlreadyGone,
   type ApiToken,
   type CreateApiTokenResult,
 } from "@/lib/api"
@@ -62,9 +63,9 @@ export function useUpdateApiTokenMutation() {
 export function useDeleteApiTokenMutation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      return deleteApiToken(id)
-    },
+    // A token another tab already revoked answers 404: that is the state the
+    // click asked for, so the list is refreshed instead of an error (#722).
+    mutationFn: async (id: string) => deleteOrAlreadyGone(deleteApiToken(id)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.apiTokens.all })
     },

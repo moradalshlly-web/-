@@ -120,6 +120,11 @@ result is always also saved to your Nodaro library.
 
 ## The "mcp" project
 
+In the app's dashboard these workflows are listed under their own **MCP
+Workflows** tab (next to My Workflows / My Projects / Studio Workflows), so
+flows an MCP client creates never crowd your hand-made list. From that tab you
+can open, move to another project, or delete them like any other workflow.
+
 All workflow tools that create or modify workflows operate inside a single
 project named **"mcp"**. This project is created automatically on first use —
 agents do not need to set it up.

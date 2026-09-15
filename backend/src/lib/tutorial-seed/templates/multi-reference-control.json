@@ -3,7 +3,7 @@
   "name": "Multi-Reference Control",
   "description": "Five source images, one generated image. Point at a picture instead of describing it.",
   "markdownDescription": null,
-  "category": "image-generation",
+  "category": "product-imagery",
   "outputTypes": [
     "image"
   ],

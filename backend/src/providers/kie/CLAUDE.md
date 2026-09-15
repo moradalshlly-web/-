@@ -54,7 +54,6 @@ Base URL: `https://api.kie.ai`, Auth: `Bearer KIE_API_KEY`
 | ~~`ideogram`~~ | ~~`ideogram/character`~~ | **REMOVED** — v2 model, unreliable, requires reference_image_urls |
 | `ideogram-edit` | `ideogram/character-edit` | [ideogram edit](https://docs.kie.ai/market/ideogram/character-edit.md) |
 | `ideogram-remix` | `ideogram/character-remix` | [ideogram remix](https://docs.kie.ai/market/ideogram/character-remix.md) |
-| `ideogram-reframe` | `ideogram/v3-reframe` | [ideogram reframe](https://docs.kie.ai/market/ideogram/v3-reframe.md) |
 | `qwen` | `qwen/text-to-image` | [qwen t2i](https://docs.kie.ai/market/qwen/text-to-image.md) |
 | `qwen-i2i` | `qwen/image-to-image` | [qwen i2i](https://docs.kie.ai/market/qwen/image-to-image.md) |
 | `qwen-edit` | `qwen/image-edit` | [qwen edit](https://docs.kie.ai/market/qwen/image-edit.md) |
@@ -170,7 +169,50 @@ which is why it has a bespoke runner instead of the generic `createTask` builder
   (`SEEDANCE_2_R2V_MAX_AUDIO_SEC_BY_PROVIDER`), so an over-long clip 400s with
   `audio_too_long` before credits are reserved.
 - `duration: -1`, `reference_file_urls`, `reference_link_urls` and
-  `nsfw_checker` are deliberately never emitted.
+  `nsfw_checker` are deliberately never emitted **on the Wan wire**. `-1` IS
+  emitted in exactly one place platform-wide — the Seedance 2.5 edit-mode
+  resubmit below.
+
+### Seedance 2.5 edit mode (`runVideoTaskWithSeedanceEditRetry`, video.ts)
+
+A THIRD Seedance shape rule, on top of the frame-mode 422
+(`FRAME_MODE_ADAPTIVE_ONLY_ASPECT`) and the catalog aspect snap — and the only
+one that cannot be applied before the call.
+
+With a reference video wired, Seedance classifies the run from the **prompt**:
+ordinary generation-with-a-reference, or an **edit** of that clip. In edit mode
+the output inherits the clip's shape, and KIE rejects any explicit ratio or
+duration — "`ratio` must be `adaptive`. [1] `duration` must be -1", prefaced by
+"Seedance identified your task as video editing based on your prompt".
+
+The verdict is not derivable from the payload: the same node, same video, a
+reworded sentence, and it is a style run where a concrete ratio and duration are
+legal. So coercing on "a video is attached" would silently discard the user's
+chosen shape on every style run. We believe the provider instead —
+`isSeedance2EditModeRejection` recognises that message and the run is resubmitted
+ONCE with `SEEDANCE_2_EDIT_MODE_PARAMS`. Gated on the provider AND the provider's
+own words; every other model keeps plain `runKieTask` behaviour. The retry
+returns `sentInput` so the credit audit reports the body that actually billed.
+
+**Billing:** commit can only refund, so the reservation is the WORST CASE and the
+commit is measured. `seedance2RefVideoBaseCreditsFromDurations` (ee/billing)
+bills the output at the longer of the requested duration and the longest
+reference clip (an unusable probe = the provider's per-clip cap, 30s on 2.5; the
+summed input capped at `maxTotalSec`). Both reservation lanes carry their probe
+on the job as `refVideoDurationsSec` (`input_data` + the queue payload). After
+delivery the i2v/t2v handlers — and the reconcile cron's generic recovery — call
+`measureSeedance2RefVideoBaseCredits` (`lib/seedance2-ref-video-settle.ts`, a
+core shim over the ee helper), which ffprobes ONLY the RAW provider output,
+prices the input side from the stored probe (re-probing only a job that carries
+none), and hands the exact `unit × (input + delivered)` base to
+`finalizeJobWithMedia` as `meteredBaseCredits` — committed count-based, marked
+up ONCE at the usage log's identifier through `applyServiceMarkup` (the same
+per-service-margin helper the reservation used, so reserve and commit share a
+basis), clamped at the reservation, no anomaly filed for settling below it, and
+parked in `held_completion_fields` so a review approve replays it
+(`heldCommitArgs` is the one mapping both use). A style run is refunded to its
+requested duration; an edit of a 30s clip from a node set to 12s pays for 30s.
+An unmeasurable delivery commits the reservation.
 
 `gemini-omni-flash` shares the pro sibling's request shape through
 `runGeminiOmni`, with one difference: its schema marks `duration` **required**,
@@ -225,7 +267,7 @@ Different models use different param names for input images — getting this wro
 
 | Pattern | Models | Param |
 |---------|--------|-------|
-| Single URL string | minimax, kling-turbo, kling-avatar, topaz, ideogram-edit, ideogram-remix, ideogram-reframe, qwen-i2i, qwen-edit, topaz-image-upscale | `image_url` |
+| Single URL string | minimax, kling-turbo, kling-avatar, topaz, ideogram-edit, ideogram-remix, qwen-i2i, qwen-edit, topaz-image-upscale | `image_url` |
 | Array of URLs | kling, grok, sora2-pro, flux, gpt-image, nano-banana-edit, seedream-edit, nano-banana-2-lite (up to 10, NOT the family's `image_input`) | `image_urls` or `input_urls` |
 | VEO array | veo3, veo3.1 | `imageUrls` (camelCase!) |
 | Video URL | wan v2v | `video_urls` (array) |

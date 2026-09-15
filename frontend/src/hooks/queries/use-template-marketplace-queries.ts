@@ -3,17 +3,8 @@ import { useAuth } from "@/hooks/use-auth"
 import { queryKeys } from "@/lib/query-keys"
 import { browseTemplates, toggleTemplateFavorite, getTemplateFavorites, getTemplateBySlug } from "@/lib/api"
 
-export interface TemplateBrowseParams {
-  category?: string
-  outputType?: string
-  tag?: string
-  search?: string
-  sort?: "popular" | "newest" | "most-favorited"
-  nodeType?: string
-  provider?: string
-  complexity?: string
-  favoritesOnly?: boolean
-}
+/** The browse filters, read off the client so a new sort reaches here for free. */
+export type TemplateBrowseParams = Omit<Parameters<typeof browseTemplates>[0], "cursor" | "limit">
 
 export function useTemplateBrowseInfinite(params: TemplateBrowseParams) {
   const filterKey = [

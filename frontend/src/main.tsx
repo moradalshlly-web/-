@@ -31,14 +31,19 @@ window.addEventListener("vite:preloadError", () => {
 // them makes the address bar disagree with what is on screen — so a refresh or
 // a copied link lands on /projects instead of the thing they were sent.
 const STANDALONE_ROUTES = ["/present/", "/app/", "/embed/", "/tutorials/"]
-const path = window.location.pathname
+// Read all three parts BEFORE the replace below: once the entry is rewritten to
+// /projects, window.location no longer carries the query or the hash, and the
+// re-pushed entry silently lost them — a pasted /templates?category=… link
+// opened filtered (the router had already read the original URL) with a bare
+// address bar, and a reload dropped the filter.
+const { pathname: path, search: landingSearch, hash: landingHash } = window.location
 if (
   window.history.length <= 2 &&
   path !== "/projects" &&
   !STANDALONE_ROUTES.some((prefix) => path.startsWith(prefix))
 ) {
   window.history.replaceState(null, "", "/projects")
-  window.history.pushState(null, "", path + window.location.search + window.location.hash)
+  window.history.pushState(null, "", path + landingSearch + landingHash)
 }
 
 import { StrictMode, Suspense } from "react"

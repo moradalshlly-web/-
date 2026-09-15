@@ -25,6 +25,7 @@ import { createHash } from "node:crypto"
 import { readFile, readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { normalizeTemplateCategory } from "@nodaro/shared"
 import { supabase } from "../supabase.js"
 import { isCloud } from "../config.js"
 import { isTransportError, withTransportRetry, type TransportRetryOptions } from "../boot-retry.js"
@@ -247,7 +248,7 @@ async function seedOne(
     snapshot_nodes: doc.nodes,
     snapshot_edges: doc.edges,
     snapshot_settings: doc.settings ?? {},
-    category: doc.category ?? "other",
+    category: normalizeTemplateCategory(doc.category),
     output_types: doc.outputTypes ?? [],
     tags: doc.tags ?? [],
     complexity: doc.complexity ?? "simple",

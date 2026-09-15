@@ -125,7 +125,9 @@ describe("AnimatedFlowEdge — unused prompt edge", () => {
     expect(edge.style.stroke).toBe("#888888")
     // jsdom serializes an unset CSS prop as the empty string.
     expect(edge.style.strokeDasharray).toBe("")
-    expect(edge.style.opacity).toBe("1")
+    // Idle wires sit at 0.9 so nodes stay the loudest thing on the canvas;
+    // only selection / hover lift an edge to full strength.
+    expect(edge.style.opacity).toBe("0.9")
     // No unused-prompt hover target / tooltip for a normal edge.
     expect(container.querySelector("title")).toBeNull()
   })

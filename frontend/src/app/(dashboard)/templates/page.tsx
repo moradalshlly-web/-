@@ -1,522 +1,321 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react"
+import { lazyWithRetry } from "@/lib/lazy-with-retry"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import {
-  LayoutTemplate, Search, Heart, User, X, SlidersHorizontal,
-  Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Layers, Copy,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useSearchParams } from "react-router-dom"
+import { LayoutTemplate } from "lucide-react"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
-import { useT } from "@/lib/i18n"
-import { getMyTemplates, updateTemplate, deleteTemplate, cloneTemplate, type WorkflowTemplate, type TemplateBrowseCard } from "@/lib/api"
+import { useT, type MessageKey } from "@/lib/i18n"
+import { hasCredits } from "@/lib/edition"
+import { browseTemplates, getMyTemplates, updateTemplate, deleteTemplate, type WorkflowTemplate } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
-import { APP_CATEGORIES, OUTPUT_TYPES, categoryLabel, outputTypeLabel } from "@/lib/app-categories"
-import { COMPLEXITY_CONFIG, type Complexity } from "@/lib/template-utils"
+import { normalizeTemplateCategory } from "@nodaro/shared"
+import { TEMPLATE_CATEGORY_VALUES, templateCategoryLabel } from "@/lib/template-categories"
+import type { TemplateSort } from "@/lib/template-utils"
+import { readTemplatesUrlState, writeTemplatesUrlState, type TemplatesUrlPatch } from "@/lib/template-url-state"
+import { queryKeys } from "@/lib/query-keys"
 import {
   useTemplateBrowseInfinite,
   useTemplateFavorites,
   useToggleTemplateFavoriteMutation,
   type TemplateBrowseParams,
 } from "@/hooks/queries/use-template-marketplace-queries"
+import { SegmentedControl, ThemeSwitch } from "@/components/dashboard/home/home-section"
+import { buildUseCaseTiles } from "@/components/dashboard/home/template-use-cases"
 import { TemplateMarketplaceCard, TemplateMarketplaceCardSkeleton } from "@/components/templates/template-marketplace-card"
-import { TemplatePreviewModal } from "@/components/templates/template-preview-modal"
-import { useProjects } from "@/hooks/queries/use-projects-queries"
+import { TemplatesHero } from "@/components/templates/templates-hero"
+import { UseCaseTiles } from "@/components/templates/use-case-tiles"
+import { TemplateSearch } from "@/components/templates/template-search"
+import { MyTemplatesGrid } from "@/components/templates/my-templates-grid"
+import { EditTemplateDialog } from "@/components/templates/edit-template-dialog"
 
-type ViewMode = "browse" | "my-templates" | "favorites"
+const TemplateDetailModal = lazyWithRetry(() =>
+  import("@/components/templates/template-detail-modal").then((m) => ({ default: m.TemplateDetailModal })),
+)
+const TemplateCanvasPreview = lazyWithRetry(() =>
+  import("@/components/templates/template-canvas-preview").then((m) => ({ default: m.TemplateCanvasPreview })),
+)
+
+type ViewMode = "browse" | "favorites" | "mine"
+
+const SORT_LABELS: Record<TemplateSort, MessageKey> = {
+  popular: "templates.sortPopular",
+  newest: "templates.sortNewest",
+  "most-favorited": "templates.sortFavorited",
+  cheapest: "templates.sortCheapest",
+}
+
+/** `/v1/templates/browse` caps a page at 50; the use-case tiles come from one page. */
+const TILES_PAGE_SIZE = 50
+/** The sort control shows the design's three; "most-favorited" stays reachable by URL. */
+const SORT_CONTROL: readonly TemplateSort[] = ["popular", "newest", "cheapest"]
+/**
+ * At most six cards a row and never one narrower than 285px (the reference
+ * measures 285×205 at six across): the column minimum is a sixth of the row
+ * once the row is wide enough, the fixed floor before that.
+ */
+const CARD_GRID = "grid grid-cols-[repeat(auto-fill,minmax(max(285px,calc((100%_-_80px)/6)),1fr))] gap-4"
 
 export default function TemplatesPage() {
   const t = useT()
   const { user } = useAuth()
   const qc = useQueryClient()
+  // Category, sort, the open template and the canvas flag live in the URL —
+  // see template-url-state.ts. Everything below reads them from there.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlState = useMemo(() => readTemplatesUrlState(searchParams), [searchParams])
+  const patchUrl = useCallback(
+    (patch: TemplatesUrlPatch) => {
+      // Opening or closing an overlay is a step Back should undo; a filter
+      // change is not, so it replaces the entry it is on.
+      const overlay = "templateSlug" in patch || "view" in patch
+      setSearchParams((prev) => writeTemplatesUrlState(prev, patch), { replace: !overlay })
+    },
+    [setSearchParams],
+  )
+  // Fixed for the visit, so a "New" badge doesn't flip under a re-render.
+  const [now] = useState(() => Date.now())
 
-  // Browse state
   const [viewMode, setViewMode] = useState<ViewMode>("browse")
   const [searchInput, setSearchInput] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>()
-  const [selectedOutputType, setSelectedOutputType] = useState<string | undefined>()
-  const [selectedComplexity, setSelectedComplexity] = useState<string | undefined>()
-  const [sortBy, setSortBy] = useState<"popular" | "newest" | "most-favorited">("popular")
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const browseRef = useRef<HTMLElement>(null)
 
-  // Preview modal state
-  const [previewTemplate, setPreviewTemplate] = useState<TemplateBrowseCard | null>(null)
-
-  // Debounce search
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchInput), 300)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setDebouncedSearch(searchInput), 300)
+    return () => clearTimeout(timer)
   }, [searchInput])
 
-  // Browse params
-  const browseParams: TemplateBrowseParams = useMemo(() => ({
-    search: debouncedSearch || undefined,
-    category: selectedCategory,
-    outputType: selectedOutputType,
-    complexity: selectedComplexity,
-    sort: sortBy,
-    favoritesOnly: viewMode === "favorites" ? true : undefined,
-  }), [debouncedSearch, selectedCategory, selectedOutputType, selectedComplexity, sortBy, viewMode])
-
-  // Browse query
-  const {
-    data: browseData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading: browseLoading,
-  } = useTemplateBrowseInfinite(browseParams)
-
-  const browseItems = useMemo(
-    () => browseData?.pages.flatMap((p) => p.data) ?? [],
-    [browseData],
+  const browseParams: TemplateBrowseParams = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      category: urlState.category,
+      sort: urlState.sort,
+      favoritesOnly: viewMode === "favorites" ? true : undefined,
+    }),
+    [debouncedSearch, urlState.category, urlState.sort, viewMode],
   )
+  const { data: browseData, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading: browseLoading } =
+    useTemplateBrowseInfinite(browseParams)
+  const browseItems = useMemo(() => browseData?.pages.flatMap((p) => p.data) ?? [], [browseData])
 
-  // Favorites
+  // The use-case row is built from the popular page — the same cache entry the
+  // home screen's Trending row reads — and never changes with the filter.
+  const { data: tilesPage, isLoading: tilesLoading } = useQuery({
+    queryKey: ["home-template-use-cases", "popular"],
+    queryFn: () => browseTemplates({ sort: "popular", limit: TILES_PAGE_SIZE }),
+    staleTime: 60_000,
+  })
+  // Every use case gets a tile, in taxonomy order. A row's category is read
+  // through the legacy map here too, so a card served by an older backend
+  // still lands in its tile.
+  const tiles = useMemo(
+    () =>
+      buildUseCaseTiles(
+        TEMPLATE_CATEGORY_VALUES,
+        (tilesPage?.data ?? []).map((card) => ({ ...card, category: normalizeTemplateCategory(card.category) })),
+        { filter: "trending", now, all: true },
+      ),
+    [tilesPage, now],
+  )
+  const heroCover = tiles.find((tile) => tile.coverUrl)
   const { data: favoriteIds = [] } = useTemplateFavorites()
   const favSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
   const favMutation = useToggleTemplateFavoriteMutation()
 
-  // My templates
   const { data: myTemplates, isLoading: myTemplatesLoading } = useQuery({
     queryKey: ["my-templates"],
     queryFn: getMyTemplates,
-    enabled: viewMode === "my-templates",
+    enabled: viewMode === "mine",
   })
-
-  // Projects (for clone dropdown in preview modal)
-  const { data: projects } = useProjects()
-
+  const [editingTemplate, setEditingTemplate] = useState<WorkflowTemplate | null>(null)
   const listToggleMutation = useMutation({
-    mutationFn: async ({ templateId, isListed }: { templateId: string; isListed: boolean }) => {
-      await updateTemplate(templateId, { isListed })
-    },
+    mutationFn: ({ templateId, isListed }: { templateId: string; isListed: boolean }) => updateTemplate(templateId, { isListed }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-templates"] })
-      qc.invalidateQueries({ queryKey: ["template-marketplace"] })
+      qc.invalidateQueries({ queryKey: queryKeys.templateMarketplace.all })
     },
   })
-
   const deleteMutation = useMutation({
-    mutationFn: async (templateId: string) => {
-      await deleteTemplate(templateId)
-    },
+    mutationFn: (templateId: string) => deleteTemplate(templateId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-templates"] })
-      qc.invalidateQueries({ queryKey: ["template-marketplace"] })
+      qc.invalidateQueries({ queryKey: queryKeys.templateMarketplace.all })
       toast.success(t("templates.deleted"))
     },
-    onError: (err: Error) => {
-      toast.error(err.message || t("templates.failedDelete"))
-    },
+    onError: (err: Error) => toast.error(err.message || t("templates.failedDelete")),
   })
 
-  // Infinite scroll observer
+  const showBrowse = viewMode !== "mine"
   useEffect(() => {
-    if (viewMode !== "browse" && viewMode !== "favorites") return
+    if (!showBrowse) return
     const sentinel = sentinelRef.current
     if (!sentinel) return
-
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage()
-        }
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage()
       },
       { rootMargin: "800px" },
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [viewMode, hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [showBrowse, hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const showBrowse = viewMode === "browse" || viewMode === "favorites"
+  const browseAll = () => {
+    patchUrl({ category: undefined })
+    setSearchInput("")
+    setViewMode("browse")
+    browseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+  const sortOptions = SORT_CONTROL.filter((sort) => sort !== "cheapest" || hasCredits()).map((value) => ({
+    value,
+    label: t(SORT_LABELS[value]),
+  }))
+  const viewOptions: { value: ViewMode; label: string }[] = [
+    { value: "browse", label: t("templates.tabBrowse") },
+    { value: "favorites", label: t("templates.tabFavorites") },
+    { value: "mine", label: t("templates.tabMy") },
+  ]
+  const browseTitle =
+    viewMode === "favorites"
+      ? t("templates.tabFavorites")
+      : viewMode === "mine"
+        ? t("templates.tabMy")
+        : urlState.category
+          ? templateCategoryLabel(urlState.category, t)
+          : t("templates.browseTitle")
+  const filtered = Boolean(debouncedSearch || urlState.category)
+  const openCard = browseItems.find((card) => card.slug === urlState.templateSlug) ?? null
   const isLoading = showBrowse ? browseLoading : myTemplatesLoading
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("templates.title")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("templates.subtitle")}
-          </p>
+    <div className="templates-page min-h-full bg-[var(--home-bg)] text-[var(--home-fg)]">
+      {/* Edge to edge like the home panel — the design has no column cap. */}
+      <div className="px-5 py-6 sm:px-8">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h1 className="text-[22px] font-semibold tracking-[-0.3px] text-[var(--home-strong)]">{t("templates.title")}</h1>
+          <ThemeSwitch />
         </div>
-      </div>
 
-      {/* View mode tabs + search */}
-      <div className="space-y-4 mb-6">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* View mode pills */}
-          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg p-1">
-            <button
-              type="button"
-              className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                viewMode === "browse"
-                  ? "bg-white dark:bg-zinc-700 text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+        <TemplatesHero onBrowseAll={browseAll} cover={heroCover?.coverUrl ? { url: heroCover.coverUrl, type: heroCover.coverType } : null} />
+
+        <div className="mt-7">
+          <UseCaseTiles
+            tiles={tiles}
+            active={urlState.category}
+            isLoading={tilesLoading}
+            onToggle={(category) => patchUrl({ category: urlState.category === category ? undefined : category })}
+          />
+        </div>
+
+        <section ref={browseRef} className="mt-7 scroll-mt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-baseline gap-2.5">
+              <h2 className="text-[17px] font-semibold text-[var(--home-strong)]">{browseTitle}</h2>
+              {showBrowse && !browseLoading && browseItems.length > 0 && (
+                <span className="text-xs text-[var(--home-muted)]">
+                  {hasNextPage ? t("templates.countMore", { n: browseItems.length }) : t("templates.count", { n: browseItems.length })}
+                </span>
               )}
-              onClick={() => setViewMode("browse")}
-            >
-              {t("templates.tabBrowse")}
-            </button>
-            {user && (
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {user && <SegmentedControl label={t("templates.viewLabel")} options={viewOptions} value={viewMode} onChange={setViewMode} />}
+              {showBrowse && (
+                <>
+                  <SegmentedControl
+                    label={t("templates.sortLabel")}
+                    options={sortOptions}
+                    value={urlState.sort}
+                    onChange={(sort) => patchUrl({ sort })}
+                  />
+                  <TemplateSearch value={searchInput} onChange={setSearchInput} />
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3.5">
+            {isLoading ? (
+              <div className={CARD_GRID}>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <TemplateMarketplaceCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : !showBrowse ? (
+              <MyTemplatesGrid
+                templates={myTemplates}
+                onEdit={setEditingTemplate}
+                onToggleListed={(templateId, isListed) => listToggleMutation.mutate({ templateId, isListed })}
+                onDelete={(templateId) => deleteMutation.mutate(templateId)}
+                isDeleting={deleteMutation.isPending}
+              />
+            ) : browseItems.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[var(--home-line-2)] py-16 text-center">
+                <LayoutTemplate className="mx-auto mb-4 size-10 text-[var(--home-dim)]" aria-hidden />
+                <h3 className="mb-1.5 text-base font-semibold text-[var(--home-strong)]">
+                  {viewMode === "favorites" ? t("templates.emptyFavoritesTitle") : t("templates.emptyBrowseTitle")}
+                </h3>
+                <p className="mx-auto max-w-md text-sm text-[var(--home-muted)]">
+                  {viewMode === "favorites"
+                    ? t("templates.emptyFavoritesDesc")
+                    : filtered
+                      ? t("templates.emptyBrowseFilteredDesc")
+                      : t("templates.emptyBrowseAllDesc")}
+                </p>
+              </div>
+            ) : (
               <>
-                <button
-                  type="button"
-                  className={cn(
-                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
-                    viewMode === "my-templates"
-                      ? "bg-white dark:bg-zinc-700 text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => setViewMode("my-templates")}
-                >
-                  <User className="h-3.5 w-3.5" />
-                  {t("templates.tabMy")}
-                </button>
-                <button
-                  type="button"
-                  className={cn(
-                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
-                    viewMode === "favorites"
-                      ? "bg-white dark:bg-zinc-700 text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => setViewMode("favorites")}
-                >
-                  <Heart className="h-3.5 w-3.5" />
-                  {t("templates.tabFavorites")}
-                </button>
+                <div className={CARD_GRID}>
+                  {browseItems.map((template) => (
+                    <TemplateMarketplaceCard
+                      key={template.id}
+                      template={template}
+                      now={now}
+                      isFavorited={favSet.has(template.id)}
+                      onToggleFavorite={(id) => favMutation.mutate({ templateId: id })}
+                      onOpen={(card) => patchUrl({ templateSlug: card.slug })}
+                    />
+                  ))}
+                  {isFetchingNextPage && Array.from({ length: 4 }).map((_, i) => <TemplateMarketplaceCardSkeleton key={`skel-${i}`} />)}
+                </div>
+                <div ref={sentinelRef} className="h-1" />
               </>
             )}
           </div>
-
-          {/* Search (browse/favorites only) */}
-          {showBrowse && (
-            <div className="relative flex-1 min-w-[200px] max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={t("templates.searchPlaceholder")}
-                className="pl-9 h-9"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setSearchInput("")}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Sort (browse/favorites only) */}
-          {showBrowse && (
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
-              <SelectTrigger className="w-[160px] h-9">
-                <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="popular">{t("templates.sortPopular")}</SelectItem>
-                <SelectItem value="newest">{t("templates.sortNewest")}</SelectItem>
-                <SelectItem value="most-favorited">{t("templates.sortFavorited")}</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        {/* Category + output type + complexity pills (browse/favorites only) */}
-        {showBrowse && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Category pills */}
-            <button
-              type="button"
-              className={cn(
-                "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                !selectedCategory
-                  ? "bg-[#ff0073]/10 text-[#ff0073] border-[#ff0073]/30"
-                  : "text-muted-foreground border-border hover:text-foreground hover:border-zinc-400",
-              )}
-              onClick={() => setSelectedCategory(undefined)}
-            >
-              {t("templates.filterAll")}
-            </button>
-            {APP_CATEGORIES.map((cat) => (
-              <button
-                key={cat.value}
-                type="button"
-                className={cn(
-                  "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                  selectedCategory === cat.value
-                    ? "bg-[#ff0073]/10 text-[#ff0073] border-[#ff0073]/30"
-                    : "text-muted-foreground border-border hover:text-foreground hover:border-zinc-400",
-                )}
-                onClick={() => setSelectedCategory(selectedCategory === cat.value ? undefined : cat.value)}
-              >
-                {categoryLabel(cat.value, t)}
-              </button>
-            ))}
-
-            {/* Separator */}
-            <div className="w-px h-5 bg-border mx-1" />
-
-            {/* Output type pills */}
-            {OUTPUT_TYPES.map((ot) => (
-              <button
-                key={ot.value}
-                type="button"
-                className={cn(
-                  "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                  selectedOutputType === ot.value
-                    ? "bg-[#ff0073]/10 text-[#ff0073] border-[#ff0073]/30"
-                    : "text-muted-foreground border-border hover:text-foreground hover:border-zinc-400",
-                )}
-                onClick={() => setSelectedOutputType(selectedOutputType === ot.value ? undefined : ot.value)}
-              >
-                {outputTypeLabel(ot.value, t)}
-              </button>
-            ))}
-
-            {/* Separator */}
-            <div className="w-px h-5 bg-border mx-1" />
-
-            {/* Complexity pills */}
-            {(Object.keys(COMPLEXITY_CONFIG) as Complexity[]).map((key) => {
-              const cfg = COMPLEXITY_CONFIG[key]
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className={cn(
-                    "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                    selectedComplexity === key
-                      ? cfg.color
-                      : "text-muted-foreground border-border hover:text-foreground hover:border-zinc-400",
-                  )}
-                  onClick={() => setSelectedComplexity(selectedComplexity === key ? undefined : key)}
-                >
-                  {cfg.label}
-                </button>
-              )
-            })}
-          </div>
-        )}
+        </section>
       </div>
 
-      {/* Content area */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <TemplateMarketplaceCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : showBrowse ? (
-        /* Browse / Favorites grid */
-        browseItems.length === 0 ? (
-          <div className="text-center py-16">
-            <LayoutTemplate className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              {viewMode === "favorites" ? t("templates.emptyFavoritesTitle") : t("templates.emptyBrowseTitle")}
-            </h2>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              {viewMode === "favorites"
-                ? t("templates.emptyFavoritesDesc")
-                : debouncedSearch || selectedCategory || selectedOutputType || selectedComplexity
-                  ? t("templates.emptyBrowseFilteredDesc")
-                  : t("templates.emptyBrowseAllDesc")}
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {browseItems.map((template) => (
-                <TemplateMarketplaceCard
-                  key={template.id}
-                  template={template}
-                  isFavorited={favSet.has(template.id)}
-                  onToggleFavorite={(id) => favMutation.mutate({ templateId: id })}
-                  onOpenPreview={setPreviewTemplate}
-                />
-              ))}
-              {isFetchingNextPage &&
-                Array.from({ length: 4 }).map((_, i) => (
-                  <TemplateMarketplaceCardSkeleton key={`skel-${i}`} />
-                ))}
-            </div>
-            <div ref={sentinelRef} className="h-1" />
-          </>
-        )
-      ) : (
-        /* My Templates list */
-        <MyTemplatesGrid
-          templates={myTemplates}
-          onToggleListed={(templateId, isListed) => listToggleMutation.mutate({ templateId, isListed })}
-          onDelete={(templateId) => deleteMutation.mutate(templateId)}
-          isDeleting={deleteMutation.isPending}
-        />
+      <EditTemplateDialog
+        template={editingTemplate}
+        open={editingTemplate !== null}
+        onOpenChange={(open) => !open && setEditingTemplate(null)}
+      />
+
+      {/* The two overlays are exclusive by URL: the detail closes while the
+          canvas is up, so a modal never sits inert underneath another. They
+          are a separate chunk (the canvas carries the whole node library) that
+          loads only once a template is opened. */}
+      {urlState.templateSlug && (
+        <Suspense fallback={null}>
+          <TemplateDetailModal
+            slug={urlState.templateSlug}
+            open={urlState.view === "detail"}
+            fallback={openCard}
+            now={now}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={user ? (id) => favMutation.mutate({ templateId: id }) : undefined}
+            onClose={() => patchUrl({ templateSlug: null })}
+            onPreviewCanvas={() => patchUrl({ view: "canvas" })}
+            onOpenTemplate={(slug) => patchUrl({ templateSlug: slug })}
+          />
+          <TemplateCanvasPreview
+            slug={urlState.templateSlug}
+            open={urlState.view === "canvas"}
+            fallback={openCard}
+            onBack={() => patchUrl({ view: "detail" })}
+          />
+        </Suspense>
       )}
-
-      {/* Preview modal */}
-      {previewTemplate && (
-        <TemplatePreviewModal
-          template={previewTemplate}
-          onClose={() => setPreviewTemplate(null)}
-          isFavorited={favSet.has(previewTemplate.id)}
-          onToggleFavorite={(id) => favMutation.mutate({ templateId: id })}
-          projects={projects ?? []}
-        />
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// My Templates Grid
-// ---------------------------------------------------------------------------
-
-function MyTemplatesGrid({
-  templates,
-  onToggleListed,
-  onDelete,
-  isDeleting,
-}: {
-  templates: WorkflowTemplate[] | undefined
-  onToggleListed: (templateId: string, isListed: boolean) => void
-  onDelete: (templateId: string) => void
-  isDeleting: boolean
-}) {
-  const t = useT()
-  if (!templates || templates.length === 0) {
-    return (
-      <div className="text-center py-16">
-        <LayoutTemplate className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-        <h2 className="text-lg font-semibold text-foreground mb-2">{t("templates.emptyMyTitle")}</h2>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          {t("templates.emptyMyDesc")}
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    // Intentionally NOT row-virtualized (Batch E): variable-height cards +
-    // only 20/page make windowing low-payoff here.
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {templates.map((tmpl) => (
-        <MyTemplateCard
-          key={tmpl.id}
-          template={tmpl}
-          onToggleListed={(isListed) => onToggleListed(tmpl.id, isListed)}
-          onDelete={() => onDelete(tmpl.id)}
-          isDeleting={isDeleting}
-        />
-      ))}
-    </div>
-  )
-}
-
-function MyTemplateCard({
-  template,
-  onToggleListed,
-  onDelete,
-  isDeleting,
-}: {
-  template: WorkflowTemplate
-  onToggleListed: (isListed: boolean) => void
-  onDelete: () => void
-  isDeleting: boolean
-}) {
-  const t = useT()
-  const complexity = COMPLEXITY_CONFIG[template.complexity as Complexity]
-
-  return (
-    <div className="bg-card border border-border rounded-xl p-4 hover:border-border/80 transition-colors">
-      <div className="flex items-start justify-between mb-3">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-foreground truncate">{template.name}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">{template.slug}</p>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0 ml-2">
-          {/* Listed/Unlisted badge */}
-          <span
-            className={cn(
-              "text-[10px] px-2 py-0.5 rounded-full cursor-pointer transition-colors",
-              template.isListed
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
-                : "bg-zinc-100 dark:bg-zinc-800 text-muted-foreground hover:bg-zinc-200 dark:hover:bg-zinc-700",
-            )}
-            onClick={() => onToggleListed(!template.isListed)}
-            title={template.isListed ? t("templates.clickToUnlist") : t("templates.clickToList")}
-          >
-            {template.isListed ? t("templates.listed") : t("templates.unlisted")}
-          </span>
-          {/* Complexity badge */}
-          {complexity && (
-            <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", complexity.color)}>
-              {complexity.label}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {template.description && (
-        <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{template.description}</p>
-      )}
-
-      {/* Stats row */}
-      <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <Copy className="h-3 w-3" />
-          {t("templates.clones", { n: template.cloneCount })}
-        </span>
-        <span className="flex items-center gap-1">
-          <Heart className="h-3 w-3" />
-          {t("templates.favorites", { n: template.favoriteCount })}
-        </span>
-        <span className="flex items-center gap-1">
-          <Layers className="h-3 w-3" />
-          {t("templates.nodes", { n: template.nodeCount })}
-        </span>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 w-7 p-0"
-          onClick={() => onToggleListed(!template.isListed)}
-          title={template.isListed ? t("templates.unlist") : t("templates.list")}
-        >
-          {template.isListed ? (
-            <ToggleRight className="h-4 w-4 text-emerald-500" />
-          ) : (
-            <ToggleLeft className="h-4 w-4 text-muted-foreground" />
-          )}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-          onClick={onDelete}
-          disabled={isDeleting}
-          title={t("templates.deleteTemplate")}
-        >
-          {isDeleting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Trash2 className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
     </div>
   )
 }

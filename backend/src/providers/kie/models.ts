@@ -346,17 +346,10 @@ export const KIE_IMAGE_MODELS: Record<string, KieModelConfig> = {
     imageParam: "image_url",  // Single URL string
     extraParams: { image_size: "landscape_16_9", style: "AUTO", rendering_speed: "BALANCED", strength: 0.8 },
   },
-  "ideogram-reframe": {
-    model: "ideogram/v3-reframe",
-    credits: 7,
-    cost: 0.035,  // (BALANCED default)
-    // NOTE: TURBO = 3.5 credits, QUALITY = 10 credits
-    // Handled via composite identifiers "ideogram-reframe:TURBO", "ideogram-reframe:QUALITY"
-    // V3 Reframe is cheaper than character models (character=18, v3=7 BALANCED)
-    inputType: "image-to-image",
-    imageParam: "image_url",  // Single URL string
-    extraParams: { image_size: "landscape_16_9", rendering_speed: "BALANCED" },
-  },
+  // `ideogram-reframe` (`ideogram/v3-reframe`) was retired 2026-09-15: KIE no
+  // longer documents the model and every task fails upstream with
+  // "[500] internal error" — verified with the minimal documented payload
+  // (#1331). Re-add here + the Provider Enum Sync table if it returns.
   // Ideogram V3 Base (text-to-image, no character consistency)
   // See: docs.kie.ai/market/ideogram/v3-text-to-image.md
   "ideogram-v3": {

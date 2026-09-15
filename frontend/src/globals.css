@@ -162,6 +162,24 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --grid-line-color: #dcdcdc;
+  /* Workflow canvas — the ONE place the editor's surface palette is declared.
+     Canvas ground + dot grid, the node card, its floating label, and every
+     pill/toolbar that floats over the canvas read these; nothing on the canvas
+     hardcodes a hex for them. Warm off-white in light, near-black in dark. */
+  --canvas-bg: #f6f6f8;
+  --canvas-dot: #dadade;
+  /* The ambient glow behind the flow (.canvas-ambient): brand pink + indigo,
+     faint enough to sit under the dot grid. */
+  --canvas-glow-a: rgba(255, 0, 115, 0.09);
+  --canvas-glow-b: rgba(99, 102, 241, 0.11);
+  --node-card: #ffffff;
+  --node-border: #e4e2db;
+  --node-shadow: 0 6px 20px rgba(60, 50, 30, 0.08);
+  --node-label: #1c1b19;
+  --pill-bg: #ffffff;
+  --pill-border: #e4e2db;
+  --pill-fg: #161513;
+  --pill-fg-muted: #4a4843;
   /* Workflow Copilot panel (ee) — the panel sits between chrome and card, so it
      needs its own step in the surface ramp. Values come from the design system,
      not from --card/--muted, which do not have a matching step. */
@@ -209,6 +227,18 @@
   --sidebar-border: #2D2D2D;
   --sidebar-ring: #ff0073;
   --grid-line-color: #1a1a1a;
+  --canvas-bg: #08080b;
+  --canvas-dot: #26262f;
+  --canvas-glow-a: rgba(255, 0, 115, 0.13);
+  --canvas-glow-b: rgba(80, 70, 220, 0.16);
+  --node-card: #111116;
+  --node-border: #22222b;
+  --node-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  --node-label: #e9e9ef;
+  --pill-bg: #111116;
+  --pill-border: #22222b;
+  --pill-fg: #ffffff;
+  --pill-fg-muted: #b6b6c4;
   --copilot-panel: #171718;
   --copilot-card: #1E1E1E;
   --copilot-surface: #242426;
@@ -218,6 +248,198 @@
   --copilot-mention: #38BDF8;
   --copilot-ok: #22C55E;
   --copilot-fail: #EF4444;
+}
+
+/* Home (Projects) screen — the "Notched Header Tabs" handoff. Its own surface
+   ramp (bg → panel → card → raised), for the same reason --copilot-* carries
+   one: the stock --card/--muted steps do not match the design. Light values
+   from the handoff's light theme, dark from its dark theme. The accent stays
+   the brand --primary rather than the mock's pink. */
+:root {
+  --home-bg: #efeff1;
+  --home-panel: #ffffff;
+  --home-card: #fafafb;
+  --home-raised: #f1f1f4;
+  --home-raised-2: #e7e7ec;
+  --home-line: #e2e2e8;
+  --home-line-2: #e7e7ec;
+  --home-fg: #17171c;
+  --home-fg-2: #3d3d47;
+  --home-muted: #6f6f7c;
+  --home-dim: #9a9aa6;
+  --home-strong: #111116;
+  --home-stripe-a: #f0f0f3;
+  --home-stripe-b: #f7f7f9;
+  --home-accent-hover: color-mix(in oklab, var(--primary) 85%, white);
+  --home-scrim: rgba(20, 20, 30, 0.5);
+  --home-dots: radial-gradient(#d9d9e0 1px, transparent 1px);
+}
+
+.dark {
+  --home-bg: #08080b;
+  --home-panel: #111116;
+  --home-card: #0e0e12;
+  --home-raised: #16161d;
+  --home-raised-2: #1c1c25;
+  --home-line: #22222b;
+  --home-line-2: #1f1f27;
+  --home-fg: #e9e9ef;
+  --home-fg-2: #b6b6c4;
+  --home-muted: #8a8a99;
+  --home-dim: #6c6c7a;
+  --home-strong: #ffffff;
+  --home-stripe-a: #15151c;
+  --home-stripe-b: #111116;
+  --home-scrim: rgba(0, 0, 0, 0.7);
+  --home-dots: radial-gradient(#26262f 1px, transparent 1px);
+}
+
+/* Inside the content panel the stock shadcn surface tokens point at the home
+   ramp, so the components it reuses (workflow cards, inputs, the project grid)
+   take the design's colours without a fork of each one. Portals (menus,
+   dialogs) render outside the panel and keep the app palette. */
+.home-panel {
+  --background: var(--home-panel);
+  --foreground: var(--home-fg);
+  --card: var(--home-card);
+  --card-foreground: var(--home-fg);
+  --muted: var(--home-raised);
+  --muted-foreground: var(--home-muted);
+  --accent: var(--home-raised);
+  --secondary: var(--home-raised);
+  --border: var(--home-line-2);
+  --input: var(--home-line-2);
+}
+
+/* The active header tab's inverted corners: an 18px square either side of its
+   foot, painted panel-coloured outside a quarter circle with a 1px border ring,
+   so the tab and the panel read as one surface. The two corners mirror each
+   other, so the pair needs no RTL variant. */
+.home-tab-active::before,
+.home-tab-active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.home-tab-active::before {
+  left: -18px;
+  background: radial-gradient(circle at 0 0, transparent 17.5px, var(--home-line) 18px, var(--home-panel) 19px);
+}
+.home-tab-active::after {
+  right: -18px;
+  background: radial-gradient(circle at 100% 0, transparent 17.5px, var(--home-line) 18px, var(--home-panel) 19px);
+}
+
+/* Placeholder surface for a cover that has no media. */
+.home-stripes {
+  background: repeating-linear-gradient(135deg, var(--home-stripe-a) 0 8px, var(--home-stripe-b) 8px 16px);
+}
+
+/* Horizontal card rows scroll by drag, wheel or the ‹ › buttons — no bar. */
+.home-row-scroll {
+  scrollbar-width: none;
+}
+.home-row-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* The Templates page paints the home ramp straight onto the page — there is
+   no notched panel — so the stock surface tokens point at the ramp here too. */
+.templates-page {
+  --background: var(--home-bg);
+  --foreground: var(--home-fg);
+  --card: var(--home-card);
+  --card-foreground: var(--home-fg);
+  --muted: var(--home-raised);
+  --muted-foreground: var(--home-muted);
+  --accent: var(--home-raised);
+  --secondary: var(--home-raised);
+  --border: var(--home-line-2);
+  --input: var(--home-line-2);
+}
+
+/* The handoff's dot grid (hero banner, detail hero, canvas preview). */
+.templates-dots {
+  background-image: var(--home-dots);
+  background-size: var(--templates-dot-gap, 18px) var(--templates-dot-gap, 18px);
+}
+
+/* A template rendered through the real node components must stay inert: the
+   pane pans and zooms, but a node's run strip, buttons and inputs can never act
+   on it. The canvas fades in only once its nodes are measured and framed. */
+.templates-canvas .react-flow__node,
+.templates-canvas .react-flow__edge {
+  pointer-events: none !important;
+}
+.templates-canvas .react-flow {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.templates-canvas[data-ready="true"] .react-flow {
+  opacity: 1;
+}
+/* A card's favorite heart: on a hover-capable device it appears on hover or
+   focus (and stays once pressed); on touch it is simply always there, because
+   an invisible-but-tappable button is a trap, not a design. */
+@media (hover: hover) {
+  .templates-fav:not([aria-pressed="true"]) {
+    opacity: 0;
+  }
+  .group:hover .templates-fav,
+  .group:focus-within .templates-fav,
+  .templates-fav:focus-visible {
+    opacity: 1;
+  }
+}
+
+/* The detail modal's hero is a still: nothing in it reacts to the pointer. */
+.templates-canvas-still .react-flow {
+  pointer-events: none;
+}
+/* The still is a thumbnail of the whole flow. Node titles are scaled back up
+   to a readable size whenever the canvas is zoomed far out (see
+   editable-node-label.tsx), and at thumbnail scale they pile onto each other
+   and bury the shape the still exists to show — so the still leaves them out.
+   The interactive preview keeps them, as the editor does. */
+.templates-canvas-still .node-title-label {
+  display: none;
+}
+
+/* The Clone panel on the canvas preview: a 1px gradient border, a soft glow
+   in the corner and the accent-to-pink CTA, in the brand accent. */
+.templates-clone-panel {
+  padding: 1px;
+  border-radius: 18px;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--primary) 70%, transparent),
+    rgba(108, 92, 255, 0.35) 45%,
+    var(--home-line) 80%
+  );
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 0 60px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+.templates-clone-glow {
+  position: absolute;
+  top: -60px;
+  inset-inline-end: -60px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 28%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.templates-clone-cta {
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, white));
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.templates-clone-cta:hover {
+  filter: brightness(1.08);
+}
+.templates-preview-cta {
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 /* Prevent mobile pull-to-refresh — must be outside @layer to avoid being overridden */
@@ -627,9 +849,42 @@ html, body {
   stroke: #475569;
 }
 
-/* Grid dots in dark mode */
-.dark .react-flow__background pattern circle {
-  fill: #2D2D2D;
+/* Grid dots — both themes, from the canvas tokens (see :root / .dark).
+   Targets the class React Flow actually paints (`.react-flow__background-pattern
+   .dots`, specificity 0,2,0 in its own unlayered sheet) with one extra ancestor
+   so this wins regardless of sheet order; a bare `pattern circle` selector lost
+   to it in both themes and only looked right because every <Background> also
+   passes color=. */
+.react-flow .react-flow__background-pattern.dots {
+  fill: var(--canvas-dot);
+}
+
+/* The canvas ground: flat colour plus ONE soft pink→indigo glow blob that
+   stays put while the flow pans underneath it (painted on the pane, not the
+   viewport). Same geometry as the marketing site's `bg-gradient` div: a
+   35%-wide blob parked at 65% / centre on wide screens, centred 120px down
+   on narrow ones. The <Background> dots render transparent on top of it. */
+.canvas-ambient {
+  background-color: var(--canvas-bg);
+  /* Two wide, very soft ellipses that overlap into one diagonal wash — pink
+     upper-right of centre, indigo lower-left — each fading to nothing well
+     before its edge, so there is never a visible rim. Sized in % of the pane:
+     the wash spans most of the view, the way a blurred backdrop does. */
+  background-image:
+    radial-gradient(ellipse 55% 48% at 62% 38%, var(--canvas-glow-a) 0%, transparent 62%),
+    radial-gradient(ellipse 62% 56% at 44% 58%, var(--canvas-glow-b) 0%, transparent 64%);
+  background-repeat: no-repeat;
+}
+
+/* The same wash under the dashboard pages (projects, tutorials, gallery, …):
+   painted on the scrolling <main>, so it holds still while the page scrolls.
+   Pulled up and to the right so it sits behind the hero cards, not the grid. */
+.page-ambient {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 48% 42% at 70% 8%, var(--canvas-glow-a) 0%, transparent 62%),
+    radial-gradient(ellipse 56% 50% at 42% 22%, var(--canvas-glow-b) 0%, transparent 64%);
+  background-repeat: no-repeat;
 }
 
 
@@ -1522,8 +1777,13 @@ html, body {
    Tailwind's layered `bg-popover` utility without needing !important — but the
    inner rows of these menus keep their own hover/active backgrounds (they are
    child elements, not the surface itself). */
-.dark .node-menu-surface {
-  background-color: #101010;
+.node-menu-surface {
+  /* UNLAYERED and theme-agnostic: it forces background, border AND text
+     colour, so a Tailwind bg-/border-/text- utility on the same element is
+     dead — put per-element colour on children, not on the surface itself. */
+  background-color: var(--pill-bg);
+  border-color: var(--pill-border);
+  color: var(--pill-fg);
 }
 
 /* NodeResizer: ensure resize handles stay interactive above card content */

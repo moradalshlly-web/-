@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, fireEvent, screen, waitFor } from "@testing-library/react"
+import { toast } from "sonner"
 import { PlatformCard } from "../platform-card"
-import type { SocialProviderInfo } from "@/lib/api"
+import { disconnectSocial, type SocialProviderInfo } from "@/lib/api"
 import type { SocialConnection } from "@/types/nodes"
 
 vi.mock("@/components/ui/button", () => ({
@@ -38,6 +39,8 @@ vi.mock("@/lib/api", () => ({
   connectTelegram: vi.fn(),
   connectSocialCustom: (platform: string, fields: Record<string, string>) => connectSocialCustom(platform, fields),
   setDefaultSocialConnection: vi.fn(),
+  // The real predicate, verbatim: a 404 `not_found` is "already gone".
+  isNotFoundError: (err: unknown) => err instanceof Error && (err as { code?: unknown }).code === "not_found",
 }))
 
 function provider(overrides: Partial<SocialProviderInfo> = {}): SocialProviderInfo {
@@ -150,6 +153,51 @@ function connection(overrides: Partial<SocialConnection> = {}): SocialConnection
     ...overrides,
   }
 }
+
+/**
+ * #722 — since #712 an owner-scoped DELETE answers 404 when it matched nothing
+ * (a row another tab already removed, a list rendered before a refetch). For a
+ * disconnect that IS the requested end state, so the card must refresh and
+ * report success, never "Failed to disconnect" for a row that is genuinely gone.
+ */
+describe("PlatformCard (disconnecting an already-removed account)", () => {
+  const meta = (): SocialProviderInfo =>
+    provider({
+      id: "facebook",
+      label: "Facebook",
+      connectKind: "oauth2",
+      customFields: undefined,
+      capabilities: { schedule: true, comment: false, media: ["image", "video"], refresh: "reconnect" },
+    })
+  const disconnectButton = () =>
+    screen.getAllByRole("button").find((b) => b.className.includes("text-red-600"))!
+
+  beforeEach(() => {
+    vi.mocked(toast.success).mockClear()
+    vi.mocked(toast.error).mockClear()
+    vi.mocked(disconnectSocial).mockReset()
+  })
+
+  it("treats a 404 as already gone: success toast + list refresh, no error", async () => {
+    vi.mocked(disconnectSocial).mockRejectedValueOnce(Object.assign(new Error("Connection not found"), { code: "not_found" }))
+    const onConnectionChange = vi.fn()
+    render(<PlatformCard provider={meta()} connections={[connection()]} onConnectionChange={onConnectionChange} />)
+    fireEvent.click(disconnectButton())
+    await waitFor(() => expect(onConnectionChange).toHaveBeenCalledTimes(1))
+    expect(toast.success).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it("still reports a real failure", async () => {
+    vi.mocked(disconnectSocial).mockRejectedValueOnce(new Error("boom"))
+    const onConnectionChange = vi.fn()
+    render(<PlatformCard provider={meta()} connections={[connection()]} onConnectionChange={onConnectionChange} />)
+    fireEvent.click(disconnectButton())
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(onConnectionChange).not.toHaveBeenCalled()
+  })
+})
 
 describe("PlatformCard (reconnect surfacing)", () => {
   const meta = (): SocialProviderInfo =>

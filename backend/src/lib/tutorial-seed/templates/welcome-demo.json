@@ -3,7 +3,7 @@
   "name": "Welcome Demo",
   "description": "One sentence became an image, the image became motion, and a voice line tied it together.",
   "markdownDescription": null,
-  "category": "multi-step",
+  "category": "automations",
   "outputTypes": [
     "video"
   ],

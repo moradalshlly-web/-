@@ -17,6 +17,7 @@ import { nodeTypes } from "@/components/nodes"
 import { AnimatedFlowEdge } from "./animated-flow-edge"
 import { orderNodesParentFirst } from "./workflow-editor/group-coords"
 import { createClient } from "@/lib/supabase"
+import { ZOOM_MIN, ZOOM_MAX } from "@/lib/zoom"
 import type { WorkflowNode, WorkflowEdge } from "@/types/nodes"
 
 const edgeTypes = {
@@ -123,9 +124,12 @@ function WorkflowViewerCanvas({
       edgesFocusable={false}
       fitView
       fitViewOptions={{ padding: 0.2 }}
+      minZoom={ZOOM_MIN}
+      maxZoom={ZOOM_MAX}
       proOptions={{ hideAttribution: true }}
+      className="canvas-ambient"
     >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
+      <Background variant={BackgroundVariant.Dots} gap={32} size={2} color="var(--canvas-dot)" className="!bg-transparent" />
       <MiniMap
         pannable
         zoomable

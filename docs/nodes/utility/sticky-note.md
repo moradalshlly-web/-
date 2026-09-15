@@ -8,12 +8,13 @@ The Sticky Note node provides a free-form text annotation that can be placed any
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| Text | string | `"I'm a note\nDouble click to customize"` | Note content. Supports multi-line text. Double-click to edit. |
-| Color | hex string | `"#2d2d44"` | Background color of the note. |
-| Text Color | hex string | `"#ffffff"` | Text color. |
-| Width | number (px) | `840` | Note width in pixels. |
-| Height | number (px) | `540` | Note height in pixels. |
-| Font Size | enum | `"base"` | Text size, cycled from the note's toolbar. Options: `sm` (**Small**, 12px), `base` (**Paragraph**, 14px), `lg` (**Heading**, 18px), `xl` (**Display**, 26px) — four visibly distinct sizes. |
+| Title | string | `"Note"` | Heading rendered inside the note, above the body. While a note has a title, it replaces the floating label above the note. Optional — notes made before titles existed keep their floating label. |
+| Text | string | `""` | Note body. Supports multi-line text. Click into the note to edit. |
+| Color | hex string | `"#26221a"` | Background color. The toolbar offers seven swatches — three muted, three brand tints, and **paper** (`#26221a`: warm near-black in dark mode, cream `#f6eedc` in light mode, the default) — plus a free colour well for any hex. Text colour follows the surface automatically (dark ink on light surfaces, light ink on dark). |
+| Text Color | hex string | `"#ffffff"` | Legacy field; the rendered ink is derived from the surface colour. |
+| Width | number (px) | `320` | Note width in pixels. |
+| Height | number (px) | `200` | Note height in pixels. |
+| Font Size | enum | `"base"` | Body size, cycled from the note's toolbar. Options: `sm` (**Small**, 12px body / 14px title), `base` (**Paragraph**, 14 / 17), `lg` (**Heading**, 18 / 22), `xl` (**Display**, 26 / 30) — the title always sits one step above its body. |
 | Bold | boolean | `false` | Whether the text is bold. |
 | Italic | boolean | `false` | Whether the text is italic. |
 | Alignment | enum | `"left"` | Text alignment. Options: `left`, `center`, `right`. |

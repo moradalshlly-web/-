@@ -63,7 +63,6 @@ export const IMAGE_I2I_MODELS: readonly { value: ImageI2IProvider; label: string
   { value: "gpt-image-2-5-sunburst-i2i", label: "GPT Image 2.5 Sunburst", desc: "Precision GPT Image 2.5 edits — tightest control, slower" },
   { value: "grok-i2i", label: "Grok", desc: "Creative and stylized imagery" },
   { value: "ideogram-edit", label: "Ideogram Edit", desc: "AI-guided image editing" },
-  { value: "ideogram-reframe", label: "Ideogram Reframe", desc: "Change aspect ratio intelligently" },
   { value: "ideogram-remix", label: "Ideogram Remix", desc: "Restyle with character consistency" },
   { value: "nano-banana", label: "Nano Banana", desc: "Fast iteration, quick transforms" },
   { value: "nano-banana-2", label: "Nano Banana 2", desc: "Updated Nano Banana — web-grounded transforms, up to 4K" },

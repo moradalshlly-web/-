@@ -26,7 +26,7 @@ export function NodeSettingsButton({ nodeId }: { readonly nodeId: string }) {
   return (
     <>
       {/* Separates "what this run will do" from "configure the node". */}
-      <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-black/10 dark:bg-white/15" />
+      <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-[var(--pill-border)]" />
       <button
         type="button"
         data-testid="node-settings-button"
@@ -43,7 +43,7 @@ export function NodeSettingsButton({ nodeId }: { readonly nodeId: string }) {
           "nodrag flex items-center justify-center h-6 w-6 shrink-0 rounded-md transition-colors",
           isEditing
             ? "text-[#ff0073]"
-            : "text-neutral-500 hover:text-neutral-900 hover:bg-black/5 dark:text-white/60 dark:hover:text-white dark:hover:bg-white/10",
+            : "text-[var(--pill-fg-muted)] hover:text-[var(--pill-fg)] hover:bg-black/5 dark:hover:bg-white/10",
         )}
       >
         <SlidersHorizontal className="w-3.5 h-3.5" />

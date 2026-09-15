@@ -233,6 +233,106 @@ export function applySeedance2Params(
 const SEEDANCE_2_DEFAULT_ASPECT = "16:9"
 
 /**
+ * Seedance 2.5 EDIT MODE — the one Seedance constraint we cannot settle before
+ * the call, so we settle it after.
+ *
+ * With a reference video wired, Seedance decides SERVER-SIDE, from the PROMPT,
+ * whether the run is an ordinary generation or an EDIT of that clip. The same
+ * node with the same video flips between the two on a reworded sentence. In edit
+ * mode the output inherits the source clip's shape, so the two levers the editor
+ * legitimately offers become forbidden and KIE rejects the task:
+ *
+ *   "The parameters `ratio` and `duration` specified in the request are not
+ *    valid. Seedance identified your task as video editing based on your prompt.
+ *    For this task type, the output ratio and duration follow the input video
+ *    selected by the model for editing ... Issues: [0] `ratio` must be
+ *    `adaptive`. [1] `duration` must be -1."
+ *
+ * Nothing in the payload predicts that verdict — a reference video is also the
+ * ordinary style-reference input, where a concrete ratio and duration stay legal
+ * — so coercing on "a video is attached" would silently discard the user's
+ * chosen shape on every style run. Instead we believe the provider: recognise
+ * this exact rejection and re-submit ONCE with the two values it asked for.
+ * Lossless in edit mode (the source clip defines both) and never reached on a
+ * style run, which is not rejected in the first place.
+ */
+const SEEDANCE_2_EDIT_MODE_SIGNALS = [
+  /identified your task as video editing/i,
+  /`?ratio`?\s+must be\s+`?adaptive`?/i,
+  /`?duration`?\s+must be\s+-1\b/i,
+] as const
+
+/**
+ * True for KIE's Seedance edit-mode rejection, whether it arrives synchronously
+ * from createTask or later as a failed task's failMsg — both shapes reach the
+ * caller as an Error message.
+ */
+export function isSeedance2EditModeRejection(message: string): boolean {
+  return SEEDANCE_2_EDIT_MODE_SIGNALS.some((re) => re.test(message))
+}
+
+/**
+ * The shape Seedance edit mode demands: the clip's own ratio, and its own length
+ * (KIE spells "inherit the source" as -1 — the only place we ever emit it).
+ */
+export const SEEDANCE_2_EDIT_MODE_PARAMS = { aspect_ratio: "adaptive", duration: -1 } as const
+
+/** Already in edit shape → a retry would re-send a byte-identical body. */
+function isSeedance2EditModeInput(input: Record<string, unknown>): boolean {
+  return (
+    input.aspect_ratio === SEEDANCE_2_EDIT_MODE_PARAMS.aspect_ratio &&
+    Number(input.duration) === SEEDANCE_2_EDIT_MODE_PARAMS.duration
+  )
+}
+
+/**
+ * Submit a KIE video task, retrying ONCE if Seedance rejected it as an edit.
+ *
+ * The single chokepoint both standard createTask paths (i2v + t2v) use, so the
+ * Seedance edit-mode recovery cannot be half-wired. Every other provider gets
+ * plain {@link runKieTask} behaviour: the retry is gated on the provider AND on
+ * the provider's own words.
+ *
+ * Returns the payload that actually produced the video (`sentInput`) so the
+ * caller's credit audit reports the duration KIE billed, not the one we first
+ * asked for.
+ */
+async function runVideoTaskWithSeedanceEditRetry(
+  provider: string,
+  taskModel: string,
+  input: Record<string, unknown>,
+  options: ProviderOptions | undefined,
+  reconcileOpts: ReconcileOpts | undefined,
+): Promise<Awaited<ReturnType<typeof runKieTask>> & { sentInput: Record<string, unknown> }> {
+  const meta = (payload: Record<string, unknown>) => ({
+    ...reconcileOpts,
+    modelKey: provider,
+    dimensions: { ...reconcileOpts?.dimensions, ...deriveKieEgressDimensions(payload) },
+  })
+
+  try {
+    const first = await runKieTask(taskModel, input, MAX_POLL_ATTEMPTS_VIDEO, options?.onProgress, meta(input))
+    return { ...first, sentInput: input }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (
+      !isSeedance2Provider(provider) ||
+      !isSeedance2EditModeRejection(message) ||
+      isSeedance2EditModeInput(input)
+    ) {
+      throw err
+    }
+    // Never mutate the caller's payload — the retry is a new body.
+    const editInput = { ...input, ...SEEDANCE_2_EDIT_MODE_PARAMS }
+    console.warn(
+      `[KIE.ai] ${provider} rejected this run as a video EDIT — ratio and duration must follow the source clip. Resubmitting once with ${JSON.stringify(SEEDANCE_2_EDIT_MODE_PARAMS)}. Provider said: ${message}`,
+    )
+    const retried = await runKieTask(taskModel, editInput, MAX_POLL_ATTEMPTS_VIDEO, options?.onProgress, meta(editInput))
+    return { ...retried, sentInput: editInput }
+  }
+}
+
+/**
  * Resolve a requested aspect ratio against a model's OWN catalog list.
  *
  * One implementation for the "the route enums are a flat union of every ratio
@@ -1740,13 +1840,8 @@ export class KieVideoProvider
     const taskModel = isMinimaxH3Provider(provider)
       ? minimaxH3TaskModel(modelConfig.model, input)
       : modelConfig.model
-    const { resultJson, rawRecordInfo, taskId: kieTaskId, providerMs } = await runKieTask(
-      taskModel,
-      input,
-      MAX_POLL_ATTEMPTS_VIDEO,
-      options?.onProgress,
-      { ...reconcileOpts, modelKey: provider, dimensions: { ...reconcileOpts?.dimensions, ...deriveKieEgressDimensions(input) } },
-    )
+    const { resultJson, rawRecordInfo, taskId: kieTaskId, providerMs, sentInput } =
+      await runVideoTaskWithSeedanceEditRetry(provider, taskModel, input, options, reconcileOpts)
 
     const videoUrl =
       resultJson.resultUrls?.[0] ?? resultJson.videoUrl
@@ -1765,7 +1860,7 @@ export class KieVideoProvider
     logCreditAudit({
       modelKey: provider,
       expectedKieCredits: modelConfig.credits,
-      modelConfig: { duration: input.duration ?? input.n_frames, sound: input.sound, provider },
+      modelConfig: { duration: sentInput.duration ?? sentInput.n_frames, sound: sentInput.sound, provider },
       rawResponseSample: rawRecordInfo,
       actualKieCredits: extractCreditFields(rawRecordInfo)?.credits as number | undefined,
       notes: `i2v-standard ${provider}`,
@@ -1995,13 +2090,8 @@ export class KieVideoProvider
     const t2vTaskModel = isMinimaxH3Provider(provider)
       ? minimaxH3TaskModel(modelConfig.model, input)
       : modelConfig.model
-    const { resultJson, taskId: kieTaskId, providerMs } = await runKieTask(
-      t2vTaskModel,
-      input,
-      MAX_POLL_ATTEMPTS_VIDEO,
-      options?.onProgress,
-      { ...reconcileOpts, modelKey: provider, dimensions: { ...reconcileOpts?.dimensions, ...deriveKieEgressDimensions(input) } },
-    )
+    const { resultJson, taskId: kieTaskId, providerMs } =
+      await runVideoTaskWithSeedanceEditRetry(provider, t2vTaskModel, input, options, reconcileOpts)
 
     const videoUrl =
       resultJson.resultUrls?.[0] ?? resultJson.videoUrl

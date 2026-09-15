@@ -75,6 +75,8 @@ interface HarnessParams {
   currentEdges: readonly Edge[]
   isDirty: boolean
   loadedUpdatedAt: string | null
+  /** The tab's CAS token; null = unknown (the pre-version-column behaviour). */
+  loadedVersion?: number | null
   onReconcile: (args: {
     nodes: Node[]
     edges: Edge[]
@@ -93,6 +95,7 @@ function Harness(props: HarnessParams) {
     getCurrentEdges: () => props.currentEdges,
     getIsDirty: () => props.isDirty,
     getLoadedUpdatedAt: () => props.loadedUpdatedAt,
+    getLoadedVersion: () => props.loadedVersion ?? null,
     onReconcile: props.onReconcile,
     onAppendNodes: props.onAppendNodes,
     onAppendEdges: props.onAppendEdges,
@@ -363,6 +366,166 @@ describe("useWorkflowRealtimeSync", () => {
     expect(onReconcile).not.toHaveBeenCalled()
     expect(onAppendNodes).not.toHaveBeenCalled()
     expect(onRemoteUpdatedAt).not.toHaveBeenCalled()
+  })
+
+  // -------------------------------------------------------------------------
+  // Own-echo suppression by VERSION — a late echo of this tab's own older
+  // save (a newer save already moved the updated_at cursor) must never read
+  // as "another device": on the clean path it rewound the canvas + CAS token
+  // (next save → false conflict toast), on the dirty path it paused autosave.
+  // -------------------------------------------------------------------------
+
+  it("skips a late echo of an older own save (version <= loadedVersion) on the clean path, even though updated_at differs", () => {
+    const onReconcile = vi.fn()
+    const onRemoteUpdatedAt = vi.fn()
+    render(
+      <Harness
+        {...defaultProps({
+          isDirty: false,
+          loadedUpdatedAt: "T62",
+          loadedVersion: 62,
+          onReconcile,
+          onRemoteUpdatedAt,
+        })}
+      />,
+    )
+
+    lastSubscription().handler({
+      new: {
+        id: "wf-1",
+        nodes: [makeNode("stale-snapshot")],
+        edges: [],
+        updated_at: "T61",
+        version: 61,
+      },
+    })
+
+    expect(onReconcile).not.toHaveBeenCalled()
+    expect(onRemoteUpdatedAt).not.toHaveBeenCalled()
+  })
+
+  it("skips a late echo of an older own save on the dirty path (no banner, no append, autosave keeps running)", () => {
+    const onReconcile = vi.fn()
+    const onAppendNodes = vi.fn()
+    const onAppendEdges = vi.fn()
+    const onRemoteUpdatedAt = vi.fn()
+    render(
+      <Harness
+        {...defaultProps({
+          currentNodes: [makeNode("n1")],
+          isDirty: true,
+          loadedUpdatedAt: "T62",
+          loadedVersion: 62,
+          onReconcile,
+          onAppendNodes,
+          onAppendEdges,
+          onRemoteUpdatedAt,
+        })}
+      />,
+    )
+
+    lastSubscription().handler({
+      new: {
+        id: "wf-1",
+        nodes: [makeNode("n1"), makeNode("deleted-since")],
+        edges: [makeEdge("e-old", "n1", "deleted-since")],
+        updated_at: "T61",
+        version: 61,
+      },
+    })
+
+    expect(onReconcile).not.toHaveBeenCalled()
+    expect(onAppendNodes).not.toHaveBeenCalled()
+    expect(onAppendEdges).not.toHaveBeenCalled()
+    expect(onRemoteUpdatedAt).not.toHaveBeenCalled()
+  })
+
+  it("skips an updated_at-only write (same version: thumbnail, share toggle) — nothing to reconcile", () => {
+    const onReconcile = vi.fn()
+    const onRemoteUpdatedAt = vi.fn()
+    render(
+      <Harness
+        {...defaultProps({
+          isDirty: true,
+          loadedUpdatedAt: "T62",
+          loadedVersion: 62,
+          onReconcile,
+          onRemoteUpdatedAt,
+        })}
+      />,
+    )
+
+    lastSubscription().handler({
+      new: {
+        id: "wf-1",
+        nodes: [makeNode("n1")],
+        edges: [],
+        updated_at: "T62-thumbnail",
+        version: 62,
+      },
+    })
+
+    expect(onReconcile).not.toHaveBeenCalled()
+    expect(onRemoteUpdatedAt).not.toHaveBeenCalled()
+  })
+
+  it("still reconciles / reports a genuinely newer version (version > loadedVersion)", () => {
+    const onReconcile = vi.fn()
+    const onRemoteUpdatedAt = vi.fn()
+    const { rerender } = render(
+      <Harness
+        {...defaultProps({
+          isDirty: false,
+          loadedUpdatedAt: "T62",
+          loadedVersion: 62,
+          onReconcile,
+          onRemoteUpdatedAt,
+        })}
+      />,
+    )
+    const handler = lastSubscription().handler
+
+    handler({
+      new: { id: "wf-1", nodes: [makeNode("from-remote")], edges: [], updated_at: "T63", version: 63 },
+    })
+    expect(onReconcile).toHaveBeenCalledTimes(1)
+    expect((onReconcile.mock.calls[0][0] as { version?: number | null }).version).toBe(63)
+
+    rerender(
+      <Harness
+        {...defaultProps({
+          isDirty: true,
+          loadedUpdatedAt: "T63",
+          loadedVersion: 63,
+          onReconcile,
+          onRemoteUpdatedAt,
+        })}
+      />,
+    )
+    handler({
+      new: { id: "wf-1", nodes: [makeNode("from-remote")], edges: [], updated_at: "T64", version: 64 },
+    })
+    expect(onRemoteUpdatedAt).toHaveBeenCalledWith("T64")
+  })
+
+  it("falls back to the updated_at rule when either side has no version", () => {
+    const onReconcile = vi.fn()
+    render(
+      <Harness
+        {...defaultProps({
+          isDirty: false,
+          loadedUpdatedAt: "T0",
+          loadedVersion: null,
+          onReconcile,
+        })}
+      />,
+    )
+
+    // Versioned payload, versionless tab: updated_at differs → reconcile.
+    lastSubscription().handler({
+      new: { id: "wf-1", nodes: [makeNode("n1")], edges: [], updated_at: "T1", version: 1 },
+    })
+    expect(onReconcile).toHaveBeenCalledTimes(1)
   })
 
   // -------------------------------------------------------------------------

@@ -331,6 +331,48 @@ describe("useWorkflowStore", () => {
     })
   })
 
+  describe("dirtyEpoch", () => {
+    it("advances on every edit that marks the workflow dirty", () => {
+      const store = useWorkflowStore.getState()
+      store.loadWorkflow("wf-1", "Test", [], [])
+      const before = useWorkflowStore.getState().dirtyEpoch
+
+      store.setWorkflowName("Renamed")
+      expect(useWorkflowStore.getState().isDirty).toBe(true)
+      expect(useWorkflowStore.getState().dirtyEpoch).toBe(before + 1)
+
+      store.setWorkflowName("Renamed again")
+      expect(useWorkflowStore.getState().dirtyEpoch).toBe(before + 2)
+    })
+
+    it("applySaveSuccess keeps the workflow dirty when an edit landed while the save was in flight", () => {
+      const store = useWorkflowStore.getState()
+      store.loadWorkflow("wf-1", "Test", [], [])
+      store.setWorkflowName("Sent")
+      const epochAtSaveStart = useWorkflowStore.getState().dirtyEpoch
+
+      // The user keeps typing while the request is out. Before the epoch the
+      // success below marked this clean and the edit reached nobody.
+      store.setWorkflowName("Sent + more")
+      store.applySaveSuccess("T1", 2, undefined, epochAtSaveStart)
+
+      const next = useWorkflowStore.getState()
+      expect(next.isDirty).toBe(true)
+      expect(next.loadedVersion).toBe(2)
+      expect(next.saveStatus).toBe("saved")
+    })
+
+    it("applySaveSuccess cleans the workflow when nothing changed in flight", () => {
+      const store = useWorkflowStore.getState()
+      store.loadWorkflow("wf-1", "Test", [], [])
+      store.setWorkflowName("Sent")
+      const epochAtSaveStart = useWorkflowStore.getState().dirtyEpoch
+
+      store.applySaveSuccess("T1", 2, undefined, epochAtSaveStart)
+      expect(useWorkflowStore.getState().isDirty).toBe(false)
+    })
+  })
+
   describe("reconcileFromRemote", () => {
     it("replaces nodes/edges, marks clean, advances loadedUpdatedAt, and clears remoteUpdatedAt", () => {
       const store = useWorkflowStore.getState()
@@ -358,6 +400,60 @@ describe("useWorkflowStore", () => {
       expect(next.isDirty).toBe(false)
       expect(next.loadedUpdatedAt).toBe("T2")
       expect(next.remoteUpdatedAt).toBeNull()
+    })
+
+    it("ignores a snapshot that is not newer than loadedVersion (a late echo of this tab's own older save)", () => {
+      const store = useWorkflowStore.getState()
+      store.loadWorkflow(
+        "wf-1",
+        "Test",
+        [
+          { id: "n1", type: "text-prompt", position: { x: 0, y: 0 }, data: { label: "a" } },
+          { id: "n2", type: "text-prompt", position: { x: 0, y: 0 }, data: { label: "added in v62" } },
+        ] as never,
+        [],
+      )
+      store.setLoadedUpdatedAt("T62")
+      store.setLoadedVersion(62)
+
+      // v61's echo: it predates n2. Adopting it would delete n2 from the
+      // canvas and rewind the CAS token to 61 while the row sits at 62.
+      store.reconcileFromRemote({
+        nodes: [{ id: "n1", type: "text-prompt", position: { x: 0, y: 0 }, data: { label: "a" } }] as never,
+        edges: [],
+        updatedAt: "T61",
+        version: 61,
+      })
+
+      const next = useWorkflowStore.getState()
+      expect(next.nodes.map((n) => n.id)).toEqual(["n1", "n2"])
+      expect(next.loadedVersion).toBe(62)
+      expect(next.loadedUpdatedAt).toBe("T62")
+    })
+
+    it("adopts a newer version and advances the token", () => {
+      const store = useWorkflowStore.getState()
+      store.loadWorkflow(
+        "wf-1",
+        "Test",
+        [{ id: "n1", type: "text-prompt", position: { x: 0, y: 0 }, data: { label: "a" } }] as never,
+        [],
+      )
+      store.setLoadedVersion(62)
+
+      store.reconcileFromRemote({
+        nodes: [
+          { id: "n1", type: "text-prompt", position: { x: 0, y: 0 }, data: { label: "a" } },
+          { id: "n3", type: "text-prompt", position: { x: 0, y: 0 }, data: { label: "remote" } },
+        ] as never,
+        edges: [],
+        updatedAt: "T63",
+        version: 63,
+      })
+
+      const next = useWorkflowStore.getState()
+      expect(next.nodes.map((n) => n.id)).toEqual(["n1", "n3"])
+      expect(next.loadedVersion).toBe(63)
     })
 
     it("clears selectedNodeId when the selected node is no longer in the remote snapshot", () => {

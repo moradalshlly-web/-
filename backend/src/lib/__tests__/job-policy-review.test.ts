@@ -172,6 +172,29 @@ describe("approveHeldJob", () => {
     expect(shared.commitJobCredits).toHaveBeenCalledWith("log-1", "job-1", 0.4, 3, true)
   })
 
+  it("replays a metered charge (a Seedance reference run priced from the delivered clip) count-based, exactly as the worker would have", async () => {
+    db.heldRow.value!.held_completion_fields = {
+      provider: "kie", provider_cost: 0.4, display_cost: 12,
+      metered: false, extraNonProviderCredits: 0, meteredCost: 0.4,
+      meteredBaseCredits: 7193,
+    }
+    expect(await approveHeldJob("job-1", REVIEWER)).toEqual({ ok: true })
+    expect(shared.commitJobCredits).toHaveBeenCalledWith("log-1", "job-1", null, 7193, true)
+    const cas = db.updateArgs[0]!
+    expect(cas).not.toHaveProperty("meteredBaseCredits")
+  })
+
+  it("a measured charge takes the commit even when a loop-trim add-on was deferred (it already excludes the add-on)", async () => {
+    db.heldRow.value!.held_completion_fields = {
+      provider: "kie", provider_cost: 0.4, display_cost: 12,
+      metered: false, extraNonProviderCredits: 0, meteredCost: 0.4,
+      loopTrimAddonRefundCredits: 3, meteredBaseCredits: 7193,
+    }
+    expect(await approveHeldJob("job-1", REVIEWER)).toEqual({ ok: true })
+    expect(shared.refundLoopTrimAddon).not.toHaveBeenCalled()
+    expect(shared.commitJobCredits).toHaveBeenCalledWith("log-1", "job-1", null, 7193, true)
+  })
+
   it("replays the SAME completion tail finalize runs — once", async () => {
     await approveHeldJob("job-1", REVIEWER)
     expect(finalize.runCompletionTail).toHaveBeenCalledTimes(1)

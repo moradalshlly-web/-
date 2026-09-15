@@ -200,6 +200,12 @@ const KNOWN_GHOST_IDENTIFIERS: ReadonlySet<string> = new Set([
   "ideogram",
   "ideogram:TURBO",
   "ideogram:QUALITY",
+  // ── ideogram-reframe — retired 2026-09-15 (#1331): KIE stopped serving
+  //    `ideogram/v3-reframe` (every task failed upstream). Migration 424
+  //    deletes the rows; 059's INSERT stays on disk, hence documented here. ──
+  "ideogram-reframe",
+  "ideogram-reframe:TURBO",
+  "ideogram-reframe:QUALITY",
   // ── Disabled / experimental providers ──
   "tangoflux",
   "musicgen",

@@ -21,7 +21,8 @@ import { z } from "zod"
 //      priced. The old SEEDANCE_2_REF_LIMITS.videos=3 slice under-reserved.
 //   4. A FAILED probe (NaN) neither rejects the request nor lowers the
 //      reservation — the 15s worst case is still charged for that clip.
-//   5. A provider with no declared limit (seedance-2) is not pre-probed at all.
+//   5. A provider with no declared limit (seedance-2) is not pre-CHECKED; the
+//      reservation still probes it exactly once (and carries the probe).
 //
 // Mock style: the RELATIVE whole-module form the ref-video billing suites use
 // (seedance2-ref-video-billing.test.ts:43-46). Do not mix it with the
@@ -254,7 +255,7 @@ describe("reference-video duration pre-check — /v1/generate-video", () => {
     await app.close()
   })
 
-  it("a FAILED probe neither rejects nor lowers the reservation (15s worst case still charged)", async () => {
+  it("a FAILED probe neither rejects nor lowers the reservation (the provider's 30s cap is charged, in AND out)", async () => {
     const app = await buildApp("generate-video")
     const bad = "https://r2.example.com/fail.mp4"
     const res = await app.inject({
@@ -269,16 +270,18 @@ describe("reference-video duration pre-check — /v1/generate-video", () => {
     })
     expect(res.statusCode).toBe(200)
     expect(probeSpy).toHaveBeenCalledTimes(1)
-    // NaN → ignored by the CHECK, but still the 15s worst case for the DEBIT:
-    // ceil(95 × (15 + 8)) = 2185.
+    // NaN → ignored by the CHECK, but the DEBIT charges seedance-2-5's per-clip
+    // cap both ways: a 30s clip IN, and an edit that renders that clip (30s
+    // OUT, not the requested 8s): ceil(95 × (30 + 30)) = 5700. The commit
+    // measures the delivered clip and refunds a style run down to 8s.
     expect(reserveSpy).toHaveBeenCalledWith(
       "u-1", "job-1", expect.any(String), 0, 0,
-      expect.objectContaining({ creditOverride: Math.ceil(SEEDANCE_2_5_720P_PER_SEC * 23) }),
+      expect.objectContaining({ creditOverride: Math.ceil(SEEDANCE_2_5_720P_PER_SEC * 60) }),
     )
     await app.close()
   })
 
-  it("a provider with no declared limit is never pre-probed (seedance-2 keeps its old path)", async () => {
+  it("a provider with no declared limit is never pre-CHECKED, and the reservation still probes it exactly once (seedance-2)", async () => {
     const app = await buildApp("generate-video")
     const res = await app.inject({
       method: "POST",
@@ -291,7 +294,8 @@ describe("reference-video duration pre-check — /v1/generate-video", () => {
       },
     })
     expect(res.statusCode).toBe(200)
-    // Exactly one probe — from computeCredits, not the pre-check.
+    // Exactly one probe — from computeCredits (which stashes it for the job),
+    // not the pre-check.
     expect(probeSpy).toHaveBeenCalledTimes(1)
     // Unchanged: ceil((500/8) × (5 + 8)) = 813.
     expect(reserveSpy).toHaveBeenCalledWith(

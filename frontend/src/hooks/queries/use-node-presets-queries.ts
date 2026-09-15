@@ -11,6 +11,7 @@ import {
   createNodePresetGroup,
   updateNodePresetGroup,
   deleteNodePresetGroup,
+  deleteOrAlreadyGone,
   listNodePresetFavorites,
   addNodePresetFavorite,
   removeNodePresetFavorite,
@@ -156,7 +157,8 @@ export function useNodePresetMutations() {
     onSuccess: invalidate,
   })
   const removeGroup = useMutation({
-    mutationFn: (id: string) => deleteNodePresetGroup(id),
+    // Already deleted elsewhere (404) is the state the click asked for (#722).
+    mutationFn: (id: string) => deleteOrAlreadyGone(deleteNodePresetGroup(id)),
     onSuccess: invalidate,
   })
 

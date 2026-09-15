@@ -29,7 +29,7 @@ const FORCE_PNG_OUTPUT_PROVIDERS = new Set([
 
 // Models that use named image_size values instead of ratio strings (e.g. "landscape_16_9")
 const NAMED_IMAGE_SIZE_PROVIDERS = new Set([
-  "ideogram-remix", "ideogram-reframe", "ideogram-v3",
+  "ideogram-remix", "ideogram-v3",
   "qwen", "qwen-i2i", "qwen-edit",
 ])
 

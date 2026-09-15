@@ -8,8 +8,8 @@ import {
 } from "@/lib/node-colors"
 
 describe("NODE_COLORS", () => {
-  it("has 6 entries", () => {
-    expect(NODE_COLORS).toHaveLength(6)
+  it("has 7 entries (3 muted, 3 brand tints, 1 paper)", () => {
+    expect(NODE_COLORS).toHaveLength(7)
   })
 
   it("all entries are valid hex format", () => {

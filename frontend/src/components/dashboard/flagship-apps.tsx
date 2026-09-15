@@ -9,9 +9,8 @@ import { studioBaseUrl } from "@/lib/studio"
 import { voiceBaseUrl } from "@/lib/voice"
 
 /**
- * Flagship "Apps" band — Nodaro's dedicated, purpose-built products (Studio,
- * Voice Changer Pro), promoted above the marketplace MiniApps. This is the
- * content of the default "Apps" tab in the dashboard discovery panel.
+ * Flagship "Nodaro apps" band — Nodaro's dedicated, purpose-built products
+ * (Studio, Voice Changer Pro), at the top of the home screen's Continue tab.
  *
  * Data is a small static array: flagships are team-curated and rarely change,
  * so a config surface would be over-engineering. Each card supports a real
@@ -197,7 +196,7 @@ function FlagshipCard({ app }: { readonly app: FlagshipApp }) {
 
 export function FlagshipApps() {
   return (
-    <div className="grid grid-cols-1 gap-3 px-3 pb-3 pt-1 sm:grid-cols-2">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3.5 px-3 pb-3 pt-1">
       {FLAGSHIP_APPS.map((app) => (
         <FlagshipCard key={app.id} app={app} />
       ))}

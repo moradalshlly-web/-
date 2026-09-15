@@ -104,7 +104,7 @@ export default function TutorialPage() {
         <div>
           <p>This tutorial does not have a guided view.</p>
           <p style={{ marginTop: 12 }}>
-            <Link to="/projects?tab=tutorials" style={{ color: "var(--nd-accent-dim)" }}>
+            <Link to="/projects?tab=explore" style={{ color: "var(--nd-accent-dim)" }}>
               Back to tutorials
             </Link>
           </p>
@@ -119,7 +119,7 @@ export default function TutorialPage() {
         <div>
           <p>This tutorial is not available yet.</p>
           <p style={{ marginTop: 12 }}>
-            <Link to="/projects?tab=tutorials" style={{ color: "var(--nd-accent-dim)" }}>
+            <Link to="/projects?tab=explore" style={{ color: "var(--nd-accent-dim)" }}>
               Back to tutorials
             </Link>
           </p>

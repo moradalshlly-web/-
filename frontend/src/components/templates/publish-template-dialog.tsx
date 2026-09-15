@@ -19,8 +19,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import { publishTemplate, getMyTemplates, type WorkflowTemplate } from "@/lib/api"
-import { APP_CATEGORIES, OUTPUT_TYPES, categoryLabel, outputTypeLabel } from "@/lib/app-categories"
+import { publishTemplate, getMyTemplates } from "@/lib/api"
+import { DEFAULT_TEMPLATE_CATEGORY, TEMPLATE_CATEGORIES, normalizeTemplateCategory } from "@nodaro/shared"
+import { OUTPUT_TYPES, outputTypeLabel } from "@/lib/app-categories"
+import { templateCategoryLabel } from "@/lib/template-categories"
 import { COMPLEXITY_CONFIG } from "@/lib/template-utils"
 import { queryKeys } from "@/lib/query-keys"
 import Markdown from "react-markdown"
@@ -73,7 +75,7 @@ export function PublishTemplateDialog({
   const [description, setDescription] = useState("")
   const [markdownDescription, setMarkdownDescription] = useState("")
   const [markdownPreview, setMarkdownPreview] = useState(false)
-  const [category, setCategory] = useState("other")
+  const [category, setCategory] = useState<string>(DEFAULT_TEMPLATE_CATEGORY)
   const [outputTypes, setOutputTypes] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState("")
@@ -96,7 +98,7 @@ export function PublishTemplateDialog({
       setName(existing.name)
       setDescription(existing.description ?? "")
       setMarkdownDescription(existing.markdownDescription ?? "")
-      setCategory(existing.category || "other")
+      setCategory(normalizeTemplateCategory(existing.category))
       setOutputTypes(existing.outputTypes ?? [])
       setTags(existing.tags ?? [])
       setIsListed(existing.isListed)
@@ -105,7 +107,7 @@ export function PublishTemplateDialog({
       setName("")
       setDescription("")
       setMarkdownDescription("")
-      setCategory("other")
+      setCategory(DEFAULT_TEMPLATE_CATEGORY)
       setOutputTypes([])
       setTags([])
       setIsListed(false)
@@ -171,7 +173,7 @@ export function PublishTemplateDialog({
       name: name.trim(),
       description: description.trim() || undefined,
       markdownDescription: markdownDescription.trim() || undefined,
-      category: category !== "other" ? category : undefined,
+      category,
       outputTypes: outputTypes.length > 0 ? outputTypes : undefined,
       tags: tags.length > 0 ? tags : undefined,
       isListed,
@@ -298,9 +300,9 @@ export function PublishTemplateDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {APP_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat.value} value={cat.value}>
-                    {categoryLabel(cat.value, t)}
+                {TEMPLATE_CATEGORIES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {templateCategoryLabel(value, t)}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
-import { listModels, groupByFamily, MODEL_RECOMMENDATIONS, MODEL_CATALOG, type ModelKind, type ModelMode } from "@nodaro/shared"
+import { listModels, groupByKindAndFamily, MODEL_RECOMMENDATIONS, MODEL_CATALOG, type ModelKind, type ModelMode } from "@nodaro/shared"
 import { projectModel } from "../lib/mcp/tools/models.js"
 import { isModelDenied } from "../lib/surface-deny.js"
 import { formatZodError } from "../lib/zod-error.js"
@@ -47,19 +47,12 @@ export async function modelsRoutes(app: FastifyInstance) {
       // Deployment surface deny (B1): a denied model is invisible in discovery.
       .filter((m) => !isModelDenied(m.id))
 
-    const grouped = groupByFamily(filtered)
-    const byKind: Record<ModelKind, Array<{ family: string; models: Record<string, unknown>[] }>> = {
-      image: [],
-      video: [],
-      audio: [],
-    }
-    for (const { family: fam, models } of grouped) {
-      const k = models[0]!.kind
-      byKind[k].push({ family: fam, models: models.map(projectModel) })
-    }
-    const sections = (["image", "video", "audio"] as const)
-      .filter((k) => byKind[k].length > 0)
-      .map((k) => ({ kind: k, families: byKind[k] }))
+    // Each model under ITS OWN kind, then by family — the shared envelope the
+    // MCP tool renders too (a mixed vendor appears once per kind, #1332).
+    const sections = groupByKindAndFamily(filtered).map(({ kind: k, families }) => ({
+      kind: k,
+      families: families.map(({ family: fam, models }) => ({ family: fam, models: models.map(projectModel) })),
+    }))
 
     const allRecs = [...MODEL_RECOMMENDATIONS]
     const recommendations = kind

@@ -38,6 +38,7 @@ import { OUTPUT_TYPE_COLORS, CATEGORY_COLORS, getCategoryLabelKey, outputTypeLab
 import "@xyflow/react/dist/style.css"
 import { useT } from "@/lib/i18n"
 import { useProjectDisplayName } from "@/lib/project-display-name"
+import { ZOOM_MIN, ZOOM_MAX } from "@/lib/zoom"
 
 interface TemplatePreviewModalProps {
   template: TemplateBrowseCard | null
@@ -65,9 +66,14 @@ function TemplateFlowCanvas({
       edgesFocusable={false}
       fitView
       fitViewOptions={{ padding: 0.2 }}
+      // Same range as the editor — React Flow's own 0.5–2 default made a large
+      // template impossible to read up close or take in whole.
+      minZoom={ZOOM_MIN}
+      maxZoom={ZOOM_MAX}
       proOptions={{ hideAttribution: true }}
+      className="canvas-ambient"
     >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+      <Background variant={BackgroundVariant.Dots} gap={32} size={2} color="var(--canvas-dot)" className="!bg-transparent" />
       <Controls showInteractive={false} />
     </ReactFlow>
   )
@@ -170,11 +176,9 @@ export function TemplatePreviewModal({
           <X className="w-5 h-5 text-foreground" />
         </button>
 
-        {/* Left: ReactFlow canvas (~60%). Adaptive grey so nodes (which carry
-            their own card-style bg) stay visible in both light and dark mode —
-            pure white/black backgrounds collapse the contrast against node
-            borders. */}
-        <div className="flex-1 min-w-0 bg-zinc-100 dark:bg-zinc-900 relative">
+        {/* Left: ReactFlow canvas (~60%) on the editor's own canvas ground
+            (globals.css --canvas-bg), so the preview looks like the editor. */}
+        <div className="flex-1 min-w-0 bg-[var(--canvas-bg)] relative">
           {isLoadingDetail ? (
             <div className="flex items-center justify-center h-full">
               <div className="w-8 h-8 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />

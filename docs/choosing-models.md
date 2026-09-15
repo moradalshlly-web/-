@@ -73,7 +73,6 @@ Text-to-image, image-to-image, editing, upscaling, and background removal. For e
 | GPT Image 2.5 Flare (I2I) | OpenAI | Premium | 15 | i2i | Fast GPT Image 2.5 edits (up to 16 source images) - the default when you are iterating rather than finishing. |
 | GPT Image 2.5 Sunburst | OpenAI | Premium | 15 | t2i | Precision GPT Image 2.5 - trades generation time for tighter control and detail fidelity. Pick it for brand-sensitive and production work: packaging, diagrams, ecommerce retouching, polished campaign creative. |
 | GPT Image 2.5 Sunburst (I2I) | OpenAI | Premium | 15 | i2i | Precision GPT Image 2.5 edits (up to 16 source images) - the most controlled edit in the GPT family, at the cost of a longer run. |
-| Ideogram Reframe | Ideogram | Premium | 18 | edit | Outpaint / reframe to a new aspect ratio while preserving subject. |
 | Ideogram V3 | Ideogram | Premium | 18 | t2i | Strong typography and stylized illustration. Speed/quality tiered (TURBO/BALANCED/QUALITY). |
 | Seedream 5 Pro | Bytedance | Premium | 18 | t2i | Flagship Seedream 5 Pro — strongest instruction following and visual reasoning. Basic = 1K, high = 2K. |
 | Seedream 5 Pro (I2I) | Bytedance | Premium | 19 | i2i | Image-to-image with Seedream 5 Pro — multi-reference instruction edits. Basic = 1K, high = 2K. |
@@ -161,7 +160,7 @@ Many video models support **both** `t2v` and `i2v` from the same id — the Gene
 | Seedance 2.5 | Bytedance | Premium | 1260 | i2v, t2v | Seedance 2.5 — up to 30s in one shot, native audio, wide multimodal references. 480p/720p/1080p. |
 | AI Audit (with analysis run) | Nodaro | Premium | 1924 | video-audit | Same video-verified audit as AI Audit, but auto-runs a fast analysis first when none is wired in, then applies corrections under guards and returns a disclosed report. Billed per duration bucket. |
 | Video Analysis (Smart) | Nodaro | Premium | 2081 | video-analysis | Highest-accuracy analysis — a hybrid pass that blends a native skeleton read with several donor analysis rolls, then always refines the merged result to find shot boundaries and identify the cast by appearance. Best choice when the shot list will drive regeneration. Billed per duration bucket. |
-| OmniHuman 1.5 | ByteDance | Premium | 4050 | lip-sync | Premium prompt-directed talking avatar from a still image + audio. 720p / 1080p, up to 60s. People, pets, anime. |
+| OmniHuman 1.5 | Bytedance | Premium | 4050 | lip-sync | Premium prompt-directed talking avatar from a still image + audio. 720p / 1080p, up to 60s. People, pets, anime. |
 | Volcengine Lip Sync | Volcengine | Premium | 6000 | lip-sync | Video-to-video AI dubbing — re-syncs lips to a new vocal track. Multi-speaker (scene detection + speaker ID) in basic mode. Video input, billed per second. |
 | Sync Lipsync v3 | Sync | Premium | 20000 | lip-sync | Dub existing footage — re-syncs lips to a new audio track. Video input, billed per second. |
 <!-- AUTO-GEN:END model-table-video -->

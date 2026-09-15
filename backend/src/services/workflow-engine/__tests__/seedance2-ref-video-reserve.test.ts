@@ -243,14 +243,18 @@ describe("node-executor — Seedance 2 ref-video reservation (Task A3)", () => {
   it("reserves the scaled base (88), not the plain -ref composite (50)", async () => {
     await expect(executeNode(makeNode(), {}, [], [], {}, makeCtx())).rejects.toThrow(/reservation-sentinel|Credit reservation failed/)
 
-    // The shared helper was consulted with the resolved ref video + output spec.
-    expect(mockSeedance2FromUrls).toHaveBeenCalledTimes(1)
-    expect(mockSeedance2FromUrls).toHaveBeenCalledWith(
+    // The executor probed the clip ONCE (seedance-2 has no declared bound, so
+    // the gate did not) and the shared helper was consulted with the resolved
+    // output spec + that probe — never through its own private probe.
+    expect(mockProbeMediaDuration).toHaveBeenCalledTimes(1)
+    expect(mockSeedance2FromUrls).not.toHaveBeenCalled()
+    expect(mockSeedance2FromDurations).toHaveBeenCalledTimes(1)
+    expect(mockSeedance2FromDurations).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: "seedance-2",
         resolution: "720p",
         outputDurationSec: 8,
-        referenceVideoUrls: ["https://ref.mp4"],
+        durationsSec: [6],
       }),
     )
 
@@ -420,9 +424,28 @@ describe("node-executor — reference-video duration gate (Task 14)", () => {
     expect(mockReserveCredits).toHaveBeenCalled()
   })
 
-  it("a provider with no declared bound is never pre-probed by the gate", async () => {
+  it("a node with no duration reserves the provider's own 8s render, not a literal 5 (seedance-2-5, #1397)", async () => {
+    setBuiltPayload(
+      {
+        provider: "seedance-2-5",
+        resolution: "720p",
+        referenceVideoUrls: ["https://ref.mp4"],
+      },
+      "seedance-2-5:8s:720p-ref",
+    )
+    await expect(executeNode(makeNode(), {}, [], [], {}, makeCtx())).rejects.toThrow(
+      /reservation-sentinel|Credit reservation failed/,
+    )
+    expect(mockSeedance2FromDurations).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "seedance-2-5", outputDurationSec: 8, durationsSec: [6] }),
+    )
+  })
+
+  it("a provider with no declared bound is never CHECKED by the gate, but the reservation probes it once and carries the probe on the job", async () => {
     // seedance-2 has no VIDEO_REF_VIDEO_DURATION_LIMITS row: the gate returns
-    // immediately and the pricer does its own probing, exactly as before.
+    // immediately (no bound to enforce). The reservation is still scaled by
+    // input seconds, and the settlement prices the input from the SAME probe,
+    // so the executor probes once and writes it onto the row.
     setBuiltPayload(
       {
         provider: "seedance-2",
@@ -436,9 +459,16 @@ describe("node-executor — reference-video duration gate (Task 14)", () => {
     await expect(executeNode(makeNode(), {}, [], [], {}, makeCtx())).rejects.toThrow(
       /reservation-sentinel|Credit reservation failed/,
     )
-    // The gate did NOT probe (the ee pricer is mocked, so nothing probes at all).
-    expect(mockProbeMediaDuration).not.toHaveBeenCalled()
-    expect(mockSeedance2FromDurations).not.toHaveBeenCalled()
-    expect(mockSeedance2FromUrls).toHaveBeenCalledTimes(1)
+    expect(mockProbeMediaDuration).toHaveBeenCalledTimes(1)
+    expect(mockProbeMediaDuration).toHaveBeenCalledWith("https://ref.mp4")
+    expect(mockSeedance2FromUrls).not.toHaveBeenCalled()
+    expect(mockSeedance2FromDurations).toHaveBeenCalledWith(expect.objectContaining({ durationsSec: [6] }))
+    // The row's input_data carries the probe for the settlement (the worker's
+    // queue payload carries it too, past the reservation this harness stops at).
+    const { supabase } = await import("@/lib/supabase.js")
+    const updateFn = vi.mocked(supabase.from)("jobs").update
+    expect(updateFn).toHaveBeenCalledWith(
+      expect.objectContaining({ input_data: expect.objectContaining({ refVideoDurationsSec: [6] }) }),
+    )
   })
 })

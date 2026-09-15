@@ -395,6 +395,14 @@ interface WorkflowState {
    *  open before the fullscreen was triggered (via openFullscreenSettings). */
   readonly closeFullscreenSettings: () => void
   readonly isDirty: boolean
+  /**
+   * Advances on every patch that raises `isDirty` (see the `set` wrapper at
+   * the store's creation). A save reads it together with the graph it is
+   * about to send and hands it back to `applySaveSuccess`, which clears
+   * `isDirty` only if the epoch is unchanged — an edit made while the save
+   * was in flight was never sent, so it must stay dirty for the next one.
+   */
+  readonly dirtyEpoch: number
   readonly loadGeneration: number
   readonly saveStatus: SaveStatus
   readonly saveError: string | null
@@ -608,6 +616,8 @@ interface WorkflowState {
     updatedAt: string,
     version?: number | null,
     snapshot?: WorkflowState["lastSavedSnapshot"],
+    /** `dirtyEpoch` as read together with the graph that was saved. */
+    dirtyEpoch?: number,
   ) => void
   /**
    * Multi-tab/multi-device sync: snap local state to a remote broadcast.
@@ -933,7 +943,24 @@ export function focusPatch(
     : { focusedNodeId: next, previousFocusedNodeId: state.focusedNodeId }
 }
 
-export const useWorkflowStore = create<WorkflowState>((set, get) => ({
+export const useWorkflowStore = create<WorkflowState>((rawSet, get) => {
+  // Every patch that raises `isDirty` also advances `dirtyEpoch`, whichever
+  // of the ~30 editing actions produced it. That is what lets a save tell
+  // "the edits I sent" from "edits made while I was in flight" without each
+  // action having to remember a counter.
+  const set = ((partial: unknown, replace?: boolean) =>
+    rawSet(
+      (state: WorkflowState): Partial<WorkflowState> => {
+        const patch = (
+          typeof partial === "function" ? (partial as (s: WorkflowState) => Partial<WorkflowState>)(state) : partial
+        ) as Partial<WorkflowState> | null | undefined
+        if (!patch) return {}
+        return patch.isDirty === true ? { ...patch, dirtyEpoch: state.dirtyEpoch + 1 } : patch
+      },
+      replace as false | undefined,
+    )) as typeof rawSet
+
+  return {
   workflowId: null,
   projectId: null,
   workflowName: "Untitled Workflow",
@@ -950,6 +977,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   skipNextViewportAnimation: false,
   _sidebarWasOpenBeforeFullscreen: false,
   isDirty: false,
+  dirtyEpoch: 0,
   isReadOnly: false,
   readOnlyReason: null,
   runBlockedReason: null,
@@ -2711,20 +2739,33 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   setRemoteUpdatedAt: (updatedAt) => set({ remoteUpdatedAt: updatedAt }),
 
-  applySaveSuccess: (updatedAt, version, snapshot) =>
-    set({
+  applySaveSuccess: (updatedAt, version, snapshot, dirtyEpoch) =>
+    set((state) => ({
       loadedUpdatedAt: updatedAt,
       // Only advance when the caller actually has the new version — an
       // `undefined` (older callers/tests) must not wipe a known token.
       ...(version !== undefined ? { loadedVersion: version } : {}),
       ...(snapshot !== undefined ? { lastSavedSnapshot: snapshot } : {}),
       remoteUpdatedAt: null,
-      isDirty: false,
+      // Clean only if nothing was edited while the save was in flight: the
+      // caller passes the epoch it read the graph at, and any edit since has
+      // advanced `state.dirtyEpoch`. Those edits were never sent — staying
+      // dirty is what makes the next autosave carry them, instead of the
+      // canvas showing "Saved" over work that exists only in this tab.
+      isDirty: dirtyEpoch !== undefined && dirtyEpoch !== state.dirtyEpoch ? state.isDirty : false,
       saveStatus: "saved" as SaveStatus,
       saveError: null,
-    }),
+    })),
 
   reconcileFromRemote: ({ nodes, edges, updatedAt, version, settings }) => {
+    // Never adopt a snapshot that is not newer than what this tab already
+    // holds. A late realtime echo of this tab's OWN older save would
+    // otherwise rewind the canvas and `loadedVersion` — the next save then
+    // sends a stale CAS token and fails as "updated on another device".
+    // Guarded only when both sides carry a version; versionless callers
+    // keep the unconditional adopt.
+    const knownVersion = get().loadedVersion
+    if (typeof version === "number" && typeof knownVersion === "number" && version <= knownVersion) return
     // Unify legacy `loop` ("Table") nodes into the canonical `list` type and
     // normalize legacy `items` strings, exactly as `loadWorkflow` does — a raw
     // `loop` node arriving via realtime would otherwise be mishandled by the
@@ -3317,4 +3358,5 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
     })
   },
-}))
+  }
+})

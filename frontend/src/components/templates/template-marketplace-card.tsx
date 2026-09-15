@@ -1,182 +1,156 @@
-import { Heart, Copy, Sparkles, Layers } from "lucide-react"
-import { CreditCost } from "@/components/ui/credit-cost"
+import { Heart } from "lucide-react"
+import { CreditCost, CreditGate } from "@/components/ui/credit-cost"
 import { PreviewVideo } from "@/components/ui/preview-video"
 import { CachedImage } from "@/components/ui/cached-image"
+import { creditUnitLabel } from "@/lib/credit-units"
 import { cn } from "@/lib/utils"
 import type { TemplateBrowseCard } from "@/lib/api"
-import { COMPLEXITY_CONFIG, type Complexity, formatCount } from "@/lib/template-utils"
-import { OUTPUT_TYPE_COLORS, CATEGORY_COLORS, getCategoryLabelKey, outputTypeLabel } from "@/lib/app-categories"
 import { useT } from "@/lib/i18n"
+import { modelChipLabels, templateBadge, type TemplateBadge } from "./template-facts"
 
-interface TemplateMarketplaceCardProps {
-  template: TemplateBrowseCard
-  isFavorited: boolean
-  onToggleFavorite: (templateId: string) => void
-  onOpenPreview: (template: TemplateBrowseCard) => void
+/** The pill a template wears when it is new or often cloned. */
+export function TemplateBadgePill({ badge, className }: { readonly badge: TemplateBadge; readonly className?: string }) {
+  const t = useT()
+  return (
+    <span
+      className={cn(
+        "flex-none rounded-full border border-[var(--home-line-2)] bg-[var(--home-raised)] px-2 py-[3px] text-[10px] font-semibold text-[var(--primary)]",
+        className,
+      )}
+    >
+      {badge === "new" ? t("templates.badgeNew") : t("templates.badgePopular")}
+    </span>
+  )
 }
 
-export function TemplateMarketplaceCard({
+/** "~120 credits · 7 nodes" — the credit half renders only on editions with credits. */
+export function TemplateMeta({
   template,
-  isFavorited,
-  onToggleFavorite,
-  onOpenPreview,
-}: TemplateMarketplaceCardProps) {
+  className,
+}: {
+  readonly template: Pick<TemplateBrowseCard, "estimatedCredits" | "nodeCount">
+  readonly className?: string
+}) {
   const t = useT()
-  const categoryLabelKey = getCategoryLabelKey(template.category)
-  const categoryColor = CATEGORY_COLORS[template.category] ?? CATEGORY_COLORS.other
-  const complexity = COMPLEXITY_CONFIG[template.complexity as Complexity]
+  return (
+    <span className={cn("flex items-center gap-1 text-[10px] text-[var(--home-muted)]", className)}>
+      <CreditGate>
+        <CreditCost credits={template.estimatedCredits} prefix="~" suffix={creditUnitLabel(t("credits.unit.other"))} />
+        <span aria-hidden>·</span>
+      </CreditGate>
+      <span>{t("templates.nodes", { n: template.nodeCount })}</span>
+    </span>
+  )
+}
+
+/**
+ * The template's media, or the design's stripes when it has none. 4:3 by
+ * default (the detail's related row); the browse card and the Clone panel
+ * pass `aspect-video`.
+ */
+export function TemplateCover({
+  template,
+  className,
+  children,
+}: {
+  readonly template: Pick<TemplateBrowseCard, "name" | "previewMediaUrl" | "previewMediaType">
+  readonly className?: string
+  readonly children?: React.ReactNode
+}) {
+  return (
+    <div className={cn("home-stripes relative aspect-[4/3] overflow-hidden rounded-[10px]", className)}>
+      {template.previewMediaUrl &&
+        (template.previewMediaType === "video" ? (
+          <PreviewVideo src={template.previewMediaUrl} className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <CachedImage
+            src={template.previewMediaUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="lazy"
+            thumbnail
+          />
+        ))}
+      {children}
+    </div>
+  )
+}
+
+interface TemplateMarketplaceCardProps {
+  readonly template: TemplateBrowseCard
+  readonly isFavorited: boolean
+  readonly onToggleFavorite: (templateId: string) => void
+  readonly onOpen: (template: TemplateBrowseCard) => void
+  /** The moment "new" is measured against; fixed per visit by the page. */
+  readonly now: number
+}
+
+/**
+ * A browse card: 16:9 preview with model chips, name, meta, badge — the
+ * reference card is 285×205 at six a row. The whole card opens the template
+ * (a stretched button under the name, so the accessible name is the
+ * template's); the heart sits above it.
+ */
+export function TemplateMarketplaceCard({ template, isFavorited, onToggleFavorite, onOpen, now }: TemplateMarketplaceCardProps) {
+  const t = useT()
+  const chips = modelChipLabels(template.providersUsed)
+  const badge = templateBadge(template, now)
 
   return (
-    <div
-      className="group relative bg-card border border-border rounded-xl overflow-hidden hover:border-zinc-400 dark:hover:border-zinc-600 transition-all cursor-pointer"
-      onClick={() => onOpenPreview(template)}
-    >
-      {/* Preview media (16:9) */}
-      <div className="relative aspect-video bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 overflow-hidden">
-        {template.previewMediaUrl ? (
-          template.previewMediaType === "video" ? (
-            <PreviewVideo src={template.previewMediaUrl} />
-          ) : (
-            <CachedImage
-              src={template.previewMediaUrl}
-              alt={template.name}
-              className="w-full h-full object-cover"
-              loading="lazy"
-              thumbnail
-            />
-          )
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Sparkles className="h-8 w-8 text-zinc-300 dark:text-zinc-600" />
-          </div>
-        )}
-
-        {/* Complexity badge */}
-        {complexity && (
-          <span
-            className={cn(
-              "absolute top-2 left-2 text-[10px] px-1.5 py-0.5 rounded border font-medium",
-              complexity.color,
-            )}
-          >
-            {complexity.label}
-          </span>
-        )}
-      </div>
-
-      {/* Default: name + description */}
-      <div className="p-3">
-        <h3 className="text-sm font-semibold text-foreground truncate">{template.name}</h3>
-        {template.description && (
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{template.description}</p>
-        )}
-      </div>
-
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-3 space-y-2">
-        <h3 className="text-sm font-semibold text-white truncate">{template.name}</h3>
-
-        {template.description && (
-          <p className="text-xs text-white/70 line-clamp-2">{template.description}</p>
-        )}
-
-        {/* Category + output type badges */}
-        <div className="flex items-center gap-1 flex-wrap">
-          <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", categoryColor)}>
-            {t(categoryLabelKey)}
-          </span>
-          {template.outputTypes.slice(0, 3).map((outType) => (
-            <span
-              key={outType}
-              className={cn(
-                "text-[10px] px-1.5 py-0.5 rounded-full border font-medium capitalize",
-                OUTPUT_TYPE_COLORS[outType] ?? "bg-zinc-500/10 text-zinc-500 border-zinc-500/20",
-              )}
-            >
-              {outputTypeLabel(outType, t)}
-            </span>
-          ))}
-        </div>
-
-        {/* Credits + clones + favorites + node count */}
-        <div className="flex items-center gap-3 text-xs text-white/70">
-          <CreditCost credits={template.estimatedCredits} icon="sm" />
-          <span className="flex items-center gap-1">
-            <Copy className="h-3 w-3" />
-            {formatCount(template.cloneCount)}
-          </span>
-          {template.favoriteCount > 0 && (
-            <span className="flex items-center gap-1">
-              <Heart className="h-3 w-3" />
-              {formatCount(template.favoriteCount)}
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            <Layers className="h-3 w-3" />
-            {template.nodeCount}
-          </span>
-        </div>
-
-        {/* Providers used badges */}
-        {template.providersUsed.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            {template.providersUsed.slice(0, 3).map((p) => (
+    <article className="group relative rounded-[14px] border border-[var(--home-line-2)] bg-[var(--home-card)] p-2 transition-colors hover:border-[var(--home-muted)] focus-within:border-[var(--home-muted)]">
+      <TemplateCover template={template} className="aspect-video">
+        {chips.length > 0 && (
+          <span className="absolute end-2 top-2 flex gap-1">
+            {chips.map((chip) => (
               <span
-                key={p}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/70 font-medium"
+                key={chip}
+                className="rounded-full border border-[var(--home-line-2)] bg-[var(--home-panel)] px-[7px] py-0.5 text-[9px] font-semibold text-[var(--home-fg-2)]"
               >
-                {p}
+                {chip}
               </span>
             ))}
-            {template.providersUsed.length > 3 && (
-              <span className="text-[10px] text-white/50">
-                {t("templates.moreProviders", { n: template.providersUsed.length - 3 })}
-              </span>
-            )}
-          </div>
+          </span>
         )}
+      </TemplateCover>
 
-        {/* Creator */}
-        {template.creatorDisplayName && (
-          <p className="text-[10px] text-white/50 truncate">
-            {t("preview.by", { name: template.creatorDisplayName })}
-          </p>
-        )}
+      <div className="flex items-center justify-between gap-2 px-1 pt-2.5 pb-1">
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => onOpen(template)}
+            className="block w-full truncate text-start text-[13px] font-semibold text-[var(--home-strong)] after:absolute after:inset-0 after:rounded-[14px] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-[var(--primary)]"
+          >
+            {template.name}
+          </button>
+          <TemplateMeta template={template} className="mt-[3px]" />
+        </div>
+        {badge && <TemplateBadgePill badge={badge} />}
       </div>
 
-      {/* Favorite button -- after overlay in DOM so it receives clicks on hover */}
       <button
         type="button"
-        className="absolute top-2 right-2 z-10 p-1 rounded-full bg-black/40 hover:bg-black/60 transition-colors"
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggleFavorite(template.id)
-        }}
+        aria-label={isFavorited ? t("templates.unfavorite") : t("templates.favorite")}
+        aria-pressed={isFavorited}
+        onClick={() => onToggleFavorite(template.id)}
+        // `.templates-fav` (globals.css): always visible where there is no
+        // hover — a touch screen would otherwise tap an invisible button —
+        // and hover/focus-revealed where there is.
+        className="templates-fav absolute start-4 top-4 z-10 grid size-7 place-items-center rounded-full bg-black/45 text-white transition-opacity hover:bg-black/65 focus-visible:outline-none"
       >
-        <Heart
-          className={cn(
-            "h-4 w-4 transition-colors",
-            isFavorited ? "fill-[#ff0073] text-[#ff0073]" : "text-white",
-          )}
-        />
+        <Heart className={cn("size-3.5", isFavorited && "fill-[var(--primary)] text-[var(--primary)]")} aria-hidden />
       </button>
-    </div>
+    </article>
   )
 }
 
 /** Skeleton card for loading state */
 export function TemplateMarketplaceCardSkeleton() {
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden animate-pulse">
-      <div className="aspect-video bg-zinc-200 dark:bg-zinc-800" />
-      <div className="p-3 space-y-2">
-        <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded w-3/4" />
-        <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded w-full" />
-        <div className="flex gap-1">
-          <div className="h-4 w-16 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
-          <div className="h-4 w-12 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
-        </div>
-        <div className="h-3 bg-zinc-200 dark:bg-zinc-800 rounded w-1/2" />
+    <div className="animate-pulse rounded-[14px] border border-[var(--home-line-2)] bg-[var(--home-card)] p-2" aria-hidden>
+      <div className="aspect-video rounded-[10px] bg-[var(--home-raised)]" />
+      <div className="space-y-2 px-1 pt-2.5 pb-1">
+        <div className="h-3.5 w-3/4 rounded bg-[var(--home-raised)]" />
+        <div className="h-2.5 w-1/2 rounded bg-[var(--home-raised)]" />
       </div>
     </div>
   )

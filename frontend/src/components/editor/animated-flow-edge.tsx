@@ -263,7 +263,9 @@ function AnimatedFlowEdgeComponent({
   const disabledStroke = "var(--muted-foreground)"
   const effectiveStrokeBase = inert ? disabledStroke : baseStroke
   const effectiveDashArray = inert ? "6 4" : undefined
-  const effectiveOpacity = inert ? 0.5 : 1
+  // Idle wires sit slightly under full strength so the nodes stay the loudest
+  // thing on the canvas; selection/hover restore 1 below.
+  const effectiveOpacity = inert ? 0.5 : 0.9
 
   return (
     <>
@@ -379,14 +381,16 @@ function AnimatedFlowEdgeComponent({
                     <TooltipPrimitive.Trigger asChild>
                       <span
                         className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border backdrop-blur-sm leading-none flex items-center"
+                        // The pill sits ON the wire: node-card surface underneath, and the
+                        // wire's own color for border + text (globals.css canvas tokens).
                         style={edgeData?.edgeLabelColor ? {
-                          backgroundColor: `${edgeData.edgeLabelColor}18`,
+                          backgroundColor: "var(--node-card)",
                           color: edgeData.edgeLabelColor,
-                          borderColor: `${edgeData.edgeLabelColor}30`,
+                          borderColor: edgeData.edgeLabelColor,
                         } : {
-                          backgroundColor: 'rgba(255,255,255,0.7)',
-                          color: '#6b7280',
-                          borderColor: 'rgba(229,231,235,0.5)',
+                          backgroundColor: "var(--node-card)",
+                          color: "var(--pill-fg-muted)",
+                          borderColor: "var(--node-border)",
                         }}
                       >
                         {edgeData?.edgeLabel && <span>{edgeData.edgeLabel}</span>}

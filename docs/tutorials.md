@@ -1,14 +1,16 @@
 # Tutorials
 
-The **Tutorials** tab on your dashboard surfaces curated learning material
-from the Nodaro team — short videos and hands-on workflows organized by
-topic. Open it from `/projects` (it sits alongside Apps, Templates, and
-Statistics).
+Tutorials are curated learning material from the Nodaro team — short videos
+and hands-on workflows organized by topic. Open the **Explore** tab on the
+home screen (`/projects`, or **Tutorials** in the sidebar): the **Tutorials**
+row under **Level up** shows them as cards, and **All tutorials** opens the
+full list, organized by category.
 
 ## Two flavors per category
 
-Each category mixes two kinds of tutorial. Categories with both flavors
-show two subsections; categories with only one drop the subheading.
+Each category mixes two kinds of tutorial. In the full list, categories with
+both flavors show two subsections; categories with only one drop the
+subheading.
 
 ### 📹 Watch & Learn — video tutorials
 
@@ -74,13 +76,13 @@ curated by the Nodaro team. They decide which tutorials appear in which
 category and in what order. New tutorials show up here as the team
 publishes them — there's nothing for end users to configure.
 
-If your Tutorials tab is empty, it's because no tutorials are published
-yet for your edition. Check back later.
+If the **Tutorials** row under **Level up** is empty, it's because no
+tutorials are published yet for your edition. Check back later.
 
 ## Self-hosted installs
 
 A self-hosted Nodaro seeds a starter set of guided walkthroughs the first
-time it boots, so the Tutorials tab has something in it on a fresh
+time it boots, so the Tutorials row has something in it on a fresh
 install. They are ordinary workflow templates owned by a built-in
 `Nodaro` account — clone them, run them, take them apart.
 
@@ -96,7 +98,7 @@ Two things are treated as decisions about *your install* rather than as
 content, and a reseed leaves both alone:
 
 - **whether the tutorial is active** (`is_active`), and
-- **whether it appears in the Tutorials tab** — the `tutorial` tag, which
+- **whether it appears in the Tutorials list** — the `tutorial` tag, which
   admins toggle from the Flow Tutorials screen.
 
 The usual reason to turn one off is that the flow needs a provider this
@@ -129,11 +131,11 @@ rebuilding the image. Point `NODARO_TUTORIAL_PACKS` at one or more directories
   **baked demo outputs** (the real run the tutorial teaches). When a viewer
   clones the tutorial, those baked results come with it, so the copy opens
   showing the finished run rather than empty boxes. Optional card metadata the
-  Tutorials tab surfaces: `estimatedCredits` (credits a run costs),
-  `nodeTypesUsed` / `providersUsed` (the chips shown on the card), and a
-  per-tutorial `creatorDisplayName` (overrides the pack-wide author for this one
-  tutorial). Omit any of them and the card falls back to `0` / no chips / the
-  default author.
+  full tutorials list (Explore › Level up › All tutorials) surfaces:
+  `estimatedCredits` (credits a run costs), `nodeTypesUsed` / `providersUsed`
+  (the chips shown on the card), and a per-tutorial `creatorDisplayName`
+  (overrides the pack-wide author for this one tutorial). Omit any of them and
+  the card falls back to `0` / no chips / the default author.
 
 Packs are **additive**: they add tutorials to the built-in set and never change
 it. Each tutorial's category must be declared in the pack's `manifest.json`

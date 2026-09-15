@@ -26,6 +26,8 @@ import {
   ConcurrentModificationError,
   DedupRaceRetryableError,
   UserAllowanceExceededError,
+  deleteOrAlreadyGone,
+  isNotFoundError,
 } from "../api"
 import { useLocaleStore } from "@/lib/locale-store"
 import { en } from "@/lib/i18n/en"
@@ -548,5 +550,37 @@ describe("throwApiError dispatch (via editImage)", () => {
     await expect(editImage("http://img.png")).rejects.toThrow(
       "Failed to start image editing",
     )
+  })
+})
+
+/**
+ * #722 — the owner-scoped DELETE routes answer 404 `not_found` when nothing
+ * matched. A delete handler reads that as "already gone" (the requested end
+ * state), never as a failure.
+ */
+describe("isNotFoundError / deleteOrAlreadyGone", () => {
+  it("recognises the generic error the 404 not_found body becomes", async () => {
+    vi.stubGlobal("fetch", mockFetchError(404, { error: { code: "not_found", message: "Face not found" } }))
+    let caught: unknown
+    try {
+      await editImage("http://img.png")
+    } catch (err) {
+      caught = err
+    }
+    expect(isNotFoundError(caught)).toBe(true)
+    expect((caught as Error).message).toBe("Face not found")
+  })
+
+  it("is false for every other failure, and for non-errors", () => {
+    expect(isNotFoundError(Object.assign(new Error("x"), { code: "forbidden" }))).toBe(false)
+    expect(isNotFoundError(new Error("x"))).toBe(false)
+    expect(isNotFoundError({ code: "not_found" })).toBe(false)
+    expect(isNotFoundError(undefined)).toBe(false)
+  })
+
+  it("deleteOrAlreadyGone resolves a not_found delete and rethrows anything else", async () => {
+    await expect(deleteOrAlreadyGone(Promise.reject(Object.assign(new Error("gone"), { code: "not_found" })))).resolves.toBeUndefined()
+    await expect(deleteOrAlreadyGone(Promise.resolve({ success: true }))).resolves.toEqual({ success: true })
+    await expect(deleteOrAlreadyGone(Promise.reject(new Error("boom")))).rejects.toThrow("boom")
   })
 })

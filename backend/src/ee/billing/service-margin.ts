@@ -48,3 +48,20 @@ export function effectiveMarkupPercent(
   }
   return matched ? matched.percent : settings.cost_markup_percent
 }
+
+/**
+ * `baseCredits` marked up ONCE at `modelIdentifier`'s effective percent — the
+ * single formula a reservation and the settlement that trues it up must share.
+ * `credit-guard-impl.ts` applies it to every route reservation; the DAG's
+ * credit overrides and `commitJobCredits`'s count-based branch call this, so a
+ * per-service margin can never be applied at reserve and forgotten at commit
+ * (which would silently eat the refund a measured settlement exists to give).
+ */
+export function applyServiceMarkup(
+  baseCredits: number,
+  settings: MarginSettings,
+  modelIdentifier: string,
+): number {
+  const percent = effectiveMarkupPercent(settings, modelIdentifier)
+  return percent > 0 && baseCredits > 0 ? Math.ceil(baseCredits * (1 + percent / 100)) : baseCredits
+}

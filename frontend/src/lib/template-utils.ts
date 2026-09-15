@@ -1,3 +1,5 @@
+import type { browseTemplates } from "@/lib/api"
+
 export const COMPLEXITY_CONFIG = {
   simple: { label: "Simple", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
   intermediate: { label: "Intermediate", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" },
@@ -5,6 +7,21 @@ export const COMPLEXITY_CONFIG = {
 } as const
 
 export type Complexity = keyof typeof COMPLEXITY_CONFIG
+
+/** The sorts `/v1/templates/browse` accepts — the type is read off the client, not restated. */
+export type TemplateSort = NonNullable<Parameters<typeof browseTemplates>[0]["sort"]>
+
+export const TEMPLATE_SORTS = ["popular", "newest", "most-favorited", "cheapest"] as const satisfies readonly TemplateSort[]
+
+export const DEFAULT_TEMPLATE_SORT: TemplateSort = "popular"
+
+// Compile-time proof the list above names every sort the client accepts.
+const _allSortsListed: Exclude<TemplateSort, (typeof TEMPLATE_SORTS)[number]> extends never ? true : false = true
+void _allSortsListed
+
+export function isTemplateSort(value: string | null): value is TemplateSort {
+  return value !== null && (TEMPLATE_SORTS as readonly string[]).includes(value)
+}
 
 const NODE_TYPE_LABELS: Record<string, string> = {
   "generate-image": "Image Generation",

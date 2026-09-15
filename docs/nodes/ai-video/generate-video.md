@@ -338,7 +338,7 @@ If neither has the identifier, the route returns HTTP 503 `price_not_configured`
 | `gemini-omni-flash` | 10s | 4K | any | no ref | 530 |
 | `gemini-omni-flash` | — | 720p | video-edit | 1 source video | 420 |
 
-**Grok Imagine 1.5** uses true per-second pricing via the composite identifier `grok-imagine-video-1.5:<N>s:<resolution>` (N = 1–15, resolution = `480p` / `720p`). Credits = `ceil((rate × seconds + 2) / 4) × 10`, where the per-second KIE rate is 14.5 @ 480p and 25 @ 720p and the `+2` covers the required input image. Examples: 4s/480p = 150, 8s/480p = 300, 8s/720p = 510, 15s/720p = 950.
+**Grok Imagine 1.5** uses true per-second pricing via the composite identifier `grok-imagine-video-1.5:<N>s:<resolution>` (N = 1–15, resolution = `480p` / `720p`). Credits = `ceil((rate × seconds + 2) / 4) × 10`, where the per-second KIE rate is 14.5 @ 480p and 25 @ 720p and the `+2` covers the required input image. Examples: 4s/480p = 150, 8s/480p = 300, 8s/720p = 510, 15s/720p = 950. **A request that omits `duration` renders and bills 8 s** (`grok-imagine-video-1.5:8s:…`).
 
 **HappyHorse 1.1** (`happyhorse` T2V / `happyhorse-i2v` / `happyhorse-ref2v`) is per-second priced via the composite identifier `<id>:<N>s:<resolution>` (N = 3–15, resolution = `720p` / `1080p`), with identical rates across all three modes. Credits = `ceil(rate × seconds / 4) × 10`, where the per-second KIE rate is 22.5 @ 720p and 29 @ 1080p. Examples: 5s/720p = 290, 5s/1080p = 370, 10s/720p = 570, 15s/1080p = 1090. When resolution is unspecified the run renders and bills at 720p.
 
@@ -361,14 +361,16 @@ So at 8s: 1080p = `ceil(102×8/4) × 10` = **2040** no-ref / `ceil(62×8/4) × 1
 | 720p | 63 | 38 |
 | 480p | 28 | 17 |
 
-So at 8s: 1080p = `ceil(114×8/4) × 10` = **2280** no-ref / `ceil(68.5×8/4) × 10` = **1370** with-ref; 720p = **1260** / **760**; 480p = **560** / **340**. At its 30s maximum: 1080p = `ceil(114×30/4) × 10` = **8550** no-ref / **5140** with-ref; 720p = **4730** / **2850**; 480p = **2100** / **1280**. The 1080p tier arrived on KIE 2026-08-17; Seedance 2.5 still has **no 4K SKU** — for 4K, use the full `seedance-2`.
+So at 8s: 1080p = `ceil(114×8/4) × 10` = **2280** no-ref / `ceil(68.5×8/4) × 10` = **1370** with-ref; 720p = **1260** / **760**; 480p = **560** / **340**. At its 30s maximum: 1080p = `ceil(114×30/4) × 10` = **8550** no-ref / **5140** with-ref; 720p = **4730** / **2850**; 480p = **2100** / **1280**. The 1080p tier arrived on KIE 2026-08-17; Seedance 2.5 still has **no 4K SKU** — for 4K, use the full `seedance-2`. **A request that omits `duration` renders and bills 8 s** (`seedance-2-5:8s:…`), and a reference-video reservation counts those 8 output seconds.
 
 **MiniMax Hailuo 3** (`minimax-h3`) is per-second priced at two resolution rates. The composite is `minimax-h3:<N>s` (N = 4–15) for **2K** — the default, and what any non-768P resolution value renders and bills as — and `minimax-h3:<N>s:768p` for **768P**, the cheaper tier. Credits = `ceil(rate × seconds / 4) × 10`, with rate = 36.5 KIE cr/s @2K and 22.5 @768P. Examples: @2K 4s = 370, 6s = 550 (the default duration), 8s = 730, 15s = 1370; @768P 4s = 230, 6s = 340, 8s = 450, 15s = 850. There is no `-ref` dimension. Two extra billing dimensions are reserved dynamically on top of the composite:
 
 - **Reference-video input seconds** bill at the selected resolution's per-second rate: total = `ceil(perSec × (Σ reference_video_seconds + output_seconds))` base credits, where perSec = the selected tier's 8s composite ÷ 8 (91.25 @2K, 56.25 @768P). Examples: 8s output + a 5s reference video = `ceil(91.25 × 13)` = **1187** @2K, `ceil(56.25 × 13)` = **732** @768P.
 - **Input images beyond the first 5** (counting frames folded into the reference pool) add 27.5 base credits each (11 KIE cr/image, resolution-independent). Example @2K: 6s output with 8 pool images = `ceil(91.25 × 6 + 3 × 27.5)` = **630**. Reference audio is free.
 
-**Reference videos bill input + output duration.** KIE bills "with video input" runs as `per_sec × (input_video_duration + output_duration)`, not output alone. When one or more reference videos are wired, the runtime ffprobes their durations at reservation time and reserves the full scaled base up front (per-second base rate = the provider's 8s composite ÷ 8, on the `-ref` ladder for Seedance 2 and the selected resolution tier's ladder for MiniMax H3) — credits can only be refunded (never up-charged) at commit, so the full duration is reserved. A probe failure assumes the 15s cap (KIE limits total reference video to ≤ 15s) so a blip never under-charges. Reference **images** and **audio** do not add input duration — only reference **videos** do (and for `minimax-h3`, images beyond the first 5 add the per-image surcharge above).
+**Reference videos bill input + output duration.** KIE bills "with video input" runs as `per_sec × (input_video_duration + output_duration)`, not output alone. When one or more reference videos are wired, the runtime ffprobes their durations at reservation time and reserves the full scaled base up front (per-second base rate = the provider's 8s composite ÷ 8, on the `-ref` ladder for Seedance 2 and the selected resolution tier's ladder for MiniMax H3) — credits can only be refunded (never up-charged) at commit, so the full duration is reserved. A reference clip that cannot be measured counts as the provider's per-clip cap (30 s on Seedance 2.5, 15 s otherwise) so a blip never under-charges. Reference **images** and **audio** do not add input duration — only reference **videos** do (and for `minimax-h3`, images beyond the first 5 add the per-image surcharge above).
+
+**Seedance 2 reference runs reserve for an edit and settle to what was delivered.** With a video wired, Seedance may treat the run as an **edit** of that clip (see *Seedance 2.5 video editing* below), and an edit renders the clip's own length rather than the node's Duration. The reservation therefore bills the output at the **longer of the requested duration and the longest reference clip**. When the run completes, the platform measures the delivered clip and settles to `ceil(perSec × (Σ reference_video_seconds + delivered_seconds))`, refunding the rest — so a style run pays exactly its requested duration and an edit pays for the length it rendered. Example, `seedance-2-5` @1080p (perSec = 1370 ÷ 8 = 171.25) with a 30 s clip wired and Duration 12 s: reserved `ceil(171.25 × (30 + 30))` = **10275**; a style run that delivers 12 s settles to `ceil(171.25 × (30 + 12))` = **7193**; an edit that delivers the full 30 s settles at the reservation. The reference clips are measured once, when the run is reserved, and the settlement prices the input side from those same measurements — only the delivered clip is measured at the end. A reference clip that could not be measured counts as the provider's per-clip cap both ways (30 s on Seedance 2.5, 15 s otherwise), the summed input never above the provider's total cap; a delivered clip that cannot be measured settles at the reservation. The settlement is never above the reservation, and it applies whether the run is completed by the worker or by the recovery sweep that finishes a run whose worker died.
 
 **Wan 3.0** (`wan-3`) and **Wan 3.0 Prime** (`wan-3-prime`) are per-second priced via the composite identifier `<id>:<N>s:<resolution>` (N = 2–30, resolution = `480p` / `720p` / `1080p` — lowercase in the identifier even though the provider's own wire enum is uppercase; the platform normalizes it). Credits = `ceil(rate × seconds / 10) × 10` — the per-second credit rate times the duration, rounded up to the next 10:
 
@@ -426,6 +428,8 @@ A request is **voiced** only when a spec is present **and** the model can carry 
 Kling models speak scripted dialogue natively: quote the line in the prompt (optionally with a voice description, e.g. `[Anna: warm calm voice]: "good morning"`) and enable sound. Kling 2.6 voices are English/Chinese; other languages are auto-translated to English by the model.
 
 **Speaker mapping.** Each `dialogue[].speaker` is matched (case-insensitive) to a `characterVoices[].speaker` to pick that line's `voiceId`. An unmatched speaker falls back to the default (first) voice, mirroring the pipeline's non-fatal missing-voice behavior. Total dialogue text is capped at 5,000 characters (the shared Dialogue v3 limit); lines over the budget are dropped with a log entry.
+
+**References ride along.** Images, videos and audio wired to the node reach the model on the voiced path exactly as on an unvoiced run, with one substitution: on an `audio_driven` model the synthesised dialogue track takes the audio-reference slot. A Seedance reference-video run is reserved and settled like an unvoiced one (see *Reference videos bill input + output duration* under pricing), with the audio add-on on top.
 
 ### Credit pricing (character voice)
 
@@ -510,6 +514,31 @@ Through the API these corrections are returned in the response — see
 720p default. Those two now agree at **480p** — the tier actually rendered — so a
 workflow that never touched the Resolution field bills less than it used to. Set
 Resolution explicitly to 720p or 1080p if you want the higher tier.
+
+**Seedance 2.5 video editing — Aspect ratio and Duration follow the source clip.**
+With a video wired into `videoReferences`, Seedance decides for itself, from your
+prompt, whether the run is an ordinary generation using that clip as a reference
+or an **edit** of it ("remove the sign", "make it black and white"). When it reads
+the prompt as an edit, the output inherits the source clip's ratio and length, and
+the provider refuses any explicit Aspect ratio or Duration:
+
+> The parameters `ratio` and `duration` specified in the request are not valid.
+> Seedance identified your task as video editing based on your prompt.
+
+Nothing in the node predicts that verdict — the same node with the same video is a
+normal reference run under a different sentence — so the platform **resubmits the
+run once automatically** with the two values the provider asked for, and the node
+returns the edited video instead of failing. Your settings are still tried first,
+so a reference run keeps the ratio and duration you chose; only a run Seedance
+itself classified as an edit is re-shaped. The source clip must still be **4–30
+seconds** for edit mode to be available at all.
+
+**Credits for an edit.** Because an edit renders the source clip's length, the
+run is reserved as if it were one — the output billed at the longer of your
+Duration and the clip — and settled to the length actually delivered once the
+run completes (a style run is refunded down to its Duration). The formula and a
+worked example are under *Reference videos bill input + output duration* in the
+pricing section above.
 
 ## Migration from legacy nodes
 
