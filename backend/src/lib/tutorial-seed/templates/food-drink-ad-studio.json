@@ -1,0 +1,595 @@
+{
+  "slug": "food-drink-ad-studio",
+  "name": "Food & Drink Ad Studio",
+  "description": "A photo of your dish or drink, brand notes, a brief and a moodboard in; two feed ads and two stories out — one built on craving, one built on the moment — with the product exactly as photographed and the copy exactly as written.",
+  "markdownDescription": "## Food & Drink Ad Studio\n\nA photo of your dish or drink, your brand notes, a brief and a moodboard become two feed ads and two stories — one built on craving, one built on the moment — with the product exactly as photographed and the copy exactly as written.\n\n1. **Product photo** — the dish or the drink on a plain background.\n2. **Brand notes + Creative brief** — who you are and what is true; what this ad should do.\n3. **Moodboard** — optional. An inspiration ad or a picture of your brand world; both directors follow its look.\n4. **Two directors** — Appetite (macro, texture, craving) and Occasion (people, place, moment) — each writes a headline, a small line and the look. Edit a brief by hand and rerun its ad.\n5. **Two feed ads** — square, the words exactly as written.\n6. **Two stories** — each ad re-framed as a 9:16 story, the scene extended, the copy kept clear of the phone's interface.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "food",
+    "beverage",
+    "restaurant",
+    "meta",
+    "stories"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 64,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/707819fc-cf39-4408-8117-dc84131b8361.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 30,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A photo of your dish or drink, your brand notes, a brief and a moodboard go in; two feed ads and two stories come out — one built on craving, one built on the moment — with the product exactly as photographed.\n\n1. Product photo — the dish or the drink on a plain background.\n2. Brand notes + Creative brief — who you are and what is true; what this ad should do.\n3. Moodboard — optional. An inspiration ad or a picture of your brand world; both directors follow its look.\n4. Two directors — Appetite (macro, texture, craving) and Occasion (people, place, moment) — each writes a headline, a small line and the look.\n5. Two feed ads — square, the words exactly as written.\n6. Two stories — each ad re-framed as a 9:16 story, the scene extended, the copy kept clear of the phone's interface.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Food & drink ad studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "The dish or the drink on a plain background, lit well. Every image gets it as a reference, so the ingredients, the textures and the colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1570
+      },
+      "data": {
+        "bold": false,
+        "text": "The brand name, what the product is and what is in it, where and when it is served, the tone. Only what is here gets used — no invented ingredients, prices or claims.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Brand notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1960
+      },
+      "data": {
+        "bold": false,
+        "text": "What this ad should do and for whom, and anything the ads must say or avoid. One line for both directors.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Creative brief",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-mood",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2300
+      },
+      "data": {
+        "bold": false,
+        "text": "Optional. An inspiration ad or a picture of your brand world. Both directors read the look from it. Delete the node if the notes say it all.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Moodboard",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Appetite goes close: texture, steam, drips, char — pure craving. Occasion goes wide: the people, the place, the moment the product belongs to. Each writes a headline, a small line and the look in a fixed shape. Edit a brief by hand and rerun its ad and story.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Two directors",
+        "width": 560,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ads",
+      "type": "sticky-note",
+      "position": {
+        "x": 2340,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Square, the product exactly as photographed, the copy exactly as written. Rerun one alone for another take on the same brief.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Two feed ads",
+        "width": 600,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-stories",
+      "type": "sticky-note",
+      "position": {
+        "x": 3180,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Each feed ad re-framed for a phone: the scene extended above and below, the same copy, kept clear of the top and bottom edges. Rerun after changing its feed ad.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Two stories",
+        "width": 600,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/1c88bce6-2b1c-420c-b83f-8b3036102f2e.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/1c88bce6-2b1c-420c-b83f-8b3036102f2e.png",
+        "assetId": "1c88bce6-2b1c-420c-b83f-8b3036102f2e",
+        "filename": "smash-burger-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/1c88bce6-2b1c-420c-b83f-8b3036102f2e.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1570
+      },
+      "data": {
+        "text": "Brand: CHAR & CO. — a late-night smash-burger counter. Product: the Double Char — two thin beef patties smashed on a hot plate for lacy charred edges, American cheese, pickles, house sauce, toasted brioche. Served till 2 am, cooked to order in under four minutes. Tone: loud, warm, a little cheeky.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1960
+      },
+      "data": {
+        "text": "Feed ads for people out late in the city, 20 to 35, deciding where to eat right now. Make them hungry, then tell them we are open till 2 am.",
+        "label": "Creative brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "moodboard",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 2300
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/78c50297-2eef-4793-8c99-cae277734125.png",
+        "label": "Moodboard",
+        "r2Url": "https://cdn.nodaro.ai/images/78c50297-2eef-4793-8c99-cae277734125.png",
+        "assetId": "78c50297-2eef-4793-8c99-cae277734125",
+        "filename": "brand-moodboard-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/78c50297-2eef-4793-8c99-cae277734125.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-appetite",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1360
+      },
+      "data": {
+        "label": "Appetite brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Brand notes: {Brand notes || a food or drink brand.} Creative brief: {Creative brief || one feed ad that makes people hungry.} Of the reference images, the plain packshot is the product and any other image is the moodboard or inspiration. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a food and drink creative director who knows how the best food brands make people hungry. You get the brand notes, the creative brief, the product photo and, if present, a moodboard or inspiration ad whose look you follow. Write the APPETITE ad — pure craving: the product huge and close, macro texture, the appetite cues doing the talking, a dark or clean background, the headline short and bold.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words>\"\nSmall line: \"<one supporting line, at most ten words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words: the scene and the background, where the product sits and how large, the appetite cues (steam, drips, crumbs, condensation, glaze, char — only the ones true to this product), any hands or people and what they do, where the headline and the small line sit, the typography, the light and the mood. The product from the photo is the hero and stays exactly as it is.>\nUse only facts from the brand notes and the brief; never invent ingredients, prices or claims. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-occasion",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 2476
+      },
+      "data": {
+        "label": "Occasion brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Brand notes: {Brand notes || a food or drink brand.} Creative brief: {Creative brief || one feed ad that makes people hungry.} Of the reference images, the plain packshot is the product and any other image is the moodboard or inspiration. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a food and drink creative director who knows how the best food brands make people hungry. You get the brand notes, the creative brief, the product photo and, if present, a moodboard or inspiration ad whose look you follow. Write the OCCASION ad — the moment: the product in the hands of real people in the place and time it belongs to, warm and alive, the product still clearly the hero, the headline about the moment.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words>\"\nSmall line: \"<one supporting line, at most ten words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words: the scene and the background, where the product sits and how large, the appetite cues (steam, drips, crumbs, condensation, glaze, char — only the ones true to this product), any hands or people and what they do, where the headline and the small line sit, the typography, the light and the mood. The product from the photo is the hero and stays exactly as it is.>\nUse only facts from the brand notes and the brief; never invent ingredients, prices or claims. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-appetite",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 1360
+      },
+      "data": {
+        "label": "Ad · Appetite",
+        "style": "",
+        "prompt": "Finished square 1:1 social-feed ad for a food or drink brand, built from this brief: {Appetite brief || Headline: \"Char you can hear.\" Small line: \"Smashed to order, every night till late.\" Look: a deep charcoal background with a warm side light, the burger huge and close in the centre with lacy charred edges and melting cheese, a wisp of steam, a bold condensed cream headline across the top, the small line at the bottom, dark and hungry.} Of the reference images, the plain packshot is the product — it must appear exactly as it is, with its own shape, ingredients, textures and colours, large and sharp; any other reference image is the look to follow. Render the headline and the small line (unless it is none) exactly as written in the brief — same words, same spelling — and no other text. Photorealistic food photography, appetite first, crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story-appetite",
+      "type": "generate-image",
+      "position": {
+        "x": 3180,
+        "y": 1360
+      },
+      "data": {
+        "label": "Story · Appetite",
+        "style": "",
+        "prompt": "Recreate the reference advertisement as a vertical 9:16 story for a phone screen: the same product exactly as it is, the same headline and small line word for word, the same colours, light and mood — the scene extended above and below to fill the taller frame naturally, the product large in the middle, the headline in the upper third and the small line in the lower third, clear of the top and bottom edges where the phone's interface sits. The brief it was built from: {Appetite brief || Headline: \"Char you can hear.\" Small line: \"Smashed to order, every night till late.\" Look: a deep charcoal background with a warm side light, the burger huge and close in the centre with lacy charred edges and melting cheese, a wisp of steam, a bold condensed cream headline across the top, the small line at the bottom, dark and hungry.} Nothing added, no other text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-occasion",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 2476
+      },
+      "data": {
+        "label": "Ad · Occasion",
+        "style": "",
+        "prompt": "Finished square 1:1 social-feed ad for a food or drink brand, built from this brief: {Occasion brief || Headline: \"Char you can hear.\" Small line: \"Smashed to order, every night till late.\" Look: a deep charcoal background with a warm side light, the burger huge and close in the centre with lacy charred edges and melting cheese, a wisp of steam, a bold condensed cream headline across the top, the small line at the bottom, dark and hungry.} Of the reference images, the plain packshot is the product — it must appear exactly as it is, with its own shape, ingredients, textures and colours, large and sharp; any other reference image is the look to follow. Render the headline and the small line (unless it is none) exactly as written in the brief — same words, same spelling — and no other text. Photorealistic food photography, appetite first, crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story-occasion",
+      "type": "generate-image",
+      "position": {
+        "x": 3180,
+        "y": 2476
+      },
+      "data": {
+        "label": "Story · Occasion",
+        "style": "",
+        "prompt": "Recreate the reference advertisement as a vertical 9:16 story for a phone screen: the same product exactly as it is, the same headline and small line word for word, the same colours, light and mood — the scene extended above and below to fill the taller frame naturally, the product large in the middle, the headline in the upper third and the small line in the lower third, clear of the top and bottom edges where the phone's interface sits. The brief it was built from: {Occasion brief || Headline: \"Char you can hear.\" Small line: \"Smashed to order, every night till late.\" Look: a deep charcoal background with a warm side light, the burger huge and close in the centre with lacy charred edges and melting cheese, a wisp of steam, a bold condensed cream headline across the top, the small line at the bottom, dark and hungry.} Nothing added, no other text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-brand-writer-appetite",
+      "source": "brand",
+      "target": "writer-appetite",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-appetite",
+      "source": "brief",
+      "target": "writer-appetite",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-appetite",
+      "source": "product",
+      "target": "writer-appetite",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-writer-appetite",
+      "source": "moodboard",
+      "target": "writer-appetite",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-appetite",
+      "source": "writer-appetite",
+      "target": "ad-appetite",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-appetite",
+      "source": "product",
+      "target": "ad-appetite",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-ad-appetite",
+      "source": "moodboard",
+      "target": "ad-appetite",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-ad-story-appetite",
+      "source": "ad-appetite",
+      "target": "story-appetite",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-story-appetite",
+      "source": "writer-appetite",
+      "target": "story-appetite",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-occasion",
+      "source": "brand",
+      "target": "writer-occasion",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-occasion",
+      "source": "brief",
+      "target": "writer-occasion",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-occasion",
+      "source": "product",
+      "target": "writer-occasion",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-writer-occasion",
+      "source": "moodboard",
+      "target": "writer-occasion",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-occasion",
+      "source": "writer-occasion",
+      "target": "ad-occasion",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-occasion",
+      "source": "product",
+      "target": "ad-occasion",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-ad-occasion",
+      "source": "moodboard",
+      "target": "ad-occasion",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-ad-story-occasion",
+      "source": "ad-occasion",
+      "target": "story-occasion",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-story-occasion",
+      "source": "writer-occasion",
+      "target": "story-occasion",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.23
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "brand": {
+          "title": "Brand notes",
+          "description": "What it is, what is in it, where and when, the tone."
+        },
+        "brief": {
+          "title": "Creative brief",
+          "description": "What the ads should do and for whom."
+        },
+        "product": {
+          "title": "Your dish or drink",
+          "description": "On a plain background. It appears exactly as it is in every image."
+        },
+        "moodboard": {
+          "title": "Moodboard",
+          "description": "Optional. An inspiration ad or your brand world."
+        },
+        "ad-appetite": {
+          "title": "Appetite · feed",
+          "description": "Pure craving, square."
+        },
+        "ad-occasion": {
+          "title": "Occasion · feed",
+          "description": "The moment it belongs to, square."
+        },
+        "story-appetite": {
+          "title": "Appetite · story",
+          "description": "The same ad as a 9:16 story."
+        },
+        "story-occasion": {
+          "title": "Occasion · story",
+          "description": "The same ad as a 9:16 story."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "brand",
+        "brief",
+        "moodboard"
+      ],
+      "outputOrder": [
+        "ad-appetite",
+        "story-appetite",
+        "ad-occasion",
+        "story-occasion"
+      ]
+    }
+  }
+}
