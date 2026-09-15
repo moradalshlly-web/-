@@ -27,8 +27,44 @@ import {
   normalizeWan3Resolution,
   getVideoAudioCapability,
 } from "./model-constants.js"
-import { isFlux2Model } from "./flux2-pricing.js"
-import { MODEL_CATALOG, normalizeModelInput, type ModelInputAdjustment } from "./model-catalog.js"
+import { isFlux2Model, FLUX2_RES_MP, type Flux2Model } from "./flux2-pricing.js"
+import { MODEL_CATALOG, normalizeModelInput, defaultResolutionFor, type ModelInputAdjustment } from "./model-catalog.js"
+
+/**
+ * The megapixel tier a Flux 2 credit identifier is keyed on, for ANY incoming
+ * `resolution` value.
+ *
+ * Flux 2 is the only family whose identifier INTERPOLATES the resolution
+ * instead of matching it against a known set, and its callers are not
+ * guaranteed to hand it a Flux 2 value:
+ *   - the multi-provider cost preview prices one node's data against EVERY
+ *     selected provider (`frontend/src/ee/hooks/use-providers-credits-sum.ts`),
+ *     so a node whose `resolution` is "2K" (the flux / nano-banana-pro value
+ *     space) reaches this branch verbatim;
+ *   - node data written straight into workflow JSON by an agent, an import or
+ *     a template never ran the config panel's provider-change fail-safe.
+ * Interpolating that produced the off-grid id `flux-2-pro:2KMP:0ref`, which no
+ * pricing row can answer — every cost badge 503'd `price_not_configured`
+ * (18 production app-reports, 2026-09-07..14).
+ *
+ * A value off the grid snaps to the model's DEFAULT tier — the same `preferred`
+ * value `normalizeModelInput` uses — so the preview asks for exactly the id the
+ * route will reserve (both routes and the orchestrator normalize through
+ * `resolveNormalizedImageGen` first, which makes this snap a no-op for them).
+ * An ABSENT resolution keeps its long-standing meaning ("this caller has no
+ * resolution dimension at all") and stays on 1 MP rather than moving to the
+ * model default, which would silently re-price every resolution-less node.
+ */
+function flux2MegapixelTier(model: Flux2Model, resolution?: string): string {
+  const bare = (v: string) => v.replace(/\s*MP$/i, "").trim()
+  const raw = typeof resolution === "string" ? bare(resolution) : ""
+  if (raw === "") return "1"
+  // Numeric match so "2.0"/" 2 MP" land on the same grid point as "2", and the
+  // GRID's own spelling is what gets emitted — returning the caller's "2.0"
+  // would build ":2.0MP:", another id no pricing row carries.
+  const tier = FLUX2_RES_MP.find((t) => Number(t) === Number(raw))
+  return tier ?? bare(defaultResolutionFor(model) ?? "1 MP")
+}
 
 /**
  * Compute composite model identifier for variable credit pricing.
@@ -54,8 +90,7 @@ export function buildCreditModelIdentifier(
   // their cost formula charges per input MP, so the reserved identifier must
   // reflect refs (there is no metered true-up to correct an under-reserved tier).
   if (isFlux2Model(provider)) {
-    const mp = (resolution ?? "1 MP").replace(/\s*MP$/i, "").trim()
-    return `${provider}:${mp}MP:${Math.min(referenceImageCount ?? 0, 8)}ref`
+    return `${provider}:${flux2MegapixelTier(provider, resolution)}MP:${Math.min(referenceImageCount ?? 0, 8)}ref`
   }
   if (HIGH_QUALITY_PROVIDERS.has(provider) && quality === "high") {
     return `${provider}:high`

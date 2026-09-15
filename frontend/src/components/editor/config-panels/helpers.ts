@@ -1,6 +1,6 @@
 import type { WorkflowNode, WorkflowEdge, FieldMappings } from "@/types/nodes"
 import type { SourceNodeInfo } from "./types"
-import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, sunoCreditType, resolveTopazUpscale } from "@nodaro/shared"
+import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
 import { videoAuditAnalysisWired } from "@/components/editor/workflow-editor/types"
 import { renderVideoCreditIdForNode } from "@/lib/render-video-plan"
 import type { LlmFeature } from "@nodaro/shared"
@@ -422,6 +422,40 @@ export function getModelIdentifier(
     return `beeble-switchx:240f:${data.maxResolution === 720 ? 720 : 1080}p`
   }
 
+  // Video nodes with duration/audio-based variable pricing or T2V cost overrides.
+  // generate-video uses i2v as the FE display default — the backend
+  // payload-builder swaps for t2v dynamically at execution based on connected
+  // inputs (matches generate-video-node.tsx's credit-estimate behavior).
+  //
+  // ABOVE the `!provider` bail on purpose: a provider-less video node is not an
+  // unpriced node. The routes and the orchestrator both fill the provider from
+  // `applyDefaultVideoSelection` (payload-builder's `generate-video` case, and
+  // routes/generate-video.ts), so the estimate has to quote THAT model. Falling
+  // through to the bare node type asked GET /v1/credits/model-cost for
+  // "generate-video", which has no pricing row — 503 price_not_configured and a
+  // blank cost on the Run button (production app-report, 2026-09-13).
+  if (nodeType === "image-to-video" || nodeType === "text-to-video" || nodeType === "generate-video") {
+    const sel = applyDefaultVideoSelection({
+      provider: data.provider as string | undefined,
+      duration: data.duration as number | string | undefined,
+    })
+    const sound = (data.sound ?? data.kling3Sound) as boolean | undefined
+    const videoNodeType: "image-to-video" | "text-to-video" =
+      nodeType === "text-to-video" ? "text-to-video" : "image-to-video"
+    const resolution = data.resolution as string | undefined
+    const refVideos = data.referenceVideoUrls as string[] | undefined
+    const hasVideoRef = Array.isArray(refVideos) && refVideos.length > 0
+    return buildVideoCreditModelIdentifier(
+      sel.provider,
+      sel.duration,
+      sound,
+      videoNodeType,
+      (data.videoSize ?? data.mode) as string | undefined,
+      resolution,
+      hasVideoRef,
+    )
+  }
+
   const provider = data.provider as string | undefined
   if (!provider) return nodeType
 
@@ -436,29 +470,6 @@ export function getModelIdentifier(
       (data.provider as string) ?? "kling",
       (data.resolution as string) ?? "720p",
       data.videoDuration as number | undefined,
-    )
-  }
-
-  // Video nodes with duration/audio-based variable pricing or T2V cost overrides.
-  // generate-video uses i2v as the FE display default — the backend
-  // payload-builder swaps for t2v dynamically at execution based on connected
-  // inputs (matches generate-video-node.tsx's credit-estimate behavior).
-  if (nodeType === "image-to-video" || nodeType === "text-to-video" || nodeType === "generate-video") {
-    const duration = data.duration as number | string | undefined
-    const sound = (data.sound ?? data.kling3Sound) as boolean | undefined
-    const videoNodeType: "image-to-video" | "text-to-video" =
-      nodeType === "text-to-video" ? "text-to-video" : "image-to-video"
-    const resolution = data.resolution as string | undefined
-    const refVideos = data.referenceVideoUrls as string[] | undefined
-    const hasVideoRef = Array.isArray(refVideos) && refVideos.length > 0
-    return buildVideoCreditModelIdentifier(
-      provider,
-      duration,
-      sound,
-      videoNodeType,
-      (data.videoSize ?? data.mode) as string | undefined,
-      resolution,
-      hasVideoRef,
     )
   }
 

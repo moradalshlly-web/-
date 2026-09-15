@@ -41,7 +41,7 @@ import { videoNodeSizing } from "./video-node-defaults"
 import { isValidGenerateVideoConnection } from "@/lib/generate-video-handles"
 import { VISUAL_PARAMETER_PICKER_NODE_TYPES } from "@/lib/parameter-picker-types"
 import { getHandleConnectionLimit } from "@/lib/handle-limits"
-import { buildVideoCreditModelIdentifier } from "@nodaro/shared"
+import { buildVideoCreditModelIdentifier, applyDefaultVideoSelection } from "@nodaro/shared"
 import { copyToClipboard, computeDeleteResultUpdates } from "@/lib/utils"
 import type { GenerateVideoNodeData, GeneratedResult, WorkflowNode } from "@/types/nodes"
 
@@ -116,7 +116,16 @@ function GenerateVideoNodeComponent({ id, data, selected }: NodeProps) {
   const activeResult = results[activeIndex]
   const activeUrl = activeResult?.url ?? (nodeData.generatedVideoUrl as string | undefined)
   const activeThumbnail = activeResult?.thumbnailUrl
-  const provider = (nodeData.provider as string) ?? "kling"
+  // A provider-less node is what the routes and the orchestrator will run under
+  // `applyDefaultVideoSelection`, NOT "kling" — the hardcoded fallback made this
+  // pill quote a different model than both the run total (getModelIdentifier)
+  // and the reserve. Same authority everywhere, so a node written straight into
+  // workflow JSON without a provider shows the price it will actually be charged.
+  const providerSelection = applyDefaultVideoSelection({
+    provider: nodeData.provider as string | undefined,
+    duration: nodeData.duration as number | string | undefined,
+  })
+  const provider = providerSelection.provider
   const playState = (nodeData.videoPlayState as "loop" | "paused" | "stopped" | undefined) ?? "loop"
   const shouldPlay = videoAutoplay && playState === "loop"
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -127,7 +136,7 @@ function GenerateVideoNodeComponent({ id, data, selected }: NodeProps) {
   // legacy i2v node's behavior.
   const creditIdentifier = buildVideoCreditModelIdentifier(
     provider,
-    nodeData.duration as number | string | undefined,
+    providerSelection.duration,
     nodeData.sound as boolean | undefined,
     "image-to-video",
     (nodeData.videoSize as string | undefined) ?? (nodeData.mode as string | undefined),
