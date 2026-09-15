@@ -21,6 +21,7 @@ import {
   type FinalizeClaimant,
 } from "../job-finalize.js"
 import { loopTrimAddonForReconcile } from "./loop-trim-refund.js"
+import { measureSeedance2RefVideoBaseCredits } from "../seedance2-ref-video-settle.js"
 import { refundReservedCreditsForJob } from "../credits-job-lifecycle.js"
 import { bumpAttemptsOrExhaust } from "./bump-attempts.js"
 
@@ -324,11 +325,28 @@ export async function reconcileKieJob(row: KieJobRow, opts?: ReconcileOpts): Pro
     // refund when finalize kept failing (audit P0.3).
     const loopTrimAddon = loopTrimAddonForReconcile(row.job_type, row.input_data ?? null)
 
+    // A Seedance reference-video run was reserved at a worst case (an edit
+    // renders the source clip's length); the worker would have measured the
+    // delivered clip, so the recovery does the same — otherwise a run whose
+    // worker died would pay the whole worst case. `input_data` carries the
+    // request (provider, resolution, the reference clips and the
+    // reservation's probe of them); `undefined` = not such a run, or
+    // unmeasurable → the reservation is committed as before.
+    const input = (row.input_data ?? {}) as Record<string, unknown>
+    const meteredBaseCredits = await measureSeedance2RefVideoBaseCredits({
+      provider: typeof input.provider === "string" ? input.provider : undefined,
+      resolution: typeof input.resolution === "string" ? input.resolution : undefined,
+      outputUrl: result.url,
+      referenceVideoUrls: input.referenceVideoUrls,
+      refVideoDurationsSec: input.refVideoDurationsSec,
+    })
+
     await finalizeJobWithMedia({
       jobId: row.id,
       jobType: row.job_type,
       claimant: opts?.claimant ?? "cron",
       ...(loopTrimAddon > 0 && { loopTrimAddonRefundCredits: loopTrimAddon }),
+      ...(meteredBaseCredits !== undefined && { meteredBaseCredits }),
       result: {
         url: result.url,
         extraUrls: result.extraUrls,

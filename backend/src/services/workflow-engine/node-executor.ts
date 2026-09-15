@@ -33,7 +33,7 @@ import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, res
 import { computeLlmChatFields, computeNodePrompt, pickerFanoutTargets, applyPromptAffixes } from "@nodaro/prompts"
 import type { ComponentMetadata } from "@nodaro/shared"
 import { getAppSettings } from "../../lib/app-settings.js"
-import { probeAndCheckRefVideoDurations } from "../../lib/ref-video-probe.js"
+import { probeAndCheckRefVideoDurations, probeRefVideoDurations } from "../../lib/ref-video-probe.js"
 import type {
   SimpleNode,
   SimpleEdge,
@@ -1107,9 +1107,25 @@ export function buildSyncHttpBody(
  * file never statically depends on `ee/` for it — `tools/check-ee-imports.mjs`
  * stays clean (the same escape hatch the credit-guard shim uses).
  */
+/**
+ * The reference-clip probe for a run the gate did not probe (no declared
+ * bound) but whose reservation is scaled by input seconds — the Seedance 2
+ * family. `undefined` for every other payload, so the DAG's behaviour for them
+ * is byte-identical.
+ */
+async function probeRefVideosForReservation(payload: Record<string, unknown>): Promise<number[] | undefined> {
+  const provider = payload.provider as string | undefined
+  const referenceVideoUrls = payload.referenceVideoUrls
+  if (!isSeedance2Provider(provider) || !Array.isArray(referenceVideoUrls) || referenceVideoUrls.length === 0) {
+    return undefined
+  }
+  return probeRefVideoDurations({ provider: provider as string, referenceVideoUrls })
+}
+
 async function computeSeedance2RefVideoCreditOverride(
   payload: Record<string, unknown>,
   probedDurationsSec?: number[],
+  modelIdentifier = "",
 ): Promise<number | undefined> {
   const provider = payload.provider as string | undefined
   const referenceVideoUrls = payload.referenceVideoUrls
@@ -1135,11 +1151,11 @@ async function computeSeedance2RefVideoCreditOverride(
         referenceVideoUrls: referenceVideoUrls as unknown[],
       })
 
-  // Apply the admin markup ONCE — identical formula + guard to credit-guard-impl.ts.
-  const settings = await getAppSettings()
-  return settings.cost_markup_percent > 0 && baseCredits > 0
-    ? Math.ceil(baseCredits * (1 + settings.cost_markup_percent / 100))
-    : baseCredits
+  // Apply the markup ONCE, at this identifier's effective percent — the same
+  // helper credit-guard-impl.ts applies to a route reservation and the
+  // count-based commit applies to the settlement, so all three share a basis.
+  const { applyServiceMarkup } = await import("../../ee/billing/service-margin.js")
+  return applyServiceMarkup(baseCredits, await getAppSettings(), modelIdentifier)
 }
 
 /**
@@ -1156,6 +1172,7 @@ async function computeSeedance2RefVideoCreditOverride(
 async function computeMinimaxH3CreditOverride(
   payload: Record<string, unknown>,
   probedDurationsSec?: number[],
+  modelIdentifier = "",
 ): Promise<number | undefined> {
   const provider = payload.provider as string | undefined
   if (!isMinimaxH3Provider(provider)) return undefined
@@ -1182,11 +1199,10 @@ async function computeMinimaxH3CreditOverride(
     ? minimaxH3BaseCreditsFromDurations({ ...h3PriceArgs, durationsSec: probedDurationsSec })
     : await minimaxH3BaseCreditsFromUrls({ ...h3PriceArgs, referenceVideoUrls: refVideos })
 
-  // Apply the admin markup ONCE — identical formula + guard to credit-guard-impl.ts.
-  const settings = await getAppSettings()
-  return settings.cost_markup_percent > 0 && baseCredits > 0
-    ? Math.ceil(baseCredits * (1 + settings.cost_markup_percent / 100))
-    : baseCredits
+  // Apply the markup ONCE at this identifier's effective percent — same helper
+  // as the route reservation (credit-guard-impl.ts) and the seedance twin.
+  const { applyServiceMarkup } = await import("../../ee/billing/service-margin.js")
+  return applyServiceMarkup(baseCredits, await getAppSettings(), modelIdentifier)
 }
 
 /**
@@ -1230,6 +1246,7 @@ export function computeImageOverlayCreditOverride(payload: Record<string, unknow
 
 export async function computeGenerateVideoProCreditOverride(
   payload: Record<string, unknown>,
+  modelIdentifier = "",
 ): Promise<{ override: number; pricing: unknown } | undefined> {
   if (payload?.jobName !== "generate-video-pro" && payload?.type !== "generate-video-pro") return undefined
 
@@ -1258,15 +1275,14 @@ export async function computeGenerateVideoProCreditOverride(
   payload.duration = pricing.clampedDurationSec
   payload.proPricing = pricing
 
-  const { cost_markup_percent } = await getAppSettings()
   // PLAN-ONLY reserves the plan fee only (mirror of the plugin route's own
   // computeCredits: max(2, feeBase)) — the engine makes zero provider calls in
   // this mode and commits the reserved amount at completion, so reserving
   // reserveBase here would bill the full video price for a plan.
   const base = payload.planOnly === true ? Math.max(2, pricing.feeBase) : pricing.reserveBase
-  const override = cost_markup_percent > 0
-    ? Math.ceil(base * (1 + cost_markup_percent / 100))
-    : base
+  // Markup ONCE at this identifier's effective percent (credit-guard-impl.ts's helper).
+  const { applyServiceMarkup } = await import("../../ee/billing/service-margin.js")
+  const override = applyServiceMarkup(base, await getAppSettings(), modelIdentifier)
   return { override, pricing }
 }
 
@@ -1313,6 +1329,7 @@ export async function computeGenerateVideoProCreditOverride(
  */
 export async function computeEditVideoProCreditOverride(
   payload: Record<string, unknown>,
+  modelIdentifier = "",
 ): Promise<{ override: number; pricing: unknown } | undefined> {
   if (payload?.jobName !== "edit-video-pro" && payload?.type !== "edit-video-pro") return undefined
   if (((payload.mode as string | undefined) ?? "replace") !== "replace") return undefined
@@ -1336,10 +1353,9 @@ export async function computeEditVideoProCreditOverride(
   payload.spanEnd = pricing.spanEndSec
   payload.proPricing = pricing
 
-  const { cost_markup_percent } = await getAppSettings()
-  const override = cost_markup_percent > 0
-    ? Math.ceil(pricing.reserveBase * (1 + cost_markup_percent / 100))
-    : pricing.reserveBase
+  // Markup ONCE at this identifier's effective percent (credit-guard-impl.ts's helper).
+  const { applyServiceMarkup } = await import("../../ee/billing/service-margin.js")
+  const override = applyServiceMarkup(pricing.reserveBase, await getAppSettings(), modelIdentifier)
   return { override, pricing }
 }
 
@@ -1472,7 +1488,12 @@ async function executeWorkerNode(
     throw err
   }
   // Reused by the reservation below so a legal set is ffprobed ONCE per run (R15).
-  const refVideoDurationsSec = refVideoCheck.durationsSec
+  // The gate probes only a provider with a DECLARED bound. A Seedance
+  // reference run on a provider without one still needs the probe — for its
+  // reservation here and for the settlement that reads the very same numbers
+  // off the job — so probe it once now rather than leaving the pricer to probe
+  // privately and the settlement to probe again.
+  const refVideoDurationsSec = refVideoCheck.durationsSec ?? (await probeRefVideosForReservation(payload))
 
   // 2c. Update job with full input_data from the built payload
   // Store all payload fields so the execution detail modal can show complete inputs.
@@ -1483,7 +1504,15 @@ async function executeWorkerNode(
   // either key can't silently override them — the reconciler's Path-2 relies
   // on `node_id` matching `node.id` exactly to map orphan-recovered rows
   // back to their owning node.
-  const inputData: Record<string, unknown> = { ...payload, type: node.type, node_id: node.id, ...(iterationIndex !== undefined ? { iterationIndex } : {}) }
+  const inputData: Record<string, unknown> = {
+    ...payload,
+    type: node.type,
+    node_id: node.id,
+    ...(iterationIndex !== undefined ? { iterationIndex } : {}),
+    // The gate's ffprobe of the reference clips, so the settlement (worker or
+    // reconcile cron) prices from the SAME numbers the reservation below does.
+    ...(refVideoDurationsSec ? { refVideoDurationsSec } : {}),
+  }
   // Backfill resolved inputs that payload may not carry (e.g. upstream media URLs)
   if (!inputData.imageUrl && resolvedInputs.imageUrl) inputData.imageUrl = resolvedInputs.imageUrl
   if (!inputData.videoUrl && resolvedInputs.videoUrl) inputData.videoUrl = resolvedInputs.videoUrl
@@ -1539,12 +1568,12 @@ async function executeWorkerNode(
       const creditOverride =
         await projectDubbingCreditOverride(jobName, payload) ??
         computeImageOverlayCreditOverride(payload) ??
-        (await computeGenerateVideoProCreditOverride(payload))?.override ??
-        (await computeEditVideoProCreditOverride(payload))?.override ??
-        (await computeSeedance2RefVideoCreditOverride(payload, refVideoDurationsSec)) ??
+        (await computeGenerateVideoProCreditOverride(payload, modelIdentifier))?.override ??
+        (await computeEditVideoProCreditOverride(payload, modelIdentifier))?.override ??
+        (await computeSeedance2RefVideoCreditOverride(payload, refVideoDurationsSec, modelIdentifier)) ??
         // MiniMax Hailuo 3 twin — unit×(input+output) ref-video billing plus
         // the >5-input-images surcharge (same heuristic-gated fallback slot).
-        (await computeMinimaxH3CreditOverride(payload, refVideoDurationsSec))
+        (await computeMinimaxH3CreditOverride(payload, refVideoDurationsSec, modelIdentifier))
 
       // Free-tier / blocked-models gate. reserveCredits does NOT check
       // blockedModels, so without this a free-tier workflow/app run could
@@ -1604,7 +1633,7 @@ async function executeWorkerNode(
   }
 
   // 4. Update payload with usageLogId
-  const enrichedPayload = { ...payload, usageLogId }
+  const enrichedPayload = { ...payload, usageLogId, ...(refVideoDurationsSec ? { refVideoDurationsSec } : {}) }
 
   // 5. Enqueue to BullMQ (lower priority than interactive single-node runs)
   const queue = queueName === "video-render" ? renderQueue : videoQueue

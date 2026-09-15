@@ -9,6 +9,7 @@ import { resolveVideoRequestNorm } from "../lib/video-request-norm.js"
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
+import { probeRefVideoDurations } from "../lib/ref-video-probe.js"
 import { insertJobIdempotent } from "../lib/insert-job.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { applyPromptPolicies } from "../lib/prompt-policy.js"
@@ -118,7 +119,7 @@ export async function textToVideoRoutes(app: FastifyInstance) {
           // statically import ee/, so the helpers are loaded dynamically (the
           // allowed escape hatch — same pattern the credit-guard shim uses).
           if (isSeedance2Provider(b?.provider as string | undefined) && hasVideoRef) {
-            const { seedance2RefVideoBaseCreditsFromUrls, seedance2RefVideoBaseCreditsFromDurations } =
+            const { seedance2RefVideoBaseCreditsFromDurations } =
               await import("../ee/billing/seedance2-ref-video-credits.js")
             const priceArgs = {
               provider: b.provider as string,
@@ -131,14 +132,14 @@ export async function textToVideoRoutes(app: FastifyInstance) {
             // than paying for a second uncached probe per clip. Identical
             // arithmetic — the same worst-case rule applies to a NaN entry —
             // so the CHECK and the DEBIT read the same probed set.
-            const stashed = req.refVideoDurationsSec
-            if (stashed) {
-              return seedance2RefVideoBaseCreditsFromDurations({ ...priceArgs, durationsSec: stashed })
-            }
-            return seedance2RefVideoBaseCreditsFromUrls({
-              ...priceArgs,
-              referenceVideoUrls: b.referenceVideoUrls as unknown[],
-            })
+            // A provider without a declared bound was not pre-probed: probe here
+            // and STASH it the same way, so the handler carries the probe onto
+            // the job for the settlement (which prices the input from it).
+            const durationsSec =
+              req.refVideoDurationsSec ??
+              (await probeRefVideoDurations({ provider: priceArgs.provider, referenceVideoUrls: b.referenceVideoUrls as unknown[] }))
+            req.refVideoDurationsSec = durationsSec
+            return seedance2RefVideoBaseCreditsFromDurations({ ...priceArgs, durationsSec })
           }
           // MiniMax Hailuo 3: unit×(input+output) for ref-video runs + a
           // surcharge for input images beyond the first 5. Predict the
@@ -384,7 +385,15 @@ export async function textToVideoRoutes(app: FastifyInstance) {
           // onto `parsed.data` — the handler destructured above, so a mutation
           // would be invisible to every reader AND against the no-mutation rule.
           input_data: buildJobInputData(
-            { ...parsed.data, aspectRatio: normAspectRatio, resolution: normResolution, duration: normDuration },
+            {
+              ...parsed.data,
+              aspectRatio: normAspectRatio,
+              resolution: normResolution,
+              duration: normDuration,
+              // The pre-check's ffprobe of the reference clips — the
+              // settlement prices from the same numbers the reservation did.
+              ...(req.refVideoDurationsSec ? { refVideoDurationsSec: req.refVideoDurationsSec } : {}),
+            },
             "text-to-video",
           ),
           ...(mcpClient ? { mcp_client: mcpClient } : {}),
@@ -425,6 +434,7 @@ export async function textToVideoRoutes(app: FastifyInstance) {
       referenceImageUrls,
       referenceVideoUrls,
       referenceAudioUrls,
+      refVideoDurationsSec: req.refVideoDurationsSec,
       webSearch,
       nsfwChecker,
       enableTranslation,

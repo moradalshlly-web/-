@@ -93,17 +93,18 @@ vi.mock("../../ee/billing/credits.js", async () => {
 })
 
 // Spy on the route's ref-video entry point (the function the `computeCredits`
-// hook actually calls) so the "no reference videos" control can prove the
-// scaling branch is NOT taken. Keep the real implementation for the math (it
-// awaits the mocked probe and applies the real per-second scaling).
+// hook actually calls — it probes through the core helper and prices from the
+// durations, so the probe can ride the job) so the "no reference videos"
+// control can prove the scaling branch is NOT taken. Keep the real
+// implementation for the math (the real per-second scaling).
 const refCreditsSpy = vi.fn()
 vi.mock("../../ee/billing/seedance2-ref-video-credits.js", async () => {
   const actual = await vi.importActual<typeof import("../../ee/billing/seedance2-ref-video-credits.js")>("../../ee/billing/seedance2-ref-video-credits.js")
   return {
     ...actual,
-    seedance2RefVideoBaseCreditsFromUrls: (args: Parameters<typeof actual.seedance2RefVideoBaseCreditsFromUrls>[0]) => {
+    seedance2RefVideoBaseCreditsFromDurations: (args: Parameters<typeof actual.seedance2RefVideoBaseCreditsFromDurations>[0]) => {
       refCreditsSpy(args)
-      return actual.seedance2RefVideoBaseCreditsFromUrls(args)
+      return actual.seedance2RefVideoBaseCreditsFromDurations(args)
     },
   }
 })
@@ -163,9 +164,46 @@ describe("/v1/generate-video Seedance 2 reference-video billing", () => {
         provider: "seedance-2",
         resolution: "720p",
         outputDurationSec: 8,
-        referenceVideoUrls: ["https://r2.example.com/ref.mp4"],
+        durationsSec: [5],
       }),
     )
+    // The probe RIDES THE JOB — on the row for the reconcile cron and on the
+    // queue payload for the worker — so the settlement prices the input side
+    // from the very numbers the reservation read, without probing again.
+    expect(fakeJobInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ input_data: expect.objectContaining({ refVideoDurationsSec: [5] }) }),
+    )
+    const { videoQueue } = await import("../../lib/queue.js")
+    expect(videoQueue.add).toHaveBeenCalledWith("image-to-video", expect.objectContaining({ refVideoDurationsSec: [5] }))
+    await app.close()
+  })
+
+  it("a run the handler sends down the voiced-video lane (dialogue on a Seedance model) is NOT reserved at the ref-scaled worst case — that lane forwards no reference videos", async () => {
+    const app = await buildGenerateVideoApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/generate-video",
+      payload: {
+        provider: "seedance-2-5",
+        resolution: "720p",
+        duration: 8,
+        referenceVideoUrls: ["https://r2.example.com/ref.mp4"],
+        characterVoices: [{ voiceId: "Rachel", speaker: "Maya" }],
+        dialogue: [{ speaker: "Maya", line: "Hello there." }],
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    // The ordinary -ref composite (seedance-2-5:8s:720p-ref = 760) plus the
+    // dialogue add-on (elevenlabs-dialogue = 25) — never unit×(input+output),
+    // never the edit-mode worst case.
+    const { STATIC_CREDIT_COSTS } = await import("../../ee/billing/credits.js")
+    expect(reserveSpy).toHaveBeenCalledWith(
+      "u-1", "job-1", expect.any(String), 0, 0,
+      expect.objectContaining({ creditOverride: STATIC_CREDIT_COSTS["seedance-2-5:8s:720p-ref"]! + STATIC_CREDIT_COSTS["elevenlabs-dialogue"]! }),
+    )
+    expect(refCreditsSpy).not.toHaveBeenCalled()
+    const { videoQueue } = await import("../../lib/queue.js")
+    expect(videoQueue.add).toHaveBeenCalledWith("voiced-video", expect.anything())
     await app.close()
   })
 
@@ -218,9 +256,15 @@ describe("/v1/text-to-video Seedance 2 reference-video billing", () => {
         provider: "seedance-2",
         resolution: "720p",
         outputDurationSec: 8,
-        referenceVideoUrls: ["https://r2.example.com/ref.mp4"],
+        durationsSec: [5],
       }),
     )
+    // The probe rides the job on this lane too.
+    expect(fakeJobInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ input_data: expect.objectContaining({ refVideoDurationsSec: [5] }) }),
+    )
+    const { videoQueue } = await import("../../lib/queue.js")
+    expect(videoQueue.add).toHaveBeenCalledWith("text-to-video", expect.objectContaining({ refVideoDurationsSec: [5] }))
     await app.close()
   })
 

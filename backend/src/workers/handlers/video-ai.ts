@@ -94,6 +94,7 @@ import {
   withProgressRamp,
   type HandlerFn,
 } from "../shared.js"
+import { measureSeedance2RefVideoBaseCredits } from "../../lib/seedance2-ref-video-settle.js"
 import { finalizeJobWithMedia } from "../../lib/job-finalize.js"
 import { handleAiAvatar } from "./heygen-avatar.js"
 import { handleCinematicAvatar } from "./heygen-cinematic.js"
@@ -248,7 +249,7 @@ async function chainVeoBaseTo4k(
 }
 
 const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx) {
-  const { imageUrl, endFrameUrl, audioUrl, prompt, provider, generateAudio, duration, mode, sound, negativePrompt, motionPrompt, cfgScale, aspectRatio, multiShot, shots, elements, resolution, grokMode, videoSize, seed, cameraFixed, referenceImageUrls, referenceVideoUrls, referenceAudioUrls, webSearch, nsfwChecker, generationType, loopTrim, enableTranslation, videoTrimStart, videoTrimEnd } = job.data as {
+  const { imageUrl, endFrameUrl, audioUrl, prompt, provider, generateAudio, duration, mode, sound, negativePrompt, motionPrompt, cfgScale, aspectRatio, multiShot, shots, elements, resolution, grokMode, videoSize, seed, cameraFixed, referenceImageUrls, referenceVideoUrls, referenceAudioUrls, webSearch, nsfwChecker, generationType, loopTrim, enableTranslation, videoTrimStart, videoTrimEnd, refVideoDurationsSec } = job.data as {
     jobId: string
     imageUrl?: string
     endFrameUrl?: string
@@ -274,6 +275,10 @@ const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx
     referenceImageUrls?: string[]
     referenceVideoUrls?: string[]
     referenceAudioUrls?: string[]
+    /** The reservation's ffprobe of `referenceVideoUrls` (a failed probe is
+     *  NaN, or null once through JSON) — the settlement reads it instead of
+     *  probing again. */
+    refVideoDurationsSec?: Array<number | null>
     webSearch?: boolean
     nsfwChecker?: boolean
     generationType?: string
@@ -341,6 +346,20 @@ const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx
   // The upload milestone below (90%) advances past whatever was reported.
 
   let providerOutputUrl = result.url
+
+  // Seedance reference-video runs were reserved at a WORST CASE (an edit
+  // renders the source clip's length, a style run the requested duration —
+  // and only the provider knows which). Measure what was actually delivered,
+  // from the RAW provider output before any post-process, and let finalize
+  // settle to it. `undefined` = not such a run, or unmeasurable → the
+  // reservation is committed as before.
+  const meteredBaseCredits = await measureSeedance2RefVideoBaseCredits({
+    provider: resolvedI2vProvider,
+    resolution,
+    outputUrl: result.url,
+    referenceVideoUrls,
+    refVideoDurationsSec,
+  })
 
   // VEO direct-4K: chain the base task into get-4k-video, swapping in the 4K result.
   if (wantsVeo4k) providerOutputUrl = await chainVeoBaseTo4k(result, job, ctx.jobId)
@@ -448,6 +467,7 @@ const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx
     // is ever non-zero.
     extraNonProviderCredits: loopTrimAddonToCharge,
     loopTrimAddonRefundCredits: loopTrimAddonToRefund,
+    meteredBaseCredits,
     extraOutputData: {
       thumbnailUrl: thumbUrl,
       ...buildProviderMeta(result),
@@ -523,7 +543,7 @@ const handleVideoToVideo: HandlerFn = async function handleVideoToVideo(job, ctx
 }
 
 const handleTextToVideo: HandlerFn = async function handleTextToVideo(job, ctx) {
-  const { prompt, provider, duration, mode, sound, negativePrompt, cfgScale, aspectRatio, multiShot, shots, elements, removeWatermark, seed, characterIdList, resolution, generateAudio, referenceImageUrls, referenceVideoUrls, referenceAudioUrls, webSearch, nsfwChecker, enableTranslation } = job.data as {
+  const { prompt, provider, duration, mode, sound, negativePrompt, cfgScale, aspectRatio, multiShot, shots, elements, removeWatermark, seed, characterIdList, resolution, generateAudio, referenceImageUrls, referenceVideoUrls, referenceAudioUrls, webSearch, nsfwChecker, enableTranslation, refVideoDurationsSec } = job.data as {
     jobId: string
     prompt: string
     provider?: string
@@ -544,6 +564,8 @@ const handleTextToVideo: HandlerFn = async function handleTextToVideo(job, ctx) 
     referenceImageUrls?: string[]
     referenceVideoUrls?: string[]
     referenceAudioUrls?: string[]
+    /** See the image-to-video payload above. */
+    refVideoDurationsSec?: Array<number | null>
     webSearch?: boolean
     nsfwChecker?: boolean
     enableTranslation?: boolean
@@ -622,6 +644,16 @@ const handleTextToVideo: HandlerFn = async function handleTextToVideo(job, ctx) 
   // by stripping the audio track post-generation (cheap stream copy).
   let providerOutputUrl = result.url
 
+  // Seedance reference-video runs: settle to the delivered clip (see the
+  // image-to-video handler above for why the reservation is a worst case).
+  const meteredBaseCredits = await measureSeedance2RefVideoBaseCredits({
+    provider: resolvedT2vProvider,
+    resolution,
+    outputUrl: result.url,
+    referenceVideoUrls,
+    refVideoDurationsSec,
+  })
+
   // VEO direct-4K: chain into 4K BEFORE the sound-strip below, so stripping
   // operates on the 4K output (reserved at the `<model>:4k` composite).
   if (wantsVeo4k) providerOutputUrl = await chainVeoBaseTo4k(result, job, ctx.jobId)
@@ -643,6 +675,7 @@ const handleTextToVideo: HandlerFn = async function handleTextToVideo(job, ctx) 
     jobType: "text-to-video",
     result,
     mediaUrl: r2Url,
+    meteredBaseCredits,
     extraOutputData: {
       thumbnailUrl: thumbUrl,
       ...buildProviderMeta(result),

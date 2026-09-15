@@ -368,7 +368,9 @@ So at 8s: 1080p = `ceil(114×8/4) × 10` = **2280** no-ref / `ceil(68.5×8/4) ×
 - **Reference-video input seconds** bill at the selected resolution's per-second rate: total = `ceil(perSec × (Σ reference_video_seconds + output_seconds))` base credits, where perSec = the selected tier's 8s composite ÷ 8 (91.25 @2K, 56.25 @768P). Examples: 8s output + a 5s reference video = `ceil(91.25 × 13)` = **1187** @2K, `ceil(56.25 × 13)` = **732** @768P.
 - **Input images beyond the first 5** (counting frames folded into the reference pool) add 27.5 base credits each (11 KIE cr/image, resolution-independent). Example @2K: 6s output with 8 pool images = `ceil(91.25 × 6 + 3 × 27.5)` = **630**. Reference audio is free.
 
-**Reference videos bill input + output duration.** KIE bills "with video input" runs as `per_sec × (input_video_duration + output_duration)`, not output alone. When one or more reference videos are wired, the runtime ffprobes their durations at reservation time and reserves the full scaled base up front (per-second base rate = the provider's 8s composite ÷ 8, on the `-ref` ladder for Seedance 2 and the selected resolution tier's ladder for MiniMax H3) — credits can only be refunded (never up-charged) at commit, so the full duration is reserved. A probe failure assumes the 15s cap (KIE limits total reference video to ≤ 15s) so a blip never under-charges. Reference **images** and **audio** do not add input duration — only reference **videos** do (and for `minimax-h3`, images beyond the first 5 add the per-image surcharge above).
+**Reference videos bill input + output duration.** KIE bills "with video input" runs as `per_sec × (input_video_duration + output_duration)`, not output alone. When one or more reference videos are wired, the runtime ffprobes their durations at reservation time and reserves the full scaled base up front (per-second base rate = the provider's 8s composite ÷ 8, on the `-ref` ladder for Seedance 2 and the selected resolution tier's ladder for MiniMax H3) — credits can only be refunded (never up-charged) at commit, so the full duration is reserved. A reference clip that cannot be measured counts as the provider's per-clip cap (30 s on Seedance 2.5, 15 s otherwise) so a blip never under-charges. Reference **images** and **audio** do not add input duration — only reference **videos** do (and for `minimax-h3`, images beyond the first 5 add the per-image surcharge above).
+
+**Seedance 2 reference runs reserve for an edit and settle to what was delivered.** With a video wired, Seedance may treat the run as an **edit** of that clip (see *Seedance 2.5 video editing* below), and an edit renders the clip's own length rather than the node's Duration. The reservation therefore bills the output at the **longer of the requested duration and the longest reference clip**. When the run completes, the platform measures the delivered clip and settles to `ceil(perSec × (Σ reference_video_seconds + delivered_seconds))`, refunding the rest — so a style run pays exactly its requested duration and an edit pays for the length it rendered. Example, `seedance-2-5` @1080p (perSec = 1370 ÷ 8 = 171.25) with a 30 s clip wired and Duration 12 s: reserved `ceil(171.25 × (30 + 30))` = **10275**; a style run that delivers 12 s settles to `ceil(171.25 × (30 + 12))` = **7193**; an edit that delivers the full 30 s settles at the reservation. The reference clips are measured once, when the run is reserved, and the settlement prices the input side from those same measurements — only the delivered clip is measured at the end. A reference clip that could not be measured counts as the provider's per-clip cap both ways (30 s on Seedance 2.5, 15 s otherwise), the summed input never above the provider's total cap; a delivered clip that cannot be measured settles at the reservation. The settlement is never above the reservation, and it applies whether the run is completed by the worker or by the recovery sweep that finishes a run whose worker died.
 
 **Wan 3.0** (`wan-3`) and **Wan 3.0 Prime** (`wan-3-prime`) are per-second priced via the composite identifier `<id>:<N>s:<resolution>` (N = 2–30, resolution = `480p` / `720p` / `1080p` — lowercase in the identifier even though the provider's own wire enum is uppercase; the platform normalizes it). Credits = `ceil(rate × seconds / 10) × 10` — the per-second credit rate times the duration, rounded up to the next 10:
 
@@ -510,6 +512,31 @@ Through the API these corrections are returned in the response — see
 720p default. Those two now agree at **480p** — the tier actually rendered — so a
 workflow that never touched the Resolution field bills less than it used to. Set
 Resolution explicitly to 720p or 1080p if you want the higher tier.
+
+**Seedance 2.5 video editing — Aspect ratio and Duration follow the source clip.**
+With a video wired into `videoReferences`, Seedance decides for itself, from your
+prompt, whether the run is an ordinary generation using that clip as a reference
+or an **edit** of it ("remove the sign", "make it black and white"). When it reads
+the prompt as an edit, the output inherits the source clip's ratio and length, and
+the provider refuses any explicit Aspect ratio or Duration:
+
+> The parameters `ratio` and `duration` specified in the request are not valid.
+> Seedance identified your task as video editing based on your prompt.
+
+Nothing in the node predicts that verdict — the same node with the same video is a
+normal reference run under a different sentence — so the platform **resubmits the
+run once automatically** with the two values the provider asked for, and the node
+returns the edited video instead of failing. Your settings are still tried first,
+so a reference run keeps the ratio and duration you chose; only a run Seedance
+itself classified as an edit is re-shaped. The source clip must still be **4–30
+seconds** for edit mode to be available at all.
+
+**Credits for an edit.** Because an edit renders the source clip's length, the
+run is reserved as if it were one — the output billed at the longer of your
+Duration and the clip — and settled to the length actually delivered once the
+run completes (a style run is refunded down to its Duration). The formula and a
+worked example are under *Reference videos bill input + output duration* in the
+pricing section above.
 
 ## Migration from legacy nodes
 

@@ -1150,6 +1150,76 @@ describe("finalizeJobWithMedia", () => {
 })
 
 /**
+ * A metered charge (`meteredBaseCredits`): a Seedance reference-video run was
+ * reserved at a worst case (an edit renders the source clip's length) and the
+ * worker measured what was delivered. Finalize must settle to it — count-based,
+ * never the reserved tier — and park it for a review approve to replay.
+ */
+describe("finalizeJobWithMedia — measured settlement (meteredBaseCredits)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetMocksToHappyPath()
+  })
+
+  it("commits count-based: no USD cost, the measured base, metered — not the reserved tier", async () => {
+    await finalizeJobWithMedia({
+      jobId: "j1",
+      jobType: "image-to-video",
+      result: { url: "https://kie.example/x.mp4", cost: 0.5, providerUsed: "seedance-2-5" },
+      extraNonProviderCredits: 0,
+      loopTrimAddonRefundCredits: 0,
+      meteredBaseCredits: 7193,
+    })
+    expect(sharedMocks.commitJobCredits).toHaveBeenCalledWith("u-log-1", "j1", null, 7193, true)
+    expect(sharedMocks.refundLoopTrimAddon).not.toHaveBeenCalled()
+  })
+
+  it("a retained add-on rides on top of the measured base", async () => {
+    await finalizeJobWithMedia({
+      jobId: "j1",
+      jobType: "image-to-video",
+      result: { url: "https://kie.example/x.mp4", cost: 0.5, providerUsed: "seedance-2-5" },
+      extraNonProviderCredits: 3,
+      meteredBaseCredits: 7193,
+    })
+    expect(sharedMocks.commitJobCredits).toHaveBeenCalledWith("u-log-1", "j1", null, 7196, true)
+  })
+
+  it("beats the loop-trim refund: the measured charge already excludes an add-on that was not delivered", async () => {
+    await finalizeJobWithMedia({
+      jobId: "j1",
+      jobType: "image-to-video",
+      result: { url: "https://kie.example/x.mp4", cost: 0.5, providerUsed: "seedance-2-5" },
+      extraNonProviderCredits: 0,
+      loopTrimAddonRefundCredits: 3,
+      meteredBaseCredits: 7193,
+    })
+    expect(sharedMocks.refundLoopTrimAddon).not.toHaveBeenCalled()
+    expect(sharedMocks.commitJobCredits).toHaveBeenCalledWith("u-log-1", "j1", null, 7193, true)
+  })
+
+  it("rides the commitReplay so a HELD row replays the same settlement", async () => {
+    await finalizeJobWithMedia({
+      jobId: "j1",
+      jobType: "image-to-video",
+      result: { url: "https://kie.example/x.mp4", cost: 0.5, providerUsed: "seedance-2-5" },
+      meteredBaseCredits: 7193,
+    })
+    const commitReplay = sharedMocks.markJobCompletedDetailed.mock.calls[0]![3]
+    expect(commitReplay).toEqual({ meteredCost: 0.5, meteredBaseCredits: 7193 })
+  })
+
+  it("absent: the provider-cost / reserved-tier path is byte-identical to before", async () => {
+    await finalizeJobWithMedia({
+      jobId: "j1",
+      jobType: "image-to-video",
+      result: { url: "https://kie.example/x.mp4", cost: 0.5, providerUsed: "seedance-2-5" },
+    })
+    expect(sharedMocks.commitJobCredits).toHaveBeenCalledWith("u-log-1", "j1", 0.5, undefined, undefined)
+  })
+})
+
+/**
  * The extracted tail (spec §9.1).
  *
  * Approve cannot re-enter `finalizeJobWithMedia` — its status guard and

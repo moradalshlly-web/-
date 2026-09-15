@@ -147,6 +147,16 @@ vi.mock("../../credits-job-lifecycle.js", () => ({
   refundReservedCreditsForJob: mocks.refundMock,
 }))
 
+// The Seedance reference-video settlement (core shim over the ee helper): the
+// generic recovery must measure like the worker would, or a run whose worker
+// died pays the whole worst-case reservation.
+const settle = vi.hoisted(() => ({
+  measure: vi.fn(async (_args: Record<string, unknown>): Promise<number | undefined> => undefined),
+}))
+vi.mock("../../seedance2-ref-video-settle.js", () => ({
+  measureSeedance2RefVideoBaseCredits: settle.measure,
+}))
+
 import { reconcileKieJob, type KieJobRow } from "../kie.js"
 
 describe("reconcileKieJob", () => {
@@ -186,6 +196,53 @@ describe("reconcileKieJob", () => {
       }),
     })
     expect(mocks.refundMock).not.toHaveBeenCalled()
+  })
+
+  it("a Seedance reference-video run recovered by the cron settles to the DELIVERED clip, from the row's own inputs, like the worker would", async () => {
+    mocks.pollKieTaskMock.mockResolvedValueOnce({
+      resultJson: { resultUrls: ["https://kie.example/out.mp4"] },
+      providerMs: 40000,
+      taskId: "t-sd",
+    })
+    settle.measure.mockResolvedValueOnce(7193)
+    const row: KieJobRow = {
+      id: "j-seedance",
+      provider_kind: "kie-standard",
+      provider_task_id: "t-sd",
+      reconcile_attempts: 0,
+      job_type: "image-to-video",
+      input_data: {
+        provider: "seedance-2-5", resolution: "1080p", duration: 12,
+        referenceVideoUrls: ["https://r2.example.com/videos/ref.mp4"], refVideoDurationsSec: [30],
+      },
+    }
+    await reconcileKieJob(row)
+    expect(settle.measure).toHaveBeenCalledWith({
+      provider: "seedance-2-5",
+      resolution: "1080p",
+      outputUrl: "https://kie.example/out.mp4",
+      referenceVideoUrls: ["https://r2.example.com/videos/ref.mp4"],
+      refVideoDurationsSec: [30],
+    })
+    expect(mocks.finalizeMock).toHaveBeenCalledWith(expect.objectContaining({ jobId: "j-seedance", meteredBaseCredits: 7193 }))
+  })
+
+  it("a run with nothing to measure finalizes without a measured charge (the reservation is committed, as before)", async () => {
+    mocks.pollKieTaskMock.mockResolvedValueOnce({
+      resultJson: { resultUrls: ["https://kie.example/out.mp4"] },
+      providerMs: 40000,
+      taskId: "t-plain",
+    })
+    const row: KieJobRow = {
+      id: "j-plain",
+      provider_kind: "kie-standard",
+      provider_task_id: "t-plain",
+      reconcile_attempts: 0,
+      job_type: "image-to-video",
+      input_data: { provider: "minimax", duration: 5 },
+    }
+    await reconcileKieJob(row)
+    expect(mocks.finalizeMock.mock.calls[0]![0]).not.toHaveProperty("meteredBaseCredits")
   })
 
   it("inline (stall re-pick) caller: claimant 'worker' is threaded through to finalize", async () => {

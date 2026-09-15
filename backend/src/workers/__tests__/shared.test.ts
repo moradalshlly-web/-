@@ -6,6 +6,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 const mocks = vi.hoisted(() => {
   const mockHasCredits = { value: true }
+  // Per-service margins (identifier prefix → percent); empty = every
+  // identifier takes the global markup below.
+  const mockServiceMargin = { value: {} as Record<string, number> }
+  const mockCheckAndLogAnomaly = vi.fn().mockResolvedValue(undefined)
   // Controllable admin markup for the credit-commit paths. The count-based
   // (voice-changer-pro) branch + the provider-metered branch both read this via
   // getAppSettings(). 25% is a representative Cloud admin markup (the code
@@ -49,6 +53,8 @@ const mocks = vi.hoisted(() => {
 
   return {
     mockHasCredits,
+    mockServiceMargin,
+    mockCheckAndLogAnomaly,
     mockMarkupPercent,
     mockManagedSettlement,
     mockCommitCredits,
@@ -105,6 +111,7 @@ vi.mock("@/lib/app-settings.js", () => ({
   getAppSettings: vi.fn(async () => ({
     ai_provider: "replicate" as const,
     cost_markup_percent: mocks.mockMarkupPercent.value,
+    service_margin_percent: mocks.mockServiceMargin.value,
     carousel_video_autoplay: true,
     apps_page_video_autoplay: true,
     featured_app_ids: [] as string[],
@@ -122,7 +129,7 @@ vi.mock("@/ee/billing/credit-anomaly.js", () => ({
     const pct = mocks.mockMarkupPercent.value
     return pct > 0 ? Math.ceil(base * (1 + pct / 100)) : base
   }),
-  checkAndLogAnomaly: vi.fn().mockResolvedValue(undefined),
+  checkAndLogAnomaly: mocks.mockCheckAndLogAnomaly,
 }))
 
 vi.mock("@/lib/storage.js", () => ({
@@ -504,6 +511,75 @@ describe("commitJobCredits", () => {
     mocks.mockMarkupPercent.value = 25
     await commitJobCredits("u1", "job1", null, 12, true)
     expect(mocks.mockUpdate).toHaveBeenCalledWith({ credits_actual: 15 })
+  })
+
+  // A count-based reservation is a CEILING measured down at completion, and
+  // commit_credits cannot collect above it — it would only record a
+  // credits_charged the user never paid. A measured actual that lands a hair
+  // above (a delivered clip a frame longer than its probed source) settles AT
+  // the reservation.
+  it("clamps the count-based actual at the reservation, never above it", async () => {
+    mocks.mockMarkupPercent.value = 0
+    mocks.mockSingle.mockResolvedValueOnce({ data: { credits_used: 10, user_id: "u", action: "seedance-2-5:8s:720p-ref", provider: "kie" }, error: null })
+    await commitJobCredits("u1", "job1", null, 12, true)
+    expect(mocks.mockCommitCredits).toHaveBeenCalledWith("u1", 10)
+    expect(mocks.mockUpdate).toHaveBeenCalledWith({ credits_actual: 10 })
+  })
+
+  it("a count-based actual below the reservation is committed as measured", async () => {
+    mocks.mockMarkupPercent.value = 0
+    mocks.mockSingle.mockResolvedValueOnce({ data: { credits_used: 20, user_id: "u", action: "seedance-2-5:8s:720p-ref", provider: "kie" }, error: null })
+    await commitJobCredits("u1", "job1", null, 12, true)
+    expect(mocks.mockCommitCredits).toHaveBeenCalledWith("u1", 12)
+  })
+
+  // The reserve was marked up at the usage log's identifier — a per-service
+  // margin when the admin set one — so the count-based actual must be too, or
+  // the two sit on different bases and a measured refund silently shrinks.
+  it("marks the count-based actual up at the identifier's per-service margin, not the global markup", async () => {
+    mocks.mockMarkupPercent.value = 40
+    mocks.mockServiceMargin.value = { "seedance-2-5": 0 }
+    try {
+      mocks.mockSingle.mockResolvedValueOnce({ data: { credits_used: 10275, user_id: "u", action: "seedance-2-5:8s:1080p-ref", provider: "kie" }, error: null })
+      await commitJobCredits("u1", "job1", null, 7193, true)
+      // 0% for this service: 7193 committed, NOT ceil(7193 × 1.4) = 10071.
+      expect(mocks.mockCommitCredits).toHaveBeenCalledWith("u1", 7193)
+    } finally {
+      mocks.mockServiceMargin.value = {}
+    }
+  })
+
+  it("clamps AFTER the markup, so a marked-up actual cannot exceed the reservation either", async () => {
+    mocks.mockMarkupPercent.value = 25
+    mocks.mockSingle.mockResolvedValueOnce({ data: { credits_used: 14, user_id: "u", action: "seedance-2-5:8s:720p-ref", provider: "kie" }, error: null })
+    // 12 × 1.25 = 15 > 14 reserved → 14.
+    await commitJobCredits("u1", "job1", null, 12, true)
+    expect(mocks.mockCommitCredits).toHaveBeenCalledWith("u1", 14)
+  })
+
+  // A count-based reservation is a ceiling; settling below it is the expected
+  // outcome, not an "overcharge" for the admin to triage.
+  it("files no anomaly when the count-based actual settles at or below the reservation", async () => {
+    mocks.mockMarkupPercent.value = 0
+    mocks.mockSingle.mockResolvedValueOnce({ data: { credits_used: 10275, user_id: "u", action: "seedance-2-5:8s:1080p-ref", provider: "kie" }, error: null })
+    await commitJobCredits("u1", "job1", null, 7193, true)
+    expect(mocks.mockCommitCredits).toHaveBeenCalledWith("u1", 7193)
+    expect(mocks.mockCheckAndLogAnomaly).not.toHaveBeenCalled()
+  })
+
+  it("an actual ABOVE the reservation is clamped for the commit but still filed as an anomaly, with the pre-clamp figure", async () => {
+    mocks.mockMarkupPercent.value = 0
+    mocks.mockSingle.mockResolvedValueOnce({ data: { credits_used: 10, user_id: "u", action: "voice-changer-pro", provider: null }, error: null })
+    await commitJobCredits("u1", "job1", null, 12, true)
+    expect(mocks.mockCommitCredits).toHaveBeenCalledWith("u1", 10)
+    expect(mocks.mockCheckAndLogAnomaly).toHaveBeenCalledWith(expect.objectContaining({ reservedCredits: 10, actualCredits: 12 }))
+  })
+
+  it("still runs the anomaly check when the reservation is unknown", async () => {
+    mocks.mockMarkupPercent.value = 0
+    mocks.mockSingle.mockResolvedValueOnce({ data: { credits_used: null, user_id: "u", action: "voice-changer-pro", provider: null }, error: null })
+    await commitJobCredits("u1", "job1", null, 12, true)
+    expect(mocks.mockCheckAndLogAnomaly).toHaveBeenCalledTimes(1)
   })
 
   it("does NOT take the count-based branch when a real provider cost is present (metered branch wins)", async () => {

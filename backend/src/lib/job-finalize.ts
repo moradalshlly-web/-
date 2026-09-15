@@ -13,6 +13,7 @@ import {
   createAssetFromJob,
 } from "../workers/shared.js"
 import { relayFieldsFrom } from "../providers/nodaro/relay-cost.js"
+import { heldCommitArgs, type HeldCommitReplay } from "./job-policy.js"
 
 /**
  * Provider-side input to `finalizeJobWithMedia`. Mirrors the relevant fields
@@ -472,6 +473,17 @@ export interface FinalizeInput {
    *  `approveHeldJob` can replay the same settlement. Ignored for orchestrated jobs
    *  (base-only reservation — the addon was never charged). */
   loopTrimAddonRefundCredits?: number
+  /** The charge the handler measured for this job, in BASE (pre-markup)
+   *  credits — a Seedance reference-video run priced from the clip the
+   *  provider actually delivered (`measureSeedance2RefVideoBaseCredits`). The
+   *  reservation for such a run is a worst case (an edit renders the source
+   *  clip's length, not the requested duration), so the commit settles to the
+   *  measured price instead of the reserved tier: count-based, marked up once,
+   *  never above the reservation, `extraNonProviderCredits` on top. Parked in
+   *  `held_completion_fields` so approve replays the same settlement. Takes
+   *  precedence over `loopTrimAddonRefundCredits` — the measured charge already
+   *  excludes an add-on that was not delivered. */
+  meteredBaseCredits?: number
 }
 
 /**
@@ -594,6 +606,16 @@ export async function finalizeJobWithMedia(
   //    and writing those NULLs clobbered whatever the worker/route had
   //    already recorded — every cron-completed job lost its provider
   //    metadata (admin data-quality residual from the 2026-06-10 audit).
+  // The settlement inputs, built ONCE: parked on a HELD row for approve to
+  // replay, and mapped onto commitJobCredits below through the same
+  // `heldCommitArgs` approve uses — so the two settlements cannot drift.
+  const commitReplay: HeldCommitReplay = {
+    metered: result.meteredCost,
+    extraNonProviderCredits: input.extraNonProviderCredits,
+    meteredCost: result.cost,
+    loopTrimAddonRefundCredits: input.loopTrimAddonRefundCredits,
+    meteredBaseCredits: input.meteredBaseCredits,
+  }
   const outcome = await markJobCompletedDetailed(
     jobId,
     {
@@ -622,12 +644,7 @@ export async function finalizeJobWithMedia(
     // the only carrier: without it the held row has no record of the add-on at
     // all and approve can only replay a FULL commit, overcharging the user for
     // a trim that never happened.
-    {
-      metered: result.meteredCost,
-      extraNonProviderCredits: input.extraNonProviderCredits,
-      meteredCost: result.cost,
-      loopTrimAddonRefundCredits: input.loopTrimAddonRefundCredits,
-    },
+    commitReplay,
   )
   if (outcome !== "completed") {
     // A HELD row is not terminal: release OUR finalize claim so the approve
@@ -645,11 +662,14 @@ export async function finalizeJobWithMedia(
   //    INSTEAD of the plain commit — deliberately here, AFTER the CAS win,
   //    so a failed finalize never strands the log outside `reserved` (which
   //    silently defeated the exhaustion refund — audit P0.3).
+  //    A metered charge (`meteredBaseCredits`) takes the plain commit instead:
+  //    it already prices exactly what was delivered, add-on included only when
+  //    it was — and `heldCommitArgs` is the one mapping approve replays too.
   const loopTrimRefund = input.loopTrimAddonRefundCredits ?? 0
-  if (loopTrimRefund > 0 && !job.workflow_execution_id) {
+  if (commitReplay.meteredBaseCredits == null && loopTrimRefund > 0 && !job.workflow_execution_id) {
     await refundLoopTrimAddon(jobId, usageLogId, loopTrimRefund)
   } else {
-    await commitJobCredits(usageLogId, jobId, result.cost, input.extraNonProviderCredits, result.meteredCost)
+    await commitJobCredits(usageLogId, jobId, ...heldCommitArgs(commitReplay, result.cost))
   }
 
   // 6-8. The shared completion tail.

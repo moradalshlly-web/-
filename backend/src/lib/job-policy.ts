@@ -433,11 +433,41 @@ export interface HeldCommitReplay {
    *  block/reject/expiry/cancel refund a silent no-op — so the held row carries
    *  it for `approveHeldJob` to replay as (reserved − add-on). */
   readonly loopTrimAddonRefundCredits?: number
+  /** The charge the caller measured for this job, in BASE (pre-markup)
+   *  credits — a Seedance reference-video run priced from the clip it actually
+   *  delivered. Present, it replaces the provider-cost / reserved-tier
+   *  settlement: the commit is count-based (`commitJobCredits`'s metered
+   *  branch with no USD cost), marked up once, and never above the
+   *  reservation. `extraNonProviderCredits` still rides on top of it. */
+  readonly meteredBaseCredits?: number
 }
 
 export const HELD_COMMIT_REPLAY_KEYS = [
-  "metered", "extraNonProviderCredits", "meteredCost", "loopTrimAddonRefundCredits",
+  "metered", "extraNonProviderCredits", "meteredCost", "loopTrimAddonRefundCredits", "meteredBaseCredits",
 ] as const
+
+/**
+ * The `commitJobCredits(usageLogId, jobId, ...)` tail for a settlement — the
+ * ONE mapping from the replay fields to the dispatcher's positional args, used
+ * verbatim by the finalize commit and by the review APPROVE replay so the two
+ * cannot drift. `providerCostFallback` is the provider USD cost the caller has
+ * on hand when the replay carries none (finalize: `result.cost`; approve: the
+ * row's `provider_cost` column).
+ *
+ * A measured charge (`meteredBaseCredits`) wins over every other input: it is
+ * committed count-based — metered, no USD cost, the measured base plus the
+ * retained add-on — which is the only branch that applies the markup once and
+ * settles BELOW the reservation instead of committing it whole.
+ */
+export function heldCommitArgs(
+  commit: HeldCommitReplay,
+  providerCostFallback: number | null | undefined,
+): [providerCostUsd: number | null | undefined, extraNonProviderCredits: number | undefined, metered: boolean | undefined] {
+  if (commit.meteredBaseCredits != null) {
+    return [null, commit.meteredBaseCredits + (commit.extraNonProviderCredits ?? 0), true]
+  }
+  return [commit.meteredCost ?? providerCostFallback, commit.extraNonProviderCredits, commit.metered]
+}
 
 /** Split a stored `held_completion_fields` into the real `jobs` columns approve
  *  replays and the settlement inputs it passes to `commitJobCredits`. */

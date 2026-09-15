@@ -26,7 +26,7 @@ import { loadUsageLogId, runCompletionTail } from "./job-finalize.js"
 import { commitJobCredits, refundLoopTrimAddon } from "../workers/shared.js"
 import { rejectHeldJobRow } from "./job-policy-gate.js"
 import { recordJobPolicyDecision } from "./job-policy-audit.js"
-import { REVIEW_POLICY_ID, splitHeldCompletionFields } from "./job-policy.js"
+import { REVIEW_POLICY_ID, heldCommitArgs, splitHeldCompletionFields } from "./job-policy.js"
 
 /** Who resolved it. Denormalised onto the audit row (the `admin_messages:31-33`
  *  precedent) so a decisions view never has to join `auth.users`. */
@@ -106,17 +106,20 @@ export async function approveHeldJob(jobId: string, reviewer: Reviewer, note?: s
   //    reservation. The workflow_execution_id guard mirrors finalizeJobWithMedia's:
   //    jobs.usage_log_id is written only by the HTTP reservation, so an
   //    orchestrated child carries no usage log and was never charged the add-on.
+  //
+  //    A metered charge (`meteredBaseCredits`, a Seedance reference run priced
+  //    from the delivered clip) takes the commit branch — `heldCommitArgs` is
+  //    the same mapping finalize used, so approve settles exactly as the worker
+  //    would have.
   const usageLogId = await loadUsageLogId(jobId)
   const loopTrimRefund = commit.loopTrimAddonRefundCredits ?? 0
-  if (loopTrimRefund > 0 && !row.workflow_execution_id) {
+  if (commit.meteredBaseCredits == null && loopTrimRefund > 0 && !row.workflow_execution_id) {
     await refundLoopTrimAddon(jobId, usageLogId, loopTrimRefund)
   } else {
     await commitJobCredits(
       usageLogId,
       jobId,
-      commit.meteredCost ?? (typeof columns.provider_cost === "number" ? columns.provider_cost : null),
-      commit.extraNonProviderCredits ?? 0,
-      commit.metered ?? false,
+      ...heldCommitArgs(commit, typeof columns.provider_cost === "number" ? columns.provider_cost : null),
     )
   }
 

@@ -1,4 +1,4 @@
-import { MODEL_CATALOG } from "@nodaro/shared"
+import { MODEL_CATALOG, VIDEO_REF_VIDEO_DURATION_LIMITS } from "@nodaro/shared"
 import { STATIC_CREDIT_COSTS, PriceNotConfiguredError } from "./credits.js"
 // The probe lives in CORE (lib/ref-video-probe.ts) because the routes' duration
 // pre-check — plain input validation, not a credit feature — must run in
@@ -6,16 +6,25 @@ import { STATIC_CREDIT_COSTS, PriceNotConfiguredError } from "./credits.js"
 // ee -> core is the allowed direction; re-exported so existing importers of
 // this module are unaffected.
 import { probeRefVideoDurations } from "../../lib/ref-video-probe.js"
+import { probeMediaDuration } from "../../providers/video/ffmpeg-utils.js"
 
 export { probeRefVideoDurations, refVideoCapFor } from "../../lib/ref-video-probe.js"
 
 /**
- * KIE caps a Seedance 2 reference-video run's total input at ≤15s, so a probe we
- * cannot trust (rejected ffprobe, NaN/≤0 duration) is treated as the full 15s
- * worst case for that single URL — we must NEVER under-reserve, because
- * `commit_credits` only refunds a surplus and can never collect an upward delta.
+ * A reference clip we could not measure (rejected ffprobe, NaN/≤0 duration)
+ * counts as the LONGEST clip the provider accepts — the per-clip cap in
+ * `VIDEO_REF_VIDEO_DURATION_LIMITS` (30s on Seedance 2.5), or the 2.0 family's
+ * 15s total-input ceiling when the provider declares no bound. We must NEVER
+ * under-reserve, because `commit_credits` only refunds a surplus and can never
+ * collect an upward delta.
  */
 const REF_VIDEO_WORST_CASE_SEC = 15
+
+export function refVideoWorstCaseSecFor(provider: string): number {
+  return VIDEO_REF_VIDEO_DURATION_LIMITS[provider]?.maxSec ?? REF_VIDEO_WORST_CASE_SEC
+}
+
+const isUsableDuration = (d: number): boolean => Number.isFinite(d) && d > 0
 
 /**
  * BASE (0%-markup) credit total for a Seedance 2 "with video input" reference run.
@@ -34,6 +43,11 @@ const REF_VIDEO_WORST_CASE_SEC = 15
  * truth) — an unsupported tier (e.g. a stale 1080p on seedance-2-mini, which only
  * exposes 480p/720p) snaps to the model's top priced tier so the looked-up composite
  * is always seeded — mirrors `packages/shared/src/credit-identifiers.ts`.
+ *
+ * This is the EXACT arithmetic, with no worst-case rule: the reservation side
+ * ({@link seedance2RefVideoBaseCreditsFromDurations}) decides what the billed
+ * durations are, and the settlement side ({@link seedance2RefVideoActualBaseCredits})
+ * feeds it the measured ones.
  *
  * Hard-fail policy: throws `PriceNotConfiguredError` (the same error
  * `getModelCreditBaseCost` throws) when the clamped 8s `-ref` composite is missing.
@@ -65,14 +79,44 @@ export function seedance2RefVideoBaseCredits(args: {
 }
 
 /**
- * BASE credits for a reference-video run from ALREADY-PROBED durations.
+ * The input seconds a run bills for ALREADY-PROBED reference clips: a usable
+ * probe verbatim, an unusable one (NaN / ≤0 / a `null` that a NaN became in
+ * JSON) at the provider's per-clip worst case; the SUM capped at the
+ * provider's declared total (`maxTotalSec`), past which the provider rejects
+ * the run and nothing can be billed. The SINGLE place that rule lives — the
+ * reservation and the settlement both read it, so the two agree on the input
+ * side by construction.
+ */
+function billedInputSeconds(provider: string, durationsSec: readonly unknown[]): { perClip: number[]; totalSec: number } {
+  const worst = refVideoWorstCaseSecFor(provider)
+  const perClip = durationsSec.map((d) => (typeof d === "number" && isUsableDuration(d) ? d : worst))
+  const sum = perClip.reduce((acc, d) => acc + d, 0)
+  const cap = VIDEO_REF_VIDEO_DURATION_LIMITS[provider]?.maxTotalSec
+  return { perClip, totalSec: cap === undefined ? sum : Math.min(sum, cap) }
+}
+
+/**
+ * BASE credits a RESERVATION must hold for a reference-video run, from
+ * ALREADY-PROBED durations — the worst case the run can bill, so we can only
+ * ever OVER-reserve, never under-reserve (the refund-only `commit_credits`
+ * constraint). Callers that hold a probe result (the routes' duration pre-check
+ * stashes one on the request) price through here instead of running a second
+ * uncached ffprobe per clip.
  *
- * The SINGLE place the worst-case rule lives: an unusable probe (NaN/<=0)
- * counts as the full 15s worst case for that URL so we can only ever
- * OVER-reserve, never under-reserve (the refund-only `commit_credits`
- * constraint). Callers that hold a probe result (the routes' duration
- * pre-check stashes one on the request) price through here instead of running
- * a second uncached ffprobe per clip.
+ * Two worst-case rules, both here and nowhere else:
+ *  - an unusable probe (NaN/<=0) counts as the provider's per-clip cap
+ *    ({@link refVideoWorstCaseSecFor});
+ *  - the OUTPUT is billed at the longer of the requested duration and the
+ *    longest reference clip. Seedance decides from the prompt whether a run
+ *    with a video wired is a style run (renders the requested duration) or an
+ *    EDIT of that clip, which renders the clip's own length — and the verdict
+ *    arrives only as a rejection the provider layer answers by resubmitting
+ *    (`runVideoTaskWithSeedanceEditRetry`). Reserving the requested duration
+ *    alone under-billed every edit of a clip longer than the node's Duration.
+ *
+ * The settlement ({@link seedance2RefVideoActualBaseCredits}) measures what was
+ * delivered and refunds the difference, so a style run still pays its exact
+ * `unit × (input + requested)` price.
  */
 export function seedance2RefVideoBaseCreditsFromDurations(args: {
   provider: string
@@ -81,11 +125,9 @@ export function seedance2RefVideoBaseCreditsFromDurations(args: {
   durationsSec: readonly number[]
 }): number {
   const { provider, resolution, outputDurationSec, durationsSec } = args
-  const inputVideoDurationSec = durationsSec.reduce(
-    (sum, d) => sum + (Number.isFinite(d) && d > 0 ? d : REF_VIDEO_WORST_CASE_SEC),
-    0,
-  )
-  return seedance2RefVideoBaseCredits({ provider, resolution, outputDurationSec, inputVideoDurationSec })
+  const { perClip, totalSec } = billedInputSeconds(provider, durationsSec)
+  const billableOutputSec = Math.max(outputDurationSec, ...perClip)
+  return seedance2RefVideoBaseCredits({ provider, resolution, outputDurationSec: billableOutputSec, inputVideoDurationSec: totalSec })
 }
 
 /**
@@ -109,4 +151,47 @@ export async function seedance2RefVideoBaseCreditsFromUrls(args: {
   const { provider, resolution, outputDurationSec, referenceVideoUrls } = args
   const durationsSec = await probeRefVideoDurations({ provider, referenceVideoUrls })
   return seedance2RefVideoBaseCreditsFromDurations({ provider, resolution, outputDurationSec, durationsSec })
+}
+
+/**
+ * BASE credits the run ACTUALLY billed, measured after the provider delivered:
+ * `unit × (Σ reference clips + the delivered clip's length)`. The worker
+ * commits this in place of the worst-case reservation above, so an edit is
+ * charged for the length it rendered and a style run is refunded down to its
+ * requested duration.
+ *
+ * The delivered clip is what KIE charged for — so the RAW provider output is
+ * measured, before any post-process (a smart-loop-cut shortens what the user
+ * keeps, not what was billed).
+ *
+ * The reference clips are NOT re-probed when the reservation's own probe is
+ * on hand (`durationsSec` — both reservation lanes carry it on the job): the
+ * settlement then reads the very numbers the reserve read, so the input side
+ * cannot drift between the two, and a reference URL that has gone stale by
+ * the time the run finishes cannot turn a refund into a worst-case charge.
+ * Only a job that carries no probe (in flight across the deploy that added
+ * it) re-probes, under the same worst-case rule.
+ *
+ * Throws when the delivered clip cannot be measured — the caller then commits
+ * the reservation, which is today's behaviour and never under-bills.
+ */
+export async function seedance2RefVideoActualBaseCredits(args: {
+  provider: string
+  resolution: string
+  outputUrl: string
+  referenceVideoUrls: readonly unknown[]
+  /** The reservation's probe of `referenceVideoUrls`, when the job carries it. */
+  durationsSec?: readonly unknown[]
+}): Promise<number> {
+  const { provider, resolution, outputUrl, referenceVideoUrls } = args
+  const [outputDurationSec, durationsSec] = await Promise.all([
+    probeMediaDuration(outputUrl),
+    Array.isArray(args.durationsSec) ? args.durationsSec : probeRefVideoDurations({ provider, referenceVideoUrls }),
+  ])
+  return seedance2RefVideoBaseCredits({
+    provider,
+    resolution,
+    outputDurationSec,
+    inputVideoDurationSec: billedInputSeconds(provider, durationsSec).totalSec,
+  })
 }

@@ -9,7 +9,7 @@ import { effectiveVideoPromptCeiling } from "../lib/video-prompt-ceiling.js"
 import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js"
 import { resolveVideoRequestNorm } from "../lib/video-request-norm.js"
 import { probeMediaDuration } from "../providers/video/ffmpeg-utils.js"
-import { probeAndCheckRefVideoDurations } from "../lib/ref-video-probe.js"
+import { probeAndCheckRefVideoDurations, probeRefVideoDurations } from "../lib/ref-video-probe.js"
 import { getModelCreditBaseCost } from "../ee/billing/credits.js"
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
@@ -450,6 +450,21 @@ function voiceSpecPresent(b: { characterVoices?: unknown; dialogue?: unknown }):
 }
 
 /**
+ * True when the handler will enqueue this request as `voiced-video` — the lane
+ * that synthesises the dialogue first and then runs the video with AUDIO
+ * references only (`handleVoicedVideo` forwards no reference videos). The
+ * reservation must agree with the dispatch, so both read this one predicate;
+ * the provider resolves the way the credit guard resolves it.
+ */
+function dispatchesVoicedVideo(b: Record<string, unknown>): boolean {
+  const provider = applyDefaultVideoSelection({
+    provider: b.provider as string | undefined,
+    duration: b.duration as number | string | undefined,
+  }).provider
+  return voiceSpecPresent(b) && videoModelCanSpeakDialogue(provider)
+}
+
+/**
  * Credit id for the voiced-video audio step: audio_driven (Seedance 2)
  * synthesises a Dialogue v3 track; native_speech (VEO) revoices the baked audio
  * via the voice-changer. Single source for both the reservation (here) and the
@@ -664,8 +679,14 @@ export async function generateVideoRoutes(app: FastifyInstance) {
           // base UP FRONT (commit_credits only refunds — never up-charges). Core
           // may not statically import ee/, so the helper is loaded dynamically
           // (the allowed escape hatch — same pattern the credit-guard shim uses).
-          if (isSeedance2Provider(b?.provider as string | undefined) && hasVideoRef) {
-            const { seedance2RefVideoBaseCreditsFromUrls, seedance2RefVideoBaseCreditsFromDurations } =
+          //
+          // NOT for a run the handler will send down the `voiced-video` lane:
+          // that handler synthesises the dialogue first and runs the video with
+          // AUDIO references only — it forwards no reference videos — so the
+          // provider bills no input seconds and edit mode cannot arise. Such a
+          // run takes the ordinary composite (+ the audio add-on) below.
+          if (!dispatchesVoicedVideo(b) && isSeedance2Provider(b?.provider as string | undefined) && hasVideoRef) {
+            const { seedance2RefVideoBaseCreditsFromDurations } =
               await import("../ee/billing/seedance2-ref-video-credits.js")
             const priceArgs = {
               provider: b.provider as string,
@@ -678,14 +699,14 @@ export async function generateVideoRoutes(app: FastifyInstance) {
             // than paying for a second uncached probe per clip. Identical
             // arithmetic — the same worst-case rule applies to a NaN entry —
             // so the CHECK and the DEBIT read the same probed set.
-            const stashed = req.refVideoDurationsSec
-            if (stashed) {
-              return seedance2RefVideoBaseCreditsFromDurations({ ...priceArgs, durationsSec: stashed })
-            }
-            return seedance2RefVideoBaseCreditsFromUrls({
-              ...priceArgs,
-              referenceVideoUrls: b.referenceVideoUrls as unknown[],
-            })
+            // A provider without a declared bound was not pre-probed: probe here
+            // and STASH it the same way, so the handler carries the probe onto
+            // the job for the settlement (which prices the input from it).
+            const durationsSec =
+              req.refVideoDurationsSec ??
+              (await probeRefVideoDurations({ provider: priceArgs.provider, referenceVideoUrls: b.referenceVideoUrls as unknown[] }))
+            req.refVideoDurationsSec = durationsSec
+            return seedance2RefVideoBaseCreditsFromDurations({ ...priceArgs, durationsSec })
           }
           // MiniMax Hailuo 3 bills unit×(input+output) for reference-video runs
           // AND surcharges input images beyond the first 5 (11 KIE cr each).
@@ -1092,7 +1113,16 @@ export async function generateVideoRoutes(app: FastifyInstance) {
           // onto `parsed.data` — the handler destructured above, so a mutation
           // would be invisible to every reader AND against the no-mutation rule.
           input_data: buildJobInputData(
-            { ...parsed.data, aspectRatio: normAspectRatio, resolution: normResolution, duration: normDuration },
+            {
+              ...parsed.data,
+              aspectRatio: normAspectRatio,
+              resolution: normResolution,
+              duration: normDuration,
+              // The pre-check's ffprobe of the reference clips: the settlement
+              // (worker, or the reconcile cron) prices from the SAME numbers
+              // the reservation did instead of probing again.
+              ...(req.refVideoDurationsSec ? { refVideoDurationsSec: req.refVideoDurationsSec } : {}),
+            },
             "image-to-video",
           ),
           ...(mcpClient ? { mcp_client: mcpClient } : {}),
@@ -1122,7 +1152,9 @@ export async function generateVideoRoutes(app: FastifyInstance) {
     // same videoModelCanSpeakDialogue helper).
     const wantsVoice = voiceSpecPresent(parsed.data)
     const canVoice = videoModelCanSpeakDialogue(provider)
-    const isVoiced = wantsVoice && canVoice
+    // The SAME predicate `computeCredits` read, so a run reserved as a plain
+    // composite (+ audio add-on) is exactly the run sent down this lane.
+    const isVoiced = dispatchesVoicedVideo(parsed.data)
     // Credit addon the worker commits on top of the video provider cost (mirrors
     // loop-trim's extraNonProviderCredits). Computed here so the route owns all
     // billing math; the worker forwards it verbatim to finalize.
@@ -1156,6 +1188,7 @@ export async function generateVideoRoutes(app: FastifyInstance) {
       referenceImageUrls,
       referenceVideoUrls,
       referenceAudioUrls,
+      refVideoDurationsSec: req.refVideoDurationsSec,
       webSearch,
       nsfwChecker,
       generationType,
