@@ -22,7 +22,7 @@ describe("MCP tool-schema invariants", () => {
     // so such a tool whose outputSchema omits a key it emits is rejected by
     // strict clients (Cursor). We identify a "job-widget" schema as one whose
     // keys are ALL within the SingleJobStructuredContent superset (so read /
-    // custom-shape tools like get_asset, voice_clone — which have non-superset
+    // custom-shape tools like get_asset — which have non-superset
     // keys and emit their own matching shape — are correctly excluded).
     const SUPERSET = new Set([
       "jobId", "outputUrl", "prompt", "model",

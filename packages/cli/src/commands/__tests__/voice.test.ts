@@ -479,44 +479,6 @@ describe("voice list + clones commands", () => {
     )
   })
 
-  it("clones create --audio clones from a URL", async () => {
-    mocks.createClone.mockResolvedValueOnce({ id: "row1", name: "Me", elevenlabsVoiceId: "el1" })
-    await runCmd("voice", "clones", "create", "--name", "Me", "--audio", "https://r2/sample.mp3", "--json")
-    expect(mocks.createClone).toHaveBeenCalledWith({ name: "Me", audioUrl: "https://r2/sample.mp3" })
-    expect(mocks.createCloneFromFile).not.toHaveBeenCalled()
-  })
-
-  it("clones create --file uploads a local file with its name and inferred content type", async () => {
-    mocks.createCloneFromFile.mockResolvedValueOnce({ id: "row2", name: "Me", elevenlabsVoiceId: "el2" })
-    const dir = mkdtempSync(join(tmpdir(), "nodaro-cli-test-"))
-    try {
-      const file = join(dir, "sample.wav")
-      writeFileSync(file, Buffer.from([1, 2, 3]))
-      await runCmd("voice", "clones", "create", "--name", "Me", "--file", file, "--json")
-      expect(mocks.createCloneFromFile).toHaveBeenCalledWith({
-        name: "Me",
-        file: expect.any(Buffer),
-        filename: "sample.wav",
-        contentType: "audio/wav",
-      })
-      expect(mocks.createClone).not.toHaveBeenCalled()
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-
-  it("clones create errors when neither --audio nor --file is given", async () => {
-    await expect(runCmd("voice", "clones", "create", "--name", "Me")).rejects.toThrow("process.exit(1)")
-    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--audio"))
-  })
-
-  it("clones create errors when both --audio and --file are given", async () => {
-    await expect(
-      runCmd("voice", "clones", "create", "--name", "Me", "--audio", "https://r2/s.mp3", "--file", "x.wav"),
-    ).rejects.toThrow("process.exit(1)")
-    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("mutually exclusive"))
-  })
-
   it("clones delete deletes by id", async () => {
     mocks.deleteClone.mockResolvedValueOnce(undefined)
     await runCmd("voice", "clones", "delete", "row1")

@@ -32,7 +32,7 @@ You need:
     own catalog.
   - [Anthropic](https://www.anthropic.com) — LLM fallback.
   - [ElevenLabs](https://elevenlabs.io) — voice features (TTS, dubbing,
-    voice clone, voice changer, forced alignment).
+    voice changer, forced alignment).
   - [fal.ai](https://fal.ai) — optional; enables fal-hosted models (e.g.
     the Sync Lipsync v3 lip-sync model). Without `FAL_KEY` those models
     are inert and the rest of the app is unaffected.
@@ -583,7 +583,7 @@ optional; each array empty = "keep the default"):
   disallowed gender is refused at request validation with `voice_not_available`,
   every default/fallback voice resolves to the first allowed-gender voice, and the
   Suno vocal-gender tags in the editor hide the disallowed side. Pair with
-  `nodes.deny: ["voice-clone","voice-design","voice-remix"]` to remove the
+  `nodes.deny: ["voice-design","voice-remix"]` to remove the
   voice-creation nodes (whose output gender is not knowable up front).
 - `features` — whole features this deployment switches off:
   `{"features":{"hide":["copilot","presentation"]}}`. `copilot` removes the

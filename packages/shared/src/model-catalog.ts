@@ -52,7 +52,6 @@ export type ModelMode =
   | "music"
   | "sfx"
   | "stt"
-  | "voice-clone"
   | "voice-design"
   | "voice-changer"
   | "isolation"
@@ -2453,17 +2452,8 @@ const AUDIO_MODELS: Record<string, ModelCatalogEntry> = {
   },
 
   // ── ElevenLabs voice utilities ──
-  "voice-clone": {
-    id: "voice-clone",
-    kind: "audio",
-    modes: ["voice-clone"] as const,
-    family: "ElevenLabs",
-    label: "Voice Clone (Instant)",
-    series: "ElevenLabs",
-    description: "Clone a voice from a short reference clip. Instant clone via direct ElevenLabs API.",
-    useCases: ["voice-clone", "personalization"],
-    pricing: [{ identifier: "voice-clone", credits: 50 }],
-  },
+  // (voice cloning was retired platform-wide on 2026-09-15 — no catalog entry,
+  //  no price, no MCP tool; existing clones still resolve as TTS voice ids.)
   "elevenlabs-voice-design": {
     id: "elevenlabs-voice-design",
     kind: "audio",

@@ -96,7 +96,7 @@ export interface CreditGuardOpts {
   computeCredits?: (parsedBody: unknown, req: FastifyRequest) => number | Promise<number>
   /** Anti-double-click dedup. Default: true. Set to false on routes whose
    *  response body shape is incompatible with `{ jobId, deduped: true }` —
-   *  e.g., voice-clone returns `{ id, name, elevenlabsVoiceId, ... }` and
+   *  e.g., a route that returns a resource row (`{ id, name, ... }`) rather than a job, where
    *  the frontend would break on the simplified dedup response. */
   dedup?: boolean
   /** This guard is a wealth check only — the route never reserves credits.

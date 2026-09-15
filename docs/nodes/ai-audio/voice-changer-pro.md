@@ -150,7 +150,7 @@ for the full REST walkthrough, and the [SDK](../../sdk-reference.md#clientvoices
 - Use a per-voice **volumeMode** (`match` / `normalize` / `manual`) to balance loudness across recast speakers — `match` mirrors the original speaker, `manual` lets you dial in an exact percentage.
 - You can map fewer voices than speakers: only the listed speakers are revoiced; the rest pass through in the original voice.
 - Use keep-slots (**Keep original**) to recast only some speakers — e.g. voices `[Rachel, (keep), Aria]` recast speakers 1 and 3 while speaker 2 keeps their original voice. Keep-slots don't cost credits.
-- Custom cloned voices (see [Voice Clone](./voice-clone.md)) work as target voices for personalized per-speaker recast.
+- Your existing custom voices (the "My Voices" tab) work as target voices for personalized per-speaker recast.
 
 ## Common Use Cases
 

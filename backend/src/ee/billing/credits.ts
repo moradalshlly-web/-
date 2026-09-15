@@ -1248,7 +1248,6 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // "incredibly-fast-whisper": 4,   // Replicate fast whisper
   "elevenlabs-stt": 22,           // avg (from audit)
   "elevenlabs-dialogue": 25,     // per 1K chars
-  "voice-clone": 50,              // ElevenLabs instant voice clone
   "elevenlabs-voice-changer": 40,  // ElevenLabs speech-to-speech
   // ElevenLabs dubbing (async) — PER MINUTE of the dubbed span (route
   // computeCredits: ceil(seconds/60) x this base, min 1 minute; 120s

@@ -3411,7 +3411,7 @@ const checked = await client.oauth.getAppInfo(clientId, "https://yourapp.com/oau
 ### `client.voices`
 
 ElevenLabs voices: the premade catalog, the community Voice Library, the
-signed-in user's voice clones (from URL or file), and the **voice changer** —
+signed-in user's existing voice clones (list / delete), and the **voice changer** —
 one-shot single-voice / multi-speaker recasts plus the interactive Voice
 Changer Pro flow (`analyze` → `recast({ output: "stems" })` → `exportMix`),
 voice design/remix, and dubbing.
@@ -3479,50 +3479,14 @@ List the signed-in user's voice clones (`GET /v1/voice-clones`). Unwraps the
 const clones = await client.voices.listClones()
 ```
 
-#### `createClone(input)`
+#### `createClone(input)` / `createCloneFromFile(input)` — retired
 
-```ts
-createClone(input: { name: string; audioUrl: string }): Promise<VoiceClone>
-```
-
-Clone a voice from an already-uploaded audio URL (`POST /v1/voice-clones/from-url`).
-Costs credits. Returns the created `VoiceClone` — `elevenlabsVoiceId` is the
-id to use at text-to-speech time.
-
-```ts
-const clone = await client.voices.createClone({
-  name: "My Custom Voice",
-  audioUrl: "https://cdn.example.com/sample.mp3",
-})
-console.log(clone.elevenlabsVoiceId)
-```
-
-#### `createCloneFromFile(input)`
-
-```ts
-createCloneFromFile(input: {
-  name: string
-  file: Blob | Uint8Array | ArrayBuffer
-  filename?: string      // upload part name, default "sample"
-  contentType?: string   // MIME when `file` is a raw buffer, default "audio/mpeg"
-}): Promise<VoiceClone>
-```
-
-Clone a voice from an audio **file you hold in memory**
-(`POST /v1/voice-clones`, multipart, ≤10 MB) — the counterpart to
-`createClone`, which clones from an already-uploaded URL. Pass a `Blob`/`File`
-in the browser or a `Uint8Array`/`Buffer` in Node. Costs credits. The returned
-clone's `elevenlabsVoiceId` is the id to synthesize/recast with.
-
-```ts
-import { readFileSync } from "node:fs"
-const clone = await client.voices.createCloneFromFile({
-  name: "Narrator",
-  file: readFileSync("./sample.wav"),
-  filename: "sample.wav",
-  contentType: "audio/wav",
-})
-```
+Voice cloning is no longer offered on Nodaro. Both methods remain on the
+client for source compatibility but are `@deprecated`: the routes answer
+`410` with `error.code = "voice_cloning_retired"` and the call rejects with
+that error. Clones created before the retirement still appear in `listClones()`
+and still work as voice ids everywhere a voice is accepted. For a new custom
+voice, use `design(input)` below.
 
 #### `deleteClone(id)`
 

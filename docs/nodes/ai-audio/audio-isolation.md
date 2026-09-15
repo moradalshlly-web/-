@@ -19,7 +19,7 @@ No additional configuration is required. The node processes the input audio auto
 - **Output**: `audio` -- cleaned audio file with isolated voice (URL)
 ## Best Practices
 
-- Use this node before Text to Speech voice cloning to ensure the reference audio is clean and free of background noise.
+- Use this node before Voice Changer or Lip Sync to ensure the source audio is clean and free of background noise.
 - Place it upstream of the Transcribe node when working with noisy audio to improve transcription accuracy.
 - Works best when the input contains recognizable speech -- purely instrumental or non-vocal audio will produce minimal output.
 - For best results, the input audio should have at least some audible speech content above the noise floor.
@@ -28,7 +28,7 @@ No additional configuration is required. The node processes the input audio auto
 
 - Cleaning up interview or field recording audio before editing
 - Preprocessing noisy audio before transcription
-- Extracting vocal tracks from music or mixed audio for voice cloning
+- Extracting vocal tracks from music or mixed audio for re-voicing
 - Removing background noise from podcast recordings
 - Isolating dialogue from video audio tracks before dubbing
 

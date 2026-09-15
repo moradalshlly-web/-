@@ -42,7 +42,7 @@ The header shows the resulting duration, format and estimated file size as you a
 - Input for Voice Changer or Dubbing
 - Audio track for Merge Video & Audio
 - Source for Transcribe (speech-to-text)
-- Reference audio for voice cloning
+- Reference audio for the voice changer
 
 ## Tips
 

@@ -206,6 +206,10 @@ const KNOWN_GHOST_IDENTIFIERS: ReadonlySet<string> = new Set([
   "ideogram-reframe",
   "ideogram-reframe:TURBO",
   "ideogram-reframe:QUALITY",
+  // ── voice-clone — retired 2026-09-15: voice cloning is no longer offered
+  //    on the platform (create routes answer 410). Migration 425 deletes the
+  //    row; 059's and 288's INSERTs stay on disk, hence documented here. ──
+  "voice-clone",
   // ── Disabled / experimental providers ──
   "tangoflux",
   "musicgen",

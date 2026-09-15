@@ -14,7 +14,7 @@ Every table on this page is **generated from Nodaro's model catalog** — it nev
 - A **Premium image still costs far less than a Premium video** — don't compare tiers across modalities. Use the credit number for that.
 - **⭐ marks the best-in-tier pick** for that family — a safe default when you're unsure.
 
-**Mode codes** in the tables: `t2i` text→image · `i2i` image→image · `edit` targeted edit · `upscale` / `remove-bg` · `t2v` text→video · `i2v` image→video · `v2v` video→video · `extend` · `motion-transfer` · `lip-sync` · `video-upscale` · `tts` text→speech · `music` · `sfx` · `stt` speech→text · `voice-clone` / `voice-design` / `voice-changer` · `isolation` · `dubbing` · `forced-alignment`.
+**Mode codes** in the tables: `t2i` text→image · `i2i` image→image · `edit` targeted edit · `upscale` / `remove-bg` · `t2v` text→video · `i2v` image→video · `v2v` video→video · `extend` · `motion-transfer` · `lip-sync` · `video-upscale` · `tts` text→speech · `music` · `sfx` · `stt` speech→text · `voice-design` / `voice-changer` · `isolation` · `dubbing` · `forced-alignment`.
 
 ## Quick picks by task
 
@@ -167,7 +167,7 @@ Many video models support **both** `t2v` and `i2v` from the same id — the Gene
 
 ## Audio, voice & music models
 
-Text-to-speech, voice cloning/design/changing, dubbing, sound effects, transcription, and full music generation (Suno).
+Text-to-speech, voice design/changing, dubbing, sound effects, transcription, and full music generation (Suno).
 
 <!-- AUTO-GEN:START model-table-audio -->
 | Model | Family | Tier | Credits | Modes | Best for |
@@ -188,7 +188,6 @@ Text-to-speech, voice cloning/design/changing, dubbing, sound effects, transcrip
 | ElevenLabs Dubbing | ElevenLabs | Premium | 40 | dubbing | Translate + dub audio or a whole video into a new language — video in, dubbed video out. Async. |
 | ElevenLabs Voice Changer | ElevenLabs | Premium | 40 | voice-changer | Speech-to-speech: convert one voice to another while preserving prosody. |
 | ElevenLabs Voice Design | ElevenLabs | Premium | 50 | voice-design | Design a synthetic voice from a description (no reference clip needed). |
-| Voice Clone (Instant) | ElevenLabs | Premium | 50 | voice-clone | Clone a voice from a short reference clip. Instant clone via direct ElevenLabs API. |
 | ElevenLabs Voice Isolation | ElevenLabs | Premium | 74 | isolation | Strip background noise / music from a vocal track. |
 | ElevenLabs Dubbing v2 | ElevenLabs | Premium | 1100 | dubbing | Translate + dub audio or a whole video into a new language — video in, dubbed video out. Async. |
 <!-- AUTO-GEN:END model-table-audio -->

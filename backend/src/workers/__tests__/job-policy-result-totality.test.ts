@@ -60,7 +60,6 @@ const COMPLETED_ALLOWLIST: ReadonlyMap<string, string> = new Map([
   ...reasons(SINKS, "a sink, not a producer: it publishes elsewhere and creates no asset row"),
   ["routes/replicate-training-webhook.ts", "LoRA training completion — a model, not media"],
   ["lib/reconcile/replicate.ts", "the TRAINING branch (:137) completes a LoRA model; the media branch goes through finalizeJobWithMedia"],
-  ["routes/voice-clones.ts", "voice-clone MODEL creation — no media output"],
   ["routes/suno.ts", "the direct-KIE voice-create lane settles in-route (no worker)"],
   ["ee/copilot/reconcile.ts", "copilot turns own their own lifecycle"],
   ["lib/meter-sync-llm.ts", "the LLM meter's own commit closure — a text lane"],
@@ -74,7 +73,6 @@ const FAILED_ALLOWLIST: ReadonlyMap<string, string> = new Map([
   ["workers/social-publish-worker.ts", "writes the error into output_data as its own contract with routes/social-publish.ts:165"],
   ["routes/character-training.ts", "LoRA training: no queue, no worker, and its .eq(\"user_id\") scope IS its authorization"],
   ["routes/suno.ts", "the direct-KIE voice-create / polling lanes settle in-route"],
-  ["routes/voice-clones.ts", "voice-clone model creation — no media, no worker"],
   ["ee/routes/copilot.ts", "copilot turn rows own their own lifecycle"],
   ["routes/pipelines.ts", "pipeline bookkeeping rows"],
 ])

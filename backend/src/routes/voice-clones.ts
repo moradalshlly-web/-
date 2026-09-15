@@ -1,28 +1,31 @@
-import type { FastifyInstance } from "fastify"
+import type { FastifyInstance, FastifyReply } from "fastify"
 import { sendInternalError } from "../lib/http-errors.js"
-import { insertJob } from "../lib/insert-job.js"
 import multipart from "@fastify/multipart"
-import { randomUUID } from "node:crypto"
 import { z } from "zod"
 import { config } from "../lib/config.js"
 import { supabase } from "../lib/supabase.js"
-import { uploadBufferToR2 } from "../lib/storage.js"
-import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js"
-import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
-import { extractMcpClient } from "../lib/extract-mcp-client.js"
-import { safeUrlSchema } from "../lib/url-validator.js"
-import { safeFetch } from "../lib/safe-fetch.js"
-import { formatZodError } from "../lib/zod-error.js"
-import { markProviderCallStart } from "../lib/reconcile/persistence.js"
 import { ELEVENLABS_BASE_URL } from "../providers/elevenlabs/client.js"
-import { isNodeDenied, deniedNodeRejectionMessage } from "../lib/surface-deny.js"
 
-const fromUrlBody = z.object({
-  audioUrl: safeUrlSchema,
-  name: z.string().min(1).max(200),
-})
+/**
+ * Voice clones — LIST / RENAME / DELETE only.
+ *
+ * Voice CLONING (creating a new clone from a sample) is retired platform-wide:
+ * the two create routes below answer 410 Gone with a stable error code and
+ * reserve nothing. They are kept as explicit handlers (rather than deleted)
+ * so an old SDK / CLI / MCP client gets an honest, machine-readable answer
+ * instead of a bare 404 — and so a multipart POST to `/v1/voice-clones`
+ * still reaches the handler (the multipart parser stays registered for that).
+ *
+ * Clones users created BEFORE the retirement stay listable, renamable and
+ * deletable here, and their `elevenlabs_voice_id` keeps resolving at
+ * text-to-speech / voice-changer time. Nothing in the `voice_clones` table
+ * is touched by the retirement.
+ */
 
-const MAX_AUDIO_SIZE = 10 * 1024 * 1024 // 10 MB
+export const VOICE_CLONING_RETIRED_CODE = "voice_cloning_retired"
+export const VOICE_CLONING_RETIRED_MESSAGE =
+  "Voice cloning is no longer offered on Nodaro. Existing clones keep working; " +
+  "to add a new custom voice, use Voice Design (POST /v1/voice-design) or pick a library voice."
 
 const idParams = z.object({
   id: z.string().uuid(),
@@ -32,15 +35,11 @@ const renameBody = z.object({
   name: z.string().min(1).max(200),
 })
 
-function audioExtensionFromMime(mimeType: string): string {
-  if (mimeType.includes("wav")) return "wav"
-  if (mimeType.includes("mp3") || mimeType.includes("mpeg")) return "mp3"
-  return "webm"
-}
-
 export async function voiceCloneRoutes(app: FastifyInstance) {
+  // Kept so a legacy multipart POST is answered by the 410 handler below
+  // instead of Fastify's generic 415 for an unparseable content type.
   await app.register(multipart, {
-    limits: { fileSize: MAX_AUDIO_SIZE },
+    limits: { fileSize: 1024 },
   })
 
   app.get("/v1/voice-clones", async (req, reply) => {
@@ -77,322 +76,14 @@ export async function voiceCloneRoutes(app: FastifyInstance) {
     return { voiceClones }
   })
 
-  app.post("/v1/voice-clones", {
-    // dedup: false — voice-clone returns { id, elevenlabsVoiceId, sampleAudioUrl }
-    // (a voice_clones row, not a job row) so the dedup short-circuit response
-    // { jobId, deduped: true } wouldn't match the frontend's expected shape.
-    preHandler: creditGuard(() => "voice-clone", { dedup: false }),
-  }, async (req, reply) => {
-    const userId = req.userId
-    if (!userId) {
-      return reply.status(401).send({
-        error: { code: "unauthorized", message: "Authentication required" },
-      })
-    }
-
-    // B4c: reuse B1's nodes.deny — a deployment can remove voice-creation
-    // capability. Inert when "voice-clone" isn't in nodes.deny.
-    if (isNodeDenied("voice-clone")) {
-      return reply.status(403).send({
-        error: { code: "node_not_available", message: deniedNodeRejectionMessage(["voice-clone"]) },
-      })
-    }
-
-    if (!config.ELEVENLABS_API_KEY) {
-      return reply.status(503).send({
-        error: { code: "service_unavailable", message: "Voice cloning is not available — ElevenLabs API key not configured" },
-      })
-    }
-
-    const data = await req.file()
-    if (!data) {
-      return reply.status(400).send({
-        error: { code: "validation_error", message: "No audio file provided" },
-      })
-    }
-
-    const fields = data.fields as Record<string, { value?: string } | undefined>
-    const name = fields?.name?.value?.trim()
-    if (!name) {
-      data.file.resume()
-      return reply.status(400).send({
-        error: { code: "validation_error", message: "Voice name is required" },
-      })
-    }
-
-    const buffer = await data.toBuffer()
-    const mimeType = data.mimetype
-    const mcpClient = extractMcpClient(req.body)
-
-    const { data: job, error: jobError } = await insertJob(req, {
-        workflow_id: extractWorkflowId(req.body),
-        node_id: extractNodeId(req.body),
-        force_private: extractForcePrivate(req.body) || undefined,
-        user_id: userId,
-        status: "pending",
-        input_data: { type: "voice-clone", name },
-        ...(mcpClient ? { mcp_client: mcpClient } : {}),
-      })
-
-    if (jobError) {
-      return sendInternalError(reply, req, jobError, "Failed to create voice clone")
-    }
-
-    const reservation = await reserveCreditsForJob(req, reply, job.id, "voice-clone")
-    if (reply.sent) return
-
-    try {
-      const ext = audioExtensionFromMime(mimeType)
-      const r2Key = `voice-samples/${userId}/${randomUUID()}.${ext}`
-      const sampleAudioUrl = await uploadBufferToR2(buffer, r2Key, mimeType, userId)
-
-      const formData = new FormData()
-      formData.append("name", name)
-      formData.append("remove_background_noise", "true")
-      const blob = new Blob([buffer as BlobPart], { type: mimeType })
-      formData.append("files", blob, `sample.${ext}`)
-
-      await markProviderCallStart(job.id, "elevenlabs-sync")
-      const cloneResponse = await fetch(`${ELEVENLABS_BASE_URL}/v1/voices/add`, {
-        method: "POST",
-        headers: {
-          "xi-api-key": config.ELEVENLABS_API_KEY,
-        },
-        body: formData,
-      })
-
-      if (!cloneResponse.ok) {
-        const errorText = await cloneResponse.text().catch(() => "Unknown error")
-        throw new Error(`ElevenLabs voice clone failed (${cloneResponse.status}): ${errorText}`)
-      }
-
-      const cloneResult = (await cloneResponse.json()) as { voice_id: string }
-
-      const { data: voiceClone, error: insertError } = await supabase
-        .from("voice_clones")
-        .insert({
-          user_id: userId,
-          name,
-          elevenlabs_voice_id: cloneResult.voice_id,
-          sample_audio_url: sampleAudioUrl,
-        })
-        .select("id, name, elevenlabs_voice_id, sample_audio_url, created_at")
-        .single()
-
-      if (insertError) {
-        throw new Error(`Failed to save voice clone: ${insertError.message}`)
-      }
-
-      await supabase
-        .from("jobs")
-        .update({
-          status: "completed",
-          progress: 100,
-          output_data: { voiceCloneId: voiceClone.id, elevenlabsVoiceId: cloneResult.voice_id },
-          completed_at: new Date().toISOString(),
-          provider: "elevenlabs-direct",
-        })
-        .eq("id", job.id)
-
-      if (reservation?.usageLogId) {
-        const { commitJobCredits } = await import("../workers/shared.js")
-        await commitJobCredits(reservation.usageLogId, job.id)
-      }
-
-      return {
-        id: voiceClone.id,
-        name: voiceClone.name,
-        elevenlabsVoiceId: voiceClone.elevenlabs_voice_id,
-        sampleAudioUrl: voiceClone.sample_audio_url,
-        createdAt: voiceClone.created_at,
-      }
-    } catch (err) {
-      await supabase
-        // tenant-scope-ignore: marks the job THIS route created for the caller as failed; job.id is route-owned (not user-supplied), so there's no cross-tenant exposure.
-        .from("jobs")
-        .update({
-          status: "failed",
-          error_message: err instanceof Error ? err.message : "Unknown error",
-        })
-        .eq("id", job.id)
-
-      // This is a SYNCHRONOUS route (ElevenLabs called inline, not via BullMQ), so
-      // the worker failure-path refund never runs, and the reconcile cron skips
-      // status='failed' rows. Refund the reservation here or every failed clone
-      // permanently leaks the reserved credits (charge-without-delivery).
-      if (reservation?.usageLogId) {
-        const { refundJobCredits } = await import("../workers/shared.js")
-        await refundJobCredits(reservation.usageLogId, job.id, err)
-      }
-
-      return reply.status(500).send({
-        error: { code: "clone_failed", message: err instanceof Error ? err.message : "Voice cloning failed" },
-      })
-    }
-  })
-
-  // JSON variant for callers that already have an audio URL (MCP, dev API).
-  // Mirrors the multipart path's job lifecycle + ElevenLabs flow.
-  app.post("/v1/voice-clones/from-url", {
-    // dedup: false — voice-clone returns { id, elevenlabsVoiceId, sampleAudioUrl }
-    // (a voice_clones row, not a job row) so the dedup short-circuit response
-    // { jobId, deduped: true } wouldn't match the frontend's expected shape.
-    preHandler: creditGuard(() => "voice-clone", { dedup: false }),
-  }, async (req, reply) => {
-    const userId = req.userId
-    if (!userId) {
-      return reply.status(401).send({
-        error: { code: "unauthorized", message: "Authentication required" },
-      })
-    }
-    // B4c: reuse B1's nodes.deny — inert when "voice-clone" isn't denied.
-    if (isNodeDenied("voice-clone")) {
-      return reply.status(403).send({
-        error: { code: "node_not_available", message: deniedNodeRejectionMessage(["voice-clone"]) },
-      })
-    }
-    if (!config.ELEVENLABS_API_KEY) {
-      return reply.status(503).send({
-        error: { code: "service_unavailable", message: "Voice cloning is not available — ElevenLabs API key not configured" },
-      })
-    }
-    const parsed = fromUrlBody.safeParse(req.body)
-    if (!parsed.success) {
-      return reply.status(400).send({
-        error: { code: "validation_error", ...formatZodError(parsed.error) },
-      })
-    }
-    const { audioUrl, name } = parsed.data
-
-    // safeFetch: audioUrl is user-supplied and its body is re-uploaded to a
-    // PUBLIC R2 URL we return — a raw fetch here is a full SSRF read-oracle
-    // for internal HTTP services. safeFetch gates DNS/IP at connect time
-    // (safeUrlSchema is only a syntactic check and can't see resolved IPs).
-    const fetched = await safeFetch(audioUrl, { timeoutMs: 30_000 })
-    if (!fetched.ok) {
-      return reply.status(400).send({
-        error: { code: "fetch_failed", message: `Could not fetch audioUrl (${fetched.status})` },
-      })
-    }
-    // Early-reject oversized bodies via Content-Length before buffering them
-    // into memory (defense-in-depth alongside the post-read byteLength cap,
-    // since Content-Length can be absent or understated).
-    const declaredLength = Number(fetched.headers.get("content-length") ?? 0)
-    if (declaredLength > MAX_AUDIO_SIZE) {
-      return reply.status(413).send({
-        error: { code: "too_large", message: `Audio sample exceeds ${MAX_AUDIO_SIZE / 1024 / 1024}MB cap` },
-      })
-    }
-    const arrayBuf = await fetched.arrayBuffer()
-    const buffer = Buffer.from(arrayBuf)
-    if (buffer.byteLength > MAX_AUDIO_SIZE) {
-      return reply.status(413).send({
-        error: { code: "too_large", message: `Audio sample exceeds ${MAX_AUDIO_SIZE / 1024 / 1024}MB cap` },
-      })
-    }
-    const mimeType = fetched.headers.get("content-type")?.split(";")[0]?.trim() || "audio/mpeg"
-    const mcpClient = extractMcpClient(req.body)
-
-    const { data: job, error: jobError } = await insertJob(req, {
-        workflow_id: extractWorkflowId(req.body),
-        node_id: extractNodeId(req.body),
-        force_private: extractForcePrivate(req.body) || undefined,
-        user_id: userId,
-        status: "pending",
-        input_data: { type: "voice-clone", name },
-        ...(mcpClient ? { mcp_client: mcpClient } : {}),
-      })
-    if (jobError) {
-      return sendInternalError(reply, req, jobError, "Failed to create voice clone")
-    }
-    const reservation = await reserveCreditsForJob(req, reply, job.id, "voice-clone")
-    if (reply.sent) return
-
-    try {
-      const ext = audioExtensionFromMime(mimeType)
-      const r2Key = `voice-samples/${userId}/${randomUUID()}.${ext}`
-      const sampleAudioUrl = await uploadBufferToR2(buffer, r2Key, mimeType, userId)
-
-      const formData = new FormData()
-      formData.append("name", name)
-      formData.append("remove_background_noise", "true")
-      const blob = new Blob([buffer as BlobPart], { type: mimeType })
-      formData.append("files", blob, `sample.${ext}`)
-
-      await markProviderCallStart(job.id, "elevenlabs-sync")
-      const cloneResponse = await fetch(`${ELEVENLABS_BASE_URL}/v1/voices/add`, {
-        method: "POST",
-        headers: { "xi-api-key": config.ELEVENLABS_API_KEY },
-        body: formData,
-      })
-      if (!cloneResponse.ok) {
-        const errorText = await cloneResponse.text().catch(() => "Unknown error")
-        throw new Error(`ElevenLabs voice clone failed (${cloneResponse.status}): ${errorText}`)
-      }
-      const cloneResult = (await cloneResponse.json()) as { voice_id: string }
-
-      const { data: voiceClone, error: insertError } = await supabase
-        .from("voice_clones")
-        .insert({
-          user_id: userId,
-          name,
-          elevenlabs_voice_id: cloneResult.voice_id,
-          sample_audio_url: sampleAudioUrl,
-        })
-        .select("id, name, elevenlabs_voice_id, sample_audio_url, created_at")
-        .single()
-      if (insertError) {
-        throw new Error(`Failed to save voice clone: ${insertError.message}`)
-      }
-
-      await supabase
-        .from("jobs")
-        .update({
-          status: "completed",
-          progress: 100,
-          output_data: { voiceCloneId: voiceClone.id, elevenlabsVoiceId: cloneResult.voice_id },
-          completed_at: new Date().toISOString(),
-          provider: "elevenlabs-direct",
-        })
-        .eq("id", job.id)
-
-      if (reservation?.usageLogId) {
-        const { commitJobCredits } = await import("../workers/shared.js")
-        await commitJobCredits(reservation.usageLogId, job.id)
-      }
-
-      return {
-        jobId: job.id,
-        id: voiceClone.id,
-        name: voiceClone.name,
-        elevenlabsVoiceId: voiceClone.elevenlabs_voice_id,
-        sampleAudioUrl: voiceClone.sample_audio_url,
-        createdAt: voiceClone.created_at,
-      }
-    } catch (err) {
-      await supabase
-        // tenant-scope-ignore: marks the job THIS route created for the caller as failed; job.id is route-owned (not user-supplied), so there's no cross-tenant exposure.
-        .from("jobs")
-        .update({
-          status: "failed",
-          error_message: err instanceof Error ? err.message : "Unknown error",
-        })
-        .eq("id", job.id)
-
-      // This is a SYNCHRONOUS route (ElevenLabs called inline, not via BullMQ), so
-      // the worker failure-path refund never runs, and the reconcile cron skips
-      // status='failed' rows. Refund the reservation here or every failed clone
-      // permanently leaks the reserved credits (charge-without-delivery).
-      if (reservation?.usageLogId) {
-        const { refundJobCredits } = await import("../workers/shared.js")
-        await refundJobCredits(reservation.usageLogId, job.id, err)
-      }
-
-      return reply.status(500).send({
-        error: { code: "clone_failed", message: err instanceof Error ? err.message : "Voice cloning failed" },
-      })
-    }
-  })
+  // Retired create routes — see the file header. No credit guard, no job row,
+  // no provider call: the answer is the same for every caller.
+  const retired = async (_req: unknown, reply: FastifyReply) =>
+    reply.status(410).send({
+      error: { code: VOICE_CLONING_RETIRED_CODE, message: VOICE_CLONING_RETIRED_MESSAGE },
+    })
+  app.post("/v1/voice-clones", retired)
+  app.post("/v1/voice-clones/from-url", retired)
 
   app.patch("/v1/voice-clones/:id", async (req, reply) => {
     const userId = req.userId

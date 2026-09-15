@@ -180,7 +180,6 @@
   "voice_changer_pro",
   "voice_changer_pro_analyze",
   "voice_changer_pro_export",
-  "voice_clone",
   "voice_design",
   "voice_remix",
   "voice_studio_shot",
@@ -369,7 +368,6 @@
   "video_audit",
   "video_upscale",
   "voice_changer",
-  "voice_clone",
   "voice_design",
   "voice_remix",
   "wait_for_job"

@@ -82,13 +82,11 @@ vi.mock("@/lib/api", () => ({
   // Referenced by transitively-imported hooks that never run in these tests
   // (MyVoicesTab is not mounted — showCustomVoices defaults off).
   getVoiceClones: vi.fn(),
-  createVoiceClone: vi.fn(),
   deleteVoiceClone: vi.fn(),
 }))
 
 vi.mock("@/hooks/use-voice-clones", () => ({
   useVoiceClones: () => ({ data: [], isLoading: false }),
-  useCreateVoiceClone: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteVoiceClone: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 

@@ -13,7 +13,7 @@ import type { NodaroClient } from "../client.js"
 /**
  * Read access to ElevenLabs voices: the premade catalog plus the shared
  * community Voice Library (both public GETs, no body), and the signed-in
- * user's own voice clones (list / create-from-url / delete).
+ * user's own pre-retirement voice clones (list / delete).
  */
 export class VoicesResource {
   constructor(private client: NodaroClient) {}
@@ -51,10 +51,11 @@ export class VoicesResource {
   }
 
   /**
-   * Clone a voice from an already-uploaded audio URL
-   * (`POST /v1/voice-clones/from-url`). Costs credits. Returns the create
-   * subset of `VoiceClone` (`elevenlabsVoiceId` is the id to use at
-   * text-to-speech time).
+   * @deprecated Voice cloning is no longer offered on Nodaro (retired
+   * 2026-09-15). The route answers `410 voice_cloning_retired` and this call
+   * rejects with that error. Clones created before the retirement are still
+   * listed by {@link VoicesResource.listClones} and still work as voice ids.
+   * For a new custom voice use {@link VoicesResource.design}.
    */
   createClone(input: { name: string; audioUrl: string }): Promise<VoiceClone> {
     return this.client.request<VoiceClone>("POST", "/v1/voice-clones/from-url", { body: input })
@@ -223,12 +224,9 @@ export class VoicesResource {
   }
 
   /**
-   * Clone a voice from an audio FILE you hold in memory
-   * (`POST /v1/voice-clones`, multipart) — the counterpart to
-   * {@link VoicesResource.createClone}, which clones from an already-uploaded
-   * URL. Pass the raw audio `file` (a `Blob`/`File` in the browser, or a
-   * `Uint8Array`/`Buffer` in Node) plus a `name`. Costs credits. Returns the new
-   * {@link VoiceClone} (`elevenlabsVoiceId` is the id to recast/synthesize with).
+   * @deprecated Voice cloning is no longer offered on Nodaro (retired
+   * 2026-09-15). The route answers `410 voice_cloning_retired` and this call
+   * rejects with that error. See {@link VoicesResource.createClone}.
    */
   createCloneFromFile(input: {
     name: string

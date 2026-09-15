@@ -83,7 +83,6 @@ const NODE_TYPE_TO_TOOL: Record<string, string> = {
   "combine-videos": "combine_videos",
   "merge-video-audio": "merge_video_audio",
   "lip-sync": "lip_sync",
-  "voice-clone": "voice_clone",
   "voice-design": "voice_design",
   "voice-changer": "voice_changer",
   "voice-remix": "voice_remix",

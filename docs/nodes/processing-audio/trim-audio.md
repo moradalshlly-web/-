@@ -24,7 +24,7 @@ The Trim Audio node extracts a time range from an audio file or extracts the aud
 - Silent video (if enabled)
 ## Best Practices
 
-- Use WAV for highest quality when feeding into AI nodes (voice cloning, forced alignment)
+- Use WAV for highest quality when feeding into AI nodes (voice changer, forced alignment)
 - Use MP3 for smaller file sizes when quality isn't critical
 - Leave start/end empty to extract the full audio track from a video
 
@@ -32,7 +32,7 @@ The Trim Audio node extracts a time range from an audio file or extracts the aud
 
 - Extract a specific section of a podcast or music track
 - Pull the audio track from a video for transcription
-- Isolate a voice segment for voice cloning or processing
+- Isolate a voice segment for re-voicing or processing
 - Get audio from uploaded video for dubbing or remix
 
 ## Tips

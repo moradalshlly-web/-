@@ -1,8 +1,6 @@
 import { useLocalizeOptionLabel } from "@/lib/i18n/labels"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
-import { hasCredits } from "@/lib/edition"
-import { formatCreditUnits } from "@/lib/credit-units"
-import { ChevronDown, Play, Pause, Search, Loader2, Mic, Upload, Trash2, Square, SlidersHorizontal, Info } from "lucide-react"
+import { ChevronDown, Play, Pause, Search, Loader2, Trash2, SlidersHorizontal, Info } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -25,8 +23,7 @@ import { ALL_LANGUAGES } from "@/lib/audio-tags"
 import { LanguageSearchSelect } from "@/components/editor/config-panels/language-search-select"
 import { useVoices } from "@/hooks/use-voices"
 import { useVoiceLibraryInfinite } from "@/hooks/use-voices"
-import { useVoiceClones, useCreateVoiceClone, useDeleteVoiceClone } from "@/hooks/use-voice-clones"
-import { getCachedCredits, prefetchModelCredits } from "@/ee/hooks/use-model-credits"
+import { useVoiceClones, useDeleteVoiceClone } from "@/hooks/use-voice-clones"
 import { toast } from "sonner"
 import { useT, tx } from "@/lib/i18n"
 import type { TtsProvider } from "@nodaro/shared"
@@ -359,7 +356,16 @@ export function VoiceBrowser({ value, valueLabel, onSelect, compact, showCustomV
 
   const displayLabel = valueLabel || value || t("cfgext.voiceSelectVoice")
 
-  const tabs: TabId[] = showCustomVoices ? ["library", "my-voices", "premade"] : ["library", "premade"]
+  // "My Voices" lists the clones a user made BEFORE voice cloning was retired
+  // (2026-09-15) — there is no way to add one any more, so the tab exists only
+  // while the user still has at least one. Hidden until the list is known to be
+  // non-empty (an appearing tab is calmer than one that vanishes mid-load).
+  const { data: existingClones } = useVoiceClones(showCustomVoices)
+  const hasCustomVoices = showCustomVoices && (existingClones?.length ?? 0) > 0
+  useEffect(() => {
+    if (tab === "my-voices" && !hasCustomVoices) setTab("library")
+  }, [tab, hasCustomVoices])
+  const tabs: TabId[] = hasCustomVoices ? ["library", "my-voices", "premade"] : ["library", "premade"]
   const tabLabels: Record<TabId, string> = {
     "my-voices": t("cfgext.voiceTabMyVoices"),
     premade: t("cfgext.voiceTabPremade"),
@@ -407,7 +413,7 @@ export function VoiceBrowser({ value, valueLabel, onSelect, compact, showCustomV
           </p>
         )}
 
-        {tab === "my-voices" && showCustomVoices && (
+        {tab === "my-voices" && hasCustomVoices && (
           <MyVoicesTab
             selectedValue={value}
             playingId={playingId}
@@ -682,6 +688,9 @@ export function VoiceBrowser({ value, valueLabel, onSelect, compact, showCustomV
   )
 }
 
+/** The user's pre-retirement voice clones — list / pick / delete only. Voice
+ *  cloning itself was retired platform-wide (2026-09-15): there is no record or
+ *  upload form here any more, and the backend's create routes answer 410. */
 function MyVoicesTab({
   selectedValue,
   playingId,
@@ -694,101 +703,8 @@ function MyVoicesTab({
   readonly onSelect: (voiceId: string, voiceName: string) => void
 }) {
   const t = useT()
-  useEffect(() => { prefetchModelCredits(["voice-clone"]) }, [])
   const { data: voiceClones = [], isLoading } = useVoiceClones()
-  const createMutation = useCreateVoiceClone()
   const deleteMutation = useDeleteVoiceClone()
-
-  // -- Recording state --
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const recordedUrlRef = useRef<string | null>(null)
-
-  // -- Upload state --
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-
-  // -- Submission --
-  const [voiceName, setVoiceName] = useState("")
-  const [showForm, setShowForm] = useState<"record" | "upload" | null>(null)
-
-  const hasAudio = recordedBlob || uploadedFile
-
-  const startRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm"
-      const recorder = new MediaRecorder(stream, { mimeType })
-      chunksRef.current = []
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType })
-        setRecordedBlob(blob)
-        stream.getTracks().forEach((t) => t.stop())
-      }
-
-      recorder.start()
-      mediaRecorderRef.current = recorder
-      setIsRecording(true)
-      setRecordingTime(0)
-      timerRef.current = setInterval(() => {
-        setRecordingTime((t) => t + 1)
-      }, 1000)
-    } catch {
-      toast.error(tx("cfgext.voiceMicDenied"))
-    }
-  }, [])
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop()
-    }
-    setIsRecording(false)
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-  }, [])
-
-  const cancelRecording = useCallback(() => {
-    stopRecording()
-    setRecordedBlob(null)
-    setShowForm(null)
-    setVoiceName("")
-  }, [stopRecording])
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setUploadedFile(file)
-      setShowForm("upload")
-    }
-  }, [])
-
-  const handleSubmitClone = useCallback(async () => {
-    const blob = recordedBlob || uploadedFile
-    if (!blob || !voiceName.trim()) return
-
-    try {
-      await createMutation.mutateAsync({ name: voiceName.trim(), file: blob })
-      toast.success(tx("cfgext.voiceCloneSuccess"))
-      setRecordedBlob(null)
-      setUploadedFile(null)
-      setVoiceName("")
-      setShowForm(null)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : tx("cfgext.voiceCloneFailed"))
-    }
-  }, [recordedBlob, uploadedFile, voiceName, createMutation])
 
   const handleDeleteClone = useCallback(async (id: string) => {
     try {
@@ -799,149 +715,8 @@ function MyVoicesTab({
     }
   }, [deleteMutation])
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-      if (mediaRecorderRef.current?.state === "recording") {
-        mediaRecorderRef.current.stop()
-      }
-      if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current)
-    }
-  }, [])
-
-  const recordedPreviewUrl = useMemo(() => {
-    if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current)
-    if (!recordedBlob) { recordedUrlRef.current = null; return null }
-    const url = URL.createObjectURL(recordedBlob)
-    recordedUrlRef.current = url
-    return url
-  }, [recordedBlob])
-
-  const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
-
   return (
     <div className="flex flex-col gap-3">
-      {/* Action buttons */}
-      {!showForm && (
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={() => { setShowForm("record"); setRecordedBlob(null); setUploadedFile(null); setVoiceName("") }}
-          >
-            <Mic className="h-3.5 w-3.5 me-1.5" />
-            {t("cfgext.voiceRecordVoice")}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="h-3.5 w-3.5 me-1.5" />
-            {t("cfgext.voiceUploadAudio")}
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".wav,.mp3,.webm,.m4a,audio/*"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-        </div>
-      )}
-
-      {/* Recording panel */}
-      {showForm === "record" && !recordedBlob && (
-        <div className="rounded-md border border-border p-3 flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              {isRecording ? t("cfgext.voiceRecordingElapsed", { time: formatTime(recordingTime) }) : t("cfgext.voiceReadyToRecord")}
-            </span>
-            <div className="flex gap-1.5">
-              {!isRecording ? (
-                <Button size="sm" variant="default" onClick={startRecording} className="h-7 text-xs">
-                  <Mic className="h-3 w-3 me-1" />
-                  {t("audiocfg.mergeStart")}
-                </Button>
-              ) : (
-                <Button size="sm" variant="destructive" onClick={stopRecording} className="h-7 text-xs">
-                  <Square className="h-3 w-3 me-1" />
-                  {t("node.stop")}
-                </Button>
-              )}
-              <Button size="sm" variant="ghost" onClick={cancelRecording} className="h-7 text-xs">
-                {t("common.cancel")}
-              </Button>
-            </div>
-          </div>
-          {isRecording && (
-            <div className="flex gap-0.5 items-end h-6">
-              {Array.from({ length: 20 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="w-1 bg-primary/60 rounded-full animate-pulse"
-                  style={{
-                    height: `${4 + Math.random() * 16}px`,
-                    animationDelay: `${i * 50}ms`,
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Post-record / upload form */}
-      {showForm && hasAudio && (
-        <div className="rounded-md border border-border p-3 flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground flex-1">
-              {recordedBlob ? t("cfgext.voiceRecordedElapsed", { time: formatTime(recordingTime) }) : uploadedFile?.name}
-            </span>
-            {recordedPreviewUrl && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                aria-label={t("cfgext.voicePlayRecorded")}
-                onClick={() => {
-                  const a = new Audio(recordedPreviewUrl)
-                  a.play().catch(() => {})
-                }}
-              >
-                <Play className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-          <Input
-            placeholder={t("cfgext.voiceNamePlaceholder")}
-            value={voiceName}
-            onChange={(e) => setVoiceName(e.target.value)}
-            className="h-8 text-sm"
-          />
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              className="flex-1 h-8 text-xs"
-              disabled={!voiceName.trim() || createMutation.isPending}
-              onClick={handleSubmitClone}
-            >
-              {createMutation.isPending ? (
-                <Loader2 className="h-3 w-3 animate-spin me-1" />
-              ) : null}
-              {hasCredits()
-                ? t("cfgext.voiceCloneVoiceCredits", { credits: formatCreditUnits(getCachedCredits("voice-clone") ?? 5) })
-                : t("cfgext.voiceCloneVoice")}
-            </Button>
-            <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={cancelRecording}>
-              {t("common.cancel")}
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Existing clones list */}
       {isLoading ? (
         <div className="flex items-center justify-center py-8">

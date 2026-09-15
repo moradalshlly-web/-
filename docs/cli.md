@@ -262,8 +262,7 @@ nodaro voice remix --text <text> --description <desc> [--user-prompt <text>] [--
                                                          # speak a text in a described voice, without cloning
 nodaro voice dub --audio <url> --target-language <code> [--source-language <code>] [--num-speakers <1-20>] [--disable-voice-cloning] [--drop-background-audio] [--watch] [--poll-interval <ms>] [--json]
                                                          # dub into another language while preserving each speaker's voice
-nodaro voice clones list [--json]
-nodaro voice clones create --name <name> --audio <url>|--file <path> [--json]   # clone from an uploaded URL or a local audio file
+nodaro voice clones list [--json]                        # clones made before cloning was retired
 nodaro voice clones delete <id> [--json]
 
 # Media — ingestion + compositing: social-video import, trim, still-to-video, slideshow, image collage, image overlay, save-to-storage, metadata probe

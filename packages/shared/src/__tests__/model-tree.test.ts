@@ -26,8 +26,8 @@ describe("modelToNodeTarget", () => {
   it("returns a provider preset for an enum video model (gemini-omni-video is enum-valid)", () => {
     expect(modelToNodeTarget("gemini-omni-video")).toEqual({ nodeType: "generate-video", field: "provider", value: "gemini-omni-video" })
   })
-  it("returns null when there is no node (voice-clone) or unknown id", () => {
-    expect(modelToNodeTarget("voice-clone")).toBeNull()
+  it("returns null when there is no node (video-audit) or unknown id", () => {
+    expect(modelToNodeTarget("video-audit")).toBeNull()
     expect(modelToNodeTarget("totally-unknown")).toBeNull()
   })
   it("never targets suno-generate without a model value (every music model carries dataValue)", () => {

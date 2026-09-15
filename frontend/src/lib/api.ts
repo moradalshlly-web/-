@@ -6560,22 +6560,6 @@ export async function getVoiceClones(): Promise<VoiceClone[]> {
   return body.voiceClones
 }
 
-export async function createVoiceClone(name: string, file: Blob): Promise<VoiceClone> {
-  const formData = new FormData()
-  formData.append("name", name)
-  formData.append("file", file, "sample.webm")
-  const res = await fetch(`${API_BASE_URL}/v1/voice-clones`, {
-    method: "POST",
-    headers: await getAuthHeaders(),
-    body: formData,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => null)
-    throwApiError(err, "Failed to clone voice")
-  }
-  return res.json()
-}
-
 export async function deleteVoiceClone(id: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/v1/voice-clones/${encodeURIComponent(id)}`, {
     method: "DELETE",

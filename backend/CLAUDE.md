@@ -417,7 +417,6 @@ that IS stable: which provider serves each node, and how its price is *shaped*.
 | image-to-video | duration/resolution composites | kling-turbo, minimax, kling, grok-i2v, veo3.1, veo3 — most are `:<dur>s[:<res>]` tiered |
 | text-to-video | duration/resolution composites | Same shape as image-to-video |
 | text-to-speech | flat | ElevenLabs v3 / Turbo v2.5 / Multilingual v2 — ALL direct ElevenLabs API (never KIE); `stripAudioTags()` strips `[...]` for v2 |
-| voice-clone | flat | ElevenLabs instant voice clone (direct API) |
 | generate-music | reserve-then-meter | node-type id reserves worst case, metered down to the provider actual at commit |
 | text-to-audio | flat | ElevenLabs SFX |
 | ai-writer | tiered by LLM | Claude Sonnet default; `ai-writer:economy` / `ai-writer:premium` |

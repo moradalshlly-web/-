@@ -2483,11 +2483,10 @@ until `status` is `completed`, read the result from `output_data`.
 |---|---|---|
 | `GET` | `/v1/voices` | Premade voice catalog (name, `voice_id`, gender/accent/age metadata). |
 | `GET` | `/v1/voices/library` | Search the shared Voice Library (`?search=`, `?gender=`, `?language=`, … `?page=`, `?page_size=`). |
-| `GET` | `/v1/voice-clones` | List your voice clones. |
-| `POST` | `/v1/voice-clones` | Clone from an uploaded **file** (multipart: `name` field + `file` part, ≤10 MB). |
-| `POST` | `/v1/voice-clones/from-url` | Clone from an already-uploaded sample URL (`{ name, audioUrl }`). |
-| `PATCH` | `/v1/voice-clones/:id` | Rename / edit a clone. |
-| `DELETE` | `/v1/voice-clones/:id` | Delete a clone. |
+| `GET` | `/v1/voice-clones` | List the voice clones you created before cloning was retired. |
+| `POST` | `/v1/voice-clones`, `/v1/voice-clones/from-url` | **Retired** — voice cloning is no longer offered. Both answer `410` with `error.code = "voice_cloning_retired"`. Use `/v1/voice-design` for a new custom voice. |
+| `PATCH` | `/v1/voice-clones/:id` | Rename / edit an existing clone. |
+| `DELETE` | `/v1/voice-clones/:id` | Delete an existing clone. |
 | `POST` | `/v1/voice-design` | Design a synthetic voice from a description (`{ text, voiceDescription, model?, loudness?, guidanceScale?, seed?, quality?, shouldEnhance? }`) → job. |
 | `POST` | `/v1/voice-remix` | Speak a text in a described voice, no cloning (`{ text, voiceDescription }`) → job. |
 | `POST` | `/v1/dubbing` | Translate-and-revoice audio OR video (`{ audioUrl \| videoUrl \| sourceUrl (exactly one), targetLanguage, sourceLanguage?, numSpeakers? (0=auto), disableVoiceCloning?, dropBackgroundAudio?, startTime?, endTime?, highestResolution?, useProfanityFilter?, targetAccent?, watermark? }`) → job. Video mode delivers `output_data.videoUrl` + the dubbed `audioUrl`. Priced per minute of the dubbed span (min 1); span capped at 30 minutes (413 past it — the start/end window is the lever). |
