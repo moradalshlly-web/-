@@ -62,3 +62,10 @@ test('failed-job reruns can restore preparation from an earlier attempt', () => 
     assert.match(jobs[name], /overwrite: true/)
   }
 })
+
+test('expensive test steps stop on superseding cancellation', () => {
+  for (const name of ['frontend-tests', 'backend-tests', 'typecheck']) {
+    assert.doesNotMatch(jobs[name], /always\(\) && steps\.build-packages/)
+    assert.match(jobs[name], /!cancelled\(\) && steps\.build-packages/)
+  }
+})

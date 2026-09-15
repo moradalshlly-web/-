@@ -145,10 +145,10 @@ jobs:
       # @nodaro/prompts + @nodaro/shared — exactly the cross-package drift
       # shape — so they gate here, inside an existing REQUIRED check.
       - name: Run @nodaro/picker-ui test suite
-        if: always() && steps.build-packages.outcome == 'success'
+        if: ${{ !cancelled() && steps.build-packages.outcome == 'success' }}
         run: npm run test --workspace=@nodaro/picker-ui
       - name: Run tests with coverage
-        if: always() && steps.build-packages.outcome == 'success'
+        if: ${{ !cancelled() && steps.build-packages.outcome == 'success' }}
         run: npm run test:coverage
         working-directory: frontend
       - name: Upload coverage artifact
@@ -281,14 +281,14 @@ jobs:
       # (#83's new stitch field, #116's 1→2 retune) because nothing in CI ran
       # it. Gate both suites here (inside an existing REQUIRED check) rather
       # than as new jobs, so branch protection needs no new check names.
-      # `if: always() ...` so a backend-test failure doesn't mask package
+      # `if: !cancelled() ...` so a backend-test failure doesn't mask package
       # results (and vice versa) — all three suites report per run. Anchored
       # on build-packages success: prompts tests import @nodaro/shared's dist.
       - name: Run @nodaro/shared test suite
-        if: always() && steps.build-packages.outcome == 'success'
+        if: ${{ !cancelled() && steps.build-packages.outcome == 'success' }}
         run: npm run test --workspace=@nodaro/shared
       - name: Run @nodaro/prompts test suite
-        if: always() && steps.build-packages.outcome == 'success'
+        if: ${{ !cancelled() && steps.build-packages.outcome == 'success' }}
         run: npm run test --workspace=@nodaro/prompts
 
   typecheck:
@@ -339,7 +339,7 @@ jobs:
         # Moved from Backend Tests: backend/skills/ is GENERATED FROM
         # frontend/src/types/nodes.ts, so the one PR shape that can break it
         # (frontend-only node-field edits) was the one shape that skipped it.
-        if: always() && steps.build-packages.outcome == 'success'
+        if: ${{ !cancelled() && steps.build-packages.outcome == 'success' }}
         run: cd backend && npm run gen:skills:check
         env:
           SUPABASE_URL: https://stub.supabase.co
@@ -350,7 +350,7 @@ jobs:
         # frontend path joins this gate automatically, so a new cross-tree
         # test cannot quietly land back inside the Diff Gate's blind spot.
         # ~16 files / ~1s — the whole backend suite is 715 files.
-        if: always() && steps.build-packages.outcome == 'success'
+        if: ${{ !cancelled() && steps.build-packages.outcome == 'success' }}
         working-directory: backend
         run: |
           files=()
