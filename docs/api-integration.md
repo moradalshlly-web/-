@@ -1784,13 +1784,18 @@ while `temperature` is **silently ignored** unless you also send
 where those levers take effect, and therefore bills **one credit tier up**;
 asking for it on a model with no direct lane is a 400
 `advanced_mode_unsupported`. The call is
-**synchronous and a single call may run several minutes** — each attempt is
-allowed up to 240 seconds — so give your HTTP client a matching timeout.
+**synchronous and a single call may run several minutes**: each attempt is
+allowed up to 240 seconds *per provider lane*, and a call that cannot reach its
+primary lane falls back to one alternate, so the ceiling is
+`(maxRetries + 1) x 2 x 240 s` — 24 minutes at the default `maxRetries: 2`, 32 at
+the maximum. Give your HTTP client a timeout sized against that, or use the
+asynchronous twin below and stop holding a connection open.
 Errors: 400 `validation_error`, 401, 402 (credits), 500 `internal_error` (the
 job row could not be created), 502 `llm_error` once the retries are spent, 503
 `provider_unavailable`. SDK: `client.llm.structured(body)` — mind the client's
-`timeoutMs` (the default 60 s is shorter than this call can run; create the
-client with `timeoutMs: 300_000`, or use the asynchronous twin below).
+`timeoutMs`: the default 60 s is far shorter than this call can run, and even
+`timeoutMs: 300_000` only covers a fast draft, not the ceiling above. Size it
+against your own `maxRetries`, or use the asynchronous twin below.
 
 ### Asynchronous structured drafts (`POST /v1/llm/structured/jobs`)
 

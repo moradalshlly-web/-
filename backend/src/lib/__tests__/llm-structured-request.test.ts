@@ -10,7 +10,11 @@ vi.mock("../config.js", () => ({
   config: { EDITION: "cloud", ANTHROPIC_API_KEY: "k", KIE_API_KEY: "" },
   isCloud: () => true, hasCredits: () => true, isCommunity: () => false, isBusiness: () => false, hasAdmin: () => true,
 }))
-vi.mock("../llm-client.js", () => ({ llmCompleteStructured: mocks.llmCompleteStructured }))
+vi.mock("../llm-client.js", () => ({ llmCompleteStructured: mocks.llmCompleteStructured,
+  // Read at import time by STRUCTURED_LLM_MAX_RUNTIME_MS; the real value is
+  // asserted in reconcile/__tests__/sync-threshold-budget.test.ts, which does
+  // not mock this module.
+  LLM_MAX_LANES_PER_CALL: 2 }))
 
 import { LLM_FEATURE_DEFAULTS, getLlmModel } from "@nodaro/shared"
 import {

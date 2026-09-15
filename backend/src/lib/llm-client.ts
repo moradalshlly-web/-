@@ -229,6 +229,18 @@ export interface LlmResponse {
 // Main entry points
 // ---------------------------------------------------------------------------
 
+/**
+ * How many provider lanes ONE `llmComplete` call can spend before it gives up.
+ *
+ * `llmComplete` never tries more than a primary and a single fallback
+ * (`withFallback`, and the Claude `preferKie` catch below that does the same by
+ * hand) — and each lane is bounded by the SAME `effectiveTimeout(req)`, read
+ * fresh when that lane starts. So the wall-clock budget of one call is this
+ * many timeouts, not one, and anything sizing a deadline around a call (the
+ * reconciliation staleness threshold does) has to multiply by it.
+ */
+export const LLM_MAX_LANES_PER_CALL = 2
+
 export async function llmComplete(req: LlmRequest): Promise<LlmResponse> {
   const model = resolveModel(req)
   assertInlineVideoLane(req)

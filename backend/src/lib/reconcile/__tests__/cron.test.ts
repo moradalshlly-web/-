@@ -127,6 +127,19 @@ import { reconcileReplicateJob } from "../replicate.js"
 import { reconcileElevenLabsJob } from "../elevenlabs.js"
 import { reconcileFalJob } from "../fal.js"
 import { sweepExpiredHolds } from "../hold-expiry.js"
+import { STALE_THRESHOLD_MS, type ProviderKind } from "../types.js"
+
+/**
+ * A `provider_call_started_at` comfortably past `kind`'s OWN threshold.
+ *
+ * Derived rather than typed: these fixtures exercise DISPATCH, not the
+ * threshold table, and a hardcoded age silently stops being stale the day a
+ * threshold is raised (anthropic-sync went 5 → 40 min so the sweep would stop
+ * killing live structured-LLM drafts, and three "stale" fixtures at 10 min
+ * became not-stale).
+ */
+const staleFor = (kind: ProviderKind): string =>
+  new Date(Date.now() - STALE_THRESHOLD_MS[kind] - 60_000).toISOString()
 
 describe("reconcileInflightJobs", () => {
   beforeEach(() => {
@@ -153,7 +166,7 @@ describe("reconcileInflightJobs", () => {
   })
 
   it("dispatches sync kinds (anthropic-sync) to sweepStaleSyncJob", async () => {
-    const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const stale = staleFor("anthropic-sync")
     mocks.rows.push({
       id: "j-sync-1",
       status: "processing",
@@ -352,7 +365,7 @@ describe("reconcileInflightJobs", () => {
 
   it("counts errors when the sweep handler throws", async () => {
     ;(sweepStaleSyncJob as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("boom"))
-    const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const stale = staleFor("anthropic-sync")
     mocks.rows.push({
       id: "j-err",
       status: "processing",
@@ -427,7 +440,7 @@ describe("reconcileInflightJobs", () => {
   it("never-started sweep does not run for the main candidate set (no double-processing)", async () => {
     // A started+stale job goes through the main path only; the never-started
     // query returns empty, so it isn't swept twice.
-    const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const stale = staleFor("anthropic-sync")
     mocks.rows.push({
       id: "j-started", status: "processing", provider_kind: "anthropic-sync",
       provider_task_id: null, provider_call_started_at: stale, reconcile_attempts: 0,
