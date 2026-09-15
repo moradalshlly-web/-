@@ -11,7 +11,17 @@ interface JobRow {
 interface ExecutionRow {
   id: string
   started_at: string | null
-  node_states: Record<string, { status: string; jobId?: string; iterationTotal?: number; awaitingReview?: boolean }>
+  node_states: Record<
+    string,
+    {
+      status: string
+      jobId?: string
+      iterationTotal?: number
+      awaitingReview?: boolean
+      startedAt?: string
+      completedAt?: string
+    }
+  >
   /** Which environment claimed the row (migration 374). Absent = legacy NULL. */
   runtime_env?: string | null
 }
@@ -183,6 +193,14 @@ describe("reconcileWorkflowExecutionsTick", () => {
    * `STALE_EXECUTION_THRESHOLD_MS` (4h), with node states that are neither
    * all-completed nor any-failed — control reaches the final
    * orchestration-queue fallback rather than an earlier branch.
+   *
+   * DELIBERATELY NO `jobs` ROW, and no node timestamps: this is the shape the
+   * orphan branch was written for — node_states pointing at a jobId that was
+   * never persisted, by an orchestrator that is gone. A child job still in
+   * flight (or a node_states timestamp inside the orchestrator lock window)
+   * is now POSITIVE evidence the run is alive and VETOES the orphan verdict,
+   * so seeding one here would make every case below assert the veto instead
+   * of the branch it is actually testing. The veto has its own cases.
    */
   const seedRunningExecution = (id: string) => {
     mocks.executions.push({
@@ -190,7 +208,6 @@ describe("reconcileWorkflowExecutionsTick", () => {
       started_at: new Date(Date.now() - 10 * 60_000).toISOString(), // 10 min ago
       node_states: { n1: { status: "running", jobId: `${id}-n1` } },
     })
-    mocks.jobs.push({ id: `${id}-n1`, status: "processing", error_message: null })
   }
 
   it("marks an execution completed when all child jobs are completed in DB", async () => {
@@ -469,7 +486,10 @@ describe("reconcileWorkflowExecutionsTick", () => {
     // count) and the execution row is marked completed, not failed.
     expect(mocks.updates).toHaveLength(1)
     expect(mocks.updates[0].updates.status).toBe("completed")
-    expect(mocks.updates[0].updates.error_message).toBeUndefined()
+    // Explicitly CLEARED, not merely absent: the completed write now nulls
+    // error_message so a row a sweep had already written a failure onto
+    // doesn't keep it (see "clears a stale error_message" below).
+    expect(mocks.updates[0].updates.error_message).toBeNull()
     const node_states = mocks.updates[0].updates.node_states as Record<string, { status: string; error?: string }>
     expect(node_states.n1.status).toBe("skipped")
     expect(node_states.n1.error).toBe("User cancellation")
@@ -703,5 +723,174 @@ describe("reconcileWorkflowExecutionsTick", () => {
       { method: "eq", args: ["runtime_env", "preview-42"] },
     ])
     expect(mocks.updates).toEqual([])
+  })
+
+  // -------------------------------------------------------------------------
+  // Liveness veto on the orphan verdict (2026-09-15).
+  //
+  // `runtime_env` scoping keys on the environment's NAME, which is unique
+  // within a Railway project and nowhere else — so a second process that also
+  // calls itself `production` against this database gets production's rows and
+  // its own empty Redis, and "no job in my queue" reads as orphaned. Three of
+  // one user's live production runs were killed that way 2–3.5 minutes after
+  // they started, one losing 4 in-flight generations and 85 charged credits.
+  //
+  // The orphan branch therefore now demands corroboration from the SHARED
+  // database — the one place every deployment writes to — before it writes.
+  // -------------------------------------------------------------------------
+
+  it("refuses to orphan an execution whose child jobs are still in flight, whatever this Redis says", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      mocks.executions.push({
+        id: "exec-live-children",
+        started_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+        node_states: { n1: { status: "running", jobId: "live-1" } },
+      })
+      // The worker-queued child carries the execution id and is still working.
+      mocks.jobs.push({
+        id: "live-1",
+        status: "processing",
+        error_message: null,
+        workflow_execution_id: "exec-live-children",
+        input_data: { node_id: "n1" },
+      })
+      // This process's Redis has no orchestration job — the pre-fix kill shape.
+      mocks.orchJob.set("exec-live-children", undefined)
+
+      await reconcileWorkflowExecutionsTick()
+
+      expect(mocks.updates).toEqual([])
+      const vetoLine = warnSpy.mock.calls
+        .map((c) => String(c[0]))
+        .find((l) => l.includes("exec-live-children"))
+      expect(vetoLine).toBeDefined()
+      expect(vetoLine).toContain("ALIVE")
+      // The log names the process, so the next occurrence is diagnosable.
+      expect(vetoLine).toContain("production/")
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("refuses to orphan on a sync-HTTP child job, whose jobs row carries no workflow_execution_id", async () => {
+    mocks.executions.push({
+      id: "exec-sync-child",
+      started_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+      node_states: { n1: { status: "running", jobId: "sync-1" } },
+    })
+    // Sync-HTTP routes create the row without orchestrator context, so the
+    // ONLY link back to the execution is node_states[n1].jobId.
+    mocks.jobs.push({ id: "sync-1", status: "pending", error_message: null })
+    mocks.orchJob.set("exec-sync-child", undefined)
+
+    await reconcileWorkflowExecutionsTick()
+
+    expect(mocks.updates).toEqual([])
+  })
+
+  it("refuses to orphan while a child job is parked in pending_review", async () => {
+    mocks.executions.push({
+      id: "exec-parked",
+      started_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+      node_states: { n1: { status: "running", jobId: "held-1", awaitingReview: true } },
+    })
+    mocks.jobs.push({
+      id: "held-1",
+      status: "pending_review",
+      error_message: null,
+      workflow_execution_id: "exec-parked",
+      input_data: { node_id: "n1" },
+    })
+    mocks.orchJob.set("exec-parked", undefined)
+
+    await reconcileWorkflowExecutionsTick()
+
+    expect(mocks.updates).toEqual([])
+  })
+
+  it("refuses to orphan on a recent node_states timestamp alone — no child job exists between levels", async () => {
+    // The gap the job veto cannot see: one level's children are all terminal
+    // and the next level's rows do not exist yet (sub-second in the incident),
+    // plus nodes that run INLINE and never have a jobs row at all. Only a live
+    // orchestrator writes these timestamps, and inside the lock window BullMQ
+    // has not declared the worker dead either.
+    mocks.executions.push({
+      id: "exec-between-levels",
+      started_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+      node_states: {
+        n1: { status: "completed", completedAt: new Date(Date.now() - 20_000).toISOString() },
+        n2: { status: "pending" },
+      },
+    })
+    mocks.orchJob.set("exec-between-levels", undefined)
+
+    await reconcileWorkflowExecutionsTick()
+
+    expect(mocks.updates).toEqual([])
+  })
+
+  it("still orphans when the node timestamps are older than the orchestrator lock window", async () => {
+    // The fast path must survive: a genuinely dead orchestrator (no live child,
+    // last write well outside ORCHESTRATOR_LOCK_MS) is still marked failed so
+    // the user can re-run instead of waiting out the 4h abandon threshold.
+    mocks.executions.push({
+      id: "exec-stale-stamps",
+      started_at: new Date(Date.now() - 30 * 60_000).toISOString(),
+      node_states: {
+        n1: { status: "running", jobId: "exec-node_1", startedAt: new Date(Date.now() - 25 * 60_000).toISOString() },
+      },
+    })
+    mocks.orchJob.set("exec-stale-stamps", undefined)
+
+    await reconcileWorkflowExecutionsTick()
+
+    expect(mocks.updates).toHaveLength(1)
+    expect(mocks.updates[0].updates.error_message).toContain("Execution orphaned")
+  })
+
+  it("still orphans: a terminal child the node_states never learned about is not liveness evidence", async () => {
+    mocks.executions.push({
+      id: "exec-dead-children",
+      started_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+      node_states: {
+        n1: { status: "running", jobId: "exec-node_1" },
+        n2: { status: "pending" },
+      },
+    })
+    // A terminal child that node_states never learned about — it maps to no
+    // node (no node_id), so it cannot close the execution out, and it is not
+    // evidence of liveness either.
+    mocks.jobs.push({
+      id: "dead-1",
+      status: "cancelled",
+      error_message: null,
+      workflow_execution_id: "exec-dead-children",
+    })
+    mocks.orchJob.set("exec-dead-children", undefined)
+
+    await reconcileWorkflowExecutionsTick()
+
+    expect(mocks.updates).toHaveLength(1)
+    expect(mocks.updates[0].updates.status).toBe("failed")
+    expect(mocks.updates[0].updates.error_message).toContain("Execution orphaned")
+  })
+
+  it("clears a stale error_message when it flips an execution to completed", async () => {
+    // Two production rows finished successfully AFTER a sweep had written
+    // "Execution orphaned …" onto them and kept that sentence forever;
+    // error_message is rendered verbatim, so a successful run read as broken.
+    mocks.executions.push({
+      id: "exec-stale-error",
+      started_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      node_states: { n1: { status: "running", jobId: "j1" } },
+    })
+    mocks.jobs.push({ id: "j1", status: "completed", error_message: null })
+
+    await reconcileWorkflowExecutionsTick()
+
+    expect(mocks.updates).toHaveLength(1)
+    expect(mocks.updates[0].updates.status).toBe("completed")
+    expect(mocks.updates[0].updates.error_message).toBeNull()
   })
 })

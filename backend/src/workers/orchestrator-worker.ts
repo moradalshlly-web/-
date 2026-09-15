@@ -22,7 +22,13 @@ import { updateExecutionWithRetry } from "../lib/execution-writes.js"
 // Redis-free leaf (M-10a): the constants only, so importing THIS module never
 // opens the orchestration queue connection. The live queue below is still
 // loaded lazily, inside the one sweep that needs it.
-import { ORCHESTRATION_JOB_ATTEMPTS, ORCHESTRATOR_ALIVE_STATES } from "../lib/orchestration-queue-config.js"
+import {
+  ORCHESTRATION_JOB_ATTEMPTS,
+  ORCHESTRATOR_ALIVE_STATES,
+  ORCHESTRATOR_LOCK_MS,
+  ORCHESTRATOR_MAX_STALLED,
+  ORCHESTRATOR_STALLED_INTERVAL_MS,
+} from "../lib/orchestration-queue-config.js"
 // Redis-free leaf too: which deployment this process is, and the one scope
 // predicate both stale-execution sweeps share (migration 374).
 import { getRuntimeEnv, scopeToRuntimeEnv } from "../lib/runtime-env.js"
@@ -224,6 +230,11 @@ export async function cleanupStaleExecutions(): Promise<void> {
       const updates: Record<string, unknown> = {
         status: "completed",
         completed_at: new Date().toISOString(),
+        // Clear any failure text a sweep wrote onto a row that then finished.
+        // `error_message` is rendered verbatim to users and has no "only when
+        // failed" reader, so a stale sentence reports a successful run as
+        // broken (two production rows, 2026-09-15).
+        error_message: null,
       }
       if (changed) updates.node_states = states
       await tryTerminalWrite(row.id, updates, "flip to completed", () => { reconciledCompleted++ })
@@ -296,40 +307,16 @@ export async function cleanupStaleExecutions(): Promise<void> {
 // Worker creation
 // ---------------------------------------------------------------------------
 
-/**
- * Lock/stall geometry — ported from `video-worker.ts:400-409` (incident
- * 2026-07-15) after the six "Execution orphaned" rows of 2026-08-23..09-01.
- *
- * The old 120-minute lock was chosen to "match WORKFLOW_TIMEOUT_MS and prevent
- * stalled-job retries". Both halves were wrong: BullMQ renews an ACTIVE job's
- * lock every lockDuration/2 on its own (bullmq 5.76.3,
- * dist/cjs/classes/worker.js:63-64), so a two-hour execution is safe under a
- * five-minute lock; and stalled retries are the RECOVERY path, not a hazard —
- * `processWorkflowExecution` is resume-aware (the `// 2. Initialize node
- * states — RESUME-AWARE.` block re-reads node_states, early-returns when the
- * execution row is already terminal, and carries forward only nodes whose
- * state is completed/skipped, without re-charging).
- *
- * What the old geometry actually produced: a SIGKILLed orchestrator left its
- * job `active` under a live 120-minute lock. The executions cron skips
- * `active` (`lib/reconcile/workflow-executions-cron.ts:204-209`), so nothing
- * recovered the run; and with maxStalledCount at its default of 1, the first
- * stall moved the job to failed-permanent instead of re-picking it.
- *
- * CAVEAT (spec §7, stated deliberately): a 5-minute lock means an event-loop
- * block longer than 2.5 minutes stops renewal and a second orchestrator may
- * re-pick the execution. Terminal nodes are carried forward, but nodes still
- * IN FLIGHT are dropped by the `completed || skipped` carry-forward filter and
- * re-attempt — `cancelInFlightChildJobs` adopts post-provider children and
- * refunds pre-provider ones first, so the residual exposure is the
- * concurrent-live-orchestrator race that function documents, not a bare
- * double charge. The orchestrator is I/O-bound
- * (Supabase reads + a 3s poll sleep, node-executor.ts:1726), so a block that
- * long is itself a bug; this is the same bet video-worker.ts makes at 300s.
- */
-export const ORCHESTRATOR_LOCK_MS = 300_000
-export const ORCHESTRATOR_STALLED_INTERVAL_MS = 60_000
-export const ORCHESTRATOR_MAX_STALLED = 3
+/** Lock/stall geometry for this worker — the values themselves live in the
+ *  Redis-free leaf `lib/orchestration-queue-config.ts` (with the incident
+ *  rationale), because `lib/reconcile/workflow-executions-cron.ts` reads the
+ *  lock duration too and must not import this module to get it. Re-exported
+ *  so the existing import path keeps working. */
+export {
+  ORCHESTRATOR_LOCK_MS,
+  ORCHESTRATOR_STALLED_INTERVAL_MS,
+  ORCHESTRATOR_MAX_STALLED,
+} from "../lib/orchestration-queue-config.js"
 
 /** Short delay before the requeued execution becomes visible again. Railway
  *  brings the new container up BEFORE draining the old one, so a fresh
@@ -1327,6 +1314,12 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
       failed_nodes: 0,
       total_credits_used: totalCredits,
       completed_at: new Date().toISOString(),
+      // Reached only with `failedCount === 0`, so there is no error to keep —
+      // and a reconcile sweep may have written one onto this row while the run
+      // was still going (the 2026-09-15 orphan false positives). `error_message`
+      // is rendered verbatim wherever an execution is shown, so leaving it made
+      // a successful run read as orphaned.
+      error_message: null,
     })
 
     emitExecutionEvent({

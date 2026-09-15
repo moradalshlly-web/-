@@ -58,3 +58,38 @@ export const ORCHESTRATOR_ALIVE_STATES: ReadonlySet<string> = new Set([
   "prioritized",
   "waiting-children",
 ])
+
+/**
+ * Lock/stall geometry — ported from `video-worker.ts:400-409` (incident
+ * 2026-07-15) after the six "Execution orphaned" rows of 2026-08-23..09-01.
+ *
+ * The old 120-minute lock was chosen to "match WORKFLOW_TIMEOUT_MS and prevent
+ * stalled-job retries". Both halves were wrong: BullMQ renews an ACTIVE job's
+ * lock every lockDuration/2 on its own (bullmq 5.76.3,
+ * dist/cjs/classes/worker.js:63-64), so a two-hour execution is safe under a
+ * five-minute lock; and stalled retries are the RECOVERY path, not a hazard —
+ * `processWorkflowExecution` is resume-aware (the `// 2. Initialize node
+ * states — RESUME-AWARE.` block re-reads node_states, early-returns when the
+ * execution row is already terminal, and carries forward only nodes whose
+ * state is completed/skipped, without re-charging).
+ *
+ * What the old geometry actually produced: a SIGKILLed orchestrator left its
+ * job `active` under a live 120-minute lock. The executions cron skips
+ * `active` (`lib/reconcile/workflow-executions-cron.ts:204-209`), so nothing
+ * recovered the run; and with maxStalledCount at its default of 1, the first
+ * stall moved the job to failed-permanent instead of re-picking it.
+ *
+ * CAVEAT (spec §7, stated deliberately): a 5-minute lock means an event-loop
+ * block longer than 2.5 minutes stops renewal and a second orchestrator may
+ * re-pick the execution. Terminal nodes are carried forward, but nodes still
+ * IN FLIGHT are dropped by the `completed || skipped` carry-forward filter and
+ * re-attempt — `cancelInFlightChildJobs` adopts post-provider children and
+ * refunds pre-provider ones first, so the residual exposure is the
+ * concurrent-live-orchestrator race that function documents, not a bare
+ * double charge. The orchestrator is I/O-bound
+ * (Supabase reads + a 3s poll sleep, node-executor.ts:1726), so a block that
+ * long is itself a bug; this is the same bet video-worker.ts makes at 300s.
+ */
+export const ORCHESTRATOR_LOCK_MS = 300_000
+export const ORCHESTRATOR_STALLED_INTERVAL_MS = 60_000
+export const ORCHESTRATOR_MAX_STALLED = 3

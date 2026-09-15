@@ -24,15 +24,29 @@
  * the same helper the boot sweep uses. Rows claimed before 374 have a NULL
  * `runtime_env` and are reconciled by the environment named `production` only.
  *
+ * SCOPING IS NOT ENOUGH, AND THE ORPHAN VERDICT NO LONGER RELIES ON IT.
+ * `runtime_env` holds an environment NAME, which is unique within a Railway
+ * project and nowhere else — so a second process that also calls itself
+ * `production` against this database (a fork, a per-customer image, a staged
+ * rollout, a developer running the server with a copied env file) inherits
+ * production's rows plus its own empty Redis, and 374 does nothing. That
+ * recurred on 2026-09-15: three live production executions were marked
+ * orphaned 2–3.5 minutes after they started by a process no Railway
+ * deployment's logs account for. The orphan branch therefore now demands
+ * corroboration from the shared database before it writes — see
+ * `executionLivenessEvidence` below.
+ *
  * See the stuck-execution prevention design for the broader picture.
  */
+import os from "node:os"
 import { supabase } from "../supabase.js"
 import { orchestrationQueue } from "../orchestration-queue.js"
-import { ORCHESTRATOR_ALIVE_STATES } from "../orchestration-queue-config.js"
+import { ORCHESTRATOR_ALIVE_STATES, ORCHESTRATOR_LOCK_MS } from "../orchestration-queue-config.js"
+import { IN_FLIGHT_JOB_STATUSES } from "../job-status.js"
 import { reconcileNodeStatesFromJobs } from "./node-states.js"
 import { updateExecutionWithRetry } from "../execution-writes.js"
 import { redactProviderDetail } from "../provider-error-detail.js"
-import { scopeToRuntimeEnv } from "../runtime-env.js"
+import { getRuntimeEnv, scopeToRuntimeEnv } from "../runtime-env.js"
 import type { NodeExecutionState } from "../../services/workflow-engine/types.js"
 
 /** Every queued-or-running BullMQ state for the orchestration queue — defined
@@ -70,6 +84,21 @@ const STALE_EXECUTION_THRESHOLD_MS = 4 * 60 * 60 * 1000
  */
 const BATCH_LIMIT = 500
 
+/**
+ * Who this process is, for the two orphan-gate log lines below. The verdict
+ * "no orchestrator job in queue" is only ever as true as the Redis THIS
+ * process is holding, so a log line about it that doesn't name the process is
+ * not diagnosable — which is exactly what happened on 2026-09-15: three live
+ * production executions were marked orphaned and NO deployment that runs this
+ * code had logged a tick, because `skipped` is (deliberately) not in the
+ * tick-log gate and the owning environment's cron had simply skipped them.
+ * Identifying the writer then took a log crawl across six containers and
+ * still failed.
+ */
+function processIdentity(): string {
+  return `${getRuntimeEnv()}/${process.env.RAILWAY_ENVIRONMENT_ID ?? os.hostname()}`
+}
+
 let intervalId: ReturnType<typeof setInterval> | null = null
 
 export function startWorkflowExecutionsReconcileCron(): void {
@@ -90,6 +119,94 @@ export function stopWorkflowExecutionsReconcileCron(): void {
     clearInterval(intervalId)
     intervalId = null
   }
+}
+
+/**
+ * Is this execution demonstrably ALIVE, on evidence that does not depend on
+ * which Redis this process happens to be holding?
+ *
+ * THE ORPHAN VERDICT NEEDS CORROBORATION. `orchestrationQueue.getJob(id)`
+ * answers "is there a job in MY queue", and a `null` is read as "the
+ * orchestrator is gone". That inference is only sound inside the one
+ * deployment that owns the row. `runtime_env` (migration 374) was meant to
+ * guarantee that, but it keys on the environment's NAME — which is unique
+ * within a Railway project, not globally — so any second process that calls
+ * itself `production` against the same database (a fork, a per-customer
+ * image, a staged rollout, a developer running the server with a copied env
+ * file) inherits production's rows and its own empty Redis, and kills live
+ * runs. It happened on 2026-09-15: three of one user's runs were marked
+ * orphaned 2–3.5 minutes after they started, while their nodes were still
+ * completing; one lost 4 in-flight generations and 85 charged credits, and
+ * two finished successfully but kept the failure text forever.
+ *
+ * So ask the SHARED source of truth instead — a row this process cannot be
+ * wrong about because every deployment writes it to the same database:
+ *
+ *   1. a child `jobs` row still in flight (`IN_FLIGHT_JOB_STATUSES`, which
+ *      includes `pending_review` — a job parked on a human is waiting, not
+ *      orphaned), or
+ *   2. a `node_states` timestamp written within `ORCHESTRATOR_LOCK_MS`. Only
+ *      a live orchestrator writes those, and inside the lock window BullMQ
+ *      itself has not yet declared the worker dead. This covers what (1)
+ *      cannot see: the sub-second gap between one level's last child
+ *      finishing and the next level's job rows existing, and nodes that run
+ *      INLINE (no `jobs` row at all for their duration).
+ *
+ * Both signals are conservative — they only ever DELAY a verdict. The >4h
+ * abandon branch above still fires on a genuinely dead run, and the 5-minute
+ * child-job reconciler (`lib/reconcile/start.ts`) terminalizes stuck children,
+ * after which the orphan branch is reached normally. The trade is explicit: a
+ * dead run whose children are stuck `processing` waits for that sweep instead
+ * of ~4 minutes, and in exchange a live run is never killed from outside.
+ */
+async function executionLivenessEvidence(
+  executionId: string,
+  states: Record<string, NodeExecutionState>,
+  now: number,
+): Promise<string | null> {
+  // Freshly written node_states — no query, and the only signal that covers
+  // inline nodes and the between-levels gap.
+  for (const [nodeId, st] of Object.entries(states)) {
+    for (const stamp of [st?.startedAt, st?.completedAt]) {
+      if (typeof stamp !== "string" || !stamp) continue
+      const t = Date.parse(stamp)
+      if (Number.isNaN(t)) continue
+      if (now - t < ORCHESTRATOR_LOCK_MS) {
+        return `node ${nodeId} was updated ${Math.round((now - t) / 1000)}s ago`
+      }
+    }
+  }
+
+  // Worker-queued children: the `jobs` row carries the execution id.
+  const { data: scoped } = await supabase
+    .from("jobs")
+    .select("id, status")
+    .eq("workflow_execution_id", executionId)
+    .in("status", [...IN_FLIGHT_JOB_STATUSES])
+  if (scoped && scoped.length > 0) {
+    return `${scoped.length} child job(s) still in flight`
+  }
+
+  // Sync-HTTP children: their `jobs` row is created by the route, which has no
+  // orchestrator context and leaves `workflow_execution_id` NULL
+  // (node-executor.ts stamps only `input_data.node_id`). node_states is the
+  // only link back to them, so look them up by id.
+  const jobIds = new Set<string>()
+  for (const st of Object.values(states)) {
+    if (typeof st?.jobId === "string" && st.jobId) jobIds.add(st.jobId)
+    if (Array.isArray(st?.jobIds)) {
+      for (const jid of st.jobIds) if (typeof jid === "string" && jid) jobIds.add(jid)
+    }
+  }
+  if (jobIds.size === 0) return null
+  const { data: byId } = await supabase
+    .from("jobs")
+    .select("id, status")
+    .in("id", Array.from(jobIds))
+  const live = (byId ?? []).filter((j) =>
+    (IN_FLIGHT_JOB_STATUSES as readonly string[]).includes(j.status as string),
+  )
+  return live.length > 0 ? `${live.length} child job(s) still in flight` : null
 }
 
 /** Exported for unit tests. Run-once equivalent of the cron tick. */
@@ -127,6 +244,11 @@ export async function reconcileWorkflowExecutionsTick(): Promise<void> {
   let reconciledFailed = 0
   let abandoned = 0
   let skipped = 0
+  /** Orphan verdicts REFUSED because the database said the run was alive.
+   *  Counted apart from `skipped` (and, unlike `skipped`, included in the
+   *  tick log below) because a veto means this process's Redis and the shared
+   *  database disagreed — i.e. this process does not own the row. */
+  let vetoed = 0
   let cancelledRaces = 0
   let writeFailures = 0
 
@@ -187,6 +309,13 @@ export async function reconcileWorkflowExecutionsTick(): Promise<void> {
       const updates: Record<string, unknown> = {
         status: "completed",
         completed_at: new Date().toISOString(),
+        // A completed run must not keep a failure sentence. An execution that
+        // a sweep already wrote "Execution orphaned …" onto and that then
+        // finished anyway kept it forever: `error_message` is rendered
+        // verbatim (executions page tooltip, editor executions tab,
+        // published-app runners), so the user saw a successful run reported
+        // as orphaned. Observed on two production rows, 2026-09-15.
+        error_message: null,
       }
       if (changed) updates.node_states = states
       await tryTerminalWrite(row.id, updates, "flip to completed", () => { reconciledCompleted++ })
@@ -290,6 +419,21 @@ export async function reconcileWorkflowExecutionsTick(): Promise<void> {
       }
     }
 
+    // LAST GATE BEFORE A DESTRUCTIVE VERDICT. "No job in my queue" is not
+    // evidence that the orchestrator is gone — only that it isn't in THIS
+    // process's Redis. Ask the shared database before killing a user's run.
+    const alive = await executionLivenessEvidence(row.id, states, Date.now())
+    if (alive) {
+      vetoed++
+      console.warn(
+        `[reconcile/workflow-executions] ${processIdentity()} found no orchestration job for execution ${row.id}, but the database says it is ALIVE (${alive}) — NOT marking it orphaned. This process does not own the row.`,
+      )
+      continue
+    }
+
+    console.warn(
+      `[reconcile/workflow-executions] ${processIdentity()} marking execution ${row.id} orphaned (started_at=${row.started_at}): no orchestration job in this queue and no live child job or recent node activity.`,
+    )
     await tryTerminalWrite(
       row.id,
       {
@@ -302,9 +446,9 @@ export async function reconcileWorkflowExecutionsTick(): Promise<void> {
     )
   }
 
-  if (reconciledCompleted > 0 || reconciledFailed > 0 || abandoned > 0 || cancelledRaces > 0 || writeFailures > 0) {
+  if (reconciledCompleted > 0 || reconciledFailed > 0 || abandoned > 0 || vetoed > 0 || cancelledRaces > 0 || writeFailures > 0) {
     console.log(
-      `[reconcile/workflow-executions] tick: scanned=${scanned} completed=${reconciledCompleted} failed=${reconciledFailed} abandoned=${abandoned} skipped=${skipped} cancelled-races=${cancelledRaces} write-failures=${writeFailures} (${Date.now() - start}ms)`,
+      `[reconcile/workflow-executions] tick: scanned=${scanned} completed=${reconciledCompleted} failed=${reconciledFailed} abandoned=${abandoned} vetoed=${vetoed} skipped=${skipped} cancelled-races=${cancelledRaces} write-failures=${writeFailures} (${Date.now() - start}ms)`,
     )
   }
 }
