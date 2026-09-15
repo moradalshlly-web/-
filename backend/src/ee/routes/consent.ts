@@ -5,6 +5,9 @@ import { sendInternalError } from "../../lib/http-errors.js"
 import { rejectProgrammaticAuth } from "../../lib/api-auth-mode.js"
 import { getConsentConfig } from "../lib/consent-config.js"
 import { syncConsentRow } from "../lib/consent-loops-sync.js"
+import { CONSENT_KIND, recordConsentGrant } from "../lib/consent-record.js"
+import { getWelcomeOfferConfig } from "../lib/welcome-offer-config.js"
+import { readFreeGrantState, readWelcomeOfferState } from "../billing/signup-grant.js"
 
 /**
  * Marketing-email consent — Cloud-only (registered under hasCredits()). The
@@ -17,8 +20,23 @@ import { syncConsentRow } from "../lib/consent-loops-sync.js"
  * every route rejects non-JWT callers (same gate as profile-attribution).
  */
 
-const CONSENT_KIND = "marketing_email"
 const JWT_ONLY_MSG = "Consent can only be recorded from a first-party browser session"
+
+/**
+ * While the welcome offer is on, two kinds of account are asked by the welcome
+ * popup / banner and never by this prompt: one that has not claimed its
+ * credits, and one granted through the extension that still owes its consent.
+ */
+async function welcomeOfferOwnsTheAsk(userId: string): Promise<boolean> {
+  try {
+    const cfg = await getWelcomeOfferConfig()
+    if (!cfg.enabled) return false
+    if ((await readFreeGrantState(userId)) === "unclaimed") return true
+    return (await readWelcomeOfferState(userId))?.consentPending === true
+  } catch {
+    return false
+  }
+}
 
 // Same slug grammar attribution uses; the client normalizes to it.
 const answerBody = z.object({
@@ -47,6 +65,11 @@ export async function consentRoutes(app: FastifyInstance): Promise<void> {
 
       const cfg = await getConsentConfig()
       if (!cfg.enabled) return { shouldShow: false, status: "disabled" }
+
+      // While the welcome offer is on, an account that has not claimed its
+      // credits is asked by the welcome popup / banner — never twice on one
+      // screen, and this read must not burn one of its cadence-limited asks.
+      if (await welcomeOfferOwnsTheAsk(userId)) return { shouldShow: false, status: "welcome_offer" }
 
       try {
         const { data, error } = await supabase.rpc("consent_try_show", {
@@ -110,26 +133,11 @@ export async function consentRoutes(app: FastifyInstance): Promise<void> {
         })
       }
 
-      const cfg = await getConsentConfig()
-      const nowIso = new Date().toISOString()
-      const { error } = await supabase.from("user_consents").upsert(
-        {
-          user_id: userId,
-          kind: CONSENT_KIND,
-          status: "granted",
-          granted_at: nowIso,
-          consent_version: cfg.version,
-          source_app: parsed.data.sourceApp ?? null,
-          loops_dirty: true,
-          // Re-grant (e.g. re-subscribing from Settings) clears the prior
-          // opt-out marks so status and the *_at timestamps stay consistent.
-          declined_at: null,
-          withdrawn_at: null,
-          updated_at: nowIso,
-        },
-        { onConflict: "user_id,kind" },
-      )
-      if (error) return sendInternalError(reply, req, new Error(error.message), "Failed to record consent")
+      // One helper for every grant path (this route, the welcome-offer claim):
+      // the row goes to 'granted' and the extension's consent-pending mark is
+      // cleared, so a "yes" from Settings unblocks creation like any other.
+      const { error } = await recordConsentGrant(userId, parsed.data.sourceApp ?? null, req.log)
+      if (error) return sendInternalError(reply, req, new Error(error), "Failed to record consent")
 
       void syncConsentRow(userId).catch(() => {})
       return { status: "granted" }

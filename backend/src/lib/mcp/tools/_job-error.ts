@@ -66,7 +66,20 @@ const INPUT_LIMIT_PATTERNS = [
   "rejected these settings",
 ]
 
-const NON_RETRYABLE_PATTERNS = [...CONTENT_REJECTION_PATTERNS, ...INPUT_LIMIT_PATTERNS]
+// The provider ran and found NOTHING to act on: the input is legal, it just
+// produced an empty result (Grounded SAM detecting zero regions for the mask
+// prompt — providers/replicate/failure-messages.ts). Permanent for the same
+// request, so non-retryable, but deliberately NOT a content rejection: nothing
+// was blocked, and the app-report rejection sweep must not read it as one.
+const NO_MATCH_PATTERNS = [
+  "no region matched",
+]
+
+const NON_RETRYABLE_PATTERNS = [
+  ...CONTENT_REJECTION_PATTERNS,
+  ...INPUT_LIMIT_PATTERNS,
+  ...NO_MATCH_PATTERNS,
+]
 
 /**
  * True when the error reads as a provider content-policy / moderation block —

@@ -59,8 +59,12 @@ async function computeBrowserKey(): Promise<string | null> {
 /**
  * Both keys, concurrently, under one deadline. Each writes itself on success,
  * so a deadline reached while one is still running still sends the other.
+ *
+ * Exported for the welcome-offer claim: the CTA sends the same two
+ * fingerprints the boot claim does, through its own request (the
+ * `claimAttempted` latch below is per boot and must not swallow a click).
  */
-async function collectKeys(timeoutMs: number): Promise<SignupKeys> {
+export async function collectKeys(timeoutMs: number = FINGERPRINT_TIMEOUT_MS): Promise<SignupKeys> {
   const keys: SignupKeys = {}
   let timer: ReturnType<typeof setTimeout> | undefined
   const settled = Promise.allSettled([

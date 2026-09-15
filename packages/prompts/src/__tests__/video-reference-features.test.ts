@@ -22,9 +22,18 @@ describe("video reference-image capability (catalog)", () => {
   // Replicate reference_images, and the `maxRefImages` merge for grok-i2v /
   // happyhorse-ref2v) — must keep advertising it. Subset check, so wiring a
   // NEW ref-capable model doesn't fail here; only breaking a wired one does.
+  // VEO 3.1 QUALITY (`veo3`) is the mirror case, and a costlier one: it DID
+  // advertise the feature, the adapter sent generationType:
+  // "REFERENCE_2_VIDEO", and KIE answered "Reference to video only supports
+  // the Veo Fast model and Veo Lite model." — a 422 after the credits were
+  // reserved (production 2026-09-04, app-reports lane G). Reference-to-video
+  // exists on the Fast and Lite SKUs only.
+  it("excludes veo3 / VEO 3.1 Quality (KIE serves reference-to-video on Fast + Lite only)", () => {
+    expect(refModels).not.toContain("veo3")
+  })
+
   it("includes the wired reference-capable video models", () => {
     for (const id of [
-      "veo3",
       "veo3.1",
       "veo3_lite",
       "gemini-omni-video",

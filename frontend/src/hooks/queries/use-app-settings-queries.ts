@@ -27,6 +27,8 @@ export interface AppSettings {
   readonly consent_login_definition?: "session" | "app_open"
   readonly consent_text?: string
   readonly consent_version?: number
+  /** Welcome credits opt-in switch (Cloud-only). Absent on non-cloud. */
+  readonly welcome_offer_enabled?: boolean
   /** Internal founder-notification knobs (Cloud-only). Absent on non-cloud. */
   readonly notify_digest_enabled?: boolean
   readonly notify_digest_hour?: number
@@ -77,6 +79,7 @@ async function fetchAppSettings(): Promise<AppSettings> {
     consent_login_definition: (settings.consent_login_definition as "session" | "app_open" | undefined) ?? "session",
     consent_text: (settings.consent_text as string | undefined) ?? "",
     consent_version: (settings.consent_version as number | undefined) ?? 1,
+    welcome_offer_enabled: (settings.welcome_offer_enabled as boolean | undefined) ?? false,
     notify_digest_enabled: (settings.notify_digest_enabled as boolean | undefined) ?? true,
     notify_digest_hour: (settings.notify_digest_hour as number | undefined) ?? 8,
     notify_milestones_enabled: (settings.notify_milestones_enabled as boolean | undefined) ?? true,

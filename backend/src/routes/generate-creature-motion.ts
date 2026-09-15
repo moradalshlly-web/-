@@ -218,10 +218,13 @@ export async function generateCreatureMotionRoutes(app: FastifyInstance) {
       const usageLogId = reservation?.usageLogId
 
       // ───────────────────────────────────────────────────────────────────
-      // 6. Enqueue worker job. `attachToColumn` is route-side — creatures
-      //    have a single motion column (`motion_clips`) so unlike the asset
-      //    route, callers don't supply it. The BullMQ job name
-      //    `"generate-creature-motion"` matches the Phase C2 entityHandlers
+      // 6. Enqueue worker job. The attach COLUMN is not sent: creatures have a
+      //    single motion column (`motion_clips`) and callers never supply one,
+      //    so it is the job type's own `defaultColumn` in
+      //    `ENTITY_MEDIA_JOB_SPECS` (lib/entity-finalize.ts). Inlining it here
+      //    made it reachable by the live worker and by nothing else — a crashed
+      //    worker's recovered clip had no column to attach to. The BullMQ job
+      //    name `"generate-creature-motion"` matches the Phase C2 entityHandlers
       //    key the creature worker registered.
       // ───────────────────────────────────────────────────────────────────
       await videoQueue.add("generate-creature-motion", {
@@ -234,7 +237,6 @@ export async function generateCreatureMotionRoutes(app: FastifyInstance) {
         aspectRatio,
         usageLogId,
         attachToCreatureId: parsed.data.attachToCreatureId,
-        attachToColumn: "motion_clips" as const,
         attachName: parsed.data.attachName,
       })
 

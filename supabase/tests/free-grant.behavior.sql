@@ -38,7 +38,12 @@ END $$;
 -- pre-existing account that 365's backfill would have marked granted.
 INSERT INTO auth.users (id, email, raw_user_meta_data, aud, role) VALUES
   ('00000000-0000-4000-8000-000000000921', 'fg-new1@fg.test', '{}', 'authenticated', 'authenticated'),
-  ('00000000-0000-4000-8000-000000000922', 'fg-new2@fg.test', '{}', 'authenticated', 'authenticated');
+  ('00000000-0000-4000-8000-000000000922', 'fg-new2@fg.test', '{}', 'authenticated', 'authenticated'),
+  -- 426 (welcome credits opt-in): one account for the consent gate, two for
+  -- the extension mark (granted / withheld).
+  ('00000000-0000-4000-8000-000000000923', 'fg-consent@fg.test', '{}', 'authenticated', 'authenticated'),
+  ('00000000-0000-4000-8000-000000000924', 'fg-ext-granted@fg.test', '{}', 'authenticated', 'authenticated'),
+  ('00000000-0000-4000-8000-000000000925', 'fg-ext-withheld@fg.test', '{}', 'authenticated', 'authenticated');
 
 -- 0. A fresh profile opens at ZERO and unclaimed — the column no longer pays.
 SELECT pg_temp.assert_eq('a fresh profile opens with 0 subscription_credits',
@@ -75,6 +80,45 @@ SELECT pg_temp.assert_eq('a claim after a withhold cannot grant (the lock is the
   (SELECT did_claim::text FROM claim_signup_grant('00000000-0000-4000-8000-000000000922', 1500)), 'false');
 SELECT pg_temp.assert_eq('...and still moves no credits',
   (SELECT subscription_credits::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000922'), '0');
+
+-- 2b. 426 — the welcome credits opt-in, inside the RPC. With p_require_consent
+--     the claim moves NOTHING until a granted marketing-email consent row
+--     exists; the TypeScript caller checks first, but this is where the
+--     invariant actually lives. Every argument spelled with defaults stays
+--     resolvable for the pre-426 three-argument call (assertions 1-2 above).
+SELECT pg_temp.assert_eq('consent gate: no consent row → did_claim false',
+  (SELECT did_claim::text FROM claim_signup_grant('00000000-0000-4000-8000-000000000923', 1500, false, true)), 'false');
+SELECT pg_temp.assert_eq('consent gate: the account stays unclaimed',
+  (SELECT free_grant_state FROM profiles WHERE id = '00000000-0000-4000-8000-000000000923'), 'unclaimed');
+SELECT pg_temp.assert_eq('consent gate: no credits moved',
+  (SELECT subscription_credits::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000923'), '0');
+INSERT INTO user_consents (user_id, kind, status) VALUES ('00000000-0000-4000-8000-000000000923', 'marketing_email', 'pending');
+SELECT pg_temp.assert_eq('consent gate: a pending consent row is not consent',
+  (SELECT did_claim::text FROM claim_signup_grant('00000000-0000-4000-8000-000000000923', 1500, false, true)), 'false');
+UPDATE user_consents SET status = 'granted', granted_at = now() WHERE user_id = '00000000-0000-4000-8000-000000000923';
+SELECT pg_temp.assert_eq('consent gate: a granted consent row lets the claim through',
+  (SELECT did_claim::text FROM claim_signup_grant('00000000-0000-4000-8000-000000000923', 1500, false, true)), 'true');
+SELECT pg_temp.assert_eq('consent gate: ...and pays the grant',
+  (SELECT subscription_credits::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000923'), '1500');
+SELECT pg_temp.assert_eq('consent gate: a consented account is never marked consent-pending',
+  (SELECT welcome_consent_pending::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000923'), 'false');
+
+-- 2c. 426 — the extension exception: p_mark_consent_pending grants (or withholds)
+--     exactly as before and stamps the mark the web apps block on.
+SELECT pg_temp.assert_eq('extension: granted without consent',
+  (SELECT did_claim::text FROM claim_signup_grant('00000000-0000-4000-8000-000000000924', 1500, false, false, true)), 'true');
+SELECT pg_temp.assert_eq('extension: the credits landed',
+  (SELECT subscription_credits::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000924'), '1500');
+SELECT pg_temp.assert_eq('extension: the consent is owed',
+  (SELECT welcome_consent_pending::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000924'), 'true');
+SELECT pg_temp.assert_eq('extension: a withhold also owes the consent',
+  (SELECT state FROM claim_signup_grant('00000000-0000-4000-8000-000000000925', 1500, true, false, true)), 'withheld');
+SELECT pg_temp.assert_eq('extension: ...moves no credits',
+  (SELECT subscription_credits::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000925'), '0');
+SELECT pg_temp.assert_eq('extension: ...and is marked',
+  (SELECT welcome_consent_pending::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000925'), 'true');
+SELECT pg_temp.assert_eq('the pre-426 accounts carry no mark',
+  (SELECT welcome_consent_pending::text FROM profiles WHERE id = '00000000-0000-4000-8000-000000000921'), 'false');
 
 -- 3. THE HOLE the REVOKEs close: a signed-in user cannot call either RPC.
 SET LOCAL ROLE authenticated;

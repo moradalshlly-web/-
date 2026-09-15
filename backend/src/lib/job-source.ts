@@ -126,6 +126,16 @@ function originHost(origin: string | undefined): string | null {
  *  signal; the host part is the store-assigned extension id. */
 const EXTENSION_ORIGIN_SCHEMES = ["chrome-extension:", "moz-extension:", "safari-web-extension:"]
 
+/**
+ * Does this Origin carry a browser-extension scheme? The scheme is set by
+ * the browser (a web page cannot forge it), which is why the welcome-credits
+ * consent block keys its extension exemption on THIS and never on the
+ * `x-nodaro-client` header that `deriveJobSource` also honours.
+ */
+export function isExtensionOrigin(origin: string | undefined): boolean {
+  return extensionOriginId(origin) !== null
+}
+
 /** Extension id when the Origin carries an extension scheme, else null. */
 function extensionOriginId(origin: string | undefined): string | null {
   if (!origin || origin === "null") return null

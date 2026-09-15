@@ -16,6 +16,7 @@ import { useT } from "@/lib/i18n"
 import { surfaceTabs } from "@/lib/surface-selectors"
 import { SectionTitle, SegmentedControl, ThemeSwitch, type SegmentOption } from "./home-section"
 import { NODARO_APPS_KEY } from "./home-tabs"
+import { WelcomeOfferBannerSlot } from "./welcome-offer-banner-slot"
 
 type WorkspaceTab = "workflows" | "projects" | "studio" | "mcp"
 
@@ -113,6 +114,8 @@ export function ContinueTab({
 
   return (
     <>
+      {/* Welcome credits offer — above everything, until claimed (Cloud-only, self-hiding). */}
+      <WelcomeOfferBannerSlot />
       {showApps && (
         <section>
           <SectionTitle title={t("home.section.nodaroApps")} trailing={<ThemeSwitch />} />

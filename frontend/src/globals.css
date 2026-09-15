@@ -162,6 +162,18 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --grid-line-color: #dcdcdc;
+  /* Welcome credits opt-in (popup + banner on the home tab). Accent is the
+     brand pink; the purple only lives in the two gradients. Light theme. */
+  --welcome-accent: #e6136a;
+  --welcome-purple: #6c5cff;
+  --welcome-panel: #ffffff;
+  --welcome-card: #fafafb;
+  --welcome-line: #e2e2e8;
+  --welcome-fg2: #3d3d47;
+  --welcome-muted: #6f6f7c;
+  --welcome-scrim: rgba(40, 36, 30, 0.45);
+  --welcome-popup-shadow: 0 30px 80px rgba(40, 36, 30, 0.35), 0 0 60px rgba(255, 42, 127, 0.22);
+  --welcome-banner-shadow: 0 12px 40px rgba(255, 42, 127, 0.12);
   /* Workflow canvas — the ONE place the editor's surface palette is declared.
      Canvas ground + dot grid, the node card, its floating label, and every
      pill/toolbar that floats over the canvas read these; nothing on the canvas
@@ -227,6 +239,17 @@
   --sidebar-border: #2D2D2D;
   --sidebar-ring: #ff0073;
   --grid-line-color: #1a1a1a;
+  /* Welcome credits opt-in — dark theme. */
+  --welcome-accent: #ff2a7f;
+  --welcome-purple: #6c5cff;
+  --welcome-panel: #111116;
+  --welcome-card: #0e0e12;
+  --welcome-line: #22222b;
+  --welcome-fg2: #b6b6c4;
+  --welcome-muted: #8a8a99;
+  --welcome-scrim: rgba(0, 0, 0, 0.7);
+  --welcome-popup-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 80px rgba(255, 42, 127, 0.18);
+  --welcome-banner-shadow: none;
   --canvas-bg: #08080b;
   --canvas-dot: #26262f;
   --canvas-glow-a: rgba(255, 0, 115, 0.13);
@@ -2282,3 +2305,14 @@ html, body {
 }
 
 
+
+/* Welcome credits popup: the soft pink radial glow at the top of the card. */
+.welcome-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 220px;
+  border-radius: inherit;
+  background: radial-gradient(60% 70% at 50% 0%, rgba(255, 42, 127, 0.18), transparent 70%);
+  pointer-events: none;
+}

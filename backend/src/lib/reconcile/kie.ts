@@ -24,6 +24,7 @@ import { loopTrimAddonForReconcile } from "./loop-trim-refund.js"
 import { measureSeedance2RefVideoBaseCredits } from "../seedance2-ref-video-settle.js"
 import { refundReservedCreditsForJob } from "../credits-job-lifecycle.js"
 import { bumpAttemptsOrExhaust } from "./bump-attempts.js"
+import { isEntityMediaJobType, recoverEntityJob } from "./entity-recovery.js"
 
 export interface KieJobRow {
   id: string
@@ -289,6 +290,26 @@ export async function reconcileKieJob(row: KieJobRow, opts?: ReconcileOpts): Pro
       await refundReservedCreditsForJob(row.id)
     } else {
       // still pending / transient / unsupported kind — try again next tick
+      await bumpAttemptsOrExhaust(row.id, err)
+    }
+    return
+  }
+
+  // Entity studios (Character / Face / Object / Creature / Location — images,
+  // asset variants, motion clips) are their own completion writers, so they
+  // cannot take the generic finalize below. They are NOT unrecoverable: the
+  // worker's completion tail is shared code (`lib/entity-finalize.ts`) and this
+  // lane runs it with the attach spec read off `jobs.input_data`. Before this,
+  // a finished provider result was discarded here and refunded ~90 min later.
+  if (isEntityMediaJobType(row.job_type)) {
+    try {
+      await recoverEntityJob({
+        jobId: row.id,
+        jobType: row.job_type,
+        url: result.url,
+        claimant: opts?.claimant ?? "cron",
+      })
+    } catch (err) {
       await bumpAttemptsOrExhaust(row.id, err)
     }
     return

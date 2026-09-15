@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import Fastify, { type FastifyInstance } from "fastify"
+import { ENTITY_MEDIA_JOB_SPECS } from "../../lib/entity-finalize.js"
 
 // ---------------------------------------------------------------------------
 // Mocks — hoisted before any route import
@@ -191,11 +192,19 @@ describe("POST /v1/generate-creature-motion", () => {
         sourceImageUrl: SOURCE_URL,
         provider: "kling-turbo",
         attachToCreatureId: TEST_CREATURE_ID,
-        attachToColumn: "motion_clips",
         attachName: "prowl",
         usageLogId: "log-1",
       }),
     )
+    // The attach COLUMN is deliberately absent from the queue payload: it is
+    // the job type's own `defaultColumn` in ENTITY_MEDIA_JOB_SPECS, so the
+    // reconcile recovery — which only ever sees the persisted `jobs.input_data`
+    // — attaches to the same column the live worker does. Inlining it here made
+    // it reachable by the worker and by nothing else.
+    expect(ENTITY_MEDIA_JOB_SPECS.get("generate-creature-motion")?.defaultColumn).toBe("motion_clips")
+    expect(
+      (videoQueue.add as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[1],
+    ).not.toHaveProperty("attachToColumn")
   })
 
   it("passes a valid per-model duration through to the video job (bare provider preserved)", async () => {

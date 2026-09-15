@@ -1222,9 +1222,17 @@ const VIDEO_MODELS: Record<string, ModelCatalogEntry> = {
     family: "Google",
     label: "VEO 3.1 Quality",
     series: "VEO",
-    description: "Google VEO 3.1 Quality — premium cinematic video. 4/6/8s clips, optional end frame, native audio. Flat per-generation pricing across durations.",
+    description: "Google VEO 3.1 Quality — premium cinematic video. 4/6/8s clips, optional end frame, native audio. No reference-to-video mode (Fast/Lite only). Flat per-generation pricing across durations.",
     useCases: ["cinematic", "premium", "narrative"],
-    features: ["end-frame", "audio", "reference-image"],
+    // NO "reference-image": KIE serves REFERENCE_2_VIDEO on the Fast and Lite
+    // SKUs only. Its own words, on a production job (2026-09-04, app-reports
+    // lane G): "Reference to video only supports the Veo Fast model and Veo
+    // Lite model." Until 2026-09-15 this entry claimed the feature, so the
+    // editor offered the reference handles, the adapter sent
+    // generationType: "REFERENCE_2_VIDEO", and the call came back 422 every
+    // time — after credits were reserved. `veo3.1` (KIE `veo3_fast`) and
+    // `veo3_lite` DO serve it and keep the flag.
+    features: ["end-frame", "audio"],
     durations: [4, 6, 8],
     aspectRatios: VIDEO_RATIOS_HV,
     // 720p (default) + 1080p inline. 4K generates the base at 1080p then chains

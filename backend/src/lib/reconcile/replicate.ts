@@ -1,4 +1,5 @@
 import { replicateOutputCost } from "../../providers/replicate/output-cost.js"
+import { replicateFailureMessage } from "../../providers/replicate/failure-messages.js"
 import { config } from "../config.js"
 import { supabase } from "../supabase.js"
 import { markJobFailed, FAILABLE_STATUSES } from "../job-failure.js"
@@ -8,6 +9,7 @@ import type { ReconcileOpts } from "./kie.js"
 import { refundReservedCreditsForJob } from "../credits-job-lifecycle.js"
 import { deleteCharacterLora } from "../../providers/replicate/training.js"
 import { bumpAttemptsOrExhaust } from "./bump-attempts.js"
+import { isEntityMediaJobType, recoverEntityJob } from "./entity-recovery.js"
 import { loopTrimAddonForReconcile } from "./loop-trim-refund.js"
 import {
   mapWhisperOutput,
@@ -227,6 +229,16 @@ async function markFailed(jobId: string, reason: string, detail: string | null =
   })
 }
 
+/** The media URL(s) a succeeded prediction carries: a bare string, or an array
+ *  of them. Shared by the entity lane and the generic finalize path so one
+ *  output shape cannot mean two different things — and EMPTY strings are not
+ *  URLs, which is what the old denylist branch encoded inline as
+ *  `out === "" || (Array.isArray(out) && out.length === 0)`. */
+function predictionOutputUrls(out: unknown): string[] {
+  const raw = Array.isArray(out) ? out : typeof out === "string" ? [out] : []
+  return raw.filter((x): x is string => typeof x === "string" && x.length > 0)
+}
+
 /**
  * Reconcile a stuck Replicate job. Polls /v1/predictions/:id once, then:
  *   - status=succeeded → finalize with output URL(s)
@@ -282,11 +294,17 @@ export async function reconcileReplicateJob(row: ReplicateJobRow, opts?: Reconci
   }
 
   if (pred.status === "failed" || pred.status === "canceled") {
+    // A recognised failure signature gets the honest sentence instead of the
+    // generic "please try again" — the SAME normalizer the worker lane uses
+    // (providers/replicate/failure-messages.ts), scoped by job_type so a
+    // generic library error is never read as a verdict for another model.
+    const recognised =
+      pred.status === "failed" ? replicateFailureMessage(row.job_type, pred.error) : null
     await markFailed(
       row.id,
       pred.status === "canceled"
         ? "Generation was cancelled by the provider."
-        : "Generation failed on the provider. Please try again.",
+        : recognised ?? "Generation failed on the provider. Please try again.",
       // pred.error is raw provider text — redact it before it reaches
       // error_detail (M-2b); never pass it through as-is.
       redactProviderDetail(pred.error) ?? `upstream ${pred.status}`,
@@ -333,6 +351,39 @@ export async function reconcileReplicateJob(row: ReplicateJobRow, opts?: Reconci
     return
   }
 
+  // Entity studios (Character / Face / Object / Creature / Location) are their
+  // own completion writers, so the generic finalize below would complete the
+  // job with the result invisible in the studio. They are NOT unrecoverable:
+  // this lane runs the SAME completion tail the worker runs
+  // (`lib/entity-finalize.ts`) with the attach spec read off `jobs.input_data`.
+  // Entity images reach Replicate through `providerKindForImageModel` (every
+  // REPLICATE_IMAGE_MODEL_IDS member + flux-lora-character), so this is a live
+  // path, not a backstop. Returns unconditionally, so the denylist below never
+  // double-handles the row.
+  if (isEntityMediaJobType(row.job_type)) {
+    const entityUrls = predictionOutputUrls(pred.output)
+    if (entityUrls.length === 0) {
+      await markFailed(
+        row.id,
+        "The provider returned a result we could not read. Your credits were refunded.",
+        `empty provider output for ${row.job_type}`,
+      )
+      await refundReservedCreditsForJob(row.id)
+      return
+    }
+    try {
+      await recoverEntityJob({
+        jobId: row.id,
+        jobType: row.job_type,
+        url: entityUrls[0]!,
+        claimant: opts?.claimant ?? "cron",
+      })
+    } catch (err) {
+      await bumpAttemptsOrExhaust(row.id, err)
+    }
+    return
+  }
+
   // Types with their own completion writer, and unknown/NULL types, must not
   // reach finalize (same rationale as kie.ts's twin guard, M-4a/M-4b).
   if (NOT_GENERIC_RECOVERABLE.has(row.job_type ?? "")) {
@@ -364,12 +415,7 @@ export async function reconcileReplicateJob(row: ReplicateJobRow, opts?: Reconci
   }
 
   // succeeded
-  const out = pred.output
-  const urls = Array.isArray(out)
-    ? out.filter((x): x is string => typeof x === "string")
-    : typeof out === "string"
-      ? [out]
-      : []
+  const urls = predictionOutputUrls(pred.output)
   if (urls.length === 0) {
     await markFailed(
       row.id,

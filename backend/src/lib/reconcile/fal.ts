@@ -3,6 +3,7 @@ import { finalizeJobWithMedia, isFinalizeJobType, NOT_GENERIC_RECOVERABLE } from
 import { refundReservedCreditsForJob } from "../credits-job-lifecycle.js"
 import { redactProviderDetail, logProviderFailure } from "../provider-error-detail.js"
 import { bumpAttemptsOrExhaust } from "./bump-attempts.js"
+import { isEntityMediaJobType, recoverEntityJob } from "./entity-recovery.js"
 import { fetchFalRequestStatus, extractFalUrl } from "../../providers/fal/client.js"
 import { FAL_LIP_SYNC_CONFIGS } from "../../providers/fal/lip-sync.js"
 import type { ReconcileOpts } from "./kie.js"
@@ -121,6 +122,25 @@ export async function reconcileFalJob(row: FalJobRow, opts?: ReconcileOpts): Pro
       redactProviderDetail(remote.error) ?? "fal request failed",
     )
     await refundReservedCreditsForJob(row.id)
+    return
+  }
+
+  // Entity studios: recovered through the shared worker tail, never discarded
+  // (see the kie.ts twin). fal serves lip-sync today, so this is symmetry with
+  // the other two writers rather than a live path — but a provider_kind is one
+  // routing-table line away from making it one, and a lane that only exists in
+  // two of three writers is the shape this whole bug had.
+  if (isEntityMediaJobType(row.job_type)) {
+    try {
+      await recoverEntityJob({
+        jobId: row.id,
+        jobType: row.job_type,
+        url: extractFalUrl(remote.output),
+        claimant: opts?.claimant ?? "cron",
+      })
+    } catch (err) {
+      await bumpAttemptsOrExhaust(row.id, err)
+    }
     return
   }
 

@@ -7,26 +7,16 @@ import {
   commitJobCredits,
   shouldSaveJobResult,
   markJobCompleted,
-  uploadImageMaybeWatermark,
-  uploadVideoMaybeWatermark,
   setJobProgress,
   type HandlerFn,
   type JobContext,
 } from "../shared.js"
+import { entityAttachSpecFrom, finalizeEntityJob } from "../../lib/entity-finalize.js"
 import { makeOnTaskCreated } from "../../lib/reconcile/persistence.js"
 import {
   providerKindForImageModel,
   providerKindForVideoModel,
 } from "../../lib/reconcile/provider-kind.js"
-import {
-  attachAssetToCharacter,
-  setCharacterPortrait,
-  resolveAssetColumn,
-  type CharacterAssetColumn,
-} from "../../lib/character-auto-attach.js"
-import { autoAttachLocationAsset } from "../../lib/location-auto-attach.js"
-import { autoAttachObjectAsset, setObjectMainImage } from "../../lib/object-auto-attach.js"
-import { autoAttachCreatureAsset, setCreatureMainImage } from "../../lib/creature-auto-attach.js"
 import { clampAspectRatioToModel } from "../../lib/aspect-ratio.js"
 import { entityImageRefCap } from "../../lib/entity-ref-cap.js"
 import { applyPromptPolicies } from "../../lib/prompt-policy.js"
@@ -125,16 +115,6 @@ function makeEntityImageHandler(
       assembledReferenceUrls,
       assetType,
       provider,
-      attachToCharacterId,
-      skipPortraitAttach,
-      attachToColumn,
-      attachName,
-      attachToLocationId,
-      attachToObjectId,
-      attachToCreatureId,
-      description,
-      motionDescription,
-      realLifeRefs,
       aspectRatio,
       resolution,
       quality,
@@ -208,126 +188,27 @@ function makeEntityImageHandler(
     const result = await generateImage(prompt, resolvedProvider, referenceImageUrls, hasExtraParams ? extraParams : undefined, { onTaskCreated })
     await setJobProgress(job, ctx.jobId, 50)
 
-    const r2Url = await uploadImageMaybeWatermark(result.url, ctx.jobId, ctx.jobUserId, ctx.shouldWatermark)
-    await setJobProgress(job, ctx.jobId, 100)
-
-    if (!await shouldSaveJobResult(ctx.jobId)) return
-
-    const outputData: Record<string, unknown> = { imageUrl: r2Url }
-    if (opts?.includeAssetType && assetType) {
-      outputData.assetType = assetType
-    }
-
-    const ok = await markJobCompleted(ctx.jobId, {
-      output_data: outputData,
-      provider: result.providerUsed,
-      provider_cost: result.cost,
-      display_cost: result.displayCost,
-    })
-    if (!ok) return
-
-    await commitJobCredits(ctx.usageLogId, ctx.jobId, result.cost)
-
-    // Best-effort: write the result back onto the user's character row so the
-    // Studio reflects it across page reloads (even if the user closed the tab
-    // mid-generation). Logs and continues on failure — credits are already
-    // committed and the job row holds the URL as the ultimate source.
-    if (attachToCharacterId && ctx.jobUserId) {
-      if (logPrefix === "generate-character") {
-        // Portrait → source_image_url (unless the route opted out — the
-        // extension reimagine flow keeps the linkage but must not anchor
-        // identity on a full-scene image).
-        if (!skipPortraitAttach) {
-          await setCharacterPortrait({ characterId: attachToCharacterId, userId: ctx.jobUserId, url: r2Url })
-        }
-      } else if (attachToColumn && attachName) {
-        const column: CharacterAssetColumn | null = resolveAssetColumn(attachToColumn)
-        if (column) {
-          await attachAssetToCharacter({
-            characterId: attachToCharacterId,
-            userId: ctx.jobUserId,
-            column,
-            item: {
-              name: attachName,
-              url: r2Url,
-              description,
-              motionDescription,
-              realLifeRefs,
-            },
-          })
-        }
-      }
-    }
-
-    // Location Studio auto-attach. Mirrors the Character path but writes via
-    // `append_location_asset` (migration 124). The helper re-verifies
-    // `(id, user_id, deleted_at IS NULL)` so a forged BullMQ payload can't
-    // attach to another user's row.
-    await autoAttachLocationAsset({
-      locationId: attachToLocationId,
-      column: attachToColumn,
-      name: attachName,
+    // Upload → CAS-complete → commit credits → write the result back onto the
+    // user's studio row, through the SHARED entity tail (`lib/entity-finalize.ts`).
+    // The reconcile cron calls the same function with the same attach spec read
+    // off `jobs.input_data`, which is what makes a worker that dies mid-flight
+    // recoverable instead of refunded 90 minutes later.
+    const r2Url = await finalizeEntityJob({
+      jobId: ctx.jobId,
+      jobType: logPrefix,
       userId: ctx.jobUserId,
-      url: r2Url,
+      shouldWatermark: ctx.shouldWatermark,
+      usageLogId: ctx.usageLogId,
+      spec: entityAttachSpecFrom(data as unknown as Record<string, unknown>),
+      result: {
+        url: result.url,
+        providerUsed: result.providerUsed,
+        cost: result.cost,
+        displayCost: result.displayCost,
+      },
+      afterUpload: () => setJobProgress(job, ctx.jobId, 100),
     })
-
-    // Object Studio auto-attach. Mirrors the Character pattern: main-image
-    // branch sets source_image_url; asset variant branch appends to a JSONB
-    // column via the append_object_asset RPC (migration 147). The helpers
-    // re-verify `(id, user_id, deleted_at IS NULL)` so a forged BullMQ
-    // payload can't attach to another user's row OR an object that was
-    // soft-deleted between route accept and worker pickup. Unlike the
-    // Character branch, no explicit `resolveAssetColumn` call is needed
-    // here — `autoAttachObjectAsset` narrows internally against
-    // `OBJECT_ATTACH_COLUMN_SET`.
-    if (attachToObjectId && ctx.jobUserId) {
-      if (logPrefix === "generate-object") {
-        // Main image (single-candidate) → source_image_url
-        await setObjectMainImage({
-          objectId: attachToObjectId,
-          userId: ctx.jobUserId,
-          url: r2Url,
-        })
-      } else if (attachToColumn && attachName) {
-        // Asset variant → JSONB column (angles / materials / variations)
-        await autoAttachObjectAsset({
-          objectId: attachToObjectId,
-          column: attachToColumn,
-          name: attachName,
-          userId: ctx.jobUserId,
-          url: r2Url,
-        })
-      }
-    }
-
-    // Creature Studio auto-attach. Mirrors the Object pattern: main-image
-    // branch sets source_image_url; asset variant branch appends to a JSONB
-    // column via the append_creature_asset RPC (migration 206). The helpers
-    // re-verify `(id, user_id, deleted_at IS NULL)` so a forged BullMQ
-    // payload can't attach to another user's row OR a creature that was
-    // soft-deleted between route accept and worker pickup. Like the Object
-    // branch, no explicit column-resolve call is needed here —
-    // `autoAttachCreatureAsset` narrows internally against
-    // `CREATURE_ATTACH_COLUMN_SET`.
-    if (attachToCreatureId && ctx.jobUserId) {
-      if (logPrefix === "generate-creature") {
-        // Main image (single-candidate) → source_image_url
-        await setCreatureMainImage({
-          creatureId: attachToCreatureId,
-          userId: ctx.jobUserId,
-          url: r2Url,
-        })
-      } else if (attachToColumn && attachName) {
-        // Asset variant → JSONB column (angles / poses / variations)
-        await autoAttachCreatureAsset({
-          creatureId: attachToCreatureId,
-          column: attachToColumn,
-          name: attachName,
-          userId: ctx.jobUserId,
-          url: r2Url,
-        })
-      }
-    }
+    if (!r2Url) return
 
     console.log(`[worker] Job ${ctx.jobId} completed: ${r2Url} (provider: ${result.providerUsed}, cost: $${result.cost?.toFixed(6) ?? "N/A"})`)
   }
@@ -427,36 +308,28 @@ const handleGenerateCharacterMotion: HandlerFn = async function handleGenerateCh
   )
   await setJobProgress(job, ctx.jobId, 50)
 
-  const r2Url = await uploadVideoMaybeWatermark(result.url, ctx.jobId, ctx.jobUserId, ctx.shouldWatermark)
-  await setJobProgress(job, ctx.jobId, 100)
-
-  if (!await shouldSaveJobResult(ctx.jobId)) return
-
-  const ok = await markJobCompleted(ctx.jobId, {
-    output_data: { videoUrl: r2Url },
-    provider: result.providerUsed,
-    provider_cost: result.cost,
-    display_cost: result.displayCost,
+  // Shared entity completion tail — see lib/entity-finalize.ts. The reconcile
+  // cron runs this exact function with the attach spec read off
+  // `jobs.input_data`, so a crashed worker's finished clip is recovered rather
+  // than discarded. The attach COLUMN is the job type's own constant in that
+  // table (it used to be a literal in this file / in the route's queue payload,
+  // which the persisted row never saw).
+  const r2Url = await finalizeEntityJob({
+    jobId: ctx.jobId,
+    jobType: "generate-character-motion",
+    userId: ctx.jobUserId,
+    shouldWatermark: ctx.shouldWatermark,
+    usageLogId: ctx.usageLogId,
+    spec: entityAttachSpecFrom(job.data as Record<string, unknown>),
+    result: {
+      url: result.url,
+      providerUsed: result.providerUsed,
+      cost: result.cost,
+      displayCost: result.displayCost,
+    },
+    afterUpload: () => setJobProgress(job, ctx.jobId, 100),
   })
-  if (!ok) return
-
-  await commitJobCredits(ctx.usageLogId, ctx.jobId, result.cost)
-
-  // Best-effort attach to characters.motions[]
-  if (attachToCharacterId && attachName && ctx.jobUserId) {
-    await attachAssetToCharacter({
-      characterId: attachToCharacterId,
-      userId: ctx.jobUserId,
-      column: "motions",
-      item: {
-        name: attachName,
-        url: r2Url,
-        description,
-        motionDescription,
-        realLifeRefs,
-      },
-    })
-  }
+  if (!r2Url) return
 
   console.log(`[worker] Job ${ctx.jobId} completed: ${r2Url} (provider: ${result.providerUsed}, cost: $${result.cost?.toFixed(6) ?? "N/A"})`)
 }
@@ -531,31 +404,28 @@ const handleGenerateLocationMotion: HandlerFn = async function handleGenerateLoc
       )
   await setJobProgress(job, ctx.jobId, 50)
 
-  const r2Url = await uploadVideoMaybeWatermark(result.url, ctx.jobId, ctx.jobUserId, ctx.shouldWatermark)
-  await setJobProgress(job, ctx.jobId, 100)
-
-  if (!await shouldSaveJobResult(ctx.jobId)) return
-
-  const ok = await markJobCompleted(ctx.jobId, {
-    output_data: { videoUrl: r2Url },
-    provider: result.providerUsed,
-    provider_cost: result.cost,
-    display_cost: result.displayCost,
-  })
-  if (!ok) return
-
-  await commitJobCredits(ctx.usageLogId, ctx.jobId, result.cost)
-
-  // Best-effort attach to locations.atmosphere_motions (or whichever motion
-  // column the route specified). The helper re-verifies (id, user_id,
-  // deleted_at IS NULL) so a forged BullMQ payload can't bypass ownership.
-  await autoAttachLocationAsset({
-    locationId: attachToLocationId,
-    column: attachToColumn,
-    name: attachName,
+  // Shared entity completion tail — see lib/entity-finalize.ts. The reconcile
+  // cron runs this exact function with the attach spec read off
+  // `jobs.input_data`, so a crashed worker's finished clip is recovered rather
+  // than discarded. The attach COLUMN is the job type's own constant in that
+  // table (it used to be a literal in this file / in the route's queue payload,
+  // which the persisted row never saw).
+  const r2Url = await finalizeEntityJob({
+    jobId: ctx.jobId,
+    jobType: "generate-location-motion",
     userId: ctx.jobUserId,
-    url: r2Url,
+    shouldWatermark: ctx.shouldWatermark,
+    usageLogId: ctx.usageLogId,
+    spec: entityAttachSpecFrom(job.data as Record<string, unknown>),
+    result: {
+      url: result.url,
+      providerUsed: result.providerUsed,
+      cost: result.cost,
+      displayCost: result.displayCost,
+    },
+    afterUpload: () => setJobProgress(job, ctx.jobId, 100),
   })
+  if (!r2Url) return
 
   console.log(`[worker] Job ${ctx.jobId} completed: ${r2Url} (provider: ${result.providerUsed}, cost: $${result.cost?.toFixed(6) ?? "N/A"})`)
 }
@@ -639,32 +509,28 @@ const handleGenerateObjectMotion: HandlerFn = async function handleGenerateObjec
       )
   await setJobProgress(job, ctx.jobId, 50)
 
-  const r2Url = await uploadVideoMaybeWatermark(result.url, ctx.jobId, ctx.jobUserId, ctx.shouldWatermark)
-  await setJobProgress(job, ctx.jobId, 100)
-
-  if (!await shouldSaveJobResult(ctx.jobId)) return
-
-  const ok = await markJobCompleted(ctx.jobId, {
-    output_data: { videoUrl: r2Url },
-    provider: result.providerUsed,
-    provider_cost: result.cost,
-    display_cost: result.displayCost,
-  })
-  if (!ok) return
-
-  await commitJobCredits(ctx.usageLogId, ctx.jobId, result.cost)
-
-  // Best-effort attach to objects.motion_clips (or whichever motion column
-  // the route specified — currently always "motion_clips"). The helper
-  // re-verifies (id, user_id, deleted_at IS NULL) so a forged BullMQ payload
-  // can't bypass ownership.
-  await autoAttachObjectAsset({
-    objectId: attachToObjectId,
-    column: attachToColumn,
-    name: attachName,
+  // Shared entity completion tail — see lib/entity-finalize.ts. The reconcile
+  // cron runs this exact function with the attach spec read off
+  // `jobs.input_data`, so a crashed worker's finished clip is recovered rather
+  // than discarded. The attach COLUMN is the job type's own constant in that
+  // table (it used to be a literal in this file / in the route's queue payload,
+  // which the persisted row never saw).
+  const r2Url = await finalizeEntityJob({
+    jobId: ctx.jobId,
+    jobType: "generate-object-motion",
     userId: ctx.jobUserId,
-    url: r2Url,
+    shouldWatermark: ctx.shouldWatermark,
+    usageLogId: ctx.usageLogId,
+    spec: entityAttachSpecFrom(job.data as Record<string, unknown>),
+    result: {
+      url: result.url,
+      providerUsed: result.providerUsed,
+      cost: result.cost,
+      displayCost: result.displayCost,
+    },
+    afterUpload: () => setJobProgress(job, ctx.jobId, 100),
   })
+  if (!r2Url) return
 
   console.log(`[worker] Job ${ctx.jobId} completed: ${r2Url} (provider: ${result.providerUsed}, cost: $${result.cost?.toFixed(6) ?? "N/A"})`)
 }
@@ -748,32 +614,28 @@ const handleGenerateCreatureMotion: HandlerFn = async function handleGenerateCre
       )
   await setJobProgress(job, ctx.jobId, 50)
 
-  const r2Url = await uploadVideoMaybeWatermark(result.url, ctx.jobId, ctx.jobUserId, ctx.shouldWatermark)
-  await setJobProgress(job, ctx.jobId, 100)
-
-  if (!await shouldSaveJobResult(ctx.jobId)) return
-
-  const ok = await markJobCompleted(ctx.jobId, {
-    output_data: { videoUrl: r2Url },
-    provider: result.providerUsed,
-    provider_cost: result.cost,
-    display_cost: result.displayCost,
-  })
-  if (!ok) return
-
-  await commitJobCredits(ctx.usageLogId, ctx.jobId, result.cost)
-
-  // Best-effort attach to creatures.motion_clips (or whichever motion column
-  // the route specified — currently always "motion_clips"). The helper
-  // re-verifies (id, user_id, deleted_at IS NULL) so a forged BullMQ payload
-  // can't bypass ownership.
-  await autoAttachCreatureAsset({
-    creatureId: attachToCreatureId,
-    column: attachToColumn,
-    name: attachName,
+  // Shared entity completion tail — see lib/entity-finalize.ts. The reconcile
+  // cron runs this exact function with the attach spec read off
+  // `jobs.input_data`, so a crashed worker's finished clip is recovered rather
+  // than discarded. The attach COLUMN is the job type's own constant in that
+  // table (it used to be a literal in this file / in the route's queue payload,
+  // which the persisted row never saw).
+  const r2Url = await finalizeEntityJob({
+    jobId: ctx.jobId,
+    jobType: "generate-creature-motion",
     userId: ctx.jobUserId,
-    url: r2Url,
+    shouldWatermark: ctx.shouldWatermark,
+    usageLogId: ctx.usageLogId,
+    spec: entityAttachSpecFrom(job.data as Record<string, unknown>),
+    result: {
+      url: result.url,
+      providerUsed: result.providerUsed,
+      cost: result.cost,
+      displayCost: result.displayCost,
+    },
+    afterUpload: () => setJobProgress(job, ctx.jobId, 100),
   })
+  if (!r2Url) return
 
   console.log(`[worker] Job ${ctx.jobId} completed: ${r2Url} (provider: ${result.providerUsed}, cost: $${result.cost?.toFixed(6) ?? "N/A"})`)
 }

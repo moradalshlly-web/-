@@ -16,6 +16,21 @@ import { refundReservedCreditsForJob } from "../../lib/credits-job-lifecycle.js"
 import { ReserveRpcError, mapReserveError } from "../../lib/reserve-errors.js"
 import { allowanceEnforcementActive } from "../../lib/deployment-payer.js"
 import { allowanceFor } from "../billing/deployment-allowance-service.js"
+import { getWelcomeOfferConfig } from "./welcome-offer-config.js"
+import { consentBlockExempt, sendConsentRequired } from "./welcome-consent-gate.js"
+
+/** 403 body code when an extension-granted account has not consented yet. */
+export { CONSENT_REQUIRED_CODE } from "./consent-required.js"
+
+/** The one profile read the guard makes; the welcome-offer column is appended
+ *  only while the offer is on (it exists only from migration 426). */
+const GUARD_PROFILE_COLUMNS =
+  "role, tier, subscription_tier, lifetime_topup_credits, subscription_credits, topup_credits, daily_spent_credits, last_daily_reset, storage_used_bytes, storage_limit_bytes"
+
+interface GuardProfileRow extends CreditProfile, StorageProfile {
+  role?: string | null
+  welcome_consent_pending?: boolean | null
+}
 
 // Per-instance monthly spend rollup for the community-connect cap. Reads the
 // jobs ledger (source_detail carries the appId — stamped by insertJob) with a
@@ -121,12 +136,17 @@ export function creditGuardImpl(
     // so the wealth check against it is the honest answer.
     const dep = req.billingContext?.payer === "deployment" ? req.billingContext : undefined
 
+    // Welcome offer: while it is on, the profile read also carries the
+    // consent-pending mark (one column on the same query — the column exists
+    // only from migration 426, so it is asked for only behind the flag).
+    const welcomeOffer = dep ? { enabled: false } : await getWelcomeOfferConfig()
+
     // Fetch profile ONCE with all columns needed by both storage + credit checks
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = (await supabase
       .from("profiles")
-      .select("role, tier, subscription_tier, lifetime_topup_credits, subscription_credits, topup_credits, daily_spent_credits, last_daily_reset, storage_used_bytes, storage_limit_bytes")
+      .select(GUARD_PROFILE_COLUMNS + (welcomeOffer.enabled ? ", welcome_consent_pending" : ""))
       .eq("id", dep ? dep.payerId : userId)
-      .single()
+      .single()) as unknown as { data: GuardProfileRow | null; error: unknown }
 
     if (profileError || !profile) {
       reply.status(500).send({
@@ -135,9 +155,23 @@ export function creditGuardImpl(
       return
     }
 
+    // Step -1: the consent an extension-granted account still owes. The RULE
+    // is in CreditsService.reserveCredits (every spend funnels there); this is
+    // the same refusal answered early, as a 403 the browser turns into the
+    // consent ask. The extension itself keeps working — its sub-requests
+    // forward the browser-set extension Origin (welcome-consent-gate.ts);
+    // every other surface, the orchestrator's internal hops included, is
+    // blocked until the user says yes somewhere. Check-only routes (cost
+    // estimates that fire on render) are let through: they reserve nothing,
+    // and refusing them would pop the consent ask on every hover.
+    if (welcomeOffer.enabled && !opts?.checkOnly && profile.welcome_consent_pending === true && !consentBlockExempt(req)) {
+      sendConsentRequired(reply)
+      return
+    }
+
     // The role in hand is the PAYER's under a deployment payer — warming the
     // requester's admin cache with it would be a privilege confusion.
-    if (!dep) warmAdminCache(userId, (profile as Record<string, unknown>).role as string | undefined)
+    if (!dep) warmAdminCache(userId, profile.role ?? undefined)
 
     // Step 0: spend-surface mode (D1 v2, pool-aware) — on a consumer surface
     // a payg account spends its FREE pool only, under free-tier semantics.
@@ -366,6 +400,12 @@ export async function reserveCreditsForJobImpl(
         ...(options?.oncePerJob ? { oncePerJob: true } : {}),
         webFreeMode: req.webFreeMode,
         communityInstance: req.appAuthorization?.appKind === "community_instance",
+        // Welcome credits opt-in: the guard already refused every non-extension
+        // request for a consent-owing account; the extension's own request is
+        // the one reservation the funnel must let through. Sent ONLY when
+        // true, so every other reservation's arguments are exactly what they
+        // were before the offer existed.
+        ...(consentBlockExempt(req) ? { consentPendingAllowed: true } : {}),
       },
     )
 

@@ -275,11 +275,14 @@ describe("KieVideoProvider.imageToVideo", () => {
     expect(input.tail_image_url).toBeUndefined()
   })
 
-  it("veo3 sends REFERENCE_2_VIDEO generationType when explicitly set", async () => {
+  // veo3.1 (KIE `veo3_fast`), NOT `veo3`: KIE serves reference-to-video on the
+  // Fast and Lite SKUs only — see the "VEO Quality has no reference mode"
+  // describe block below.
+  it("veo3.1 sends REFERENCE_2_VIDEO generationType when explicitly set", async () => {
     await provider.imageToVideo(
       "https://placeholder.png",
       "cinematic scene",
-      "veo3",
+      "veo3.1",
       undefined,
       undefined,
       {
@@ -288,19 +291,19 @@ describe("KieVideoProvider.imageToVideo", () => {
       },
     )
     expect(mocks.mockRunVeoTask).toHaveBeenCalledWith(
-      "veo3",
+      "veo3_fast",
       "cinematic scene",
       ["https://ref1.png", "https://ref2.png"],
       expect.objectContaining({ generationType: "REFERENCE_2_VIDEO" }),
-      expect.objectContaining({ modelKey: "veo3" }),
+      expect.objectContaining({ modelKey: "veo3.1" }),
     )
   })
 
-  it("veo3 caps reference images at 3 in reference mode", async () => {
+  it("veo3.1 caps reference images at 3 in reference mode", async () => {
     await provider.imageToVideo(
       "https://placeholder.png",
       "cinematic scene",
-      "veo3",
+      "veo3.1",
       undefined,
       undefined,
       {
@@ -459,25 +462,25 @@ describe("KieVideoProvider.textToVideo", () => {
     expect(input.aspect_ratio).toBe("9:16")
   })
 
-  it("veo3 t2v forwards reference images as imageUrls with REFERENCE_2_VIDEO", async () => {
+  it("veo3.1 t2v forwards reference images as imageUrls with REFERENCE_2_VIDEO", async () => {
     // Ref-only runs (no start frame) dispatch down the t2v path with
-    // referenceImageUrls forwarded — VEO must receive them as imageUrls with
-    // an explicit REFERENCE_2_VIDEO generationType (a bare single image would
-    // otherwise be misread as an IMAGE_2_VIDEO start frame).
-    await provider.textToVideo("space exploration", "veo3", undefined, undefined, {
+    // referenceImageUrls forwarded — a ref-capable VEO SKU must receive them
+    // as imageUrls with an explicit REFERENCE_2_VIDEO generationType (a bare
+    // single image would otherwise be misread as an IMAGE_2_VIDEO start frame).
+    await provider.textToVideo("space exploration", "veo3.1", undefined, undefined, {
       referenceImageUrls: ["https://cdn.example/ref1.png", "https://cdn.example/ref2.png"],
     })
     expect(mocks.mockRunVeoTask).toHaveBeenCalledWith(
-      "veo3",
+      "veo3_fast",
       "space exploration",
       ["https://cdn.example/ref1.png", "https://cdn.example/ref2.png"],
       expect.objectContaining({ generationType: "REFERENCE_2_VIDEO" }),
-      expect.objectContaining({ modelKey: "veo3" }),
+      expect.objectContaining({ modelKey: "veo3.1" }),
     )
   })
 
-  it("veo3 t2v caps reference images at 3 (VEO limit)", async () => {
-    await provider.textToVideo("space exploration", "veo3", undefined, undefined, {
+  it("veo3.1 t2v caps reference images at 3 (VEO limit)", async () => {
+    await provider.textToVideo("space exploration", "veo3.1", undefined, undefined, {
       referenceImageUrls: ["u1", "u2", "u3", "u4", "u5"].map((n) => `https://cdn.example/${n}.png`),
     })
     const passedUrls = mocks.mockRunVeoTask.mock.calls[0][2] as string[]
@@ -558,9 +561,9 @@ describe("KieVideoProvider.lipSyncVideo", () => {
 // calls rendered identity-blind.
 // ---------------------------------------------------------------------------
 
-describe("imageToVideo — veo3 identity references", () => {
+describe("imageToVideo — veo3.1 identity references", () => {
   it("refs flip the call to REFERENCE_2_VIDEO: [anchor, ...refs] capped at 3, binding in the prompt", async () => {
-    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3", 8, undefined, {
+    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3.1", 8, undefined, {
       referenceImageUrls: ["https://r2/r1.png", "https://r2/r2.png", "https://r2/r3.png"],
     })
     const [, prompt, imageUrls, opts] = mocks.mockRunVeoTask.mock.calls[0]!
@@ -571,7 +574,7 @@ describe("imageToVideo — veo3 identity references", () => {
   })
 
   it("no refs ⇒ byte-identical plain frame mode: frames kept, no generationType, prompt untouched", async () => {
-    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3", 8, "https://img/end.png", {})
+    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3.1", 8, "https://img/end.png", {})
     const [, prompt, imageUrls, opts] = mocks.mockRunVeoTask.mock.calls[0]!
     expect(imageUrls).toEqual(["https://img/start.png", "https://img/end.png"])
     expect((opts as { generationType?: string }).generationType).toBeUndefined()
@@ -579,7 +582,7 @@ describe("imageToVideo — veo3 identity references", () => {
   })
 
   it("refs + end anchor: the end frame is surrendered to reference mode — refs win the seats", async () => {
-    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3", 8, "https://img/end.png", {
+    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3.1", 8, "https://img/end.png", {
       referenceImageUrls: ["https://r2/r1.png"],
     })
     const [, , imageUrls] = mocks.mockRunVeoTask.mock.calls[0]!
@@ -618,7 +621,7 @@ describe("imageToVideo — veo3 identity references", () => {
   })
 
   it("an EXPLICIT caller REFERENCE_2_VIDEO keeps its refs-only list — no anchor prepend, no suffix", async () => {
-    await provider.imageToVideo(undefined, "cinematic", "veo3", 8, undefined, {
+    await provider.imageToVideo(undefined, "cinematic", "veo3.1", 8, undefined, {
       generationType: "REFERENCE_2_VIDEO",
       referenceImageUrls: ["https://r2/r1.png", "https://r2/r2.png"],
     })
@@ -626,6 +629,79 @@ describe("imageToVideo — veo3 identity references", () => {
     expect(imageUrls).toEqual(["https://r2/r1.png", "https://r2/r2.png"])
     expect((opts as { generationType?: string }).generationType).toBe("REFERENCE_2_VIDEO")
     expect(prompt).toBe("cinematic")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// VEO 3.1 QUALITY has no reference-to-video mode (2026-09-15). KIE serves
+// REFERENCE_2_VIDEO on Fast and Lite only and answers Quality with "Reference
+// to video only supports the Veo Fast model and Veo Lite model." — a 422 AFTER
+// the credits are reserved (production, 2026-09-04). The catalog no longer
+// claims the feature, so `VIDEO_REF_LIMITS_BY_PROVIDER["veo3"]` is absent, and
+// the adapter reads that DECLARED capacity rather than assuming 3. The editor
+// dims the handle, but the orchestrator, the REST API and an imported workflow
+// all hand `referenceImageUrls` through unchecked — this is the invariant.
+// ---------------------------------------------------------------------------
+
+describe("imageToVideo / textToVideo — veo3 (Quality) never flips to reference mode", () => {
+  it("i2v: refs are ignored, frames are kept, no generationType", async () => {
+    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3", 8, "https://img/end.png", {
+      referenceImageUrls: ["https://r2/r1.png", "https://r2/r2.png"],
+    })
+    const [model, prompt, imageUrls, opts] = mocks.mockRunVeoTask.mock.calls[0]!
+    expect(model).toBe("veo3")
+    expect(imageUrls).toEqual(["https://img/start.png", "https://img/end.png"])
+    expect((opts as { generationType?: string }).generationType).toBeUndefined()
+    // No reference binding leaks into the prompt either.
+    expect(prompt).toBe("cinematic")
+  })
+
+  it("i2v: an EXPLICIT caller REFERENCE_2_VIDEO is refused, not forwarded", async () => {
+    // The orchestrator / REST shape that produced the production 422.
+    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3", 8, undefined, {
+      generationType: "REFERENCE_2_VIDEO",
+      referenceImageUrls: ["https://r2/r1.png", "https://r2/r2.png"],
+    })
+    const [, , imageUrls, opts] = mocks.mockRunVeoTask.mock.calls[0]!
+    expect((opts as { generationType?: string }).generationType).toBeUndefined()
+    expect(imageUrls).toEqual(["https://img/start.png"])
+  })
+
+  it("t2v: refs are dropped and the run stays a plain text-to-video", async () => {
+    await provider.textToVideo("space exploration", "veo3", undefined, undefined, {
+      referenceImageUrls: ["https://cdn.example/ref1.png"],
+    })
+    const [, , imageUrls, opts] = mocks.mockRunVeoTask.mock.calls[0]!
+    expect(imageUrls).toBeUndefined()
+    expect((opts as { generationType?: string }).generationType).toBeUndefined()
+  })
+
+  // The duration half of the same invariant (#1414 shipped `veoDurationFor`:
+  // reference mode runs at 8s whatever was asked for). A Quality call never
+  // reaches the reference wire mode, so it must keep the requested length —
+  // the two changes have to agree, not just coexist.
+  it("keeps the requested duration: never the reference-mode 8s coercion", async () => {
+    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3", 4, undefined, {
+      referenceImageUrls: ["https://r2/r1.png"],
+    })
+    const [, , , opts] = mocks.mockRunVeoTask.mock.calls[0]!
+    expect((opts as { duration?: number }).duration).toBe(4)
+    expect((opts as { generationType?: string }).generationType).toBeUndefined()
+  })
+
+  it("the Fast and Lite SKUs are unaffected", async () => {
+    for (const [id, kieModel] of [["veo3.1", "veo3_fast"], ["veo3_lite", "veo3_lite"]] as const) {
+      mocks.mockRunVeoTask.mockClear()
+      await provider.textToVideo("space exploration", id, undefined, undefined, {
+        referenceImageUrls: ["https://cdn.example/ref1.png"],
+      })
+      const [model, , imageUrls, opts] = mocks.mockRunVeoTask.mock.calls[0]!
+      expect(model).toBe(kieModel)
+      expect(imageUrls).toEqual(["https://cdn.example/ref1.png"])
+      expect((opts as { generationType?: string }).generationType).toBe("REFERENCE_2_VIDEO")
+      // …and they DO take the 8s reference-mode coercion (#1414).
+      expect((opts as { duration?: number }).duration).toBe(8)
+    }
   })
 })
 

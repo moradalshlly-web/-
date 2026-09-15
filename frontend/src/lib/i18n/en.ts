@@ -86,6 +86,23 @@ export const en = {
   "auth.installSetup": "Install setup",
   "auth.freeCredits": "Start free with up to {credits} credits. No credit card required.",
 
+  // Welcome credits opt-in (popup + banner on the home tab, Cloud only)
+  "welcome.eyebrow": "Welcome to Nodaro",
+  "welcome.badge": "Credits",
+  "welcome.title": "{credits} free credits are waiting for you",
+  "welcome.body": "Say yes to product updates and tips by email and the credits land in your account instantly. Unsubscribe anytime.",
+  "welcome.cta": "Yes, email me & add {credits} credits",
+  "welcome.later": "Maybe later",
+  "welcome.close": "Close",
+  "welcome.banner.title": "Get {credits} free credits",
+  "welcome.banner.body": "Opt in to product updates and tips by email and they land in your account instantly.",
+  "welcome.pending.title": "Your {credits} credits are active",
+  "welcome.pending.body": "Say yes to product updates and tips by email to keep creating here. Unsubscribe anytime.",
+  "welcome.pending.cta": "Yes, email me & keep creating",
+  "welcome.claimed": "{credits} credits added",
+  "welcome.done": "Done",
+  "welcome.error": "That didn't go through. Please try again.",
+
   // ── Legal ───────────────────────────────────────────────────────────────
   "legal.terms": "Terms of Service",
   "legal.privacy": "Privacy Policy",

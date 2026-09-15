@@ -1,7 +1,7 @@
 ---
 node_type: text-to-video
-generated_at: 2026-09-11T00:29:16.758Z
-generated_from: a2f98be9d
+generated_at: 2026-09-15T12:15:54.382Z
+generated_from: 026f94462
 ---
 
 # Text to Video
@@ -266,7 +266,7 @@ Example: "Medium shot, a tired corporate worker, rubbing his temples in exhausti
 
 **Frames & references**
 - Start + end frame: wire both (imageUrls [start, end]) and describe the camera path between them — "a smooth 180-degree arc shot, starting front-facing and circling to end on the POV from behind her".
-- Reference images (ingredients): attach character/object/scene refs and name them in the prompt ("using the provided images for the detective and the office, …"). Reference runs DO generate audio.
+- Reference images (ingredients) — **Fast (veo3.1) and Lite (veo3_lite) only**; the Quality SKU (veo3) has no reference-to-video mode at the provider, so wire it with frames alone. Where they are available: attach character/object/scene refs and name them in the prompt ("using the provided images for the detective and the office, …"). Reference runs DO generate audio.
 
 **Constraints**
 - Negative prompting works by positive description: write "a desolate landscape with no buildings or roads", not "no buildings".

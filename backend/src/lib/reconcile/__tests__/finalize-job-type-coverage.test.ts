@@ -1,11 +1,14 @@
 /**
  * B2 guard (spec 2026-09-01-app-reports-triage-design.md §7).
  *
- * Every job_type a reconcile tick can read must be EITHER finalizable
- * (FINALIZE_JOB_TYPES) or explicitly not-generically-recoverable
- * (NOT_GENERIC_RECOVERABLE). A type in neither set means the reconcile writer
- * bumps to exhaustion and refunds a job whose provider call may have
- * succeeded — the 2026-08-31 `[job-finalize] generate-character` row.
+ * Every job_type a reconcile tick can read must fall in EXACTLY ONE of three
+ * buckets: generically finalizable (FINALIZE_JOB_TYPES), recovered through the
+ * shared entity tail (ENTITY_MEDIA_JOB_SPECS — the studio lanes, whose own
+ * completion writer the reconciler now runs), or explicitly
+ * not-generically-recoverable (NOT_GENERIC_RECOVERABLE). A type in none of
+ * them means the reconcile writer bumps to exhaustion and refunds a job whose
+ * provider call may have succeeded — the 2026-08-31 `[job-finalize]
+ * generate-character` row, and the 2026-09-03/09-07 bursts that followed it.
  *
  * Source 1 (derived): the nine STATICALLY-EXPORTED handler maps.
  * The pickup CAS in `video-worker.ts` OVERWRITES `job_type` with `job.name`
@@ -34,6 +37,7 @@ import { entityHandlers } from "../../../workers/handlers/entity.js"
 import { referenceSheetHandlers } from "../../../workers/handlers/reference-sheet.js"
 import { motionGraphicsLottieHandlers } from "../../../workers/handlers/motion-graphics-lottie.js"
 import { FINALIZE_JOB_TYPES, NOT_GENERIC_RECOVERABLE } from "../../job-finalize.js"
+import { ENTITY_MEDIA_JOB_SPECS } from "../../entity-finalize.js"
 
 /** The nine maps video-worker.ts:37-49 spreads statically into `allHandlers`. */
 const STATIC_HANDLER_JOB_NAMES: readonly string[] = Object.keys({
@@ -55,8 +59,9 @@ const DAG_ORIGIN_JOB_TYPES = [
   "modify-image", "upscale-image", "remove-background", "motion-graphics",
 ] as const
 
-function classify(jobType: string): "finalize" | "denied" | "uncovered" {
+function classify(jobType: string): "finalize" | "entity" | "denied" | "uncovered" {
   if (FINALIZE_JOB_TYPES.has(jobType)) return "finalize"
+  if (ENTITY_MEDIA_JOB_SPECS.has(jobType)) return "entity"
   if (NOT_GENERIC_RECOVERABLE.has(jobType)) return "denied"
   return "uncovered"
 }
@@ -90,9 +95,38 @@ describe("finalize job-type coverage", () => {
     expect(uncovered).toEqual([])
   })
 
-  it("keeps the two sets disjoint", () => {
-    const both = [...FINALIZE_JOB_TYPES].filter((t) => NOT_GENERIC_RECOVERABLE.has(t))
-    expect(both).toEqual([])
+  it("keeps the three sets pairwise disjoint", () => {
+    // Two classifications for one type is an ambiguity, not a belt-and-braces:
+    // the reconcile writers consult them in order, so the loser silently never
+    // runs and nobody finds out until a job is refunded.
+    expect([...FINALIZE_JOB_TYPES].filter((t) => NOT_GENERIC_RECOVERABLE.has(t))).toEqual([])
+    expect([...FINALIZE_JOB_TYPES].filter((t) => ENTITY_MEDIA_JOB_SPECS.has(t))).toEqual([])
+    expect([...ENTITY_MEDIA_JOB_SPECS.keys()].filter((t) => NOT_GENERIC_RECOVERABLE.has(t))).toEqual([])
+  })
+
+  it("classifies every entity handler as recoverable, except the text one", () => {
+    // The whole point of the 2026-09-15 fix: an entity job whose worker died
+    // mid-flight is completed from the recovered provider result, not refunded
+    // 90 minutes later. `generate-script` is the only entity key that stays
+    // denied — it is the LLM lane and persists no provider task id to poll.
+    const entityKeys = STATIC_HANDLER_JOB_NAMES.filter((t) => t.startsWith("generate-") &&
+      (ENTITY_MEDIA_JOB_SPECS.has(t) || t === "generate-script"))
+    expect(entityKeys).toHaveLength(14)
+    expect(classify("generate-script")).toBe("denied")
+    for (const t of ENTITY_MEDIA_JOB_SPECS.keys()) {
+      expect(`${t}:${classify(t)}`).toBe(`${t}:entity`)
+    }
+  })
+
+  it("gives every entity media type a media kind, and every motion lane a column", () => {
+    // `defaultColumn` is THE definition of the motion attach columns (they used
+    // to be literals in the routes' queue payloads, invisible to the persisted
+    // row). A motion lane without one recovers into no attach at all.
+    for (const [t, spec] of ENTITY_MEDIA_JOB_SPECS) {
+      expect(`${t}:${spec.media}`).toMatch(/:(image|video)$/)
+      if (t.endsWith("-motion")) expect(`${t}:${spec.defaultColumn ?? "MISSING"}`).not.toContain("MISSING")
+      expect(spec.includeAssetType).toBe(t.endsWith("-asset"))
+    }
   })
 
   it("allows a set member with no producer (does not assert the reverse direction)", () => {

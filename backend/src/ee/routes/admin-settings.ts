@@ -3,6 +3,7 @@ import { z } from "zod"
 import { supabase } from "../../lib/supabase.js"
 import { invalidateSettingsCache } from "../../lib/app-settings.js"
 import { invalidateConsentConfigCache } from "../lib/consent-config.js"
+import { WELCOME_OFFER_ENABLED_KEY, invalidateWelcomeOfferConfigCache } from "../lib/welcome-offer-config.js"
 import { invalidateNotifyConfigCache } from "../notifications/notify-config.js"
 import {
   ADMIN_MESSAGES_DAILY_LIMIT_KEY,
@@ -210,10 +211,10 @@ export async function adminSettingsRoutes(app: FastifyInstance) {
       }
     }
 
-    if (key === "consent_enabled") {
+    if (key === "consent_enabled" || key === WELCOME_OFFER_ENABLED_KEY) {
       if (typeof value !== "boolean") {
         return reply.status(400).send({
-          error: { code: "validation_error", message: "consent_enabled must be a boolean" },
+          error: { code: "validation_error", message: `${key} must be a boolean` },
         })
       }
     }
@@ -367,6 +368,7 @@ export async function adminSettingsRoutes(app: FastifyInstance) {
     // Invalidate cached settings so changes take effect immediately
     invalidateSettingsCache()
     invalidateConsentConfigCache()
+    invalidateWelcomeOfferConfigCache()
     invalidateNotifyConfigCache()
     invalidateAdminMessageConfigCache()
 

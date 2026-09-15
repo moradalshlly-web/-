@@ -6,7 +6,7 @@
 
 Generate Video Pro is a specialized sibling of [Generate Video](./generate-video.md), built for one thing: clips longer than a single provider call can produce. Ask for a duration beyond the model's single-segment limit and the node transparently generates multiple segments and stitches them into a single output video.
 
-You choose the model. Every video model that accepts a start still plus reference images is available — the Seedance 2 family, Hailuo 3, the VEO 3.1 family, Gemini Omni, Grok and HappyHorse — and each one contributes its own segment lengths and resolutions. See [Providers](#providers) for the full list and for which models additionally support the continuation-based **Extend** render method.
+You choose the model. Every video model that accepts a start still plus reference images is available — the Seedance 2 family, Hailuo 3, VEO 3.1 **Fast and Lite**, Gemini Omni, Grok and HappyHorse. (VEO 3.1 **Quality** is not offered here: the provider has no reference-to-video mode on that SKU, and this node's anchor wave carries identity references into every segment. Use Fast or Lite, or the single [Generate Video](./generate-video.md) node for a one-off Quality clip.) — and each one contributes its own segment lengths and resolutions. See [Providers](#providers) for the full list and for which models additionally support the continuation-based **Extend** render method.
 
 Below the model's single-segment limit, Generate Video Pro behaves like a normal single-shot run on that model and is priced the same way. Use it when you need one long clip; use [Generate Video](./generate-video.md) for everything else (single shots, video-to-video, first+last frame, or the full multimodal reference/prompt-token surface).
 
@@ -84,7 +84,6 @@ Generate Video Pro offers every video model that can drive the engine's **keyfra
 | `seedance-2-mini` | Seedance 2.0 Mini | 4–15s | 480p / 720p | Keyframes + Extend |
 | `seedance-2-5` | Seedance 2.5 | 4–30s | 480p / 720p / 1080p | Keyframes + Extend |
 | `minimax-h3` | minimax-h3 | 4–15s | 2K (default) / 768P | Keyframes + Extend |
-| `veo3` | VEO 3.1 Quality | 4 / 6 / 8s | 720p / 1080p / 4K | Keyframes |
 | `veo3.1` | VEO 3.1 Fast | 4 / 6 / 8s | 720p / 1080p / 4K | Keyframes |
 | `veo3_lite` | VEO 3.1 Lite | 4 / 6 / 8s | 720p / 1080p / 4K | Keyframes |
 | `gemini-omni-video` | Gemini Omni | 4 / 6 / 8 / 10s | 720p / 1080p / 4K | Keyframes |

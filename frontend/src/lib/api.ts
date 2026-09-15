@@ -14,6 +14,7 @@ import type { CreditAllowance } from "./spendable-credits"
 import { withIdempotencyHeader } from "@/lib/idempotency-key"
 import { runtimeApiUrl } from "@/lib/runtime-config"
 import { tx } from "@/lib/i18n"
+import { dispatchConsentRequired } from "@/lib/consent-required-event"
 
 export const API_BASE_URL = ''
 
@@ -172,6 +173,20 @@ export class NodaroConnectionRequiredError extends Error {
 }
 
 /**
+ * 403 `consent_required` — the account got its free credits through the
+ * Chrome extension and still owes the email consent; every web surface is
+ * blocked from creating until it is given. `throwApiError` dispatches the
+ * consent-required event before throwing, so the welcome-offer popup opens
+ * with the ask wherever the refusal happened.
+ */
+export class ConsentRequiredError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "ConsentRequiredError"
+  }
+}
+
+/**
  * Throws StorageExceededError if the parsed error JSON indicates storage_limit_exceeded.
  * Throws InsufficientCreditsError for credit-related 402 errors.
  * Otherwise throws a plain Error with the message (or the given fallback).
@@ -235,6 +250,12 @@ function throwApiError(errJson: Record<string, unknown> | null, fallback: string
     throw new NodaroConnectionRequiredError(
       (errObj.message as string) ??
         "This node runs on nodaro.ai — connect your install from Integrations.",
+    )
+  }
+  if (errObj?.code === "consent_required") {
+    dispatchConsentRequired()
+    throw new ConsentRequiredError(
+      (errObj.message as string) ?? "Say yes to product updates by email to keep creating.",
     )
   }
   if (errObj?.code === "concurrent_modification") {
@@ -5997,6 +6018,13 @@ export interface UserBalance {
    * predate the gate.
    */
   freeGrantState?: "unclaimed" | "granted" | "withheld"
+  /**
+   * Welcome credits opt-in. PRESENT only while the offer is switched on —
+   * absent means no popup, no banner, no block. `popupSeen`: the one-time
+   * popup was already shown. `consentPending`: granted through the Chrome
+   * extension, email consent still owed; creation is blocked until given.
+   */
+  welcomeOffer?: { popupSeen: boolean; consentPending: boolean }
   /**
    * Track A — the requester's per-user allowance on a deployment-payer
    * instance, in RAW Nodaro credits. `total` is deliberately NOT overloaded

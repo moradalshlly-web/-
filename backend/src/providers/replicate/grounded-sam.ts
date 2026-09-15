@@ -24,6 +24,7 @@ import { replicate } from "./client.js"
 import type { ReconcileOpts } from "../provider.interface.js"
 import { extractUrl } from "./client.js"
 import { fireOnTaskCreated } from "../../lib/reconcile/fire-on-task-created.js"
+import { ReplicateSanitizedError, replicateFailureMessage } from "./failure-messages.js"
 
 // Verified 2026-06-09 against Replicate (GET model API): version exists, input
 // params (image / mask_prompt / adjustment_factor) and the 4-element output
@@ -112,7 +113,21 @@ export async function runGroundedSam(
     },
   })
   await fireOnTaskCreated(reconcileOpts, prediction.id, "[replicate:groundedSam]")
-  const completed = await replicate.wait(prediction)
+  // A model that found NOTHING dies inside its own forward pass, and the SDK
+  // rethrows the PyTorch text verbatim ("Prediction failed: cannot reshape
+  // tensor of 0 elements…"), which is what reached users. Translate it through
+  // the shared normalizer — the same one `reconcile/replicate.ts` uses, so the
+  // worker lane and the recovery lane say the same thing — and keep the raw
+  // text on `internalDetails` for `jobs.error_detail`.
+  let completed: Awaited<ReturnType<typeof replicate.wait>>
+  try {
+    completed = await replicate.wait(prediction)
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
+    const friendly = replicateFailureMessage("generate-mask", raw)
+    if (friendly) throw new ReplicateSanitizedError(friendly, raw)
+    throw err
+  }
 
   // White = subject = region to edit (painter convention). See pickMaskFromOutput.
   const maskUrl = pickMaskFromOutput(completed.output)

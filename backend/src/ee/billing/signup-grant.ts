@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js"
 import { CreditsService } from "./credits.js"
 import { TIER_CREDITS } from "./stripe-config.js"
 import { evaluateSignupGrant, type GrantDecision } from "./signup-grant-policy.js"
+import { hasGrantedConsent } from "../lib/consent-record.js"
 
 /**
  * Free-credit abuse gate: the two state transitions, as service functions.
@@ -27,6 +28,24 @@ export interface ClaimOutcome {
   state: FreeGrantState
   granted: boolean
   decision: GrantDecision | null
+  /** True when the claim stopped at the consent gate: no decision was made,
+   *  the account stays 'unclaimed' until marketing-email consent is granted. */
+  consentRequired?: boolean
+}
+
+/**
+ * The welcome-credits opt-in, as seen by one claim. Both fields default to
+ * false, which is the pre-426 behaviour: an unconditional claim with the
+ * three-argument RPC call. The caller derives them from the request through
+ * `welcomeClaimOptions` — never set them by hand at a call site.
+ */
+export interface ClaimOptions {
+  /** Decide only once marketing-email consent is 'granted'; otherwise stay
+   *  'unclaimed' and record nothing but a keyed observation. */
+  requireConsent?: boolean
+  /** Extension exception: grant now and mark `welcome_consent_pending`, so
+   *  the web apps block creation until consent is given somewhere. */
+  markConsentPending?: boolean
 }
 
 /** Shape of one `claim_signup_grant` / `activate_signup_grant` row. */
@@ -86,6 +105,7 @@ export async function runSignupGrantClaim(
     ipHash: string
   },
   log: FastifyBaseLogger,
+  options: ClaimOptions = {},
 ): Promise<ClaimOutcome> {
   const { userId, browserKey, deviceKey, ipHash } = params
 
@@ -96,20 +116,43 @@ export async function runSignupGrantClaim(
   // that happened to land first; a keyless claim never overwrites anything.
   // The keys are the observation worth keeping.
   const hasKeys = Boolean(browserKey || deviceKey)
-  const { error: signalError } = await supabase.from("signup_signals").upsert(
-    { user_id: userId, browser_key: browserKey, device_key: deviceKey, ip_hash: ipHash, source: "claim" },
-    { onConflict: "user_id,source", ignoreDuplicates: !hasKeys },
-  )
-  if (signalError) {
-    log.warn({ err: signalError, userId }, "signup signal insert failed")
+  const recordSignals = async (): Promise<void> => {
+    const { error: signalError } = await supabase.from("signup_signals").upsert(
+      { user_id: userId, browser_key: browserKey, device_key: deviceKey, ip_hash: ipHash, source: "claim" },
+      { onConflict: "user_id,source", ignoreDuplicates: !hasKeys },
+    )
+    if (signalError) {
+      log.warn({ err: signalError, userId }, "signup signal insert failed")
+    }
   }
+
+  // Welcome offer: OBSERVE at boot, DECIDE at consent. Without consent the
+  // keyed boot claim still leaves its fingerprints (the corpus every later
+  // signup is scored against) and stops; the keyless balance-poll fallback
+  // writes nothing at all — it runs every 30 s and has nothing to add.
+  if (options.requireConsent === true && !(await hasGrantedConsent(userId))) {
+    if (hasKeys) {
+      await recordSignals()
+      // Once per boot claim (the keyless balance poll is silent): the answer
+      // to "why is this account still unclaimed" lives in the log.
+      log.info({ userId }, "signup grant: waiting for marketing-email consent")
+    }
+    return { state: "unclaimed", granted: false, decision: null, consentRequired: true }
+  }
+
+  await recordSignals()
 
   const decision = await evaluateSignupGrant({ userId, browserKey, deviceKey, ipHash }, log)
 
+  // The two new arguments travel ONLY when set: with the offer off this is
+  // the pre-426 three-argument call, so a dev deploy running ahead of the
+  // migration keeps working. The RPC re-checks consent inside the transaction.
   const { data, error: rpcError } = await supabase.rpc("claim_signup_grant", {
     p_user_id: userId,
     p_grant_amount: TIER_CREDITS.free,
     p_withhold: decision.decision === "withheld",
+    ...(options.requireConsent === true ? { p_require_consent: true } : {}),
+    ...(options.markConsentPending === true ? { p_mark_consent_pending: true } : {}),
   })
   if (rpcError) throw rpcError
 
@@ -163,6 +206,31 @@ export async function activateSignupGrant(
 /** The account's current grant state, or null when the read fails. */
 export async function readFreeGrantState(userId: string): Promise<FreeGrantState | null> {
   return (await readFreeGrant(userId))?.state ?? null
+}
+
+/**
+ * The welcome-offer columns, for the balance payload. Read ONLY while the
+ * offer is on (the caller checks) — the columns arrive with migration 426 and
+ * a dev deploy may run ahead of it, so a failed read is `null`, never a throw.
+ */
+export async function readWelcomeOfferState(
+  userId: string,
+): Promise<{ popupSeen: boolean; consentPending: boolean } | null> {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("welcome_offer_seen_at, welcome_consent_pending")
+      .eq("id", userId)
+      .single()
+    if (error || !data) return null
+    const row = data as { welcome_offer_seen_at?: unknown; welcome_consent_pending?: unknown }
+    return {
+      popupSeen: typeof row.welcome_offer_seen_at === "string",
+      consentPending: row.welcome_consent_pending === true,
+    }
+  } catch {
+    return null
+  }
 }
 
 /** State plus the profile's age — the fallback claim needs both. */
