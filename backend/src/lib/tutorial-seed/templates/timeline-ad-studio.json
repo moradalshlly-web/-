@@ -1,0 +1,602 @@
+{
+  "slug": "timeline-ad-studio",
+  "name": "Timeline Ad Studio",
+  "description": "A product photo and its benefits in, three timeline ads out — the direct-response format that shows results building over time (Day 1, Week 4, Month 3) — each on a different hook, in your brand's look, with the product exactly as photographed.",
+  "markdownDescription": "## Timeline Ad Studio\n\nA product photo and its benefits become three timeline ads — the direct-response format that shows results building over time — each on a different hook, in your brand's look. The product stays exactly as photographed.\n\n1. **Product photo** — a clean packshot. The hero of every ad.\n2. **Product notes** — what it is and what it does over time, in your words. Nothing invented.\n3. **Moodboard + Brand notes** — a picture of your brand world (optional) and a line on colours and tone.\n4. **Brand look** — an AI turns those into one paragraph every ad follows.\n5. **Three concepts** — one writer per hook: a bold promise, a before-and-after, social proof. Each writes a headline, three stages and a small line.\n6. **Three ads** — portrait, one per concept. Edit a concept by hand and rerun its ad; copy a pair for a fourth hook.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "timeline",
+    "benefits",
+    "direct-response",
+    "product"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 53,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/155bbc5d-1111-4b84-b380-3bd290ced26a.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 24,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A product photo and its benefits go in; three timeline ads come out — the direct-response format that shows results building over time (Day 1, Week 4, Month 3), each on a different hook. The product stays exactly as photographed.\n\n1. Product photo — a clean packshot. The hero of every ad.\n2. Product notes — what it is and what it does over time, in your words. No page scraping, nothing invented.\n3. Moodboard + Brand notes — a picture of your brand world (optional) and a line on colours and tone.\n4. Brand look — an AI turns those into one paragraph: colours, finish, typography, mood. Every ad follows it.\n5. Three concepts — one writer per hook: a bold promise, a before-and-after, social proof. Each writes a headline, three stages and a small line.\n6. Three ads — portrait, one per concept. Edit a concept by hand and rerun its ad; copy a pair for a fourth hook.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Timeline ad studio — how it works",
+        "width": 1180,
+        "height": 730,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. Every ad gets it as a reference, so the jar, the lid, the label and the colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1610
+      },
+      "data": {
+        "bold": false,
+        "text": "What the product is and what it does over time, in plain words — the benefits you can stand behind, with rough timing if you know it. The writers use only what is here; they never invent numbers or studies.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Product notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-mood",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2040
+      },
+      "data": {
+        "bold": false,
+        "text": "Optional. One picture of your brand world — textures, colours, type, imagery. The brand look is read from it next to your notes. Delete the node if the notes say it all.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Moodboard",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2610
+      },
+      "data": {
+        "bold": false,
+        "text": "One line on colours and tone: calm or loud, clinical or warm, which two colours and which accent. If your product's colour fights the palette, say so here.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Brand notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-look",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI turns the moodboard and the brand notes into one paragraph an image generator understands: dominant colours and the accent, surface finish, typography feel, layout energy, light and mood. All three concepts quote it, so the ads read as one brand.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Brand look",
+        "width": 480,
+        "height": 430,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-concepts",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "One writer per hook — a bold promise, a before-and-after, social proof. Each writes a headline of up to seven words, three stages with a time marker and a benefit of up to eight words, a small line, and the look. Read the brief, edit it by hand, then rerun just its ad. Copy a writer and an ad for a fourth hook.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Three concepts",
+        "width": 560,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ads",
+      "type": "sticky-note",
+      "position": {
+        "x": 3060,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "Portrait 3:4 for the feed. Each ad gets the packshot as its reference and its concept as the brief, and renders the headline, the three stages and the small line exactly as written, laid out as a clear timeline next to the product. Rerun one ad alone for a new take on the same brief.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · Three ads",
+        "width": 600,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 890
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/1329d200-4b53-451d-a6c7-a97069877168.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/1329d200-4b53-451d-a6c7-a97069877168.png",
+        "assetId": "1329d200-4b53-451d-a6c7-a97069877168",
+        "filename": "collagen-jar-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/1329d200-4b53-451d-a6c7-a97069877168.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "product-notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1610
+      },
+      "data": {
+        "text": "NOVA Collagen Complex — daily collagen peptides with vitamin C and hyaluronic acid. Skin feels more hydrated within the first days, looks firmer by week four, and fine lines look softer by month three. Clinically tested formula, no added sugar, one scoop a day.",
+        "label": "Product notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "moodboard",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 2040
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/21e7ba12-960a-4190-9035-c3f9b89b3ff4.png",
+        "label": "Moodboard",
+        "r2Url": "https://cdn.nodaro.ai/images/21e7ba12-960a-4190-9035-c3f9b89b3ff4.png",
+        "assetId": "21e7ba12-960a-4190-9035-c3f9b89b3ff4",
+        "filename": "brand-moodboard-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/21e7ba12-960a-4190-9035-c3f9b89b3ff4.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2610
+      },
+      "data": {
+        "text": "NOVA — calm, clinical, warm. Colours: ivory, rose gold, charcoal. Serif headlines, plenty of air.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brand-look",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1440
+      },
+      "data": {
+        "label": "Brand look",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Brand notes: {Brand notes || a calm, clean, premium brand.} The reference image, if there is one, is the brand moodboard. Write the brand look.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You define the visual world of a brand for an image generator. From the moodboard image, if there is one, and the brand notes, write ONE paragraph of 60 to 90 words, plain English: the two or three colours that dominate and the one accent, the finish of surfaces (matte, glossy, paper, marble), the typography feel (serif or sans, light or bold, upper or lower case), the layout energy (minimal and airy, or dense), the light and the mood. If the product's own colour would clash with that palette, say which colour harmony to use instead. No headings, no lists. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "concept-a",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 1490
+      },
+      "data": {
+        "label": "Concept A · Bold promise",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Product notes: {Product notes || a daily supplement whose results build over weeks.} Brand look: {Brand look || calm, clean, premium: ivory, charcoal and one warm accent.} The reference image is the product. Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a senior performance creative strategist who designs timeline benefit ads — the direct-response format that shows a product's results building over time, stage by stage. You get the product notes, the brand look, and a photo of the product. Write ONE concept with this hook angle: a bold promise — state the result plainly and confidently.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<the hook, at most seven words>\"\nStage 1: \"<time marker, for example Day 1> — <benefit, at most eight words>\"\nStage 2: \"<time marker> — <benefit, at most eight words>\"\nStage 3: \"<time marker> — <benefit, at most eight words>\"\nSmall line: \"<one short proof, claim or call to action, at most ten words>\"\nLook: <one paragraph of 60 to 90 words: the background colour and finish from the brand look, where the product sits (large, on one side or behind the timeline), how the three stages are laid out (a vertical or horizontal timeline with visible markers), the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only benefits the product notes support; never invent clinical numbers or studies. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "concept-b",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2410
+      },
+      "data": {
+        "label": "Concept B · Before / after",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Product notes: {Product notes || a daily supplement whose results build over weeks.} Brand look: {Brand look || calm, clean, premium: ivory, charcoal and one warm accent.} The reference image is the product. Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a senior performance creative strategist who designs timeline benefit ads — the direct-response format that shows a product's results building over time, stage by stage. You get the product notes, the brand look, and a photo of the product. Write ONE concept with this hook angle: a before-and-after contrast — the frustration at the start against the result at the end.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<the hook, at most seven words>\"\nStage 1: \"<time marker, for example Day 1> — <benefit, at most eight words>\"\nStage 2: \"<time marker> — <benefit, at most eight words>\"\nStage 3: \"<time marker> — <benefit, at most eight words>\"\nSmall line: \"<one short proof, claim or call to action, at most ten words>\"\nLook: <one paragraph of 60 to 90 words: the background colour and finish from the brand look, where the product sits (large, on one side or behind the timeline), how the three stages are laid out (a vertical or horizontal timeline with visible markers), the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only benefits the product notes support; never invent clinical numbers or studies. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "concept-c",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 3330
+      },
+      "data": {
+        "label": "Concept C · Social proof",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Product notes: {Product notes || a daily supplement whose results build over weeks.} Brand look: {Brand look || calm, clean, premium: ivory, charcoal and one warm accent.} The reference image is the product. Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a senior performance creative strategist who designs timeline benefit ads — the direct-response format that shows a product's results building over time, stage by stage. You get the product notes, the brand look, and a photo of the product. Write ONE concept with this hook angle: social proof — what real users notice along the way, in their words, without inventing statistics.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<the hook, at most seven words>\"\nStage 1: \"<time marker, for example Day 1> — <benefit, at most eight words>\"\nStage 2: \"<time marker> — <benefit, at most eight words>\"\nStage 3: \"<time marker> — <benefit, at most eight words>\"\nSmall line: \"<one short proof, claim or call to action, at most ten words>\"\nLook: <one paragraph of 60 to 90 words: the background colour and finish from the brand look, where the product sits (large, on one side or behind the timeline), how the three stages are laid out (a vertical or horizontal timeline with visible markers), the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only benefits the product notes support; never invent clinical numbers or studies. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-a",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 1490
+      },
+      "data": {
+        "label": "Ad A",
+        "style": "",
+        "prompt": "Finished portrait 3:4 timeline benefit ad for a social feed, built from this brief: {Concept A · Bold promise || Headline: \"Skin that keeps its promises.\" Stage 1: \"Day 1 — Drinks in, hydration you can feel.\" Stage 2: \"Week 4 — Firmer to the touch.\" Stage 3: \"Month 3 — Fine lines look softer.\" Small line: \"Clinically tested. One scoop a day.\" Look: an ivory matte background, the product large on the left, a vertical timeline with three round rose-gold markers on the right, charcoal serif type, soft warm light.} The reference image is the product — it must appear exactly as it is, with its own jar, lid, label and colours, large and sharp. Render the headline, the three stage lines (each time marker with its benefit) and the small line exactly as written in the brief — same words, same spelling — and no other text. Lay the three stages out as a clear timeline with visible markers, in reading order, each benefit next to its marker; the product on one side or behind the timeline, never covering the text. Background colour, finish and typography from the brief's Look. Crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-b",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2410
+      },
+      "data": {
+        "label": "Ad B",
+        "style": "",
+        "prompt": "Finished portrait 3:4 timeline benefit ad for a social feed, built from this brief: {Concept B · Before / after || Headline: \"Skin that keeps its promises.\" Stage 1: \"Day 1 — Drinks in, hydration you can feel.\" Stage 2: \"Week 4 — Firmer to the touch.\" Stage 3: \"Month 3 — Fine lines look softer.\" Small line: \"Clinically tested. One scoop a day.\" Look: an ivory matte background, the product large on the left, a vertical timeline with three round rose-gold markers on the right, charcoal serif type, soft warm light.} The reference image is the product — it must appear exactly as it is, with its own jar, lid, label and colours, large and sharp. Render the headline, the three stage lines (each time marker with its benefit) and the small line exactly as written in the brief — same words, same spelling — and no other text. Lay the three stages out as a clear timeline with visible markers, in reading order, each benefit next to its marker; the product on one side or behind the timeline, never covering the text. Background colour, finish and typography from the brief's Look. Crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-c",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 3330
+      },
+      "data": {
+        "label": "Ad C",
+        "style": "",
+        "prompt": "Finished portrait 3:4 timeline benefit ad for a social feed, built from this brief: {Concept C · Social proof || Headline: \"Skin that keeps its promises.\" Stage 1: \"Day 1 — Drinks in, hydration you can feel.\" Stage 2: \"Week 4 — Firmer to the touch.\" Stage 3: \"Month 3 — Fine lines look softer.\" Small line: \"Clinically tested. One scoop a day.\" Look: an ivory matte background, the product large on the left, a vertical timeline with three round rose-gold markers on the right, charcoal serif type, soft warm light.} The reference image is the product — it must appear exactly as it is, with its own jar, lid, label and colours, large and sharp. Render the headline, the three stage lines (each time marker with its benefit) and the small line exactly as written in the brief — same words, same spelling — and no other text. Lay the three stages out as a clear timeline with visible markers, in reading order, each benefit next to its marker; the product on one side or behind the timeline, never covering the text. Background colour, finish and typography from the brief's Look. Crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-mood-look",
+      "source": "moodboard",
+      "target": "brand-look",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brand-look",
+      "source": "brand",
+      "target": "brand-look",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-concept-a",
+      "source": "product-notes",
+      "target": "concept-a",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-look-concept-a",
+      "source": "brand-look",
+      "target": "concept-a",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-concept-a",
+      "source": "product",
+      "target": "concept-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-ad-a",
+      "source": "concept-a",
+      "target": "ad-a",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-a",
+      "source": "product",
+      "target": "ad-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-concept-b",
+      "source": "product-notes",
+      "target": "concept-b",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-look-concept-b",
+      "source": "brand-look",
+      "target": "concept-b",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-concept-b",
+      "source": "product",
+      "target": "concept-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-ad-b",
+      "source": "concept-b",
+      "target": "ad-b",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-b",
+      "source": "product",
+      "target": "ad-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-concept-c",
+      "source": "product-notes",
+      "target": "concept-c",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-look-concept-c",
+      "source": "brand-look",
+      "target": "concept-c",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-concept-c",
+      "source": "product",
+      "target": "concept-c",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-ad-c",
+      "source": "concept-c",
+      "target": "ad-c",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-c",
+      "source": "product",
+      "target": "ad-c",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.194
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "ad-a": {
+          "title": "Bold promise",
+          "description": "The result stated plainly, three stages on a timeline."
+        },
+        "ad-b": {
+          "title": "Before / after",
+          "description": "The frustration at the start against the result at the end."
+        },
+        "ad-c": {
+          "title": "Social proof",
+          "description": "What users notice along the way, in their words."
+        },
+        "brand": {
+          "title": "Brand notes",
+          "description": "Colours and tone in one line."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean packshot. It appears exactly as it is in every ad."
+        },
+        "moodboard": {
+          "title": "Moodboard",
+          "description": "Optional. One picture of your brand world — textures, colours, type."
+        },
+        "product-notes": {
+          "title": "Product notes",
+          "description": "What it is and what it does over time, in your words. Nothing is invented beyond this."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "product-notes",
+        "moodboard",
+        "brand"
+      ],
+      "outputOrder": [
+        "ad-a",
+        "ad-b",
+        "ad-c"
+      ]
+    }
+  }
+}

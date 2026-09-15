@@ -1,0 +1,524 @@
+{
+  "slug": "subway-fooh-studio",
+  "name": "Subway FOOH Studio",
+  "description": "A product photo, a line on your brand and a city name in; your poster on a metro platform out — then the product bursts out of the lightbox, three metres tall, as a photoreal still and a 4-second clip. The out-of-home stunt that never happened, in that city's signature metro style.",
+  "markdownDescription": "## Subway FOOH Studio\n\nA product photo, a line on your brand and a city name become your poster on a metro platform — and then the product bursts out of the poster, giant, as a still and as a clip. FOOH: the out-of-home stunt that never happened, filmed as if it did. The station takes the signature look of the city you name.\n\n1. **Product photo** — a clean packshot. The hero of the poster and of the burst.\n2. **Brand notes** — the brand name, the product, who it is for, the tone. One line you like helps.\n3. **City** — Paris, Berlin, Tokyo, New York… the station takes that city's tiles, signage and light.\n4. **Poster brief** — an AI creative director writes the headline, the wordmark and the look. Edit it by hand and rerun the poster.\n5. **Poster + Station** — the poster renders from the brief; the station renders from the city name alone, with a blank lightbox waiting.\n6. **Subway mockup** — the poster printed in the lightbox, in the station's perspective and light.\n7. **FOOH still** — the product bursts out of the lightbox, three metres tall, with real shadows and reflections.\n8. **FOOH clip** — 4 seconds from the flat poster to the burst, pinned to both frames.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image",
+    "video"
+  ],
+  "tags": [
+    "static-ads",
+    "fooh",
+    "ooh",
+    "subway",
+    "mockup",
+    "video-ads"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 132,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/7b0d71b9-a268-4bf5-8ada-e73a75a0930e.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 27,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A product photo, a line on your brand and a city name go in; your poster on a metro platform comes out — and then the product bursts out of the poster, giant, as a still and as a clip. FOOH: the out-of-home stunt that never happened, filmed as if it did.\n\n1. Product photo — a clean packshot. The hero of the poster and of the burst.\n2. Brand notes — the brand name, what the product is, who it is for, the tone. One line you like helps.\n3. City — Paris, Berlin, Tokyo, New York… the station takes that city's look.\n4. Poster brief — an AI creative director writes the headline, the wordmark and the look for a landscape poster.\n5. Poster + Station — the poster renders from the brief; the station renders from the city name alone, with a blank lightbox waiting.\n6. Subway mockup — the poster printed in the lightbox, in the station's perspective and light.\n7. FOOH still — the product bursts out of the lightbox, three metres tall, with real shadows and reflections.\n8. FOOH clip — 4 seconds from the flat poster to the burst, pinned to both frames.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Subway fooh studio — how it works",
+        "width": 1180,
+        "height": 860,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. The poster and the burst both get it as a reference, so the shape, the materials, the markings and the colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1740
+      },
+      "data": {
+        "bold": false,
+        "text": "The brand name (spelled the way it should print), what the product is, who it is for, the tone — and a line you like, if you have one. The creative director uses only what is here; nothing gets invented.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Brand notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-city",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2170
+      },
+      "data": {
+        "bold": false,
+        "text": "Just the name. The station is generated in that city's signature metro style — tiles, signage, colours, light — with a small detail that gives it away. Swap the city and rerun everything from the station on.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · City",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-poster",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "The brief comes in a fixed shape — headline, small line, wordmark, look — so the poster renders the words exactly as written; edit it by hand and rerun the poster. The station renders in parallel from the city name, framed straight across the tracks with a blank backlit lightbox at dead centre — the empty slot the poster will fill.",
+        "color": "#26221a",
+        "label": "Steps 4–5",
+        "title": "4–5 · Poster brief → Poster · station",
+        "width": 1200,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-mockup",
+      "type": "sticky-note",
+      "position": {
+        "x": 3100,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "The poster and the station go in together; the station comes back untouched with the poster printed in the lightbox — perspective, backlight and a faint reflection included. This is also the first frame of the clip.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Subway mockup",
+        "width": 600,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-clip",
+      "type": "sticky-note",
+      "position": {
+        "x": 4780,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "4 seconds pinned to two frames: the mockup first, the FOOH still last. The poster ripples, the product pushes out and swells to full size, and the clip lands exactly on the still. This is the format people actually post.",
+        "color": "#26221a",
+        "label": "Step 8",
+        "title": "8 · Fooh clip",
+        "width": 600,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "brand-image",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1020
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/ca41f35b-1ccc-4ccd-975c-1e700376b866.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/ca41f35b-1ccc-4ccd-975c-1e700376b866.png",
+        "assetId": "ca41f35b-1ccc-4ccd-975c-1e700376b866",
+        "filename": "watch-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/ca41f35b-1ccc-4ccd-975c-1e700376b866.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand-notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1740
+      },
+      "data": {
+        "text": "Brand: HALDANE — an independent watchmaker. Product: the HALDANE No. 8 — a 39 mm automatic in brushed steel with a deep green sunburst dial and a sapphire crystal, made in small runs. Audience: 30 to 55, people who buy one watch and keep it for life. Tone: quiet, precise, few words. A line we like: Keeps time. Keeps its word.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "city",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2170
+      },
+      "data": {
+        "text": "Paris",
+        "label": "City",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "poster-writer",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1530
+      },
+      "data": {
+        "label": "Poster brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Brand notes: {Brand notes || a premium product for city commuters.} The reference image is the product. Write the poster brief.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an out-of-home creative director. From the brand notes and the product photo, write the brief for one landscape subway poster — read in three seconds from across a platform — in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words>\"\nSmall line: \"<at most ten words, or the single word none>\"\nWordmark: <the brand name exactly as the notes spell it>\nLook: <one paragraph of 60 to 90 words: the background colour and finish, where the product sits and how large (it is the hero), where the headline, the small line and the wordmark sit, the typography, the light and the mood — bold enough to stop a commuter, clean enough to read across the tracks. The product from the photo stays exactly as it is.>\nUse only facts from the notes; never invent claims, numbers or prices. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "poster",
+      "type": "generate-image",
+      "position": {
+        "x": 2260,
+        "y": 1530
+      },
+      "data": {
+        "label": "Poster",
+        "style": "",
+        "prompt": "Finished landscape 4:3 subway poster built from this brief: {Poster brief || Headline: \"Keeps time. Keeps its word.\" Small line: none Wordmark: HALDANE Look: a deep charcoal background with a soft warm gradient, the watch large and centred under one soft key light, a small serif headline top left, the wordmark small bottom right, quiet and expensive.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line (unless it is none) and the wordmark exactly as written in the brief — same words, same spelling — and no other text. Big, bold, legible from across a platform: crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "station",
+      "type": "generate-image",
+      "position": {
+        "x": 2260,
+        "y": 2100
+      },
+      "data": {
+        "label": "Station",
+        "style": "",
+        "prompt": "Photorealistic photograph of a metro platform in {City || Paris}, shot from the platform at eye level looking straight across the tracks at the opposite wall, perfectly centred and symmetrical. At dead centre on that wall: one large backlit advertising lightbox in landscape 4:3 format, about two metres wide, with a thin dark frame and a soft white glow — completely blank white, an empty ad slot. Below it the wall runs down to the rails, visible in the lower foreground; above it the station's ceiling or vault. Everything in the signature style of this city's metro — its typical tiles, signage, colours and light — with one or two small details that identify the city, such as a line sign or a station name plaque. One or two commuters, softly blurred, on the near platform for scale. Clean, well lit, like a stock photograph of an ad placement; nothing printed on the lightbox, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "mockup",
+      "type": "generate-image",
+      "position": {
+        "x": 3100,
+        "y": 1530
+      },
+      "data": {
+        "label": "Subway mockup",
+        "style": "",
+        "prompt": "Of the two reference images, one is a finished landscape poster and the other is a photograph of a metro platform with a blank white lightbox at its centre. Recreate the station photograph exactly — same framing, same architecture, same light, same commuters — with the poster printed inside the blank lightbox, filling the lightbox frame edge to edge in its landscape proportions, following the lightbox's perspective, lit by its backlight, with a faint reflection on the floor and tiles below. Every word and every element of the poster kept exactly as it is, sharp and readable. Nothing else changes: no added text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clip",
+      "type": "generate-video",
+      "position": {
+        "x": 4780,
+        "y": 1530
+      },
+      "data": {
+        "label": "FOOH clip",
+        "prompt": "Of the two reference images, the one with a flat poster in the lightbox is the first frame and the one with the giant product bursting out of the lightbox is the last frame. Handheld phone footage on the platform, the camera almost still: the poster ripples, then the product pushes out of the lightbox and swells into a giant three-dimensional object leaning over the tracks, the frame cracking around it, its shadow and reflection growing with it, until it settles exactly as in the last frame; a commuter turns to look. Photoreal; the product keeps its exact shape, materials and colours; the words on the poster stay unchanged; no added objects, no scene change, no text, no flicker.",
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-fooh",
+      "type": "sticky-note",
+      "position": {
+        "x": 3940,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "The mockup and the packshot go in; the station comes back with the product burst out of the lightbox as a giant object over the tracks — shadow on the tiles, reflection on the floor, commuters looking up. Rerun this node alone for another take; it is the last frame of the clip.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · Fooh still",
+        "width": 600,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "fooh",
+      "type": "generate-image",
+      "position": {
+        "x": 3940,
+        "y": 1530
+      },
+      "data": {
+        "label": "FOOH still",
+        "style": "",
+        "prompt": "Of the two reference images, one is a photograph of a metro platform with a poster in a backlit lightbox and the other is the product alone on a plain background. Recreate the station photograph exactly — same framing, same architecture, same light, same commuters — but the product has burst out of the poster as a giant three-dimensional object about three metres tall: its front half leans out of the lightbox over the tracks toward the camera while its back half is still inside the poster, the lightbox frame cracked open around it. The product is exactly as it is in its photograph — same shape, materials, markings and colours — and has real weight: a shadow on the tiles, a reflection on the platform floor, the station light on its surface. One or two commuters look up at it. Photorealistic, like a viral out-of-home stunt filmed on a phone; every word on the poster still exactly as it is; no added text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-notes-writer",
+      "source": "brand-notes",
+      "target": "poster-writer",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-image-writer",
+      "source": "brand-image",
+      "target": "poster-writer",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-poster",
+      "source": "poster-writer",
+      "target": "poster",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-image-poster",
+      "source": "brand-image",
+      "target": "poster",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-city-station",
+      "source": "city",
+      "target": "station",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-poster-mockup",
+      "source": "poster",
+      "target": "mockup",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-station-mockup",
+      "source": "station",
+      "target": "mockup",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mockup-clip",
+      "source": "mockup",
+      "target": "clip",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-mockup-fooh",
+      "source": "mockup",
+      "target": "fooh",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-image-fooh",
+      "source": "brand-image",
+      "target": "fooh",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-fooh-clip",
+      "source": "fooh",
+      "target": "clip",
+      "sourceHandle": "image",
+      "targetHandle": "endFrame"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.26
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "city": {
+          "title": "City",
+          "description": "The metro the poster hangs in: Paris, Berlin, Tokyo…"
+        },
+        "clip": {
+          "title": "FOOH clip",
+          "description": "4 seconds: from the flat poster to the burst."
+        },
+        "fooh": {
+          "title": "FOOH still",
+          "description": "The product bursting out of the lightbox, giant."
+        },
+        "mockup": {
+          "title": "Subway mockup",
+          "description": "The poster in the station's lightbox."
+        },
+        "poster": {
+          "title": "Poster",
+          "description": "Your landscape subway poster, ready to print."
+        },
+        "brand-image": {
+          "title": "Your product",
+          "description": "A clean packshot. It appears exactly as it is on the poster and in the burst."
+        },
+        "brand-notes": {
+          "title": "Brand notes",
+          "description": "Brand name, product, audience, tone — in plain words."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "brand-image",
+        "brand-notes",
+        "city"
+      ],
+      "outputOrder": [
+        "poster",
+        "mockup",
+        "fooh",
+        "clip"
+      ]
+    }
+  }
+}

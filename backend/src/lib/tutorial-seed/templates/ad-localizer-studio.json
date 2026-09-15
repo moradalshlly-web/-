@@ -1,0 +1,547 @@
+{
+  "slug": "ad-localizer-studio",
+  "name": "Ad Localizer Studio",
+  "description": "One finished ad in, the same ad out in two more languages and two more shapes: every word translated in place with the layout, typography and brand names untouched, plus a story and a banner recomposed for their frames.",
+  "markdownDescription": "## Ad Localizer Studio\n\nOne finished ad becomes the same ad in two more languages and two more shapes. Every word is translated in place — same layout, same typography, brand names untouched — and the story and banner are recomposed for their frames, not stretched.\n\n1. **Your ad** — the finished creative with its text on it, in any language.\n2. **Language 1 and Language 2** — type any language. Change them and rerun.\n3. **Keep as is** — what must stay in the original language: brand names, prices, links.\n4. **Two translations** — for each language an AI reads every text on the ad and writes a replacement sheet: this text becomes that text, the keep-list stays.\n5. **Two localized ads** — the ad with its text swapped per sheet, nothing else touched.\n6. **Story and Banner** — the original ad recomposed for a 9:16 and a 16:9 frame. For a translated story or banner, wire a localized ad into the reference instead of the source.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "localization",
+    "translation",
+    "resize",
+    "formats"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 64,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/89781090-c4c6-4c45-8b52-f52c9644ec28.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 22,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One finished ad goes in; the same ad comes out in two more languages and two more shapes. Every word is translated in place — same layout, same typography, brand names untouched — and the story and banner are recomposed for their frames, not stretched.\n\n1. Your ad — the finished creative with its text on it, in any language.\n2. Language 1 and Language 2 — type any language. Change them and rerun.\n3. Keep as is — what must stay in the original language: brand names, prices, links.\n4. Two translations — for each language an AI reads every text on the ad and writes a replacement sheet: this text becomes that text, the keep-list stays.\n5. Two localized ads — the ad with its text swapped per sheet, nothing else touched.\n6. Story and Banner — the original ad recomposed for a 9:16 and a 16:9 frame. Want them in a language too? Wire a localized ad into the Story or Banner reference instead of the source.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Ad localizer studio — how it works",
+        "width": 1180,
+        "height": 650,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ad",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "The finished creative with its text on it, in any language. A square ad works out of the box; for another shape, set the same ratio on the two localized nodes so the translation keeps the frame.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Your ad",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-lang1",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1530
+      },
+      "data": {
+        "bold": false,
+        "text": "Type a language in plain words: French, German, Japanese, Arabic. The first translation and the first localized ad follow it.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Language 1",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-lang2",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1870
+      },
+      "data": {
+        "bold": false,
+        "text": "A second language, the same way. Need a third? Copy a translation node and a localized node and wire a new language into them.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Language 2",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-translate",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "For each language an AI reads every piece of text on the ad and writes a replacement sheet — the original text, then its translation — keeping brand names, numbers, prices and links as they are, each line about as long as the original so it fits the same space. Read the sheet; fix a line by hand if you like, then rerun its localized ad.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "5 · Translations",
+        "width": 480,
+        "height": 560,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-localized",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "The ad edited per sheet: every text swapped, nothing else touched — same layout, typography, colours, product and background. If a word drifts, correct the sheet and rerun this node alone.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "6 · Localized ads",
+        "width": 600,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-resize",
+      "type": "sticky-note",
+      "position": {
+        "x": 3100,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "The same ad recomposed for a vertical 9:16 story and a wide 16:9 banner: every word and colour kept, the elements rearranged for the frame, the background extended — not cropped, not stretched. For a translated story or banner, wire a localized ad into the reference instead of the source and rerun.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "7 · Story + Banner",
+        "width": 600,
+        "height": 430,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "your-ad",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 810
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/7507549b-1bde-43ae-92e2-0f406c7c7eab.png",
+        "label": "Your ad",
+        "r2Url": "https://cdn.nodaro.ai/images/7507549b-1bde-43ae-92e2-0f406c7c7eab.png",
+        "assetId": "7507549b-1bde-43ae-92e2-0f406c7c7eab",
+        "filename": "fitness-app-square-ad-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/7507549b-1bde-43ae-92e2-0f406c7c7eab.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "lang-1",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1530
+      },
+      "data": {
+        "text": "French",
+        "label": "Language 1",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "lang-2",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1870
+      },
+      "data": {
+        "text": "Spanish",
+        "label": "Language 2",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "translation-1",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1490
+      },
+      "data": {
+        "label": "Translation 1",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Language: {Language 1 || French}. Keep exactly as written, never translate: {Keep as is || brand names, product names, prices, numbers and links.} Write the replacement sheet for the ad in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a professional advertising translator preparing an ad for another market. Look at the reference ad image and list every piece of text on it — headline, sub-line, offer, button, small print, everything except brand names and logos — then give its translation into the requested language as a replacement sheet an image editor follows line by line. One item per line, biggest text first, exactly in this form: Replace \"<original text, exactly as written>\" with \"<translation>\". Keep brand names, product names, logos, numbers, prices, currency, URLs and legal identifiers unchanged, and end the sheet with one line that begins with the words Keep unchanged: followed by that list. Match the register of the original and keep each translation about as long as the original so it fits the same space. Output only the sheet, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "translation-2",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 2606
+      },
+      "data": {
+        "label": "Translation 2",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Language: {Language 2 || Spanish}. Keep exactly as written, never translate: {Keep as is || brand names, product names, prices, numbers and links.} Write the replacement sheet for the ad in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a professional advertising translator preparing an ad for another market. Look at the reference ad image and list every piece of text on it — headline, sub-line, offer, button, small print, everything except brand names and logos — then give its translation into the requested language as a replacement sheet an image editor follows line by line. One item per line, biggest text first, exactly in this form: Replace \"<original text, exactly as written>\" with \"<translation>\". Keep brand names, product names, logos, numbers, prices, currency, URLs and legal identifiers unchanged, and end the sheet with one line that begins with the words Keep unchanged: followed by that list. Match the register of the original and keep each translation about as long as the original so it fits the same space. Output only the sheet, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "localized-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2260,
+        "y": 1490
+      },
+      "data": {
+        "label": "Localized · 1",
+        "style": "",
+        "prompt": "Edit the reference ad so that every piece of text is replaced exactly as this sheet says, and nothing else changes: {Translation 1 || translate every piece of text on the ad into French; keep brand names, numbers and links unchanged.} Same layout, same typography and font weights, same colours, product, people and background, same proportions; each new text sits exactly where the original was and fits the same space; brand names, logos, numbers, prices and links stay exactly as they are. No text other than what the sheet gives, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "localized-2",
+      "type": "generate-image",
+      "position": {
+        "x": 2260,
+        "y": 2606
+      },
+      "data": {
+        "label": "Localized · 2",
+        "style": "",
+        "prompt": "Edit the reference ad so that every piece of text is replaced exactly as this sheet says, and nothing else changes: {Translation 2 || translate every piece of text on the ad into Spanish; keep brand names, numbers and links unchanged.} Same layout, same typography and font weights, same colours, product, people and background, same proportions; each new text sits exactly where the original was and fits the same space; brand names, logos, numbers, prices and links stay exactly as they are. No text other than what the sheet gives, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story",
+      "type": "generate-image",
+      "position": {
+        "x": 3100,
+        "y": 1490
+      },
+      "data": {
+        "label": "Story · 9:16",
+        "style": "",
+        "prompt": "Recreate the reference ad — the very same ad — for a vertical 9:16 story frame. Keep every word of its text exactly as written, its typography, colours, product, people and style; rearrange the elements for the tall shape: headline in the top quarter, the main visual large in the middle, the small text and any button in the bottom sixth; extend the background naturally to fill the frame. Nothing cropped off, nothing added, no other text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "banner",
+      "type": "generate-image",
+      "position": {
+        "x": 3100,
+        "y": 2606
+      },
+      "data": {
+        "label": "Banner · 16:9",
+        "style": "",
+        "prompt": "Recreate the reference ad — the very same ad — for a wide 16:9 banner frame. Keep every word of its text exactly as written, its typography, colours, product, people and style; rearrange the elements for the wide shape: the main visual on one side, the headline with the smaller text and any button on the other; extend the background naturally to fill the frame. Nothing cropped off, nothing added, no other text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-keep",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2210
+      },
+      "data": {
+        "bold": false,
+        "text": "What must stay exactly as written, in every language: brand and product names, slogans you own, prices, numbers, links. Plain words, comma-separated. Both translators leave these untouched in their sheets.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Keep as is",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "keep",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2210
+      },
+      "data": {
+        "text": "PULSEFIT, 78%, 9:41",
+        "label": "Keep as is",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-ad-translation-1",
+      "source": "your-ad",
+      "target": "translation-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-lang-1",
+      "source": "lang-1",
+      "target": "translation-1",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ad-translation-2",
+      "source": "your-ad",
+      "target": "translation-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-lang-2",
+      "source": "lang-2",
+      "target": "translation-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-sheet-1",
+      "source": "translation-1",
+      "target": "localized-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ad-localized-1",
+      "source": "your-ad",
+      "target": "localized-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-sheet-2",
+      "source": "translation-2",
+      "target": "localized-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ad-localized-2",
+      "source": "your-ad",
+      "target": "localized-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-ad-story",
+      "source": "your-ad",
+      "target": "story",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-ad-banner",
+      "source": "your-ad",
+      "target": "banner",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-keep-1",
+      "source": "keep",
+      "target": "translation-1",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-keep-2",
+      "source": "keep",
+      "target": "translation-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.25
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "keep": {
+          "title": "Keep as is",
+          "description": "Brand names, prices, links — whatever must stay exactly as written in every language."
+        },
+        "story": {
+          "title": "Story · 9:16",
+          "description": "The original ad recomposed for a vertical frame — not cropped, not stretched."
+        },
+        "banner": {
+          "title": "Banner · 16:9",
+          "description": "The original ad recomposed for a wide frame."
+        },
+        "lang-1": {
+          "title": "Language 1",
+          "description": "Any language, in plain words."
+        },
+        "lang-2": {
+          "title": "Language 2",
+          "description": "A second language, the same way."
+        },
+        "your-ad": {
+          "title": "Your ad",
+          "description": "The finished creative with its text on it, in any language."
+        },
+        "localized-1": {
+          "title": "Ad in language 1",
+          "description": "Every text swapped per the translation sheet; layout, typography and brand names untouched."
+        },
+        "localized-2": {
+          "title": "Ad in language 2",
+          "description": "The same, in the second language."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "your-ad",
+        "lang-1",
+        "lang-2",
+        "keep"
+      ],
+      "outputOrder": [
+        "localized-1",
+        "localized-2",
+        "story",
+        "banner"
+      ]
+    }
+  }
+}
