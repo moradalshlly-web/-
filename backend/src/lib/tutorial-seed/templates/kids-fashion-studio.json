@@ -1,0 +1,1115 @@
+{
+  "slug": "kids-fashion-studio",
+  "name": "Kids Fashion Studio",
+  "description": "Three clothing photos in, a kidswear shoot out: a child from tiles in the whole outfit on white, four catalogue shots (full body, three-quarter, close-up, jump), and the same outfit on a second child with the same four shots. No photo of a real child needed.",
+  "markdownDescription": "## Kids Fashion Studio\n\nThree clothing photos become a kidswear shoot: a child from tiles wearing the whole outfit on white, four catalogue shots — and the same outfit on a second child. No child's photo needed, no studio, no photographer.\n\n1. **Clothing photos** — the top, the bottom, the shoes, each on a plain background. They never change.\n2. **The kid** — pick the child from tiles: age, hair, skin, eyes. No photo of a real child.\n3. **Styling notes + Light** — how the clothes are worn, and the studio light from tiles.\n4. **Outfit notes + Kid card** — an AI writes the three garments down once; one full-body photo on white anchors every shot.\n5. **Four shots** — full body, three-quarter, close-up, jump. Same child, same clothes, same white studio.\n6. **Kid 2** — a second child from tiles in exactly the same outfit, the same four shots. The clothes are the product; the child is a choice.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "kids",
+    "kidswear",
+    "catalogue",
+    "outfit",
+    "e-commerce"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 140,
+  "nodeTypesUsed": [
+    "upload-image",
+    "person",
+    "text-prompt",
+    "lighting",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/7081ec45-5251-4281-9ec8-b31ff3a54721.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 12,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "Three clothing photos become a kidswear shoot: a child from tiles wearing the whole outfit on white, four catalogue shots — and the same outfit on a second child. No child's photo needed, no studio, no photographer.\n\n1. Clothing photos — the top, the bottom, the shoes, each on a plain background. They never change.\n2. The kid — pick the child from tiles: age, hair, skin, eyes. No photo of a real child.\n3. Styling notes + Light — how the clothes are worn, and the studio light from tiles.\n3. Outfit notes — an AI writes the three garments down once; every image quotes it.\n5. Four shots — full body, three-quarter, close-up, jump. Same child, same clothes, same white studio.\n6. Kid 2 — a second child from tiles in exactly the same outfit, the same four shots. The clothes are the product; the child is a choice.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Kids fashion studio — how it works",
+        "width": 1180,
+        "height": 730,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-garments",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "Up to three photos — top, bottom, shoes — each a packshot or flat lay on a plain background. Every image node gets all three as references, so colours, stripes, buttons and soles stay exactly as they are. Fewer pieces? Delete a node.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Clothing photos",
+        "width": 640,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-styling",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1610
+      },
+      "data": {
+        "bold": false,
+        "text": "How the clothes are worn: tucked or loose, straps up, sleeves pushed, socks or none. Plain words. The kid card follows them and the shots inherit them from the card.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Styling notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-light",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2000
+      },
+      "data": {
+        "bold": false,
+        "text": "Studio light from tiles. High-key three-quarter light is the kidswear catalogue standard: bright, soft, the white stays white.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Light",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 2860,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI looks at the three photos and writes the outfit down in one precise paragraph: each piece, its colour, fabric and details. Every kid card and every shot quotes it, so the stripes, the straps and the soles never drift.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Outfit notes",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-shots",
+      "type": "sticky-note",
+      "position": {
+        "x": 3660,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "Read this row left to right. The kid: pick the child from tiles — age, hair, skin, eyes — no photo of a real child needed, none stored. Kid card: one full-body photo of that child in all three pieces on white, the face and the clothes every shot is measured against. Then four shots, each with the card and the three clothing photos as references and its own fixed framing: full body, three-quarter, a close-up from slightly below, a jump. Kids move — the jump sells the clothes better than a pose.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · The kid → Kid card → Four shots",
+        "width": 3900,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-kid2",
+      "type": "sticky-note",
+      "position": {
+        "x": 3660,
+        "y": 2110
+      },
+      "data": {
+        "bold": false,
+        "text": "The same row again with a second child from tiles — another age, another look: its own kid card in exactly the same clothes, then the same four shots. This is what a kidswear shop needs: the outfit is fixed, the child changes. Add a Kid 3 the same way, or swap the tiles here and rerun this row alone.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · The same outfit on a second kid",
+        "width": 3900,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "top",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 890
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/50576fab-45e2-43b4-ab17-993d7bb97c90.png",
+        "label": "Top",
+        "r2Url": "https://cdn.nodaro.ai/images/50576fab-45e2-43b4-ab17-993d7bb97c90.png",
+        "filename": "top-striped-tee-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/50576fab-45e2-43b4-ab17-993d7bb97c90.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "bottom",
+      "type": "upload-image",
+      "position": {
+        "x": 1360,
+        "y": 890
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/8b7108ac-a72e-4998-b705-930bbe37affe.png",
+        "label": "Bottom",
+        "r2Url": "https://cdn.nodaro.ai/images/8b7108ac-a72e-4998-b705-930bbe37affe.png",
+        "filename": "bottom-corduroy-dungarees-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/8b7108ac-a72e-4998-b705-930bbe37affe.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shoes",
+      "type": "upload-image",
+      "position": {
+        "x": 2020,
+        "y": 890
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/2ea4a9a0-d0d5-4cce-8e3e-5c4c0cf97ac1.png",
+        "label": "Shoes",
+        "r2Url": "https://cdn.nodaro.ai/images/2ea4a9a0-d0d5-4cce-8e3e-5c4c0cf97ac1.png",
+        "filename": "shoes-canvas-sneakers-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/2ea4a9a0-d0d5-4cce-8e3e-5c4c0cf97ac1.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "kid",
+      "type": "person",
+      "position": {
+        "x": 3660,
+        "y": 1190
+      },
+      "data": {
+        "age": "age-child",
+        "type": "not-defined",
+        "label": "Kid",
+        "eyeColor": "eyes-brown",
+        "hairBase": "base-short-curly",
+        "hintMode": "compact",
+        "skinTone": "skin-brown",
+        "hairColor": "hair-dark-brown",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "styling",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1610
+      },
+      "data": {
+        "text": "The tee tucked into the dungarees, straps up and buttoned, cuffs turned once, white ankle socks, laces tied.",
+        "label": "Styling notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 700,
+        "y": 2000
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "high-key",
+        "lightingDirection": "three-quarter",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "outfit-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 2860,
+        "y": 1360
+      },
+      "data": {
+        "label": "Outfit notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Describe the outfit in the reference images.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write clothing descriptions for an image generator. Look at the reference images — each shows one piece of a child's outfit — and describe the whole outfit in ONE paragraph of 60–90 words, plain declarative English, one sentence per piece: garment type, colour, pattern, fabric, collar or straps, closures, pockets, cuffs, and for the shoes the material, sole and laces. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "kid-card",
+      "type": "generate-image",
+      "position": {
+        "x": 4107,
+        "y": 1190
+      },
+      "data": {
+        "label": "Kid card",
+        "style": "",
+        "prompt": "Kidswear catalogue photograph, full body head to toe, of {Kid || a child} standing relaxed and facing the camera on a pure white seamless studio background. The child wears the exact clothes from the clothing reference photos, unchanged, all of them together: {Outfit notes || the clothes in the clothing reference photos.} Worn as follows: {Styling notes || as they come.} {Lighting || soft diffused studio light}, a soft shadow under the shoes, natural skin, an easy natural expression, no props, no text. Sharp and clean.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-1",
+      "type": "generate-image",
+      "position": {
+        "x": 4847,
+        "y": 1190
+      },
+      "data": {
+        "label": "Shot · Full body",
+        "style": "",
+        "prompt": "Full body, head to toe, standing relaxed with the weight on one leg, body at a natural slight angle, arms loose, an easy unposed expression. The same child as in the kid card reference photo — identical face, hair, skin and build — wearing the exact clothes from the clothing reference photos, unchanged and worn exactly as on the card: {Outfit notes || the clothes in the clothing reference photos.} Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle soft shadow on the floor, calm muted colours, premium kidswear catalogue look, sharp focus on the child, a subtle film grain, true colours, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-2",
+      "type": "generate-image",
+      "position": {
+        "x": 5587,
+        "y": 1190
+      },
+      "data": {
+        "label": "Shot · Three-quarter",
+        "style": "",
+        "prompt": "Cropped from mid-thigh up, body at a relaxed angle toward the camera, calm direct eye contact, one hand touching the clothes lightly. The same child as in the kid card reference photo — identical face, hair, skin and build — wearing the exact clothes from the clothing reference photos, unchanged and worn exactly as on the card: {Outfit notes || the clothes in the clothing reference photos.} Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle soft shadow on the floor, calm muted colours, premium kidswear catalogue look, sharp focus on the child, a subtle film grain, true colours, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-3",
+      "type": "generate-image",
+      "position": {
+        "x": 6327,
+        "y": 1190
+      },
+      "data": {
+        "label": "Shot · Close-up",
+        "style": "",
+        "prompt": "Chest-up close-up, camera a little below the child's eye level looking up, head slightly turned, a soft smile just off the lens, the collar and the top of the clothes clearly visible, shallow depth of field. The same child as in the kid card reference photo — identical face, hair, skin and build — wearing the exact clothes from the clothing reference photos, unchanged and worn exactly as on the card: {Outfit notes || the clothes in the clothing reference photos.} Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle soft shadow on the floor, calm muted colours, premium kidswear catalogue look, sharp focus on the child, a subtle film grain, true colours, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-4",
+      "type": "generate-image",
+      "position": {
+        "x": 7067,
+        "y": 1190
+      },
+      "data": {
+        "label": "Shot · Jump",
+        "style": "",
+        "prompt": "Caught mid-jump, both feet off the floor, knees bent, arms out, hair lifting, a big laugh, the whole outfit and the shoes visible, frozen sharp. The same child as in the kid card reference photo — identical face, hair, skin and build — wearing the exact clothes from the clothing reference photos, unchanged and worn exactly as on the card: {Outfit notes || the clothes in the clothing reference photos.} Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle soft shadow on the floor, calm muted colours, premium kidswear catalogue look, sharp focus on the child, a subtle film grain, true colours, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "kid-2",
+      "type": "person",
+      "position": {
+        "x": 3660,
+        "y": 2410
+      },
+      "data": {
+        "age": "age-young-child",
+        "type": "not-defined",
+        "label": "Kid 2",
+        "eyeColor": "eyes-blue",
+        "hairBase": "base-medium-straight",
+        "hintMode": "compact",
+        "skinTone": "skin-fair",
+        "hairColor": "hair-blonde",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "kid-card-2",
+      "type": "generate-image",
+      "position": {
+        "x": 4107,
+        "y": 2410
+      },
+      "data": {
+        "label": "Kid card 2",
+        "style": "",
+        "prompt": "Kidswear catalogue photograph, full body head to toe, of {Kid 2 || a second child} standing relaxed and facing the camera on a pure white seamless studio background. The child wears the exact clothes from the clothing reference photos, unchanged, all of them together: {Outfit notes || the clothes in the clothing reference photos.} Worn as follows: {Styling notes || as they come.} {Lighting || soft diffused studio light}, a soft shadow under the shoes, natural skin, an easy natural expression, no props, no text. Sharp and clean.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-5",
+      "type": "generate-image",
+      "position": {
+        "x": 4847,
+        "y": 2410
+      },
+      "data": {
+        "label": "Kid 2 · Full body",
+        "style": "",
+        "prompt": "Full body, head to toe, standing relaxed with the weight on one leg, body at a natural slight angle, arms loose, an easy unposed expression. The same child as in the kid card 2 reference photo — identical face, hair, skin and build — wearing the exact clothes from the clothing reference photos, unchanged and worn exactly as on the card: {Outfit notes || the clothes in the clothing reference photos.} Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle soft shadow on the floor, calm muted colours, premium kidswear catalogue look, sharp focus on the child, a subtle film grain, true colours, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-6",
+      "type": "generate-image",
+      "position": {
+        "x": 5587,
+        "y": 2410
+      },
+      "data": {
+        "label": "Kid 2 · Three-quarter",
+        "style": "",
+        "prompt": "Cropped from mid-thigh up, body at a relaxed angle toward the camera, calm direct eye contact, one hand touching the clothes lightly. The same child as in the kid card 2 reference photo — identical face, hair, skin and build — wearing the exact clothes from the clothing reference photos, unchanged and worn exactly as on the card: {Outfit notes || the clothes in the clothing reference photos.} Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle soft shadow on the floor, calm muted colours, premium kidswear catalogue look, sharp focus on the child, a subtle film grain, true colours, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-7",
+      "type": "generate-image",
+      "position": {
+        "x": 6327,
+        "y": 2410
+      },
+      "data": {
+        "label": "Kid 2 · Close-up",
+        "style": "",
+        "prompt": "Chest-up close-up, camera a little below the child's eye level looking up, head slightly turned, a soft smile just off the lens, the collar and the top of the clothes clearly visible, shallow depth of field. The same child as in the kid card 2 reference photo — identical face, hair, skin and build — wearing the exact clothes from the clothing reference photos, unchanged and worn exactly as on the card: {Outfit notes || the clothes in the clothing reference photos.} Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle soft shadow on the floor, calm muted colours, premium kidswear catalogue look, sharp focus on the child, a subtle film grain, true colours, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-8",
+      "type": "generate-image",
+      "position": {
+        "x": 7067,
+        "y": 2410
+      },
+      "data": {
+        "label": "Kid 2 · Jump",
+        "style": "",
+        "prompt": "Caught mid-jump, both feet off the floor, knees bent, arms out, hair lifting, a big laugh, the whole outfit and the shoes visible, frozen sharp. The same child as in the kid card 2 reference photo — identical face, hair, skin and build — wearing the exact clothes from the clothing reference photos, unchanged and worn exactly as on the card: {Outfit notes || the clothes in the clothing reference photos.} Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle soft shadow on the floor, calm muted colours, premium kidswear catalogue look, sharp focus on the child, a subtle film grain, true colours, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-top-notes",
+      "source": "top",
+      "target": "outfit-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-notes",
+      "source": "bottom",
+      "target": "outfit-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-notes",
+      "source": "shoes",
+      "target": "outfit-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-card1",
+      "source": "top",
+      "target": "kid-card",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-card1",
+      "source": "bottom",
+      "target": "kid-card",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-card1",
+      "source": "shoes",
+      "target": "kid-card",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-kid-card1",
+      "source": "kid",
+      "target": "kid-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-card1",
+      "source": "styling",
+      "target": "kid-card",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-card1",
+      "source": "lighting",
+      "target": "kid-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-card1",
+      "source": "outfit-notes",
+      "target": "kid-card",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-top-card2",
+      "source": "top",
+      "target": "kid-card-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-card2",
+      "source": "bottom",
+      "target": "kid-card-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-card2",
+      "source": "shoes",
+      "target": "kid-card-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-kid-card2",
+      "source": "kid-2",
+      "target": "kid-card-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-card2",
+      "source": "styling",
+      "target": "kid-card-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-card2",
+      "source": "lighting",
+      "target": "kid-card-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-card2",
+      "source": "outfit-notes",
+      "target": "kid-card-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot1",
+      "source": "kid-card",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-shot1",
+      "source": "top",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-shot1",
+      "source": "bottom",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-shot1",
+      "source": "shoes",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot1",
+      "source": "outfit-notes",
+      "target": "shot-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot1",
+      "source": "lighting",
+      "target": "shot-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot2",
+      "source": "kid-card",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-shot2",
+      "source": "top",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-shot2",
+      "source": "bottom",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-shot2",
+      "source": "shoes",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot2",
+      "source": "outfit-notes",
+      "target": "shot-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot2",
+      "source": "lighting",
+      "target": "shot-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot3",
+      "source": "kid-card",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-shot3",
+      "source": "top",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-shot3",
+      "source": "bottom",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-shot3",
+      "source": "shoes",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot3",
+      "source": "outfit-notes",
+      "target": "shot-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot3",
+      "source": "lighting",
+      "target": "shot-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot4",
+      "source": "kid-card",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-shot4",
+      "source": "top",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-shot4",
+      "source": "bottom",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-shot4",
+      "source": "shoes",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot4",
+      "source": "outfit-notes",
+      "target": "shot-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot4",
+      "source": "lighting",
+      "target": "shot-4",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot5",
+      "source": "kid-card-2",
+      "target": "shot-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-shot5",
+      "source": "top",
+      "target": "shot-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-shot5",
+      "source": "bottom",
+      "target": "shot-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-shot5",
+      "source": "shoes",
+      "target": "shot-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot5",
+      "source": "outfit-notes",
+      "target": "shot-5",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot5",
+      "source": "lighting",
+      "target": "shot-5",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot6",
+      "source": "kid-card-2",
+      "target": "shot-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-shot6",
+      "source": "top",
+      "target": "shot-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-shot6",
+      "source": "bottom",
+      "target": "shot-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-shot6",
+      "source": "shoes",
+      "target": "shot-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot6",
+      "source": "outfit-notes",
+      "target": "shot-6",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot6",
+      "source": "lighting",
+      "target": "shot-6",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot7",
+      "source": "kid-card-2",
+      "target": "shot-7",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-shot7",
+      "source": "top",
+      "target": "shot-7",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-shot7",
+      "source": "bottom",
+      "target": "shot-7",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-shot7",
+      "source": "shoes",
+      "target": "shot-7",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot7",
+      "source": "outfit-notes",
+      "target": "shot-7",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot7",
+      "source": "lighting",
+      "target": "shot-7",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot8",
+      "source": "kid-card-2",
+      "target": "shot-8",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-top-shot8",
+      "source": "top",
+      "target": "shot-8",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bottom-shot8",
+      "source": "bottom",
+      "target": "shot-8",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-shoes-shot8",
+      "source": "shoes",
+      "target": "shot-8",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot8",
+      "source": "outfit-notes",
+      "target": "shot-8",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot8",
+      "source": "lighting",
+      "target": "shot-8",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.183
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "kid": {
+          "title": "The kid",
+          "description": "Pick the child from tiles. No photo of a real child needed."
+        },
+        "top": {
+          "title": "Top",
+          "description": "A packshot or flat lay on a plain background."
+        },
+        "kid-2": {
+          "title": "Kid 2",
+          "description": "A second child from tiles, in the same outfit."
+        },
+        "shoes": {
+          "title": "Shoes",
+          "description": "A packshot on a plain background."
+        },
+        "bottom": {
+          "title": "Bottom",
+          "description": "A packshot or flat lay on a plain background."
+        },
+        "shot-1": {
+          "title": "Full body",
+          "description": "Head to toe, relaxed."
+        },
+        "shot-2": {
+          "title": "Three-quarter",
+          "description": "Mid-thigh up, eyes to camera."
+        },
+        "shot-3": {
+          "title": "Close-up",
+          "description": "Chest up, from slightly below."
+        },
+        "shot-4": {
+          "title": "Jump",
+          "description": "Mid-air, laughing, the whole outfit visible."
+        },
+        "shot-5": {
+          "title": "Kid 2 · Full body",
+          "description": "The same outfit on the second child."
+        },
+        "shot-6": {
+          "title": "Kid 2 · Three-quarter",
+          "description": "The second child, mid-thigh up."
+        },
+        "shot-7": {
+          "title": "Kid 2 · Close-up",
+          "description": "The second child, chest up."
+        },
+        "shot-8": {
+          "title": "Kid 2 · Jump",
+          "description": "The second child, mid-air."
+        },
+        "styling": {
+          "title": "Styling notes",
+          "description": "How the clothes are worn — tucked, straps, cuffs, socks."
+        },
+        "kid-card": {
+          "title": "Kid card",
+          "description": "The full-body anchor photo: the child in the whole outfit on white."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Optional. High-key three-quarter light is the catalogue default."
+        },
+        "kid-card-2": {
+          "title": "Kid card 2",
+          "description": "The second child in the same outfit on white."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "top",
+        "bottom",
+        "shoes",
+        "kid",
+        "kid-2",
+        "styling",
+        "lighting"
+      ],
+      "outputOrder": [
+        "kid-card",
+        "shot-1",
+        "shot-2",
+        "shot-3",
+        "shot-4",
+        "kid-card-2",
+        "shot-5",
+        "shot-6",
+        "shot-7",
+        "shot-8"
+      ]
+    }
+  }
+}

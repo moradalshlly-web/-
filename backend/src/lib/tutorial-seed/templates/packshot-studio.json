@@ -1,0 +1,662 @@
+{
+  "slug": "packshot-studio",
+  "name": "Packshot Studio",
+  "description": "One phone photo of a garment in, a full catalogue set out: front, back and flat-lay packshots plus collar, cuff, fabric and button close-ups — all on white in one light, the garment's true colour and fabric kept from your photo.",
+  "markdownDescription": "## Packshot Studio\n\nOne phone photo of a garment — on a bed, in bad light — becomes a full catalogue set: three packshots and four detail close-ups, all on white in one light. No studio, no mannequin, no example photos to hunt for.\n\n1. **Phone photo** — the garment as it is, however it was shot. Every image gets it as the reference for colour and fabric.\n2. **Light + Shop style** — the studio light from tiles and one line about your background and shadow.\n3. **Garment notes** — an AI reads the phone photo once and writes the garment down: fabric, true colour, collar, buttons, seams.\n4. **Row 1, the packshots** — front, back, flat lay. The shop page.\n5. **Row 2, the details** — collar, cuff, fabric, button. The zoom.\n6. Swap the phone photo and rerun everything; change the shop-style line and every image follows.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "packshot",
+    "catalogue",
+    "garment",
+    "e-commerce",
+    "phone-photo"
+  ],
+  "complexity": "beginner",
+  "estimatedCredits": 100,
+  "nodeTypesUsed": [
+    "upload-image",
+    "lighting",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/69fee1d3-d4fa-4056-8937-b70659a02d87.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 17,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One phone photo of a garment — on a bed, in bad light — becomes a full catalogue set: three packshots and four detail close-ups, all on white in one light. No studio, no mannequin, no example photos to hunt for.\n\n1. Phone photo — the garment as it is, however it was shot. Every image gets it as the reference for colour and fabric.\n2. Light + Shop style — the studio light from tiles and one line about your background and shadow.\n3. Garment notes — an AI reads the phone photo once and writes the garment down: fabric, true colour, collar, buttons, seams.\n4. Row 1, the packshots — front, back, flat lay. The shop page.\n5. Row 2, the details — collar, cuff, fabric, button. The zoom.\n6. Swap the phone photo and rerun everything; change the shop-style line and every image follows.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Packshot studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-raw",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "The garment however you shot it: on a bed, on a chair, in lamp light. Every image gets it as the reference, so the colour, the knit and the buttons are yours — only the bed, the light and the crooked framing go.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Phone photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-look",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1770
+      },
+      "data": {
+        "bold": false,
+        "text": "Soft even studio light from tiles is the catalogue standard. The shop-style line sets the background and the shadow in plain words — pure white, warm off-white, light grey, a soft drop shadow — so every image matches the rest of your shop.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Light + Shop style",
+        "width": 640,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 1597,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI reads the phone photo once and writes the garment down in one precise paragraph — fabric, the true colour under the lamp's cast, collar, buttons, seams, proportions. Every image quotes it next to the photo, so seven images agree on one garment.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Garment notes",
+        "width": 560,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-packshots",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Front and back on an invisible ghost mannequin, and a flat lay from above — the three views a product page needs. Same garment, same white, same light. Open one to change its framing and rerun just that node.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · The packshots",
+        "width": 2080,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-details",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 2070
+      },
+      "data": {
+        "bold": false,
+        "text": "Four close-ups the shopper zooms into: the collar, a cuff, the fabric itself, a button. Each has a fixed framing and quotes the garment notes, so the detail matches the packshots exactly. Add a fifth for a pocket or a hem the same way.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · The details",
+        "width": 2820,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "raw",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/08297bd3-aa8d-4500-a2dd-fd50f2263cef.png",
+        "label": "Phone photo",
+        "r2Url": "https://cdn.nodaro.ai/images/08297bd3-aa8d-4500-a2dd-fd50f2263cef.png",
+        "filename": "phone-photo-cardigan-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/08297bd3-aa8d-4500-a2dd-fd50f2263cef.png",
+        "presentationInput": true
+      },
+      "width": 600.4693000326412,
+      "height": 799.3747556684536,
+      "className": "rf-resized"
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 700,
+        "y": 1770
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "soft",
+        "lightingDirection": "three-quarter",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "style",
+      "type": "text-prompt",
+      "position": {
+        "x": 1057,
+        "y": 1770
+      },
+      "data": {
+        "text": "Pure white seamless background, the garment centred with even margins, a soft light-grey drop shadow.",
+        "label": "Shop style",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "garment-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1597,
+        "y": 1360
+      },
+      "data": {
+        "label": "Garment notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the garment in the reference photo. Correct for the colour cast of the light.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write garment descriptions for an image generator from an amateur phone photo. Ignore the surroundings, the crooked framing and the colour cast of the lamp; describe the garment as it truly is in ONE paragraph of 50–70 words, plain declarative English: garment type, fabric and knit or weave, true colour, collar, closure and buttons (material, count), pockets, cuffs, hem, fit and proportions. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pack-front",
+      "type": "generate-image",
+      "position": {
+        "x": 2397,
+        "y": 1150
+      },
+      "data": {
+        "label": "Packshot · Front",
+        "style": "",
+        "prompt": "Front view on an invisible ghost mannequin, buttoned, sleeves hanging naturally, the collar and the front placket square to the camera, full garment in frame. The exact garment from the phone photo — its true colour, its knit or weave, its collar, buttons, seams and proportions, nothing added and nothing tidied away: {Garment notes || the garment in the phone photo.} {Shop style || Pure white seamless background, the garment centred with even margins.} {Lighting || soft even studio light}, a faint soft contact shadow, true colours corrected from the phone's cast, sharp and clean, catalogue photography, no model, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pack-back",
+      "type": "generate-image",
+      "position": {
+        "x": 3137,
+        "y": 1150
+      },
+      "data": {
+        "label": "Packshot · Back",
+        "style": "",
+        "prompt": "Back view on an invisible ghost mannequin, the whole back of the garment square to the camera, shoulders level, the hem straight. The exact garment from the phone photo — its true colour, its knit or weave, its collar, buttons, seams and proportions, nothing added and nothing tidied away: {Garment notes || the garment in the phone photo.} {Shop style || Pure white seamless background, the garment centred with even margins.} {Lighting || soft even studio light}, a faint soft contact shadow, true colours corrected from the phone's cast, sharp and clean, catalogue photography, no model, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pack-flat",
+      "type": "generate-image",
+      "position": {
+        "x": 3877,
+        "y": 1150
+      },
+      "data": {
+        "label": "Packshot · Flat lay",
+        "style": "",
+        "prompt": "Laid perfectly flat from directly above, arms folded neatly across the body, the garment squared to the frame, a quarter-inch of shadow along its edges. The exact garment from the phone photo — its true colour, its knit or weave, its collar, buttons, seams and proportions, nothing added and nothing tidied away: {Garment notes || the garment in the phone photo.} {Shop style || Pure white seamless background, the garment centred with even margins.} {Lighting || soft even studio light}, a faint soft contact shadow, true colours corrected from the phone's cast, sharp and clean, catalogue photography, no model, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "detail-collar",
+      "type": "generate-image",
+      "position": {
+        "x": 2397,
+        "y": 2370
+      },
+      "data": {
+        "label": "Detail · Collar",
+        "style": "",
+        "prompt": "A tight close-up of the collar and the top of the front opening, the ribbing and the first button sharp, the rest falling softly out of frame. The exact garment from the phone photo — its true colour, its knit or weave, its collar, buttons, seams and proportions, nothing added and nothing tidied away: {Garment notes || the garment in the phone photo.} {Shop style || Pure white seamless background, the garment centred with even margins.} {Lighting || soft even studio light}, a faint soft contact shadow, true colours corrected from the phone's cast, sharp and clean, catalogue photography, no model, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "detail-cuff",
+      "type": "generate-image",
+      "position": {
+        "x": 3137,
+        "y": 2370
+      },
+      "data": {
+        "label": "Detail · Cuff",
+        "style": "",
+        "prompt": "EXTREME CLOSE-UP, MACRO CROP ONLY — the reference photo shows the whole garment; do NOT reproduce it whole. The frame contains only the end of ONE sleeve: the ribbed cuff fills at least half the frame, the sleeve seam sharp, the rest of the sleeve running out of frame, nothing else of the garment visible. The exact garment from the phone photo — its true colour, its knit or weave, its collar, buttons, seams and proportions, nothing added and nothing tidied away: {Garment notes || the garment in the phone photo.} {Shop style || Pure white seamless background, the garment centred with even margins.} {Lighting || soft even studio light}, a faint soft contact shadow, true colours corrected from the phone's cast, sharp and clean, catalogue photography, no model, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "detail-fabric",
+      "type": "generate-image",
+      "position": {
+        "x": 3877,
+        "y": 2370
+      },
+      "data": {
+        "label": "Detail · Fabric",
+        "style": "",
+        "prompt": "EXTREME MACRO CROP ONLY — the reference photo shows the whole garment; do NOT reproduce it whole. The frame is filled edge to edge with a flat patch of the fabric itself: the cable-knit rows and the fibre texture in sharp focus, no edges, no collar, no buttons, no outline of the garment, just the knitted fabric like a swatch. The exact garment from the phone photo — its true colour, its knit or weave, its collar, buttons, seams and proportions, nothing added and nothing tidied away: {Garment notes || the garment in the phone photo.} {Shop style || Pure white seamless background, the garment centred with even margins.} {Lighting || soft even studio light}, a faint soft contact shadow, true colours corrected from the phone's cast, sharp and clean, catalogue photography, no model, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "detail-button",
+      "type": "generate-image",
+      "position": {
+        "x": 4617,
+        "y": 2370
+      },
+      "data": {
+        "label": "Detail · Button",
+        "style": "",
+        "prompt": "A tight close-up of one button and its buttonhole with the fabric around it, the material of the button and the stitching sharp. The exact garment from the phone photo — its true colour, its knit or weave, its collar, buttons, seams and proportions, nothing added and nothing tidied away: {Garment notes || the garment in the phone photo.} {Shop style || Pure white seamless background, the garment centred with even margins.} {Lighting || soft even studio light}, a faint soft contact shadow, true colours corrected from the phone's cast, sharp and clean, catalogue photography, no model, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-raw-notes",
+      "source": "raw",
+      "target": "garment-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-raw-pack-front",
+      "source": "raw",
+      "target": "pack-front",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-pack-front",
+      "source": "garment-notes",
+      "target": "pack-front",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-pack-front",
+      "source": "lighting",
+      "target": "pack-front",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-pack-front",
+      "source": "style",
+      "target": "pack-front",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-raw-pack-back",
+      "source": "raw",
+      "target": "pack-back",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-pack-back",
+      "source": "garment-notes",
+      "target": "pack-back",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-pack-back",
+      "source": "lighting",
+      "target": "pack-back",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-pack-back",
+      "source": "style",
+      "target": "pack-back",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-raw-pack-flat",
+      "source": "raw",
+      "target": "pack-flat",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-pack-flat",
+      "source": "garment-notes",
+      "target": "pack-flat",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-pack-flat",
+      "source": "lighting",
+      "target": "pack-flat",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-pack-flat",
+      "source": "style",
+      "target": "pack-flat",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-raw-detail-collar",
+      "source": "raw",
+      "target": "detail-collar",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-detail-collar",
+      "source": "garment-notes",
+      "target": "detail-collar",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-detail-collar",
+      "source": "lighting",
+      "target": "detail-collar",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-detail-collar",
+      "source": "style",
+      "target": "detail-collar",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-raw-detail-cuff",
+      "source": "raw",
+      "target": "detail-cuff",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-detail-cuff",
+      "source": "garment-notes",
+      "target": "detail-cuff",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-detail-cuff",
+      "source": "lighting",
+      "target": "detail-cuff",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-detail-cuff",
+      "source": "style",
+      "target": "detail-cuff",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-raw-detail-fabric",
+      "source": "raw",
+      "target": "detail-fabric",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-detail-fabric",
+      "source": "garment-notes",
+      "target": "detail-fabric",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-detail-fabric",
+      "source": "lighting",
+      "target": "detail-fabric",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-detail-fabric",
+      "source": "style",
+      "target": "detail-fabric",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-raw-detail-button",
+      "source": "raw",
+      "target": "detail-button",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-detail-button",
+      "source": "garment-notes",
+      "target": "detail-button",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-detail-button",
+      "source": "lighting",
+      "target": "detail-button",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-detail-button",
+      "source": "style",
+      "target": "detail-button",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.268
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "raw": {
+          "title": "Your phone photo",
+          "description": "The garment however you shot it. Only the garment is kept."
+        },
+        "style": {
+          "title": "Shop style",
+          "description": "Background and shadow in plain words, to match your shop."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Soft even studio light is the catalogue default."
+        },
+        "pack-back": {
+          "title": "Packshot: Back",
+          "description": "A 3:4 packshot on white."
+        },
+        "pack-flat": {
+          "title": "Packshot: Flat lay",
+          "description": "A 3:4 packshot on white."
+        },
+        "pack-front": {
+          "title": "Packshot: Front",
+          "description": "A 3:4 packshot on white."
+        },
+        "detail-cuff": {
+          "title": "Detail: Cuff",
+          "description": "A square close-up on white."
+        },
+        "detail-button": {
+          "title": "Detail: Button",
+          "description": "A square close-up on white."
+        },
+        "detail-collar": {
+          "title": "Detail: Collar",
+          "description": "A square close-up on white."
+        },
+        "detail-fabric": {
+          "title": "Detail: Fabric",
+          "description": "A square close-up on white."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "raw",
+        "style",
+        "lighting"
+      ],
+      "outputOrder": [
+        "pack-front",
+        "pack-back",
+        "pack-flat",
+        "detail-collar",
+        "detail-cuff",
+        "detail-fabric",
+        "detail-button"
+      ]
+    }
+  }
+}

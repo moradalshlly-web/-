@@ -1,0 +1,656 @@
+{
+  "slug": "beauty-bundle-studio",
+  "name": "Beauty Bundle Studio",
+  "description": "Two products that must both stay exact, placed into three sets no studio could build — glacier, frozen splash, chrome dune — each set built empty first; plus last season's campaign visual remade with this season's bottles.",
+  "markdownDescription": "## Beauty Bundle Studio\n\nTwo products that must both stay exact, in sets no studio could build — and last season's ad remade with this season's bottles. Three ideas in one canvas.\n\n1. **Two product photos** — the serum and the cream, on white. An AI writes both down once.\n2. **Brand mood** — one line that colours every set.\n3. **Row 1, the empty sets** — three stages built first, with nobody in them: glacier, splash, dune. Judge the set before a product touches it.\n4. **Row 2, the duo shots** — the two products placed into each set. Set + products = the ad.\n5. **Row 3, the remake** — a campaign visual you already have, with its products swapped for yours. Same picture, new bottles.\n6. Rewrite a set line and rerun its column; swap the two photos and every image follows.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "beauty",
+    "bundle",
+    "two-products",
+    "set-building",
+    "campaign-remake"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 130,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/5bd45910-c04b-4ac6-bf00-7b1e848083f0.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 20,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "Two products that must both stay exact, in sets no studio could build — and last season's ad remade with this season's bottles. Three ideas in one canvas.\n\n1. Two product photos — the serum and the cream, on white. An AI writes both down once.\n2. Brand mood — one line that colours every set.\n3. Row 1, the EMPTY SETS — three stages built first, with nobody in them: glacier, splash, dune. Judge the set before a product touches it.\n4. Row 2, the DUO SHOTS — the two products placed into each set. Set + products = the ad.\n5. Row 3, the REMAKE — a campaign visual you already have, with its products swapped for yours. Same picture, new bottles.\n6. Rewrite a set line and rerun its column; swap the two photos and every image follows.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Beauty bundle studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-products",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "A serum and a cream on white — the bundle. Every duo shot and the remake get BOTH as references, and an AI writes them down once so the glass, the gold and the pattern never drift. Replace them with any two pieces of one range.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Two product photos",
+        "width": 640,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-mood",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1570
+      },
+      "data": {
+        "bold": false,
+        "text": "One line about how the brand feels — cool and precious, warm and botanical, loud and pop. It colours every set. The set lines themselves sit in each set node: open one and rewrite the place.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Brand mood",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 2200,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI looks at both photos once and writes the two products down in one paragraph: shape, glass, colour, caps, pattern. Every shot quotes it next to the photos, so the pair stays the same pair.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Product notes",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-sets",
+      "type": "sticky-note",
+      "position": {
+        "x": 3000,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Three stages built BEFORE any product: a glacier, a frozen splash, a chrome platform in the dunes. Each is one editable paragraph plus the brand mood. Building the set on its own lets you judge the world first — and reuse it for the next bundle.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · The empty sets",
+        "width": 2080,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-duos",
+      "type": "sticky-note",
+      "position": {
+        "x": 3000,
+        "y": 1720
+      },
+      "data": {
+        "bold": false,
+        "text": "Under each set, the same set with the two products placed on its empty spot. Three references go in — serum, cream, set — and the prompt says: keep the set, keep the products, put them together. Rerun one column after changing its set.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · The duo shots",
+        "width": 2080,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-remake",
+      "type": "sticky-note",
+      "position": {
+        "x": 3000,
+        "y": 2590
+      },
+      "data": {
+        "bold": false,
+        "text": "Left: a campaign visual you already have — here last season's ad with two plain white bottles. Right: the same picture with your two products in their place. Composition, light and mood are kept; only the bottles change. Drop in any old ad.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · The remake",
+        "width": 1340,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "serum",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/76554f8a-9641-4029-b803-e073b2e630e8.png",
+        "label": "Serum photo",
+        "r2Url": "https://cdn.nodaro.ai/images/76554f8a-9641-4029-b803-e073b2e630e8.png",
+        "filename": "serum-cobalt-gold-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/76554f8a-9641-4029-b803-e073b2e630e8.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "cream",
+      "type": "upload-image",
+      "position": {
+        "x": 1360,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/82fef7b6-fff2-44aa-8f83-05266eac0001.png",
+        "label": "Cream photo",
+        "r2Url": "https://cdn.nodaro.ai/images/82fef7b6-fff2-44aa-8f83-05266eac0001.png",
+        "filename": "cream-cobalt-gold-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/82fef7b6-fff2-44aa-8f83-05266eac0001.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "mood",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1570
+      },
+      "data": {
+        "text": "Cool, precious, otherworldly — deep blues, black and gold, cold light with one warm accent, nothing ordinary.",
+        "label": "Brand mood",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "product-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 2200,
+        "y": 1320
+      },
+      "data": {
+        "label": "Product notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the two products in the reference images: first the serum bottle, then the cream jar.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write product descriptions for an image generator. Look at the reference images and describe the two products in ONE paragraph of 60–80 words, plain declarative English, first the bottle then the jar: shape and proportions, material and finish, colour, cap or lid and its material, any pattern or embossing, and how their sizes compare. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "set-ice",
+      "type": "generate-image",
+      "position": {
+        "x": 3000,
+        "y": 1150
+      },
+      "data": {
+        "label": "Set · Glacier",
+        "style": "",
+        "prompt": "An empty product set for a luxury skincare campaign, 4:3, photorealistic, cinematic. A slab of ancient glacier ice, cracked and glowing blue from within, a low bank of cold mist drifting over it, black night behind, a single clean flat spot of ice in the middle foreground the size of two small bottles, left EMPTY. No products, no people, no text — an empty stage, lit and ready. {Brand mood || Cool, precious, otherworldly — deep blues and gold, nothing ordinary.}",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "set-splash",
+      "type": "generate-image",
+      "position": {
+        "x": 3740,
+        "y": 1150
+      },
+      "data": {
+        "label": "Set · Splash",
+        "style": "",
+        "prompt": "An empty product set for a luxury skincare campaign, 4:3, photorealistic, cinematic. A crown of milky-white water frozen mid-splash on a black mirror-black water surface, droplets suspended in the air, a warm gold rim light from behind, the calm circle of water in the middle foreground left EMPTY as a stage for two small bottles. No products, no people, no text — an empty stage, lit and ready. {Brand mood || Cool, precious, otherworldly — deep blues and gold, nothing ordinary.}",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "set-dune",
+      "type": "generate-image",
+      "position": {
+        "x": 4480,
+        "y": 1150
+      },
+      "data": {
+        "label": "Set · Dune",
+        "style": "",
+        "prompt": "An empty product set for a luxury skincare campaign, 4:3, photorealistic, cinematic. A mirror-polished chrome platform half sunk in fine desert dune sand at blue hour, a thin line of neon pink light along the horizon, wind-blown sand in the air, the platform's centre left EMPTY for two small bottles. No products, no people, no text — an empty stage, lit and ready. {Brand mood || Cool, precious, otherworldly — deep blues and gold, nothing ordinary.}",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "duo-ice",
+      "type": "generate-image",
+      "position": {
+        "x": 3000,
+        "y": 2020
+      },
+      "data": {
+        "label": "Duo · Glacier",
+        "style": "",
+        "prompt": "Place the two exact products into the set from the SET reference photo — the third reference — keeping that set, its camera, its light and its colour exactly as it is; put the products on its empty spot as a pair, the serum bottle slightly in front of the cream jar, both catching the set's light, with true reflections and shadows where they touch. The two exact products from the two product reference photos — the serum bottle and the cream jar — identical in shape, glass, colour, caps and pattern, nothing added, no labels, no text: {Product notes || the two products in the reference photos.} Hero shot for a top-performing ad, 4:3, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "duo-splash",
+      "type": "generate-image",
+      "position": {
+        "x": 3740,
+        "y": 2020
+      },
+      "data": {
+        "label": "Duo · Splash",
+        "style": "",
+        "prompt": "Place the two exact products into the set from the SET reference photo — the third reference — keeping that set, its camera, its light and its colour exactly as it is; put the products on its empty spot as a pair, the serum bottle slightly in front of the cream jar, both catching the set's light, with true reflections and shadows where they touch. The two exact products from the two product reference photos — the serum bottle and the cream jar — identical in shape, glass, colour, caps and pattern, nothing added, no labels, no text: {Product notes || the two products in the reference photos.} Hero shot for a top-performing ad, 4:3, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "duo-dune",
+      "type": "generate-image",
+      "position": {
+        "x": 4480,
+        "y": 2020
+      },
+      "data": {
+        "label": "Duo · Dune",
+        "style": "",
+        "prompt": "Place the two exact products into the set from the SET reference photo — the third reference — keeping that set, its camera, its light and its colour exactly as it is; put the products on its empty spot as a pair, the serum bottle slightly in front of the cream jar, both catching the set's light, with true reflections and shadows where they touch. The two exact products from the two product reference photos — the serum bottle and the cream jar — identical in shape, glass, colour, caps and pattern, nothing added, no labels, no text: {Product notes || the two products in the reference photos.} Hero shot for a top-performing ad, 4:3, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "old-ad",
+      "type": "upload-image",
+      "position": {
+        "x": 3000,
+        "y": 2930
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/0dc96ad7-5e00-475a-8255-db6c050e5849.png",
+        "label": "Campaign visual",
+        "r2Url": "https://cdn.nodaro.ai/images/0dc96ad7-5e00-475a-8255-db6c050e5849.png",
+        "filename": "last-season-key-visual-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/0dc96ad7-5e00-475a-8255-db6c050e5849.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "remake",
+      "type": "generate-image",
+      "position": {
+        "x": 3740,
+        "y": 2930
+      },
+      "data": {
+        "label": "Remake",
+        "style": "",
+        "prompt": "Recreate the campaign visual from the CAMPAIGN reference photo exactly — the same composition, camera, background, light, colours and atmosphere — but replace its two generic white products with the two exact products from the two product reference photos, standing in the same places and at the same scale, lit by the scene's light with true reflections and shadows. The two exact products from the two product reference photos — the serum bottle and the cream jar — identical in shape, glass, colour, caps and pattern, nothing added, no labels, no text: {Product notes || the two products in the reference photos.} 4:3, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-serum-notes",
+      "source": "serum",
+      "target": "product-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-cream-notes",
+      "source": "cream",
+      "target": "product-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-set-ice",
+      "source": "mood",
+      "target": "set-ice",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-serum-duo-ice",
+      "source": "serum",
+      "target": "duo-ice",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-cream-duo-ice",
+      "source": "cream",
+      "target": "duo-ice",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-set-duo-ice",
+      "source": "set-ice",
+      "target": "duo-ice",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-duo-ice",
+      "source": "product-notes",
+      "target": "duo-ice",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-set-splash",
+      "source": "mood",
+      "target": "set-splash",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-serum-duo-splash",
+      "source": "serum",
+      "target": "duo-splash",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-cream-duo-splash",
+      "source": "cream",
+      "target": "duo-splash",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-set-duo-splash",
+      "source": "set-splash",
+      "target": "duo-splash",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-duo-splash",
+      "source": "product-notes",
+      "target": "duo-splash",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-set-dune",
+      "source": "mood",
+      "target": "set-dune",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-serum-duo-dune",
+      "source": "serum",
+      "target": "duo-dune",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-cream-duo-dune",
+      "source": "cream",
+      "target": "duo-dune",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-set-duo-dune",
+      "source": "set-dune",
+      "target": "duo-dune",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-duo-dune",
+      "source": "product-notes",
+      "target": "duo-dune",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ad-remake",
+      "source": "old-ad",
+      "target": "remake",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-serum-remake",
+      "source": "serum",
+      "target": "remake",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-cream-remake",
+      "source": "cream",
+      "target": "remake",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-remake",
+      "source": "product-notes",
+      "target": "remake",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.237
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "mood": {
+          "title": "Brand mood",
+          "description": "One line that colours every set."
+        },
+        "cream": {
+          "title": "Cream photo",
+          "description": "Second product of the bundle, on white."
+        },
+        "serum": {
+          "title": "Serum photo",
+          "description": "First product of the bundle, on white."
+        },
+        "old-ad": {
+          "title": "Campaign visual",
+          "description": "An ad you already have. Its products get swapped for yours."
+        },
+        "remake": {
+          "title": "Remake",
+          "description": "Your campaign visual with your two products in it."
+        },
+        "duo-ice": {
+          "title": "Duo: Glacier",
+          "description": "Both products placed into the set, 4:3."
+        },
+        "set-ice": {
+          "title": "Set: Glacier",
+          "description": "The empty stage, 4:3."
+        },
+        "duo-dune": {
+          "title": "Duo: Dune",
+          "description": "Both products placed into the set, 4:3."
+        },
+        "set-dune": {
+          "title": "Set: Dune",
+          "description": "The empty stage, 4:3."
+        },
+        "duo-splash": {
+          "title": "Duo: Splash",
+          "description": "Both products placed into the set, 4:3."
+        },
+        "set-splash": {
+          "title": "Set: Splash",
+          "description": "The empty stage, 4:3."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "serum",
+        "cream",
+        "mood",
+        "old-ad"
+      ],
+      "outputOrder": [
+        "set-ice",
+        "set-splash",
+        "set-dune",
+        "duo-ice",
+        "duo-splash",
+        "duo-dune",
+        "remake"
+      ]
+    }
+  }
+}

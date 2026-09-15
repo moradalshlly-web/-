@@ -1,0 +1,605 @@
+{
+  "slug": "ecom-model-studio",
+  "name": "E-com Model Studio",
+  "description": "One clothing photo in, a full e-commerce set out: a model card plus four studio shots — front three-quarter, turned away, back, detail — of the same model in the same clothing on white.",
+  "markdownDescription": "## E-com Model Studio\n\nOne clothing photo becomes a full e-commerce set on a model. No photoshoot, no separate model build.\n\n1. **Clothing photo** — a packshot or flat lay on a plain background. The one thing that never changes.\n2. **Model + Styling notes** — pick the look from tiles; say how the clothing is worn and what goes with it.\n3. **Clothing notes** — an AI reads the photo once and writes the clothing down precisely, so every shot agrees on the details.\n4. **Model card** — one full-body photo of the model in the clothing. Every shot uses it as its reference.\n5. **Four shots** — front three-quarter, turned away, back, detail. Same model, same clothing, same white studio.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "fashion",
+    "e-commerce",
+    "model",
+    "packshot",
+    "references"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 78,
+  "nodeTypesUsed": [
+    "upload-image",
+    "person",
+    "text-prompt",
+    "lighting",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/d9468852-a60a-46e9-ad12-17888ee54015.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 6,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 97.02279579048252,
+        "y": -1135.1325386967096
+      },
+      "data": {
+        "bold": false,
+        "text": "One clothing photo becomes a full e-commerce set on a model. No photoshoot, no separate model build.\n\n1. Clothing photo — a packshot or flat lay on a plain background. The one thing that never changes.\n2. Model + Styling notes — pick the look from tiles; say how the clothing is worn and what goes with it.\n3. Clothing notes — an AI reads the photo once and writes the clothing down precisely, so every shot agrees on the details.\n4. Model card — one full-body photo of the model in the clothing. Every shot uses it as its reference.\n5. Four shots — front three-quarter, turned away, back, detail. Same model, same clothing, same white studio.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "E-com model studio — how it works",
+        "width": 1085,
+        "height": 575,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-garment",
+      "type": "sticky-note",
+      "position": {
+        "x": -558.6160969755056,
+        "y": 5.880169441847414
+      },
+      "data": {
+        "bold": false,
+        "text": "A packshot, a ghost-mannequin shot or a flat lay on a plain background. Every image node gets it as a reference, so colour, collar, pockets and cuffs stay exactly as they are.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Clothing photo",
+        "width": 736,
+        "height": 291,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-model",
+      "type": "sticky-note",
+      "position": {
+        "x": -570.3764358592003,
+        "y": 515.8616096975506
+      },
+      "data": {
+        "bold": false,
+        "text": "Pick the look from tiles: type, age, hair, skin, eyes. No photo needed. Want a specific person? Wire a model photo or a Character node into the Model card as one more reference.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · The model",
+        "width": 753,
+        "height": 251,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-styling",
+      "type": "sticky-note",
+      "position": {
+        "x": -567.0995343385806,
+        "y": 936.2439989622133
+      },
+      "data": {
+        "bold": false,
+        "text": "How the clothing is worn and what goes with it: open or closed, sleeves, trousers, shoes. Plain words. The model card follows them and the four shots inherit them from the card.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Styling notes",
+        "width": 495,
+        "height": 268,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-light",
+      "type": "sticky-note",
+      "position": {
+        "x": -563.1252973567236,
+        "y": 1331.2680031133605
+      },
+      "data": {
+        "bold": false,
+        "text": "Studio light from tiles. High-key three-quarter light is the e-commerce standard: it keeps the white background white.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Light",
+        "width": 496,
+        "height": 209,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 487.75424217079103,
+        "y": -413.70799273549227
+      },
+      "data": {
+        "bold": false,
+        "text": "Clothing notes: an AI describes the clothing from the photo in one precise paragraph, and every shot quotes it, so collar, placket and cuffs never drift. Model card: one full-body photo of the model in the clothing on white — the anchor every shot is measured against.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Clothing notes + Model card",
+        "width": 709,
+        "height": 330,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-shots",
+      "type": "sticky-note",
+      "position": {
+        "x": 1271.6392228414695,
+        "y": -416.0213611030789
+      },
+      "data": {
+        "bold": false,
+        "text": "Each shot gets the model card and the clothing photo as references plus its own fixed framing: front three-quarter, turned away, back, detail. Open a shot to change its pose or crop, then rerun just that node.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · The four shots",
+        "width": 500,
+        "height": 334,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "garment-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 300,
+        "y": 0
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/5695dbc2-cc28-4979-8e9f-07abb8528160.png",
+        "label": "Clothing photo",
+        "r2Url": "https://cdn.nodaro.ai/images/5695dbc2-cc28-4979-8e9f-07abb8528160.png",
+        "filename": "garment-linen-overshirt-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/5695dbc2-cc28-4979-8e9f-07abb8528160.png",
+        "presentationInput": true
+      },
+      "width": 424.26739741199736,
+      "height": 567.4576440385465,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model",
+      "type": "person",
+      "position": {
+        "x": 476.1475397512402,
+        "y": 688.9918016766122
+      },
+      "data": {
+        "age": "age-late-20s",
+        "type": "woman",
+        "label": "Model",
+        "eyeColor": "eyes-brown",
+        "hairBase": "base-long-wavy",
+        "hintMode": "compact",
+        "skinTone": "skin-medium",
+        "hairColor": "hair-dark-brown",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "styling",
+      "type": "text-prompt",
+      "position": {
+        "x": 282.385246024876,
+        "y": 996.3306005588709
+      },
+      "data": {
+        "text": "Worn open over a plain white ribbed tank top, with straight-leg ecru trousers and clean white leather sneakers. Sleeves pushed up once. Hair down. No jewellery.",
+        "label": "Styling notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 276.51366136650137,
+        "y": 1403.4863386334987
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "high-key",
+        "lightingDirection": "three-quarter",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "garment-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 800,
+        "y": 0
+      },
+      "data": {
+        "label": "Clothing notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the clothing in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write clothing descriptions for an image generator. Look at the reference image and describe the clothing in ONE paragraph of 50–70 words, plain declarative English: clothing type, colour, fabric and finish, collar, closure, pockets, cuffs, fit and drape. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model-card",
+      "type": "generate-image",
+      "position": {
+        "x": 1158.0338821440214,
+        "y": 360.6344203057164
+      },
+      "data": {
+        "label": "Model card",
+        "style": "",
+        "prompt": "E-commerce studio photograph, full body head to toe, of {Model || a fashion model} standing relaxed and facing the camera on a pure white seamless studio background. The model wears the exact clothing from the clothing reference image, unchanged: {Clothing notes || the clothing in the clothing reference image.} Worn as follows: {Styling notes || as it comes.} {Lighting || soft diffused studio light}, a soft shadow under the shoes, natural skin, calm expression, no props, no text. Sharp and clean.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 778.6438214570614,
+      "height": 1036.569587314713,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2456.652081843995,
+        "y": -1516.3265264540682
+      },
+      "data": {
+        "label": "Shot 1 · Front three-quarter",
+        "style": "",
+        "prompt": "The same model and the same outfit as in the model card reference image — identical face, hair, skin and clothing. The clothing exactly as in the clothing reference image: {Clothing notes || the clothing in the clothing reference image.} Three-quarter front view, cropped from mid-thigh up, body angled slightly to the camera, looking straight into the lens with a calm confident expression, one hand in a trouser pocket, the other relaxed at the side. Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle shadow at the feet. Clean e-commerce photography, sharp, natural, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 649.8800705467372,
+      "height": 869.061320754717,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-2",
+      "type": "generate-image",
+      "position": {
+        "x": 2450.824757857898,
+        "y": -508.31584846145716
+      },
+      "data": {
+        "label": "Shot 2 · Turned away",
+        "style": "",
+        "prompt": "The same model and the same outfit as in the model card reference image — identical face, hair, skin and clothing. The clothing exactly as in the clothing reference image: {Clothing notes || the clothing in the clothing reference image.} Body turned three-quarters away from the camera, face looking back over the shoulder into the lens, arms relaxed at the sides, hair swept to the camera side so the side and back of the clothing stay visible, cropped from mid-thigh up. Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle shadow at the feet. Clean e-commerce photography, sharp, natural, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 643.8518518518518,
+      "height": 861,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-3",
+      "type": "generate-image",
+      "position": {
+        "x": 2447.8889655287107,
+        "y": 460.9954835926144
+      },
+      "data": {
+        "label": "Shot 3 · Back",
+        "style": "",
+        "prompt": "The same model and the same outfit as in the model card reference image — identical face, hair, skin and clothing. The clothing exactly as in the clothing reference image: {Clothing notes || the clothing in the clothing reference image.} Standing with the back fully to the camera, a slight hip shift for ease, hair over one shoulder so the whole back of the clothing is visible — yoke, collar and hem clear — cropped from mid-thigh up. Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle shadow at the feet. Clean e-commerce photography, sharp, natural, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 689.5523279406548,
+      "height": 917.9665365709967,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-4",
+      "type": "generate-image",
+      "position": {
+        "x": 2440.816507535294,
+        "y": 1563.3941228419997
+      },
+      "data": {
+        "label": "Shot 4 · Detail",
+        "style": "",
+        "prompt": "The same model and the same outfit as in the model card reference image — identical face, hair, skin and clothing. The clothing exactly as in the clothing reference image: {Clothing notes || the clothing in the clothing reference image.} A close-up of the chest and torso from just below the collar to the waist, no face in frame, body at a slight angle for depth, one hand resting lightly on the opposite forearm; focus on the collar, the placket, the pocket flaps, the fabric texture and one cuff. Pure white seamless studio background, {Lighting || soft diffused studio light}, a gentle shadow at the feet. Clean e-commerce photography, sharp, natural, no props, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 714.6087352059401,
+      "height": 951.3228787429078,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-garment-notes",
+      "source": "garment-photo",
+      "target": "garment-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-card",
+      "source": "garment-photo",
+      "target": "model-card",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-model-card",
+      "source": "model",
+      "target": "model-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-card",
+      "source": "styling",
+      "target": "model-card",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-card",
+      "source": "lighting",
+      "target": "model-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-card",
+      "source": "garment-notes",
+      "target": "model-card",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot1",
+      "source": "model-card",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-shot1",
+      "source": "garment-photo",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot1",
+      "source": "garment-notes",
+      "target": "shot-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot1",
+      "source": "lighting",
+      "target": "shot-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot2",
+      "source": "model-card",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-shot2",
+      "source": "garment-photo",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot2",
+      "source": "garment-notes",
+      "target": "shot-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot2",
+      "source": "lighting",
+      "target": "shot-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot3",
+      "source": "model-card",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-shot3",
+      "source": "garment-photo",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot3",
+      "source": "garment-notes",
+      "target": "shot-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot3",
+      "source": "lighting",
+      "target": "shot-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot4",
+      "source": "model-card",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-shot4",
+      "source": "garment-photo",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot4",
+      "source": "garment-notes",
+      "target": "shot-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot4",
+      "source": "lighting",
+      "target": "shot-4",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 193,
+      "y": 361,
+      "zoom": 0.198
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "model": {
+          "title": "The model",
+          "description": "Pick the look from tiles. No photo needed."
+        },
+        "shot-1": {
+          "title": "Front three-quarter",
+          "description": "Mid-thigh up, hand in pocket, eyes to camera."
+        },
+        "shot-2": {
+          "title": "Turned away",
+          "description": "Body turned, face back over the shoulder — side and back of the clothing."
+        },
+        "shot-3": {
+          "title": "Back",
+          "description": "The whole back of the clothing, hair over one shoulder."
+        },
+        "shot-4": {
+          "title": "Detail",
+          "description": "Chest and torso close-up: collar, placket, pockets, cuff."
+        },
+        "styling": {
+          "title": "Styling notes",
+          "description": "How the clothing is worn and what goes with it — open or closed, sleeves, trousers, shoes."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Optional. High-key three-quarter light is the e-commerce default."
+        },
+        "model-card": {
+          "title": "Model card",
+          "description": "The full-body anchor shot: the model in the clothing on white."
+        },
+        "garment-photo": {
+          "title": "Your clothing",
+          "description": "A packshot, ghost-mannequin shot or flat lay on a plain background. It appears exactly as it is in every shot."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "garment-photo",
+        "model",
+        "styling",
+        "lighting"
+      ],
+      "outputOrder": [
+        "model-card",
+        "shot-1",
+        "shot-2",
+        "shot-3",
+        "shot-4"
+      ]
+    }
+  }
+}

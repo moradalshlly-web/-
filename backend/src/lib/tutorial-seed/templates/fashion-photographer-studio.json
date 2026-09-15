@@ -1,0 +1,923 @@
+{
+  "slug": "fashion-photographer-studio",
+  "name": "Fashion Photographer Studio",
+  "description": "One model, one gown, one pair of earrings, one street — shot by six famous photographers from tiles: Newton, Lindbergh, Leibovitz, Testino, Roversi, von Unwerth. The same woman in the same clothes in the same place, six signatures.",
+  "markdownDescription": "## Fashion Photographer Studio\n\nOne model, one gown, one pair of earrings, one street — and six famous photographers. Each photographer tile shoots the same woman in the same gown in the same place, in that photographer's signature. Six pictures, six eyes.\n\n1. **Model photo + Model notes** — a photo of the person in plain basics, and a written description that locks the face, the hair, the tattoos, the rings.\n2. **Garment photo** — the gown as a packshot. An AI writes it down once so the embroidery never drifts.\n3. **Accessory photo** — the earrings. A second product in every shot.\n4. **Location photo** — a street in Rome. Every shot happens there.\n5. **Six photographer tiles → six shots.** Swap a tile for any of sixty photographers and rerun that column alone.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "fashion",
+    "photographer",
+    "editorial",
+    "model",
+    "location"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 100,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "photographer",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/bc6972cc-a5df-45ca-87c8-fbb024418177.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 16,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One model, one gown, one pair of earrings, one street — and six famous photographers. Each photographer tile shoots the same woman in the same gown in the same place, in that photographer's signature. Six pictures, six eyes.\n\n1. Model photo + Model notes — a photo of the person in plain basics, and a written description that locks the face, the hair, the tattoos, the rings.\n2. Garment photo — the gown as a packshot. An AI writes it down once so the embroidery never drifts.\n3. Accessory photo — the earrings. A second product in every shot.\n4. Location photo — a street in Rome. Every shot happens there.\n5. Six photographer tiles → six shots. Swap a tile for any of sixty photographers and rerun that column alone.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Fashion photographer studio — how it works",
+        "width": 1180,
+        "height": 600,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-model",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 760
+      },
+      "data": {
+        "bold": false,
+        "text": "The photo shows the person in plain basics on grey, so the template can dress her. The notes describe her in words — eyes, bob, skin, tattoos, rings, earrings — and every shot quotes them next to the photo, so the face never drifts. Swap the photo and rewrite the notes for another person.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Model photo + Model notes",
+        "width": 640,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-garment",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1680
+      },
+      "data": {
+        "bold": false,
+        "text": "The gown as a packshot on white. Every shot gets it as a reference and puts her back in it — the cut, the navy tulle, the silver embroidery, the slit — exactly as photographed.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Garment photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-accessory",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2600
+      },
+      "data": {
+        "bold": false,
+        "text": "The earrings on white. A second product, worn in every shot. Delete the node if the outfit has none; add another for a bag or shoes.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Accessory photo",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-location",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 3320
+      },
+      "data": {
+        "bold": false,
+        "text": "One photo of the place with no people — here a cobbled street in Rome in the late afternoon. Every shot happens there, in that light. Replace it with any place: your shop, a rooftop, a beach.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Location photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 1900,
+        "y": 760
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI looks at the gown once and writes it down in one precise paragraph — neckline, bodice, embroidery, skirt, slit. Every shot quotes it next to the photo, so six photographers shoot the same gown.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Garment notes",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-shots",
+      "type": "sticky-note",
+      "position": {
+        "x": 2700,
+        "y": 760
+      },
+      "data": {
+        "bold": false,
+        "text": "Top row: one Photographer tile each — Helmut Newton, Peter Lindbergh, Annie Leibovitz, Mario Testino, Paolo Roversi, Ellen von Unwerth. The tile carries that photographer's signature: light, framing, mood. Bottom row: the shot under each tile — the same woman, gown, earrings and street, seen by that photographer. Open a tile to choose another of sixty photographers, then rerun that column alone.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Six photographers, Six shots",
+        "width": 4300,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "model",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 760
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/e091f82f-1e1c-48a8-ac26-34e08088d3d5.png",
+        "label": "Model photo",
+        "r2Url": "https://cdn.nodaro.ai/images/e091f82f-1e1c-48a8-ac26-34e08088d3d5.png",
+        "filename": "model-neutral-basics-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/e091f82f-1e1c-48a8-ac26-34e08088d3d5.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model-notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 1360,
+        "y": 760
+      },
+      "data": {
+        "text": "A striking woman in her late twenties to early thirties with piercing pale blue eyes and a sleek, chin-length black bob with a center part that frames her angular, high-cheekboned face. Her skin is a warm medium-tan tone with a smooth, luminous finish. She has a slim, model-lean build with long elegant fingers adorned with multiple chunky silver rings on both hands. Her most distinctive features are extensive dark floral and botanical tattoos covering both forearms and hands in dense, intricate sleeve-style patterns. She wears bold cobalt-blue resin drop earrings that complement her eye color. Her brows are dark, well-defined, and slightly arched, and her lips are full with a natural rosy-nude tone.",
+        "label": "Model notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "garment",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1680
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/5e3b47aa-2c58-4a63-9d30-e9f976e1af38.png",
+        "label": "Garment photo",
+        "r2Url": "https://cdn.nodaro.ai/images/5e3b47aa-2c58-4a63-9d30-e9f976e1af38.png",
+        "filename": "gown-navy-tulle-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/5e3b47aa-2c58-4a63-9d30-e9f976e1af38.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "accessory",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 2600
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/995bb0cc-2c02-4bbb-9689-dabe0cd179b0.png",
+        "label": "Accessory photo",
+        "r2Url": "https://cdn.nodaro.ai/images/995bb0cc-2c02-4bbb-9689-dabe0cd179b0.png",
+        "filename": "earrings-cobalt-resin-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/995bb0cc-2c02-4bbb-9689-dabe0cd179b0.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "location",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 3320
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/02eb2ad0-bf27-44af-ba0e-5af3e8210573.png",
+        "label": "Location photo",
+        "r2Url": "https://cdn.nodaro.ai/images/02eb2ad0-bf27-44af-ba0e-5af3e8210573.png",
+        "filename": "location-rome-street-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/02eb2ad0-bf27-44af-ba0e-5af3e8210573.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "garment-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1900,
+        "y": 1230
+      },
+      "data": {
+        "label": "Garment notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the garment in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write clothing descriptions for an image generator. Look at the reference image and describe the garment in ONE paragraph of 50–70 words, plain declarative English: garment type, colour, fabric and finish, neckline, bodice, any embroidery or beading and where it sits, skirt shape and length, slit, closure. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-newton",
+      "type": "photographer",
+      "position": {
+        "x": 2700,
+        "y": 1060
+      },
+      "data": {
+        "label": "Helmut Newton",
+        "hintMode": "full",
+        "photographer": "helmut-newton",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "shot-newton",
+      "type": "generate-image",
+      "position": {
+        "x": 2700,
+        "y": 1280
+      },
+      "data": {
+        "label": "Shot · Helmut Newton",
+        "style": "",
+        "prompt": "Fashion editorial photograph {Helmut Newton || in the signature style of a great fashion photographer}. Black and white. Night on the street, lit only by one hard direct flash: deep black shadows, hard edges, glossy highlights. She stands tall and commanding, one hand on the hip, cool detached gaze straight into the lens, heels, the architecture behind her rendered as graphic geometry. The light, the colour or the black-and-white, the framing, the pose and the mood above are the photographer's and override the reference photos, which set only WHO, WHAT SHE WEARS and WHERE. The woman from the model reference photo — identical face, hair, skin, tattoos and rings: {Model notes || the woman in the model reference photo.} She now wears the exact gown from the garment reference photo, unchanged in cut, colour and embroidery: {Garment notes || the gown in the garment reference photo.} And the exact earrings from the accessory reference photo. She is in the street from the location reference photo — the same facades and cobbles — but the time of day, the light and the colour treatment are the photographer's, as described above. Photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-lindbergh",
+      "type": "photographer",
+      "position": {
+        "x": 3440,
+        "y": 1060
+      },
+      "data": {
+        "label": "Peter Lindbergh",
+        "hintMode": "full",
+        "photographer": "lindbergh",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "shot-lindbergh",
+      "type": "generate-image",
+      "position": {
+        "x": 3440,
+        "y": 1280
+      },
+      "data": {
+        "label": "Shot · Peter Lindbergh",
+        "style": "",
+        "prompt": "Fashion editorial photograph {Peter Lindbergh || in the signature style of a great fashion photographer}. Black and white, coarse film grain. Soft overcast daylight, no flash, bare natural makeup, hair moving in the wind, caught mid-step and off guard as if in a documentary, the frame slightly loose and honest. The light, the colour or the black-and-white, the framing, the pose and the mood above are the photographer's and override the reference photos, which set only WHO, WHAT SHE WEARS and WHERE. The woman from the model reference photo — identical face, hair, skin, tattoos and rings: {Model notes || the woman in the model reference photo.} She now wears the exact gown from the garment reference photo, unchanged in cut, colour and embroidery: {Garment notes || the gown in the garment reference photo.} And the exact earrings from the accessory reference photo. She is in the street from the location reference photo — the same facades and cobbles — but the time of day, the light and the colour treatment are the photographer's, as described above. Photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-leibovitz",
+      "type": "photographer",
+      "position": {
+        "x": 4180,
+        "y": 1060
+      },
+      "data": {
+        "label": "Annie Leibovitz",
+        "hintMode": "full",
+        "photographer": "annie-leibovitz",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "shot-leibovitz",
+      "type": "generate-image",
+      "position": {
+        "x": 4180,
+        "y": 1280
+      },
+      "data": {
+        "label": "Shot · Annie Leibovitz",
+        "style": "",
+        "prompt": "Fashion editorial photograph {Annie Leibovitz || in the signature style of a great fashion photographer}. Rich cinematic colour. A theatrical, staged moment as if from a film — she sits or leans on the cobbles or a doorstep in the gown, a warm dimensional key light against the blue of dusk, the whole street as a set, deep and dramatic. The light, the colour or the black-and-white, the framing, the pose and the mood above are the photographer's and override the reference photos, which set only WHO, WHAT SHE WEARS and WHERE. The woman from the model reference photo — identical face, hair, skin, tattoos and rings: {Model notes || the woman in the model reference photo.} She now wears the exact gown from the garment reference photo, unchanged in cut, colour and embroidery: {Garment notes || the gown in the garment reference photo.} And the exact earrings from the accessory reference photo. She is in the street from the location reference photo — the same facades and cobbles — but the time of day, the light and the colour treatment are the photographer's, as described above. Photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-testino",
+      "type": "photographer",
+      "position": {
+        "x": 4920,
+        "y": 1060
+      },
+      "data": {
+        "label": "Mario Testino",
+        "hintMode": "full",
+        "photographer": "mario-testino",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "shot-testino",
+      "type": "generate-image",
+      "position": {
+        "x": 4920,
+        "y": 1280
+      },
+      "data": {
+        "label": "Shot · Mario Testino",
+        "style": "",
+        "prompt": "Fashion editorial photograph {Mario Testino || in the signature style of a great fashion photographer}. Sun-soaked, saturated colour. Bright direct sunlight, glossy skin, a big confident laugh thrown over the shoulder, energy and movement, the skirt swinging, the street bright and glamorous. The light, the colour or the black-and-white, the framing, the pose and the mood above are the photographer's and override the reference photos, which set only WHO, WHAT SHE WEARS and WHERE. The woman from the model reference photo — identical face, hair, skin, tattoos and rings: {Model notes || the woman in the model reference photo.} She now wears the exact gown from the garment reference photo, unchanged in cut, colour and embroidery: {Garment notes || the gown in the garment reference photo.} And the exact earrings from the accessory reference photo. She is in the street from the location reference photo — the same facades and cobbles — but the time of day, the light and the colour treatment are the photographer's, as described above. Photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-roversi",
+      "type": "photographer",
+      "position": {
+        "x": 5660,
+        "y": 1060
+      },
+      "data": {
+        "label": "Paolo Roversi",
+        "hintMode": "full",
+        "photographer": "paolo-roversi",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "shot-roversi",
+      "type": "generate-image",
+      "position": {
+        "x": 5660,
+        "y": 1280
+      },
+      "data": {
+        "label": "Shot · Paolo Roversi",
+        "style": "",
+        "prompt": "Fashion editorial photograph {Paolo Roversi || in the signature style of a great fashion photographer}. Soft milky Polaroid glow, muted faded pastel colour with gentle halation. Still and tender, a close three-quarter frame, diffused light as if through a window, a quiet inward gaze, the edges of the picture dissolving softly. The light, the colour or the black-and-white, the framing, the pose and the mood above are the photographer's and override the reference photos, which set only WHO, WHAT SHE WEARS and WHERE. The woman from the model reference photo — identical face, hair, skin, tattoos and rings: {Model notes || the woman in the model reference photo.} She now wears the exact gown from the garment reference photo, unchanged in cut, colour and embroidery: {Garment notes || the gown in the garment reference photo.} And the exact earrings from the accessory reference photo. She is in the street from the location reference photo — the same facades and cobbles — but the time of day, the light and the colour treatment are the photographer's, as described above. Photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-unwerth",
+      "type": "photographer",
+      "position": {
+        "x": 6400,
+        "y": 1060
+      },
+      "data": {
+        "label": "Ellen von Unwerth",
+        "hintMode": "full",
+        "photographer": "ellen-von-unwerth",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "shot-unwerth",
+      "type": "generate-image",
+      "position": {
+        "x": 6400,
+        "y": 1280
+      },
+      "data": {
+        "label": "Shot · Ellen von Unwerth",
+        "style": "",
+        "prompt": "Fashion editorial photograph {Ellen von Unwerth || in the signature style of a great fashion photographer}. Playful retro pin-up energy in grainy black and white. Direct flash with a touch of motion blur, a mischievous laugh, a kick of the skirt, one shoulder up, cheeky and alive, the street a backdrop for the fun. The light, the colour or the black-and-white, the framing, the pose and the mood above are the photographer's and override the reference photos, which set only WHO, WHAT SHE WEARS and WHERE. The woman from the model reference photo — identical face, hair, skin, tattoos and rings: {Model notes || the woman in the model reference photo.} She now wears the exact gown from the garment reference photo, unchanged in cut, colour and embroidery: {Garment notes || the gown in the garment reference photo.} And the exact earrings from the accessory reference photo. She is in the street from the location reference photo — the same facades and cobbles — but the time of day, the light and the colour treatment are the photographer's, as described above. Photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-garment-notes",
+      "source": "garment",
+      "target": "garment-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-model-newton",
+      "source": "model",
+      "target": "shot-newton",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-newton",
+      "source": "garment",
+      "target": "shot-newton",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-accessory-newton",
+      "source": "accessory",
+      "target": "shot-newton",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-location-newton",
+      "source": "location",
+      "target": "shot-newton",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-newton",
+      "source": "model-notes",
+      "target": "shot-newton",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-newton",
+      "source": "garment-notes",
+      "target": "shot-newton",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-pick-newton",
+      "source": "pick-newton",
+      "target": "shot-newton",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-lindbergh",
+      "source": "model",
+      "target": "shot-lindbergh",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-lindbergh",
+      "source": "garment",
+      "target": "shot-lindbergh",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-accessory-lindbergh",
+      "source": "accessory",
+      "target": "shot-lindbergh",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-location-lindbergh",
+      "source": "location",
+      "target": "shot-lindbergh",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-lindbergh",
+      "source": "model-notes",
+      "target": "shot-lindbergh",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-lindbergh",
+      "source": "garment-notes",
+      "target": "shot-lindbergh",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-pick-lindbergh",
+      "source": "pick-lindbergh",
+      "target": "shot-lindbergh",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-leibovitz",
+      "source": "model",
+      "target": "shot-leibovitz",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-leibovitz",
+      "source": "garment",
+      "target": "shot-leibovitz",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-accessory-leibovitz",
+      "source": "accessory",
+      "target": "shot-leibovitz",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-location-leibovitz",
+      "source": "location",
+      "target": "shot-leibovitz",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-leibovitz",
+      "source": "model-notes",
+      "target": "shot-leibovitz",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-leibovitz",
+      "source": "garment-notes",
+      "target": "shot-leibovitz",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-pick-leibovitz",
+      "source": "pick-leibovitz",
+      "target": "shot-leibovitz",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-testino",
+      "source": "model",
+      "target": "shot-testino",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-testino",
+      "source": "garment",
+      "target": "shot-testino",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-accessory-testino",
+      "source": "accessory",
+      "target": "shot-testino",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-location-testino",
+      "source": "location",
+      "target": "shot-testino",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-testino",
+      "source": "model-notes",
+      "target": "shot-testino",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-testino",
+      "source": "garment-notes",
+      "target": "shot-testino",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-pick-testino",
+      "source": "pick-testino",
+      "target": "shot-testino",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-roversi",
+      "source": "model",
+      "target": "shot-roversi",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-roversi",
+      "source": "garment",
+      "target": "shot-roversi",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-accessory-roversi",
+      "source": "accessory",
+      "target": "shot-roversi",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-location-roversi",
+      "source": "location",
+      "target": "shot-roversi",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-roversi",
+      "source": "model-notes",
+      "target": "shot-roversi",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-roversi",
+      "source": "garment-notes",
+      "target": "shot-roversi",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-pick-roversi",
+      "source": "pick-roversi",
+      "target": "shot-roversi",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-unwerth",
+      "source": "model",
+      "target": "shot-unwerth",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-garment-unwerth",
+      "source": "garment",
+      "target": "shot-unwerth",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-accessory-unwerth",
+      "source": "accessory",
+      "target": "shot-unwerth",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-location-unwerth",
+      "source": "location",
+      "target": "shot-unwerth",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-unwerth",
+      "source": "model-notes",
+      "target": "shot-unwerth",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gnotes-unwerth",
+      "source": "garment-notes",
+      "target": "shot-unwerth",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-pick-unwerth",
+      "source": "pick-unwerth",
+      "target": "shot-unwerth",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.2
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "model": {
+          "title": "Your model",
+          "description": "A photo of the person in plain basics. The shots dress her."
+        },
+        "garment": {
+          "title": "Garment",
+          "description": "The gown as a packshot. She wears it in every shot."
+        },
+        "location": {
+          "title": "Location",
+          "description": "One photo of the place, no people. Every shot happens there."
+        },
+        "accessory": {
+          "title": "Accessory",
+          "description": "Earrings, a bag, shoes — worn in every shot."
+        },
+        "model-notes": {
+          "title": "Model notes",
+          "description": "The person in words — face, hair, skin, tattoos, jewellery."
+        },
+        "pick-newton": {
+          "title": "Helmut Newton",
+          "description": "The photographer tile. Swap for any of sixty."
+        },
+        "shot-newton": {
+          "title": "By Helmut Newton",
+          "description": "The same woman, gown, earrings and street — this photographer's way."
+        },
+        "pick-roversi": {
+          "title": "Paolo Roversi",
+          "description": "The photographer tile. Swap for any of sixty."
+        },
+        "pick-testino": {
+          "title": "Mario Testino",
+          "description": "The photographer tile. Swap for any of sixty."
+        },
+        "pick-unwerth": {
+          "title": "Ellen von Unwerth",
+          "description": "The photographer tile. Swap for any of sixty."
+        },
+        "shot-roversi": {
+          "title": "By Paolo Roversi",
+          "description": "The same woman, gown, earrings and street — this photographer's way."
+        },
+        "shot-testino": {
+          "title": "By Mario Testino",
+          "description": "The same woman, gown, earrings and street — this photographer's way."
+        },
+        "shot-unwerth": {
+          "title": "By Ellen von Unwerth",
+          "description": "The same woman, gown, earrings and street — this photographer's way."
+        },
+        "pick-leibovitz": {
+          "title": "Annie Leibovitz",
+          "description": "The photographer tile. Swap for any of sixty."
+        },
+        "pick-lindbergh": {
+          "title": "Peter Lindbergh",
+          "description": "The photographer tile. Swap for any of sixty."
+        },
+        "shot-leibovitz": {
+          "title": "By Annie Leibovitz",
+          "description": "The same woman, gown, earrings and street — this photographer's way."
+        },
+        "shot-lindbergh": {
+          "title": "By Peter Lindbergh",
+          "description": "The same woman, gown, earrings and street — this photographer's way."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "model",
+        "model-notes",
+        "garment",
+        "accessory",
+        "location",
+        "pick-newton",
+        "pick-lindbergh",
+        "pick-leibovitz",
+        "pick-testino",
+        "pick-roversi",
+        "pick-unwerth"
+      ],
+      "outputOrder": [
+        "shot-newton",
+        "shot-lindbergh",
+        "shot-leibovitz",
+        "shot-testino",
+        "shot-roversi",
+        "shot-unwerth"
+      ]
+    }
+  }
+}

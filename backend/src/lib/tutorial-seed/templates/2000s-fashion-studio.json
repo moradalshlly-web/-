@@ -1,0 +1,1042 @@
+{
+  "slug": "2000s-fashion-studio",
+  "name": "2000s Fashion Studio",
+  "description": "A product photo and a model photo in, an early-2000s magazine shoot out: four fisheye-and-flash studio shots of the same model with the same product under one AI-written concept, plus a second take — a deliberately different concept in the same four framings — to show how far the same inputs go.",
+  "markdownDescription": "## 2000s Fashion Studio\n\nA product photo and a model photo become an early-2000s magazine shoot: four studio shots of the same model with the same product, fisheye and flash, plus a second take in a completely different concept. No studio, no photographer.\n\n1. **Product photo** — a packshot on a plain background. The one thing that never changes.\n2. **Model photo** — one clear photo of the person. The shots keep the face.\n3. **Lens + Light** — the Y2K look from tiles: fisheye and hard flash. Swap the tiles and the whole shoot changes character.\n4. **Shoot direction** — one line about the mood, the backdrop and the era.\n5. **Product notes + Shoot concept** — an AI writes the product down once, and an AI art director writes one concept: the outfit, the set, the attitude. Every shot quotes both.\n6. **Four shots** — portrait, three-quarter, full body, floor. Same model, same outfit, same set.\n7. **A second take** — the art director reads the first concept and writes one that shares nothing with it; the same four framings show it under the first four.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "fashion",
+    "y2k",
+    "editorial",
+    "fisheye",
+    "model"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 120,
+  "nodeTypesUsed": [
+    "upload-image",
+    "lens",
+    "lighting",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/51e6f93c-b9ed-44f3-bdf3-8c49a288009e.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 10,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A product photo and a model photo become an early-2000s magazine shoot: four studio shots of the same model with the same product, fisheye and flash. No studio, no photographer.\n\n1. Product photo — a packshot on a plain background. The one thing that never changes.\n2. Model photo — one clear photo of the person. The shots keep the face.\n3. Lens + Light — the early-2000s look from tiles: fisheye and hard flash. Swap the tiles and the whole shoot changes character.\n4. Shoot direction — one line about the mood, the backdrop and the era.\n5. Product notes + Shoot concept — an AI writes the product down once, and an AI art director writes one concept: the outfit, the set, the attitude. Every shot quotes both.\n6. Four shots — portrait, three-quarter, full body, floor. Same model, same outfit, same set.\n7. A second take — the art director reads the first concept and writes one that shares nothing with it; the same four framings show how far the same inputs can go.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "2000s Fashion studio — how it works",
+        "width": 1180,
+        "height": 810,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "A packshot on a plain background. Every shot gets it as a reference, so colour, hardware and shape stay exactly as they are.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-model",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1690
+      },
+      "data": {
+        "bold": false,
+        "text": "One clear photo of the person, face to the camera, plain background. Every shot gets it as a reference and keeps the face. Prefer tiles instead? Replace this node with a Person node and wire it into the Shoot concept.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Model photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-lens",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2610
+      },
+      "data": {
+        "bold": false,
+        "text": "The early-2000s signature: a fisheye, close to the model, from slightly above. Pick another tile — ultra-wide, 35 mm — for a calmer picture; the shots follow.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Lens",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-light",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 3000
+      },
+      "data": {
+        "bold": false,
+        "text": "Hard flash straight from the camera is the early-2000s look: crisp highlights, sharp texture, strong contrast. Beauty dish or high-key soften it.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Light",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-direction",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 3390
+      },
+      "data": {
+        "bold": false,
+        "text": "One line about the mood, the backdrop and the era. The art director builds the whole concept from it; change the line and the outfit, the set and the attitude change with it.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Shoot direction",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "Product notes: an AI describes the product from the photo in one precise paragraph; every shot quotes it. Shoot concept: an AI art director reads the model photo, the product and your direction and writes one concept — the model, the outfit, the set, the attitude. Rerun it alone for a fresh concept; edit the text by hand to pin one.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Product notes + Shoot concept",
+        "width": 560,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-shots",
+      "type": "sticky-note",
+      "position": {
+        "x": 2340,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "Each shot gets the model photo and the product photo as references, the product notes and the shoot concept, plus its own fixed framing: an extreme close-up, a three-quarter from above, a full body in barrel distortion, a floor shot from overhead. Open a shot to change its framing or pose, then rerun just that node.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · Four shots",
+        "width": 2820,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 970
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/9d245154-c5ad-4b55-89f2-931adde91e4e.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/9d245154-c5ad-4b55-89f2-931adde91e4e.png",
+        "filename": "bag-lilac-patent-baguette-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/9d245154-c5ad-4b55-89f2-931adde91e4e.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1690
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/48e8f487-a387-4e0b-9d6d-e822def41546.png",
+        "label": "Model photo",
+        "r2Url": "https://cdn.nodaro.ai/images/48e8f487-a387-4e0b-9d6d-e822def41546.png",
+        "filename": "model-casting-photo-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/48e8f487-a387-4e0b-9d6d-e822def41546.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "lens",
+      "type": "lens",
+      "position": {
+        "x": 700,
+        "y": 2610
+      },
+      "data": {
+        "lens": "fisheye",
+        "label": "Lens",
+        "hintMode": "compact",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 700,
+        "y": 3000
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "on-camera-flash",
+        "lightingDirection": "front",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "direction",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 3390
+      },
+      "data": {
+        "text": "Early-2000s magazine editorial: bold, glossy, a little ironic. Cool grey-blue studio backdrop with a soft vignette. Low-rise, baby tees, tinted shades, chunky silver jewellery.",
+        "label": "Shoot direction",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "product-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1570
+      },
+      "data": {
+        "label": "Product notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 300,
+        "userInput": "Describe the product in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You write product descriptions for an image generator. Look at the reference image and describe the product in ONE paragraph of 40–60 words, plain declarative English: what it is, shape and size, material and finish, colour, hardware, straps, closures, charms, any logo. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "concept",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1930
+      },
+      "data": {
+        "label": "Shoot concept",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Shoot direction: {Shoot direction || an early-2000s magazine editorial in the studio.} The product: {Product notes || see the product photo.} Write the shoot concept.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are the art director of a Y2K fashion editorial — the early-2000s magazine look. You get a model photo, a product photo, the product description and the client's shoot direction. Write ONE shoot concept in ONE paragraph of 80–110 words, plain declarative English, present tense, in this order: the model exactly as in the model photo in one precise sentence (skin, face, hair colour, texture and style, eyes, any distinctive feature); the outfit for the shoot, true to the era and specific (three to five garments and accessories with colours and materials); the set (backdrop colour and gradient, floor, at most one prop); the attitude (expression and energy); how the product is featured. One concept, consistent with itself — every photo of the shoot quotes this paragraph. No shot list, no camera or lighting settings, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 1270
+      },
+      "data": {
+        "label": "Shot 1 · Portrait",
+        "style": "",
+        "prompt": "Extreme close-up, face and shoulders filling the frame, the lens stretching the face toward the camera, the product held up at chin level in one hand, a knowing look straight into the lens. The same person as in the model reference photo — identical face, skin, hair and build — with the exact product from the product reference photo, unchanged: {Product notes || the product in the product reference photo.} The shoot: {Shoot concept || an early-2000s magazine editorial in a studio, the product in every picture.} Shot on {Lens || a fisheye lens} from slightly above, the model close to the lens so the nearest part of her grows and the rest recedes. {Lighting || hard direct flash} with crisp highlights, sharp texture, strong contrast. Early-2000s magazine editorial, photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-2",
+      "type": "generate-image",
+      "position": {
+        "x": 3080,
+        "y": 1270
+      },
+      "data": {
+        "label": "Shot 2 · Three-quarter",
+        "style": "",
+        "prompt": "Framed from the knees up, camera above her, the model looking up into the lens with attitude, the product worn on the shoulder or held against the hip, the whole outfit visible. The same person as in the model reference photo — identical face, skin, hair and build — with the exact product from the product reference photo, unchanged: {Product notes || the product in the product reference photo.} The shoot: {Shoot concept || an early-2000s magazine editorial in a studio, the product in every picture.} Shot on {Lens || a fisheye lens} from slightly above, the model close to the lens so the nearest part of her grows and the rest recedes. {Lighting || hard direct flash} with crisp highlights, sharp texture, strong contrast. Early-2000s magazine editorial, photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-3",
+      "type": "generate-image",
+      "position": {
+        "x": 3820,
+        "y": 1270
+      },
+      "data": {
+        "label": "Shot 3 · Full body",
+        "style": "",
+        "prompt": "Head to toe in full barrel distortion, the feet big at the bottom of the frame and the body receding upward, a bold wide stance, the product carried in plain view. The same person as in the model reference photo — identical face, skin, hair and build — with the exact product from the product reference photo, unchanged: {Product notes || the product in the product reference photo.} The shoot: {Shoot concept || an early-2000s magazine editorial in a studio, the product in every picture.} Shot on {Lens || a fisheye lens} from slightly above, the model close to the lens so the nearest part of her grows and the rest recedes. {Lighting || hard direct flash} with crisp highlights, sharp texture, strong contrast. Early-2000s magazine editorial, photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-4",
+      "type": "generate-image",
+      "position": {
+        "x": 4560,
+        "y": 1270
+      },
+      "data": {
+        "label": "Shot 4 · Floor",
+        "style": "",
+        "prompt": "Sitting on the studio floor with the knees up, leaning back on one hand, shot from almost directly above so the floor bends around her, looking up at the lens, the product in her lap. The same person as in the model reference photo — identical face, skin, hair and build — with the exact product from the product reference photo, unchanged: {Product notes || the product in the product reference photo.} The shoot: {Shoot concept || an early-2000s magazine editorial in a studio, the product in every picture.} Shot on {Lens || a fisheye lens} from slightly above, the model close to the lens so the nearest part of her grows and the rest recedes. {Lighting || hard direct flash} with crisp highlights, sharp texture, strong contrast. Early-2000s magazine editorial, photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-take2",
+      "type": "sticky-note",
+      "position": {
+        "x": 2340,
+        "y": 2190
+      },
+      "data": {
+        "bold": false,
+        "text": "Same product, same model, same direction — a different shoot. The art director gets the first concept and writes a second one that shares nothing with it: another outfit, another set, another attitude, the product featured another way. The same four framings show it under the first four. This is how you explore: keep the inputs, change the concept. Rerun the Second concept alone for another take; edit its text by hand to pin one.",
+        "color": "#26221a",
+        "label": "Step 8",
+        "title": "8 · A second take",
+        "width": 3440,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "concept-2",
+      "type": "llm-chat",
+      "position": {
+        "x": 2340,
+        "y": 2490
+      },
+      "data": {
+        "label": "Second concept",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Shoot direction: {Shoot direction || an early-2000s magazine editorial in the studio.} The product: {Product notes || see the product photo.} The first concept, already shot: {Shoot concept || none.} Write the second concept.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are the art director of a Y2K fashion editorial — the early-2000s magazine look. You get a model photo, a product photo, the product description, the client's shoot direction, and a FIRST concept that has already been shot. Write a SECOND concept that shares nothing with the first except the model and the product: a different outfit, a different set and backdrop colour, a different attitude, the product featured a different way — while staying true to the shoot direction. ONE paragraph of 80–110 words, plain declarative English, present tense, in this order: the model exactly as in the model photo in one precise sentence (skin, face, hair colour, texture and style, eyes, any distinctive feature); the outfit (three to five garments and accessories with colours and materials); the set (backdrop colour and gradient, floor, at most one prop); the attitude; how the product is featured. No shot list, no camera or lighting settings, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-5",
+      "type": "generate-image",
+      "position": {
+        "x": 3700,
+        "y": 2490
+      },
+      "data": {
+        "label": "Take 2 · Three-quarter",
+        "style": "",
+        "prompt": "Framed from the knees up, camera above her, the model looking up into the lens with attitude, the product worn on the shoulder or held against the hip, the whole outfit visible. The same person as in the model reference photo — identical face, skin, hair and build — with the exact product from the product reference photo, unchanged: {Product notes || the product in the product reference photo.} The shoot: {Second concept || a second, different early-2000s studio concept, the product in every picture.} Shot on {Lens || a fisheye lens} from slightly above, the model close to the lens so the nearest part of her grows and the rest recedes. {Lighting || hard direct flash} with crisp highlights, sharp texture, strong contrast. Early-2000s magazine editorial, photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-6",
+      "type": "generate-image",
+      "position": {
+        "x": 4440,
+        "y": 2490
+      },
+      "data": {
+        "label": "Take 2 · Full body",
+        "style": "",
+        "prompt": "Head to toe in full barrel distortion, the feet big at the bottom of the frame and the body receding upward, a bold wide stance, the product carried in plain view. The same person as in the model reference photo — identical face, skin, hair and build — with the exact product from the product reference photo, unchanged: {Product notes || the product in the product reference photo.} The shoot: {Second concept || a second, different early-2000s studio concept, the product in every picture.} Shot on {Lens || a fisheye lens} from slightly above, the model close to the lens so the nearest part of her grows and the rest recedes. {Lighting || hard direct flash} with crisp highlights, sharp texture, strong contrast. Early-2000s magazine editorial, photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-7",
+      "type": "generate-image",
+      "position": {
+        "x": 2960,
+        "y": 2490
+      },
+      "data": {
+        "label": "Take 2 · Portrait",
+        "style": "",
+        "prompt": "Extreme close-up, face and shoulders filling the frame, the lens stretching the face toward the camera, the product held up at chin level in one hand, a knowing look straight into the lens. The same person as in the model reference photo — identical face, skin, hair and build — with the exact product from the product reference photo, unchanged: {Product notes || the product in the product reference photo.} The shoot: {Second concept || a second, different early-2000s studio concept, the product in every picture.} Shot on {Lens || a fisheye lens} from slightly above, the model close to the lens so the nearest part of her grows and the rest recedes. {Lighting || hard direct flash} with crisp highlights, sharp texture, strong contrast. Early-2000s magazine editorial, photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-8",
+      "type": "generate-image",
+      "position": {
+        "x": 5180,
+        "y": 2490
+      },
+      "data": {
+        "label": "Take 2 · Floor",
+        "style": "",
+        "prompt": "Sitting on the studio floor with the knees up, leaning back on one hand, shot from almost directly above so the floor bends around her, looking up at the lens, the product in her lap. The same person as in the model reference photo — identical face, skin, hair and build — with the exact product from the product reference photo, unchanged: {Product notes || the product in the product reference photo.} The shoot: {Second concept || a second, different early-2000s studio concept, the product in every picture.} Shot on {Lens || a fisheye lens} from slightly above, the model close to the lens so the nearest part of her grows and the rest recedes. {Lighting || hard direct flash} with crisp highlights, sharp texture, strong contrast. Early-2000s magazine editorial, photorealistic, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-product-notes",
+      "source": "product-photo",
+      "target": "product-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-model-concept",
+      "source": "model-photo",
+      "target": "concept",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-concept",
+      "source": "product-photo",
+      "target": "concept",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-concept",
+      "source": "product-notes",
+      "target": "concept",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-direction-concept",
+      "source": "direction",
+      "target": "concept",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-shot1",
+      "source": "model-photo",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-shot1",
+      "source": "product-photo",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot1",
+      "source": "product-notes",
+      "target": "shot-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-shot1",
+      "source": "concept",
+      "target": "shot-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lens-shot1",
+      "source": "lens",
+      "target": "shot-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot1",
+      "source": "lighting",
+      "target": "shot-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-shot2",
+      "source": "model-photo",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-shot2",
+      "source": "product-photo",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot2",
+      "source": "product-notes",
+      "target": "shot-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-shot2",
+      "source": "concept",
+      "target": "shot-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lens-shot2",
+      "source": "lens",
+      "target": "shot-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot2",
+      "source": "lighting",
+      "target": "shot-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-shot3",
+      "source": "model-photo",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-shot3",
+      "source": "product-photo",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot3",
+      "source": "product-notes",
+      "target": "shot-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-shot3",
+      "source": "concept",
+      "target": "shot-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lens-shot3",
+      "source": "lens",
+      "target": "shot-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot3",
+      "source": "lighting",
+      "target": "shot-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-shot4",
+      "source": "model-photo",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-shot4",
+      "source": "product-photo",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot4",
+      "source": "product-notes",
+      "target": "shot-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-shot4",
+      "source": "concept",
+      "target": "shot-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lens-shot4",
+      "source": "lens",
+      "target": "shot-4",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot4",
+      "source": "lighting",
+      "target": "shot-4",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-concept2",
+      "source": "model-photo",
+      "target": "concept-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-concept2",
+      "source": "product-photo",
+      "target": "concept-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-concept2",
+      "source": "product-notes",
+      "target": "concept-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-direction-concept2",
+      "source": "direction",
+      "target": "concept-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-concept2",
+      "source": "concept",
+      "target": "concept-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-shot5",
+      "source": "model-photo",
+      "target": "shot-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-shot5",
+      "source": "product-photo",
+      "target": "shot-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot5",
+      "source": "product-notes",
+      "target": "shot-5",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-shot5",
+      "source": "concept-2",
+      "target": "shot-5",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lens-shot5",
+      "source": "lens",
+      "target": "shot-5",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot5",
+      "source": "lighting",
+      "target": "shot-5",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-shot6",
+      "source": "model-photo",
+      "target": "shot-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-shot6",
+      "source": "product-photo",
+      "target": "shot-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot6",
+      "source": "product-notes",
+      "target": "shot-6",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-shot6",
+      "source": "concept-2",
+      "target": "shot-6",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lens-shot6",
+      "source": "lens",
+      "target": "shot-6",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot6",
+      "source": "lighting",
+      "target": "shot-6",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-shot7",
+      "source": "model-photo",
+      "target": "shot-7",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-shot7",
+      "source": "product-photo",
+      "target": "shot-7",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot7",
+      "source": "product-notes",
+      "target": "shot-7",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-shot7",
+      "source": "concept-2",
+      "target": "shot-7",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lens-shot7",
+      "source": "lens",
+      "target": "shot-7",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot7",
+      "source": "lighting",
+      "target": "shot-7",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-model-shot8",
+      "source": "model-photo",
+      "target": "shot-8",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-shot8",
+      "source": "product-photo",
+      "target": "shot-8",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot8",
+      "source": "product-notes",
+      "target": "shot-8",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-shot8",
+      "source": "concept-2",
+      "target": "shot-8",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-lens-shot8",
+      "source": "lens",
+      "target": "shot-8",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-shot8",
+      "source": "lighting",
+      "target": "shot-8",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.217
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "lens": {
+          "title": "Lens",
+          "description": "Fisheye is the early-2000s signature. Any tile works."
+        },
+        "shot-1": {
+          "title": "Portrait",
+          "description": "Extreme close-up, the product at chin level."
+        },
+        "shot-2": {
+          "title": "Three-quarter",
+          "description": "Knees up, camera above, looking up into the lens."
+        },
+        "shot-3": {
+          "title": "Full body",
+          "description": "Head to toe in barrel distortion, feet big in the frame."
+        },
+        "shot-4": {
+          "title": "Floor",
+          "description": "Sitting on the floor, shot from overhead, the product in the lap."
+        },
+        "shot-5": {
+          "title": "Take 2 · Three-quarter",
+          "description": "The second concept, knees up, camera above."
+        },
+        "shot-6": {
+          "title": "Take 2 · Full body",
+          "description": "The second concept, head to toe."
+        },
+        "shot-7": {
+          "title": "Take 2 · Portrait",
+          "description": "The second concept: another outfit, another set. Extreme close-up."
+        },
+        "shot-8": {
+          "title": "Take 2 · Floor",
+          "description": "The second concept, from overhead, the product in the lap."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Hard on-camera flash is the early-2000s look."
+        },
+        "direction": {
+          "title": "Shoot direction",
+          "description": "One line: mood, backdrop, era. The art director builds the concept from it."
+        },
+        "model-photo": {
+          "title": "Your model",
+          "description": "One clear photo of the person, face to the camera. The shots keep the face."
+        },
+        "product-photo": {
+          "title": "Your product",
+          "description": "A packshot on a plain background. It appears exactly as it is in every shot."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product-photo",
+        "model-photo",
+        "lens",
+        "lighting",
+        "direction"
+      ],
+      "outputOrder": [
+        "shot-1",
+        "shot-2",
+        "shot-3",
+        "shot-4",
+        "shot-7",
+        "shot-5",
+        "shot-6",
+        "shot-8"
+      ]
+    }
+  }
+}

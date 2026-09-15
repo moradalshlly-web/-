@@ -1,5 +1,34 @@
 # @nodaro/cli
 
+## 1.20.0
+
+### Minor Changes
+
+- 026f944: Voice cloning is retired platform-wide. `@nodaro/shared` drops the `voice-clone` catalog entry and `ModelMode` member (`VoiceClone` stays — the list route still returns it). `@nodaro/sdk` keeps `voices.createClone()` / `voices.createCloneFromFile()` for source compatibility but marks them `@deprecated`: the routes now answer `410 voice_cloning_retired`. `@nodaro/cli` removes `voice clones create`; `voice clones list` / `delete` and `voice list --clones` keep working for clones made before the retirement.
+
+### Patch Changes
+
+- Updated dependencies [3086f29]
+- Updated dependencies [40c4d3a]
+- Updated dependencies [ae1a9e4]
+- Updated dependencies [247326a]
+- Updated dependencies [456aad9]
+- Updated dependencies [363a5a1]
+- Updated dependencies [026f944]
+- Updated dependencies [6e53ed5]
+- Updated dependencies [0317bab]
+- Updated dependencies [ef42aa7]
+- Updated dependencies [3147e1f]
+- Updated dependencies [2dfaaf0]
+- Updated dependencies [0af3e2d]
+- Updated dependencies [c383883]
+- Updated dependencies [946f71d]
+- Updated dependencies [4657aef]
+- Updated dependencies [834b7c5]
+  - @nodaro/shared@3.10.0
+  - @nodaro/prompts@1.20.0
+  - @nodaro/sdk@2.11.0
+
 ## 1.19.0
 
 ### Minor Changes

@@ -28,185 +28,17 @@
     "claude-sonnet-4.6",
     "gpt-image-2"
   ],
-  "previewMediaUrl": "https://cdn.nodaro.ai/images/e3c0b8fe-091d-440e-9239-ef0a1f2bd82f.png",
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/954afbae-06f5-410a-9a23-719bde61afeb.png",
   "previewMediaType": "image",
   "tutorialCategorySlug": "workflows",
   "tutorialSortOrder": 4,
   "nodes": [
     {
-      "id": "note-intro",
-      "type": "sticky-note",
-      "position": {
-        "x": 0,
-        "y": -700
-      },
-      "data": {
-        "textColor": "#ffffff",
-        "bold": false,
-        "italic": false,
-        "alignment": "left",
-        "label": "How it works",
-        "color": "#26221a",
-        "width": 740,
-        "height": 340,
-        "fontSize": "base",
-        "title": "Product shoot studio — how it works",
-        "text": "One product photo in, three finished campaign shots out — the same product in every frame.\n\n1. Product photo — stays exactly as it is; only the world around it changes.\n2. Shoot brief — where, when, what mood, in a sentence or two.\n3. Brand rules (optional) and two pickers for light and setting.\n4. An art director plans three shots that escalate: faithful, elevated, bold.\n5. Three prompt writers turn one plan each into an image prompt.\n6. Three image nodes shoot them, each with the product photo as reference."
-      }
-    },
-    {
-      "id": "note-product",
-      "type": "sticky-note",
-      "position": {
-        "x": 0,
-        "y": 0
-      },
-      "data": {
-        "textColor": "#ffffff",
-        "bold": false,
-        "italic": false,
-        "alignment": "left",
-        "label": "Step 1",
-        "color": "#26221a",
-        "width": 260,
-        "height": 230,
-        "fontSize": "sm",
-        "title": "1 · Your product",
-        "text": "One clear photo on a plain background. Every image node receives it as a reference, so shape, label, colours and proportions never drift. Change this photo and the studio shoots a different product."
-      }
-    },
-    {
-      "id": "note-brief",
-      "type": "sticky-note",
-      "position": {
-        "x": 0,
-        "y": 460
-      },
-      "data": {
-        "textColor": "#ffffff",
-        "bold": false,
-        "italic": false,
-        "alignment": "left",
-        "label": "Step 2",
-        "color": "#26221a",
-        "width": 260,
-        "height": 180,
-        "fontSize": "sm",
-        "title": "2 · Shoot brief",
-        "text": "Plain words: the place, the time, the mood. No prompt language needed — the art director turns it into shot plans."
-      }
-    },
-    {
-      "id": "note-brand",
-      "type": "sticky-note",
-      "position": {
-        "x": 0,
-        "y": 680
-      },
-      "data": {
-        "textColor": "#ffffff",
-        "bold": false,
-        "italic": false,
-        "alignment": "left",
-        "label": "Step 3",
-        "color": "#26221a",
-        "width": 260,
-        "height": 180,
-        "fontSize": "sm",
-        "title": "3 · Brand rules (optional)",
-        "text": "Palette, surfaces, what to avoid. The art director treats these as rules, not suggestions. Empty is fine."
-      }
-    },
-    {
-      "id": "note-levers",
-      "type": "sticky-note",
-      "position": {
-        "x": 0,
-        "y": 900
-      },
-      "data": {
-        "textColor": "#ffffff",
-        "bold": false,
-        "italic": false,
-        "alignment": "left",
-        "label": "Step 4",
-        "color": "#26221a",
-        "width": 260,
-        "height": 260,
-        "fontSize": "sm",
-        "title": "4 · Light and setting pickers",
-        "text": "Tiles instead of typing. Pick a light and a place and they become instructions for the art director. Leave either open and the director chooses what serves the brief."
-      }
-    },
-    {
-      "id": "note-director",
-      "type": "sticky-note",
-      "position": {
-        "x": 800,
-        "y": -300
-      },
-      "data": {
-        "textColor": "#ffffff",
-        "bold": false,
-        "italic": false,
-        "alignment": "left",
-        "label": "Step 5",
-        "color": "#26221a",
-        "width": 300,
-        "height": 260,
-        "fontSize": "sm",
-        "title": "5 · Art director",
-        "text": "Looks at the product photo, reads the brief, the rules and the pickers, then plans three shots that escalate in ambition: faithful (the safe hero), elevated (one strong idea), bold (a creative risk). The plans are shown in the app so you can ask for changes in plain words."
-      }
-    },
-    {
-      "id": "note-writers",
-      "type": "sticky-note",
-      "position": {
-        "x": 1300,
-        "y": -300
-      },
-      "data": {
-        "textColor": "#ffffff",
-        "bold": false,
-        "italic": false,
-        "alignment": "left",
-        "label": "Step 6",
-        "color": "#26221a",
-        "width": 300,
-        "height": 260,
-        "fontSize": "sm",
-        "title": "6 · Three prompt writers",
-        "text": "Each writer takes only its plan — first, second or third — and rewrites it as an image prompt that opens with the product \"exactly as in the reference\". One box per shot, so you can read, tune or rerun any single one."
-      }
-    },
-    {
-      "id": "note-shots",
-      "type": "sticky-note",
-      "position": {
-        "x": 1800,
-        "y": -300
-      },
-      "data": {
-        "textColor": "#ffffff",
-        "bold": false,
-        "italic": false,
-        "alignment": "left",
-        "label": "Step 7",
-        "color": "#26221a",
-        "width": 300,
-        "height": 260,
-        "fontSize": "sm",
-        "title": "7 · Three shots",
-        "text": "Each image node gets its prompt plus the product photo. Shot 1 faithful, Shot 2 elevated, Shot 3 bold — three finished options from one run. Swap the model or the size on any node without touching the rest."
-      }
-    },
-    {
       "id": "product-photo",
       "type": "upload-image",
       "position": {
-        "x": 300,
-        "y": 0
+        "x": 700,
+        "y": 640
       },
       "data": {
         "url": "https://cdn.nodaro.ai/images/cde40337-81a1-44e7-8890-dc5e2179f977.png",
@@ -216,14 +48,17 @@
         "mimeType": "image/png",
         "thumbnailUrl": "https://cdn.nodaro.ai/images/cde40337-81a1-44e7-8890-dc5e2179f977.png",
         "presentationInput": true
-      }
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
     },
     {
       "id": "shoot-brief",
       "type": "text-prompt",
       "position": {
-        "x": 300,
-        "y": 460
+        "x": 700,
+        "y": 1360
       },
       "data": {
         "text": "Cold-brew coffee bottle for a summer launch. A poolside table at midday, condensation running down the glass, a slice of citrus and a few ice cubes nearby. Fresh, bright, a little playful — the bottle is the hero.",
@@ -238,8 +73,8 @@
       "id": "brand-notes",
       "type": "text-prompt",
       "position": {
-        "x": 300,
-        "y": 680
+        "x": 700,
+        "y": 1700
       },
       "data": {
         "text": "Palette: deep navy and cream with one warm accent. Natural light only. Real surfaces — stone, wood, linen — never plain white studio sweeps. Props may frame the product but never cover its label. No faces, no hands. Tone: calm, premium, unhurried.",
@@ -254,8 +89,8 @@
       "id": "lighting",
       "type": "lighting",
       "position": {
-        "x": 300,
-        "y": 900
+        "x": 700,
+        "y": 2040
       },
       "data": {
         "label": "Lighting",
@@ -270,8 +105,8 @@
       "id": "setting",
       "type": "setting",
       "position": {
-        "x": 300,
-        "y": 1240
+        "x": 1155,
+        "y": 2040
       },
       "data": {
         "label": "Setting",
@@ -284,8 +119,8 @@
       "id": "art-director",
       "type": "llm-chat",
       "position": {
-        "x": 800,
-        "y": 0
+        "x": 1695,
+        "y": 1240
       },
       "data": {
         "label": "Art director",
@@ -298,16 +133,16 @@
         "fieldMappings": {},
         "presentationOutput": true
       },
-      "width": 260,
-      "height": 280,
+      "width": 480,
+      "height": 320,
       "className": "rf-resized"
     },
     {
       "id": "prompt-1",
       "type": "llm-chat",
       "position": {
-        "x": 1300,
-        "y": 0
+        "x": 2415,
+        "y": 1190
       },
       "data": {
         "label": "Prompt 1 · Faithful",
@@ -319,16 +154,16 @@
         "systemPrompt": "You turn a shot plan into a prompt for an image model that will receive the product photo as its reference image. You get three shot plans separated by ===NEXT===. Use ONLY the FIRST plan — the Faithful shot — and ignore the other two completely.\n\nRules:\n- Begin with exactly: \"The exact product from the reference image, unchanged — same shape, colors, materials, label and proportions —\" and continue the sentence with the shot.\n- One paragraph, 90–140 words, plain declarative English. Describe only what the camera sees. Never explain intentions, never address the model, never use bullet points.\n- Cover, in this order: the product's placement and scale in the frame; the surface and the setting; the one or two supporting elements; the camera angle and distance; then the light — source, direction, quality, color; and close with the photographic finish (lens feel, depth of field, crisp or soft).\n- Never write a brand name or any text meant to be rendered. Never invent a different product, a second unit, or another color variant.\n- Drop the plan's title. Output only the prompt — no title, no separator line, no commentary.",
         "fieldMappings": {}
       },
-      "width": 260,
-      "height": 280,
+      "width": 560,
+      "height": 300,
       "className": "rf-resized"
     },
     {
       "id": "prompt-2",
       "type": "llm-chat",
       "position": {
-        "x": 1300,
-        "y": 460
+        "x": 2415,
+        "y": 2322
       },
       "data": {
         "label": "Prompt 2 · Elevated",
@@ -340,16 +175,16 @@
         "systemPrompt": "You turn a shot plan into a prompt for an image model that will receive the product photo as its reference image. You get three shot plans separated by ===NEXT===. Use ONLY the SECOND plan — the Elevated shot — and ignore the other two completely.\n\nRules:\n- Begin with exactly: \"The exact product from the reference image, unchanged — same shape, colors, materials, label and proportions —\" and continue the sentence with the shot.\n- One paragraph, 90–140 words, plain declarative English. Describe only what the camera sees. Never explain intentions, never address the model, never use bullet points.\n- Cover, in this order: the product's placement and scale in the frame; the surface and the setting; the one or two supporting elements; the camera angle and distance; then the light — source, direction, quality, color; and close with the photographic finish (lens feel, depth of field, crisp or soft).\n- Never write a brand name or any text meant to be rendered. Never invent a different product, a second unit, or another color variant.\n- Drop the plan's title. Output only the prompt — no title, no separator line, no commentary.",
         "fieldMappings": {}
       },
-      "width": 260,
-      "height": 280,
+      "width": 560,
+      "height": 300,
       "className": "rf-resized"
     },
     {
       "id": "prompt-3",
       "type": "llm-chat",
       "position": {
-        "x": 1300,
-        "y": 920
+        "x": 2415,
+        "y": 2988
       },
       "data": {
         "label": "Prompt 3 · Bold",
@@ -361,16 +196,16 @@
         "systemPrompt": "You turn a shot plan into a prompt for an image model that will receive the product photo as its reference image. You get three shot plans separated by ===NEXT===. Use ONLY the THIRD plan — the Bold shot — and ignore the other two completely.\n\nRules:\n- Begin with exactly: \"The exact product from the reference image, unchanged — same shape, colors, materials, label and proportions —\" and continue the sentence with the shot.\n- One paragraph, 90–140 words, plain declarative English. Describe only what the camera sees. Never explain intentions, never address the model, never use bullet points.\n- Cover, in this order: the product's placement and scale in the frame; the surface and the setting; the one or two supporting elements; the camera angle and distance; then the light — source, direction, quality, color; and close with the photographic finish (lens feel, depth of field, crisp or soft).\n- Never write a brand name or any text meant to be rendered. Never invent a different product, a second unit, or another color variant.\n- Drop the plan's title. Output only the prompt — no title, no separator line, no commentary.",
         "fieldMappings": {}
       },
-      "width": 260,
-      "height": 280,
+      "width": 560,
+      "height": 300,
       "className": "rf-resized"
     },
     {
       "id": "shot-1",
       "type": "generate-image",
       "position": {
-        "x": 1800,
-        "y": 0
+        "x": 3035,
+        "y": 1190
       },
       "data": {
         "label": "Shot 1 · Faithful",
@@ -382,14 +217,17 @@
         "fieldMappings": {},
         "negativePrompt": "",
         "presentationOutput": true
-      }
+      },
+      "width": 700,
+      "height": 932,
+      "className": "rf-resized"
     },
     {
       "id": "shot-2",
       "type": "generate-image",
       "position": {
-        "x": 1800,
-        "y": 460
+        "x": 3035,
+        "y": 2322
       },
       "data": {
         "label": "Shot 2 · Elevated",
@@ -401,14 +239,17 @@
         "fieldMappings": {},
         "negativePrompt": "",
         "presentationOutput": true
-      }
+      },
+      "width": 700,
+      "height": 466,
+      "className": "rf-resized"
     },
     {
       "id": "shot-3",
       "type": "generate-image",
       "position": {
-        "x": 1800,
-        "y": 920
+        "x": 3035,
+        "y": 2988
       },
       "data": {
         "label": "Shot 3 · Bold",
@@ -420,6 +261,177 @@
         "fieldMappings": {},
         "negativePrompt": "",
         "presentationOutput": true
+      },
+      "width": 700,
+      "height": 932,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One product photo in, three finished campaign shots out — the same product in every frame.\n\n1. Product photo — stays exactly as it is; only the world around it changes.\n2. Shoot brief — where, when, what mood, in a sentence or two.\n3. Brand rules (optional) and two pickers for light and setting.\n4. An art director plans three shots that escalate: faithful, elevated, bold.\n5. Three prompt writers turn one plan each into an image prompt.\n6. Three image nodes shoot them, each with the product photo as reference.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Product shoot studio — how it works",
+        "width": 1180,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 640
+      },
+      "data": {
+        "bold": false,
+        "text": "One clear photo on a plain background. Every image node receives it as a reference, so shape, label, colours and proportions never drift. Change this photo and the studio shoots a different product.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Your product",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1360
+      },
+      "data": {
+        "bold": false,
+        "text": "Plain words: the place, the time, the mood. No prompt language needed — the art director turns it into shot plans.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Shoot brief",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1700
+      },
+      "data": {
+        "bold": false,
+        "text": "Palette, surfaces, what to avoid. The art director treats these as rules, not suggestions. Empty is fine.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Brand rules (optional)",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-levers",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2040
+      },
+      "data": {
+        "bold": false,
+        "text": "Tiles instead of typing. Pick a light and a place and they become instructions for the art director. Leave either open and the director chooses what serves the brief.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Light and setting pickers",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-director",
+      "type": "sticky-note",
+      "position": {
+        "x": 1695,
+        "y": 640
+      },
+      "data": {
+        "bold": false,
+        "text": "Looks at the product photo, reads the brief, the rules and the pickers, then plans three shots that escalate in ambition: faithful (the safe hero), elevated (one strong idea), bold (a creative risk). The plans are shown in the app so you can ask for changes in plain words.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Art director",
+        "width": 480,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 2415,
+        "y": 640
+      },
+      "data": {
+        "bold": false,
+        "text": "Each writer takes only its plan — first, second or third — and rewrites it as an image prompt that opens with the product \"exactly as in the reference\". One box per shot, so you can read, tune or rerun any single one.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Three prompt writers",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-shots",
+      "type": "sticky-note",
+      "position": {
+        "x": 3035,
+        "y": 640
+      },
+      "data": {
+        "bold": false,
+        "text": "Each image node gets its prompt plus the product photo. Shot 1 faithful, Shot 2 elevated, Shot 3 bold — three finished options from one run. Swap the model or the size on any node without touching the rest.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · Three shots",
+        "width": 700,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
       }
     }
   ],
@@ -525,9 +537,9 @@
   ],
   "settings": {
     "viewport": {
-      "x": 60,
-      "y": 460,
-      "zoom": 0.42
+      "x": 80,
+      "y": 60,
+      "zoom": 0.204
     },
     "flowPromptTemplates": {},
     "characterDefinitions": [],

@@ -1,0 +1,1088 @@
+{
+  "slug": "outdoor-lifestyle-studio",
+  "name": "Outdoor Lifestyle Studio",
+  "description": "One apparel photo in, an outdoor sports editorial out: an athlete card, four trail shots (low & wide, top-down, scale, detail) of the same athlete in the same apparel under one AI-written world, plus a second world — same trail, other weather — in the same four framings.",
+  "markdownDescription": "## Outdoor Lifestyle Studio\n\nOne apparel photo becomes an outdoor sports editorial: an athlete card on grey, then four trail shots of the same athlete in the same apparel — and a second take of the same trail in other weather. No athlete, no mountain, no photographer.\n\n1. **Apparel photo** — a packshot on a plain background. The one thing that never changes.\n2. **Athlete + Gear notes** — pick the person from tiles; list the gear in plain words.\n3. **Shoot brief** — the sport, the place, the season, the hour, in one line.\n4. **The brand** — one line about the brand and one brand photo for the palette and the mood.\n5. **Apparel notes + Athlete card** — an AI writes the apparel down once; one full-body photo on grey anchors every shot.\n6. **Shoot world** — an AI creative director writes the world of the shoot in one paragraph. Every shot quotes it, so four photos read as one morning.\n7. **Four shots** — low and wide, top-down, scale, detail. The apparel is visible in every one.\n8. **A second world** — the same trail, the same athlete, different weather and hour, the same four framings.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "outdoor",
+    "apparel",
+    "athlete",
+    "lifestyle",
+    "editorial"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 130,
+  "nodeTypesUsed": [
+    "upload-image",
+    "person",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/11fa05bc-be11-400d-bc71-763113d763d2.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 11,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One apparel photo becomes an outdoor sports editorial: an athlete card on grey, then four trail shots of the same athlete in the same apparel — and a second take of the same trail in other weather. No athlete, no mountain, no photographer.\n\n1. Apparel photo — a packshot on a plain background. The one thing that never changes.\n2. Athlete + Gear notes — pick the person from tiles; list the gear in plain words.\n3. Shoot brief — the sport, the place, the season, the hour, in one line.\n4. The brand — one line about the brand and one brand photo for the palette and the mood.\n5. Apparel notes + Athlete card — an AI writes the apparel down once; one full-body photo on grey anchors every shot.\n6. Shoot world — an AI creative director writes the world of the shoot in one paragraph. Every shot quotes it, so four photos read as one morning.\n7. Four shots — low and wide, top-down, scale, detail. The apparel is visible in every one.\n8. A second world — the same trail, the same athlete, different weather and hour, the same four framings.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Outdoor lifestyle studio — how it works",
+        "width": 1180,
+        "height": 860,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-apparel",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "A packshot, a ghost-mannequin shot or a flat lay on a plain background. The athlete card and every shot get it as a reference, so colour, zip, hood and cut stay exactly as they are.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Apparel photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-athlete",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1940
+      },
+      "data": {
+        "bold": false,
+        "text": "Pick the person from tiles: type, age, hair, skin, eyes. No photo needed. Want a specific person? Wire a photo or a Character node into the Athlete card as one more reference.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · The athlete",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-gear",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2330
+      },
+      "data": {
+        "bold": false,
+        "text": "What the athlete wears and carries besides the apparel: shoes, vest, cap, glasses, poles. Plain words. The athlete card follows them and the shots inherit them from the card.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Gear notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2720
+      },
+      "data": {
+        "bold": false,
+        "text": "The sport, the place, the season and the hour, in one line. Change this line and the whole shoot moves: a coastal path at dusk, a desert road at noon, a forest in snow.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Shoot brief",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 3110
+      },
+      "data": {
+        "bold": false,
+        "text": "One line on the brand — its colours, its tone, what it stands for — and one brand photo for the palette and the atmosphere. Both optional. The creative director reads them next to your brief.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · The brand",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 1900,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "Apparel notes: an AI describes the apparel from the photo in one precise paragraph; every shot quotes it. Athlete card: one full-body photo of the athlete in the apparel and the gear on grey — the face and the outfit every shot is measured against.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Apparel notes + Athlete card",
+        "width": 560,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-world",
+      "type": "sticky-note",
+      "position": {
+        "x": 2740,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI creative director turns your brief, the brand and the apparel into one paragraph: the exact trail, the terrain, the hour, the weather, the light, the palette, the mood. All four shots quote it, so they read as one continuous morning. Edit the paragraph by hand to pin the place; rerun it alone to move the shoot.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · Shoot world",
+        "width": 560,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-shots",
+      "type": "sticky-note",
+      "position": {
+        "x": 3540,
+        "y": 1020
+      },
+      "data": {
+        "bold": false,
+        "text": "Each shot gets the athlete card and the apparel photo as references, the apparel notes, the gear notes and the shoot world, plus its own fixed framing: low and wide from ankle height, straight down from above, a telephoto scale shot, a close detail of the apparel in motion. No silhouettes — the apparel stays visible in every frame. Open a shot to change its framing, then rerun just that node.",
+        "color": "#26221a",
+        "label": "Step 8",
+        "title": "8 · Four shots",
+        "width": 2820,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-take2",
+      "type": "sticky-note",
+      "position": {
+        "x": 3540,
+        "y": 2240
+      },
+      "data": {
+        "bold": false,
+        "text": "Same apparel, same athlete, same trail — a different day. The creative director gets the first world and writes a second one with other weather and another hour: fog, rain, dusk, snow, whatever changes the light and the palette completely. The same four framings show it under the first four. This is how you explore a location: keep the inputs, change the world. Rerun the Second world alone for another take.",
+        "color": "#26221a",
+        "label": "Step 9",
+        "title": "9 · A second world",
+        "width": 3440,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "apparel-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1020
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/7d602dd2-694e-4db3-8cd1-aa515de684b1.png",
+        "label": "Apparel photo",
+        "r2Url": "https://cdn.nodaro.ai/images/7d602dd2-694e-4db3-8cd1-aa515de684b1.png",
+        "filename": "jacket-trail-windbreaker-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/7d602dd2-694e-4db3-8cd1-aa515de684b1.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "athlete",
+      "type": "person",
+      "position": {
+        "x": 700,
+        "y": 1940
+      },
+      "data": {
+        "age": "age-30s",
+        "type": "athlete",
+        "label": "Athlete",
+        "eyeColor": "eyes-hazel",
+        "hairBase": "base-short-wavy",
+        "hintMode": "compact",
+        "skinTone": "skin-tan",
+        "hairColor": "hair-dark-brown",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "gear",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2330
+      },
+      "data": {
+        "text": "Trail shoes with deep lugs, a slim hydration vest, a light cap, wraparound sunglasses, short black running tights.",
+        "label": "Gear notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2720
+      },
+      "data": {
+        "text": "Trail running above the tree line in the Dolomites, late summer, the first light of the day.",
+        "label": "Shoot brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brand-notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 3110
+      },
+      "data": {
+        "text": "A mountain apparel brand: quiet, technical, honest. Muted stone and earth colours with one warm accent. Real effort, no posing.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brand-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 1060,
+        "y": 3110
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/9d490d91-f01c-4691-9c98-aa1dc59ac468.png",
+        "label": "Brand photo",
+        "r2Url": "https://cdn.nodaro.ai/images/9d490d91-f01c-4691-9c98-aa1dc59ac468.png",
+        "filename": "brand-photo-ridge-trail-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/9d490d91-f01c-4691-9c98-aa1dc59ac468.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "apparel-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1900,
+        "y": 1530
+      },
+      "data": {
+        "label": "Apparel notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the apparel in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You write apparel descriptions for an image generator. Look at the reference image and describe the garment in ONE paragraph of 50–70 words, plain declarative English: garment type, colour, fabric and finish, cut and fit, hood or collar, zip and pockets, cuffs and hem, any reflective or technical detail. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "athlete-card",
+      "type": "generate-image",
+      "position": {
+        "x": 1900,
+        "y": 1890
+      },
+      "data": {
+        "label": "Athlete card",
+        "style": "",
+        "prompt": "Studio photograph, full body head to toe, of {Athlete || an outdoor athlete} standing relaxed and facing the camera on a plain mid-grey seamless studio background. The athlete wears the exact apparel from the apparel reference photo, unchanged: {Apparel notes || the apparel in the apparel reference photo.} With: {Gear notes || the gear that fits the sport.} Soft diffused studio light, a soft shadow under the shoes, natural weathered skin, calm expression, no props, no text. Sharp and clean.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "world",
+      "type": "llm-chat",
+      "position": {
+        "x": 2740,
+        "y": 1620
+      },
+      "data": {
+        "label": "Shoot world",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Shoot brief: {Shoot brief || a trail run in the mountains at first light.} The brand: {Brand notes || an outdoor apparel brand.} The apparel: {Apparel notes || see the apparel photo.} If there is a brand photo, take the palette and the atmosphere from it. Write the world of the shoot.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are the creative director of an outdoor sports editorial for an apparel brand. You get the client's shoot brief, a line about the brand, sometimes a brand photo, and a description of the apparel. Write the world of the shoot in ONE paragraph of 80–110 words, plain declarative English, present tense: the exact place and its terrain (trail, rock, grass, altitude cues, horizon), the season and the hour, the weather, the direction and quality of the light, the colour palette, the mood, and the sport as it happens there — chosen so the apparel reads well against it. Every photo of the shoot quotes this paragraph, so make it specific and consistent with itself. No shot list, no poses, no camera settings, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "world-2",
+      "type": "llm-chat",
+      "position": {
+        "x": 3540,
+        "y": 2540
+      },
+      "data": {
+        "label": "Second world",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Shoot brief: {Shoot brief || a trail run in the mountains.} The brand: {Brand notes || an outdoor apparel brand.} The apparel: {Apparel notes || see the apparel photo.} The first world, already shot: {Shoot world || none.} Write the second world.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are the creative director of an outdoor sports editorial for an apparel brand. You get the client's shoot brief, a line about the brand, sometimes a brand photo, and a description of the apparel. Write the world of the shoot in ONE paragraph of 80–110 words, plain declarative English, present tense: the exact place and its terrain (trail, rock, grass, altitude cues, horizon), the season and the hour, the weather, the direction and quality of the light, the colour palette, the mood, and the sport as it happens there — chosen so the apparel reads well against it. Every photo of the shoot quotes this paragraph, so make it specific and consistent with itself. No shot list, no poses, no camera settings, no headers, no quotation marks. Output only the paragraph. You also get the FIRST world, already shot. Keep its trail and its terrain, and change everything the sky decides: another hour, other weather — fog, rain, dusk, snow, harsh noon — so the light and the palette are completely different and the two shoots look nothing alike.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-1",
+      "type": "generate-image",
+      "position": {
+        "x": 3540,
+        "y": 1320
+      },
+      "data": {
+        "label": "Shot 1 · Low & wide",
+        "style": "",
+        "prompt": "Ultra-wide 14 mm from ankle height on the trail, the runner mid-stride leaping straight over the lens, one shoe huge and sharp in the near corner, the body receding, the sky and the ridge filling the frame. The same athlete as in the athlete card reference photo — identical face, skin, hair and build — wearing the exact apparel from the apparel reference photo, unchanged and worn exactly as on the card: {Apparel notes || the apparel in the apparel reference photo.} With {Gear notes || the gear that fits the sport.} The place, the hour, the light and the weather: {Shoot world || a mountain trail in soft first light.} Photorealistic outdoor sports editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-2",
+      "type": "generate-image",
+      "position": {
+        "x": 4280,
+        "y": 1320
+      },
+      "data": {
+        "label": "Shot 2 · Top-down",
+        "style": "",
+        "prompt": "Straight down from a drone high above, the runner a small figure mid-stride on a ridge trail that cuts a thin line across the frame, the slopes falling away on both sides, a long shadow on the ground. The same athlete as in the athlete card reference photo — identical face, skin, hair and build — wearing the exact apparel from the apparel reference photo, unchanged and worn exactly as on the card: {Apparel notes || the apparel in the apparel reference photo.} With {Gear notes || the gear that fits the sport.} The place, the hour, the light and the weather: {Shoot world || a mountain trail in soft first light.} Photorealistic outdoor sports editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-3",
+      "type": "generate-image",
+      "position": {
+        "x": 5020,
+        "y": 1320
+      },
+      "data": {
+        "label": "Shot 3 · Scale",
+        "style": "",
+        "prompt": "Telephoto 200 mm from across the valley, the runner tiny in the upper third of the frame against a vast rock wall, raking low light carving every ledge, shallow depth of field, the mountain the subject and the runner the punctuation. The same athlete as in the athlete card reference photo — identical face, skin, hair and build — wearing the exact apparel from the apparel reference photo, unchanged and worn exactly as on the card: {Apparel notes || the apparel in the apparel reference photo.} With {Gear notes || the gear that fits the sport.} The place, the hour, the light and the weather: {Shoot world || a mountain trail in soft first light.} Photorealistic outdoor sports editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-4",
+      "type": "generate-image",
+      "position": {
+        "x": 5760,
+        "y": 1320
+      },
+      "data": {
+        "label": "Shot 4 · Detail",
+        "style": "",
+        "prompt": "Close-up in motion from the waist to the chin, no face in frame, the apparel filling the picture: the fabric texture, the zip, a sleeve cuff, dust and breath in the air, one hand mid-swing, the trail soft behind. The same athlete as in the athlete card reference photo — identical face, skin, hair and build — wearing the exact apparel from the apparel reference photo, unchanged and worn exactly as on the card: {Apparel notes || the apparel in the apparel reference photo.} With {Gear notes || the gear that fits the sport.} The place, the hour, the light and the weather: {Shoot world || a mountain trail in soft first light.} Photorealistic outdoor sports editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-5",
+      "type": "generate-image",
+      "position": {
+        "x": 4160,
+        "y": 2540
+      },
+      "data": {
+        "label": "Take 2 · Low & wide",
+        "style": "",
+        "prompt": "Ultra-wide 14 mm from ankle height on the trail, the runner mid-stride leaping straight over the lens, one shoe huge and sharp in the near corner, the body receding, the sky and the ridge filling the frame. The same athlete as in the athlete card reference photo — identical face, skin, hair and build — wearing the exact apparel from the apparel reference photo, unchanged and worn exactly as on the card: {Apparel notes || the apparel in the apparel reference photo.} With {Gear notes || the gear that fits the sport.} The place, the hour, the light and the weather: {Second world || the same mountain trail in different weather and at a different hour.} Photorealistic outdoor sports editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-6",
+      "type": "generate-image",
+      "position": {
+        "x": 4900,
+        "y": 2540
+      },
+      "data": {
+        "label": "Take 2 · Top-down",
+        "style": "",
+        "prompt": "Straight down from a drone high above, the runner a small figure mid-stride on a ridge trail that cuts a thin line across the frame, the slopes falling away on both sides, a long shadow on the ground. The same athlete as in the athlete card reference photo — identical face, skin, hair and build — wearing the exact apparel from the apparel reference photo, unchanged and worn exactly as on the card: {Apparel notes || the apparel in the apparel reference photo.} With {Gear notes || the gear that fits the sport.} The place, the hour, the light and the weather: {Second world || the same mountain trail in different weather and at a different hour.} Photorealistic outdoor sports editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-7",
+      "type": "generate-image",
+      "position": {
+        "x": 5640,
+        "y": 2540
+      },
+      "data": {
+        "label": "Take 2 · Scale",
+        "style": "",
+        "prompt": "Telephoto 200 mm from across the valley, the runner tiny in the upper third of the frame against a vast rock wall, raking low light carving every ledge, shallow depth of field, the mountain the subject and the runner the punctuation. The same athlete as in the athlete card reference photo — identical face, skin, hair and build — wearing the exact apparel from the apparel reference photo, unchanged and worn exactly as on the card: {Apparel notes || the apparel in the apparel reference photo.} With {Gear notes || the gear that fits the sport.} The place, the hour, the light and the weather: {Second world || the same mountain trail in different weather and at a different hour.} Photorealistic outdoor sports editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-8",
+      "type": "generate-image",
+      "position": {
+        "x": 6380,
+        "y": 2540
+      },
+      "data": {
+        "label": "Take 2 · Detail",
+        "style": "",
+        "prompt": "Close-up in motion from the waist to the chin, no face in frame, the apparel filling the picture: the fabric texture, the zip, a sleeve cuff, dust and breath in the air, one hand mid-swing, the trail soft behind. The same athlete as in the athlete card reference photo — identical face, skin, hair and build — wearing the exact apparel from the apparel reference photo, unchanged and worn exactly as on the card: {Apparel notes || the apparel in the apparel reference photo.} With {Gear notes || the gear that fits the sport.} The place, the hour, the light and the weather: {Second world || the same mountain trail in different weather and at a different hour.} Photorealistic outdoor sports editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-apparel-notes",
+      "source": "apparel-photo",
+      "target": "apparel-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-card",
+      "source": "apparel-photo",
+      "target": "athlete-card",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-athlete-card",
+      "source": "athlete",
+      "target": "athlete-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-card",
+      "source": "gear",
+      "target": "athlete-card",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-card",
+      "source": "apparel-notes",
+      "target": "athlete-card",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-world",
+      "source": "brief",
+      "target": "world",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-world",
+      "source": "brand-notes",
+      "target": "world",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-world",
+      "source": "apparel-notes",
+      "target": "world",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-photo-world",
+      "source": "brand-photo",
+      "target": "world",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-world2",
+      "source": "brief",
+      "target": "world-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-world2",
+      "source": "brand-notes",
+      "target": "world-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-world2",
+      "source": "apparel-notes",
+      "target": "world-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-photo-world2",
+      "source": "brand-photo",
+      "target": "world-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-world-world2",
+      "source": "world",
+      "target": "world-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot1",
+      "source": "athlete-card",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-shot1",
+      "source": "apparel-photo",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot1",
+      "source": "apparel-notes",
+      "target": "shot-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-shot1",
+      "source": "gear",
+      "target": "shot-1",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-world-shot1",
+      "source": "world",
+      "target": "shot-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot2",
+      "source": "athlete-card",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-shot2",
+      "source": "apparel-photo",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot2",
+      "source": "apparel-notes",
+      "target": "shot-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-shot2",
+      "source": "gear",
+      "target": "shot-2",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-world-shot2",
+      "source": "world",
+      "target": "shot-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot3",
+      "source": "athlete-card",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-shot3",
+      "source": "apparel-photo",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot3",
+      "source": "apparel-notes",
+      "target": "shot-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-shot3",
+      "source": "gear",
+      "target": "shot-3",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-world-shot3",
+      "source": "world",
+      "target": "shot-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot4",
+      "source": "athlete-card",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-shot4",
+      "source": "apparel-photo",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot4",
+      "source": "apparel-notes",
+      "target": "shot-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-shot4",
+      "source": "gear",
+      "target": "shot-4",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-world-shot4",
+      "source": "world",
+      "target": "shot-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot5",
+      "source": "athlete-card",
+      "target": "shot-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-shot5",
+      "source": "apparel-photo",
+      "target": "shot-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot5",
+      "source": "apparel-notes",
+      "target": "shot-5",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-shot5",
+      "source": "gear",
+      "target": "shot-5",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-world-shot5",
+      "source": "world-2",
+      "target": "shot-5",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot6",
+      "source": "athlete-card",
+      "target": "shot-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-shot6",
+      "source": "apparel-photo",
+      "target": "shot-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot6",
+      "source": "apparel-notes",
+      "target": "shot-6",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-shot6",
+      "source": "gear",
+      "target": "shot-6",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-world-shot6",
+      "source": "world-2",
+      "target": "shot-6",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot7",
+      "source": "athlete-card",
+      "target": "shot-7",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-shot7",
+      "source": "apparel-photo",
+      "target": "shot-7",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot7",
+      "source": "apparel-notes",
+      "target": "shot-7",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-shot7",
+      "source": "gear",
+      "target": "shot-7",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-world-shot7",
+      "source": "world-2",
+      "target": "shot-7",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot8",
+      "source": "athlete-card",
+      "target": "shot-8",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-apparel-shot8",
+      "source": "apparel-photo",
+      "target": "shot-8",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot8",
+      "source": "apparel-notes",
+      "target": "shot-8",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-gear-shot8",
+      "source": "gear",
+      "target": "shot-8",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-world-shot8",
+      "source": "world-2",
+      "target": "shot-8",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.201
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "gear": {
+          "title": "Gear notes",
+          "description": "Shoes, vest, cap, glasses, poles — what the athlete wears and carries besides the apparel."
+        },
+        "brief": {
+          "title": "Shoot brief",
+          "description": "The sport, the place, the season and the hour, in one line."
+        },
+        "shot-1": {
+          "title": "Low & wide",
+          "description": "Ankle height, the runner over the lens, sky and ridge behind."
+        },
+        "shot-2": {
+          "title": "Top-down",
+          "description": "Straight down from above, the trail a line across the frame."
+        },
+        "shot-3": {
+          "title": "Scale",
+          "description": "Telephoto from across the valley, the runner tiny against the wall."
+        },
+        "shot-4": {
+          "title": "Detail",
+          "description": "The apparel in motion, waist to chin — fabric, zip, cuff."
+        },
+        "shot-5": {
+          "title": "Take 2 · Low & wide",
+          "description": "The second world: other weather, another hour."
+        },
+        "shot-6": {
+          "title": "Take 2 · Top-down",
+          "description": "The second world from above."
+        },
+        "shot-7": {
+          "title": "Take 2 · Scale",
+          "description": "The second world at scale."
+        },
+        "shot-8": {
+          "title": "Take 2 · Detail",
+          "description": "The second world up close."
+        },
+        "athlete": {
+          "title": "The athlete",
+          "description": "Pick the person from tiles. No photo needed."
+        },
+        "brand-notes": {
+          "title": "Brand notes",
+          "description": "Optional. One line: colours, tone, what the brand stands for."
+        },
+        "brand-photo": {
+          "title": "Brand photo",
+          "description": "Optional. One picture with the palette and the atmosphere of the brand."
+        },
+        "athlete-card": {
+          "title": "Athlete card",
+          "description": "The full-body anchor photo: the athlete in the apparel and the gear on grey."
+        },
+        "apparel-photo": {
+          "title": "Your apparel",
+          "description": "A packshot, ghost-mannequin shot or flat lay on a plain background. It appears exactly as it is in every shot."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "apparel-photo",
+        "athlete",
+        "gear",
+        "brief",
+        "brand-notes",
+        "brand-photo"
+      ],
+      "outputOrder": [
+        "shot-1",
+        "shot-2",
+        "shot-3",
+        "shot-4",
+        "shot-5",
+        "shot-6",
+        "shot-7",
+        "shot-8",
+        "athlete-card"
+      ]
+    }
+  }
+}

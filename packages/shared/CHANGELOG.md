@@ -1,5 +1,253 @@
 # @nodaro/shared
 
+## 3.10.0
+
+### Minor Changes
+
+- 3086f29: New **Character Motion** parameter picker (`character-motion`): what the subject does across a clip — entrances, turns, head and hand gestures, walks, runway, dance, expressions, camera interaction, stylized combat, athletics, falls, posture shifts, everyday actions, vehicles and animals, two-person moves, idle life, stage performance and uncanny movement. Up to three picks compose an ordered sequence joined with "then"; a wired `target` names the subject and a wired `partner` names the second person ("another person" when unwired); `position` and `pace` add timing. `@nodaro/prompts` exports the catalog, its timing scales and `composeCharacterMotionHintFromConnections`; `@nodaro/shared` adds the node type, its app-input field, its i18n catalog id, `VIDEO_ONLY_PARAMETER_NODE_TYPES` and `EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`.
+- 247326a: `groupByKindAndFamily` — the Image / Video / Audio envelope `GET /v1/models` and MCP `list_models` render, filing every model under its own kind before grouping by vendor family. An unfiltered call used to file every VEO, Seedance, Wan and ByteDance video model under the image section (the family's first model decided the whole vendor). `MODEL_KINDS` is exported alongside it, and the lone `ByteDance` family spelling is now `Bytedance` like the other 15 entries.
+- 456aad9: `pricedOutputDurationSec(provider, requested)` — the output seconds a video request is priced at when the caller omits `duration`: the provider's own default render length from `PRICING_DEFAULT_DURATION_SEC`, else 5. `seedance-2-5` and `grok-imagine-video-1.5` join that map at 8 s (their KIE default), so an omitted duration is priced under their `:8s:` tier instead of the 5 s one, and a Seedance reference-video reservation counts 8 output seconds.
+- 363a5a1: `ideogram-reframe` is retired: the provider stopped serving the model (every task failed upstream), so it leaves the model catalog, `IMAGE_I2I_PROVIDERS` / `MODELS_WITH_REFERENCE_IMAGE_SUPPORT` / `IDEOGRAM_PROVIDERS` / `SEED_SUPPORT` / `RENDERING_SPEED_SUPPORT`, and the prompt-wizard category descriptions. For an aspect-ratio change with AI fill use `nano-banana-edit` with the target `aspectRatio`.
+- 026f944: Voice cloning is retired platform-wide. `@nodaro/shared` drops the `voice-clone` catalog entry and `ModelMode` member (`VoiceClone` stays — the list route still returns it). `@nodaro/sdk` keeps `voices.createClone()` / `voices.createCloneFromFile()` for source compatibility but marks them `@deprecated`: the routes now answer `410 voice_cloning_retired`. `@nodaro/cli` removes `voice clones create`; `voice clones list` / `delete` and `voice list --clones` keep working for clones made before the retirement.
+- ef42aa7: A FAILED node in a workflow execution now carries what its run RETAINED.
+
+  `NodeExecutionState.output` was an unstated convention of the COMPLETED path:
+  every consumer read it under `status === "completed"`, so a run that refused its
+  result and kept what it produced had nowhere to put it. The 3D-scene authoring
+  lanes are exactly that case — once the repair budget is spent and the visual
+  reviewer refuses, the run has already published a real, renderable revision, and
+  the job settles `failed` holding it.
+
+  - **`@nodaro/shared`** declares the contract once: `NodeExecutionStateWire` (the
+    shape the orchestrator writes and every client reads), the `NodeExecutionStatus`
+    union, and `OUTPUT_BEARING_NODE_STATUSES` / `nodeStateMayCarryOutput()` — the
+    rule that `completed` AND `failed` may carry `output`, and nothing else can.
+  - **`@nodaro/sdk`**: `NodeExecutionState` extends that wire type, so `output` is
+    a typed, documented field rather than something reachable only through the
+    index signature. `NodeExecutionStatus`, `OUTPUT_BEARING_NODE_STATUSES` and
+    `nodeStateMayCarryOutput` are re-exported from the package root.
+
+  Additive on the wire — a client that does not read `output` on a failed node
+  sees byte-identical behaviour. Two rules for one that does: gate on the FIELD
+  rather than the status, and never read a present `output` as success. The node
+  failed; it failed holding something.
+
+- 946f71d: Marketplace template categories: `TEMPLATE_CATEGORIES` — the eight use cases a template is filed under (product-imagery, static-ads, user-generated-content, video-ads, brand-assets, automations, campaign-concepts, social-creatives) — with the previous values resolving to their new homes (`resolveTemplateCategory`, `normalizeTemplateCategory`).
+
+### Patch Changes
+
+- 40c4d3a: `buildCreditModelIdentifier` no longer emits an off-grid Flux 2 identifier. Flux 2 is the only family whose credit id interpolates `resolution` rather than matching it, and callers legitimately pass another model's value space — the multi-provider cost preview prices one node's data against every selected provider, and node data written straight into workflow JSON never ran the editor's provider-change fail-safe. A resolution such as `"2K"` used to build `flux-2-pro:2KMP:0ref`, which no pricing row carries. Any value off the megapixel grid now snaps to the model's default tier (the same `preferred` value `normalizeModelInput` uses, so the preview asks for exactly the id the route reserves), and an on-grid value is emitted in the grid's own spelling (`"2.0 MP"` → `:2MP:`). An absent resolution is unchanged.
+- ae1a9e4: Add the separately priced Hebrew dubbing model to the model catalog.
+- 6e53ed5: Scene3D declares the ADVISORY delivery: a scene the visual reviewer refused, but
+  that passed every mandatory assertion, is delivered rather than withheld once the
+  repair budget is spent. The job completes, the video is real, and the refusal
+  rides along in two places the delivery contract already had.
+
+  - `metadata.review` — the whole verdict, typed as `Scene3DReviewVerdict`:
+    `{ verdict: "refused", objections: [{ category, what, correction?, frames }], observed? }`.
+    There is no `severity` on an objection because severity is the FILTER — only
+    blocking findings become objections — and `objections` may legitimately be
+    EMPTY, which reports a refusal that named nothing actionable.
+  - `validation.warnings[]` entries coded `SCENE_REVIEW_REFUSED` (exported as
+    `SCENE3D_REVIEW_REFUSED_CODE`) — one per objection, carrying the `shotId` when
+    every frame it cites falls inside one shot. Distinct from the `SCENE_QUALITY_*`
+    codes, which appear on a job that FAILED.
+
+  `validation.status` stays `"passed"` on an advisory delivery, so the new
+  `scene3DReviewVerdictOf(output)` helper is the reader to use: testing the status,
+  or counting warnings, both get it wrong.
+
+  Also declares top-level `admissionRetries` beside `repairPasses` — pre-build
+  planner retries, which re-ask a recipe the compiler would not admit without
+  spending a repair pass. Optional, and absent on a run that needed none.
+
+  Nothing changes on the wire: the reader schemas were already `.passthrough()`,
+  so these fields were arriving and were simply invisible to a typed caller. The
+  new `review` sub-schema is deliberately tolerant — a delivered scene with a real
+  MP4 must never fail to parse over a malformed advisory.
+
+- 0317bab: Scene3D authoring results now DECLARE the three fields an advanced engine
+  already delivers, so an SDK caller can read them without casting.
+
+  - `validation.warnings[]` entries coded `SCENE_AUTHORING_ASSUMPTION` — the
+    planner's assumptions, carrying any normalization the engine applied. The new
+    `SCENE3D_AUTHORING_ASSUMPTION_CODE` export is the one place that string is
+    written down.
+  - `metadata.summary` — the planner's one-or-two-sentence description of what it
+    authored; on a repaired run, of the repair.
+  - top-level `repairPasses` — repairs actually RUN, never the authoring-pass
+    count, so a scene accepted first time reports `0`.
+
+  All three are optional on `Pro3DRenderJobOutput` (and its reader schema) and on
+  `Scene3DJobOutputAny` / `Scene3DJobOutputV2` via the new
+  `Scene3DAuthoringDelivery` mixin. Nothing changes on the wire: the schemas were
+  already `.passthrough()` and the fields were already arriving — they were simply
+  invisible to a typed caller. A render-only export authored nothing and still
+  reports no summary and omits `repairPasses` rather than claiming `0`; the
+  deterministic Basic lane carries none of the three.
+
+- 3147e1f: Scene3D authoring results declare two more things an advanced engine already
+  delivers: `mechanicalPasses` and `restoredAssertions`.
+
+  **`mechanicalPasses`** — repairs the engine authored ITSELF. When a mandatory
+  finding that refused a build carries the compiler's own structured remedy, the
+  engine applies that remedy and rebuilds, with no planner call.
+
+  Those passes are counted **apart** from `repairPasses` and never folded into it,
+  the same way `admissionRetries` is, because they buy their own quoted allowance:
+  a `mechanical` line on the quote, bounded and released when unspent, rather than
+  one of the caller's repairs. The pass identity the pricing keeps is
+  `buildPasses === authoringPasses + repairPasses + mechanicalPasses`.
+
+  Two consequences a reader has to know:
+
+  - The two counts are independent, so a run may legitimately report **more**
+    mechanical passes than repairs. Nothing may assert a relation between them.
+  - There is one exception, and the **quote** is what discriminates it — not the
+    result. A run quoted before that allowance existed has no `mechanical` quote
+    line, and there the pass charged a repair, making the count a subset of
+    `repairPasses`. The result reports the same field either way, so read the
+    quote you were given rather than deriving the accounting from the counts.
+
+  **`restoredAssertions`** — mandatory assertions the engine put back after a
+  planner answer re-shaped one the feedback had not named, restored to the last
+  admitted recipe's exact form so the run continues instead of being refused over
+  a value the engine already held. Each entry is `{op, path, value?, assertionId,
+reason}` (`value` is `unknown`: a restored assertion holds whatever it holds),
+  and each is also an `ASSERTION_RESTORED` warning. An assertion the feedback DOES
+  name is left alone.
+
+  Both are declared on `Pro3DRenderJobOutput` (and its reader schema) and on the
+  `Scene3DAuthoringDelivery` mixin, so they reach every lane that already carried
+  `repairPasses`. New `SCENE3D_REMEDY_AUTO_APPLIED_CODE` and
+  `SCENE3D_ASSERTION_RESTORED_CODE` exports give the two warning codes one place to
+  be read from, as the assumption and review codes already have.
+
+  Nothing changes on the wire: the reader schemas are `.passthrough()`, so these
+  fields were already arriving and were simply invisible to a typed caller. The
+  `restoredAssertions` sub-schema is deliberately tolerant — it rides a result with
+  a real MP4, which must never fail to parse over a malformed advisory.
+
+- 2dfaaf0: Scene3D makes the recipe a REFUSED authoring run retained retrievable.
+
+  A 3D Render Pro run whose recipe the compiler refused on every pass publishes no
+  scene revision, no poster and no `.blend` — a composition needs geometry and
+  shots, and the plan is the compiler's own output. The refusal report and the
+  planner's last admitted recipe are the entirety of what that run produced, and
+  the recipe was retained and then served nowhere.
+
+  - `GET /v1/3d-scene/deliveries/{jobId}` now lists a `source-json` descriptor
+    (usage `checkpoint`) beside the refusal report on a `refused-authoring`
+    delivery, and `/assets/{assetId}` serves its bytes as `application/json`.
+    Reading it needs `edit` on the job's workflow — the same access the `.blend`
+    export costs. A reader with less sees no descriptor and gets 404 on the bytes,
+    never a 403 that would confirm a recipe exists. Nowhere else does a
+    `source-json` become readable: a delivered scene's own recipe is pinned by its
+    REVISION, and neither revision read lane lists checkpoint kinds.
+  - `scene3d.retainedRecipe(jobId)` fetches and parses it in one call, answering
+    `null` when the delivery lists none. Read it to see what was attempted and to
+    inform the next prompt; there is no input that takes a recipe back, because a
+    refused run published no revision to re-run from.
+  - `Scene3DDeliveryAsset` grows the two kinds the route has always been able to
+    return: `shot-still` (with its `shotIndex` / `frame` / `width` / `height`) and
+    `source-json`. `deliveryAssetBytes` now checks the kind/usage PAIR against the
+    exported `SCENE3D_DELIVERY_ASSET_USAGE` map instead of a hardcoded pair — which
+    fixes a real refusal: the SDK rejected every shot still the route would have
+    served.
+  - `Scene3DAuthoringValidation.sourceRetained` is declared: the failed row's own
+    flag for whether there is a recipe to fetch, so a caller can tell without a
+    round trip. Present on the refused-authoring shape alone, and `false` rather
+    than absent when no pass ever cleared admission.
+
+  Reading a retained recipe is free, exactly like reading any other delivered
+  evidence.
+
+- 0af3e2d: Scene3D: a visual review its provider could not perform is now a typed verdict,
+  and no longer blanks the delivered video.
+
+  An advanced authoring run whose review never reaches its provider asks once more
+  after a bounded pause and, if it is still unreachable, delivers the
+  assertion-passing scene unreviewed rather than throwing it away. That result
+  carries `metadata.review = { verdict: "unavailable", reason: "provider",
+attempts, objections[], observed? }`, and `validation.warnings[]` leads with the
+  new `SCENE_REVIEW_UNAVAILABLE` code.
+
+  **The reader fix.** `Scene3DReviewVerdict` was declared with `verdict: "refused"`
+  as a literal, and `pro3DRenderReviewVerdictSchema` matched it. So the new shape
+  did not merely read as "no review": `isPro3DRenderJobOutput` returned `false`
+  for the WHOLE result, blanking a real, paid, playable MP4 over an advisory
+  field. The verdict is now a discriminated union — a consumer switching on
+  `verdict` needs one new arm and no re-typing of the arm it has — and the
+  schema's `review` degrades to absent rather than refusing the result, so a
+  verdict a future engine invents costs at most itself.
+
+  **New exports.** `SCENE3D_REVIEW_UNAVAILABLE_CODE`, the `Scene3DReviewFindings`
+  / `Scene3DReviewRefused` / `Scene3DReviewUnavailable` arms, and
+  `scene3DReviewNote(verdict)` — one user-safe sentence for either verdict, so a
+  surface cannot report "the reviewer refused this scene" about one nobody saw.
+  `scene3DReviewVerdictOf` reads both arms and clamps a nonsense `attempts` rather
+  than discarding an otherwise good verdict.
+
+  `objections` may be non-empty on the `unavailable` arm: a review is batched, and
+  whichever batches answered before the outage are real evidence that is **not** a
+  verdict on the scene. An empty list there is silence, not approval.
+
+  Additive and optional throughout — a client that ignores the new verdict behaves
+  as it did, except that it no longer loses the result it was already being given.
+
+- c383883: Scene3D: an unreviewed delivery now says WHY there is no verdict, instead of
+  always blaming the provider.
+
+  `metadata.review = { verdict: "unavailable", reason, attempts, ... }` has a
+  second `reason`. `"provider"` still means the review never reached its
+  provider. `"unusable"` is new: the provider answered, but every asking came back
+  with nothing usable — an answer that failed the review contract, one that cited
+  a frame it was never shown, or a refusal that was not a transport fault. The
+  engine asks such a review once more and then delivers the assertion-passing
+  scene unreviewed. `verdict` is unchanged, and so is every other field.
+
+  `pro3DRenderReviewVerdictSchema` used to rewrite `"unusable"` to `"provider"`
+  on the way in, and `scene3DReviewVerdictOf` hard-coded `"provider"`, so
+  `scene3DReviewNote` told the caller the review "did not reach its provider"
+  about a provider that had answered. Both readers now keep `"unusable"`, and the
+  note says "the visual review returned no usable verdict in N attempts; it was
+  delivered unreviewed" — the same words the leading `SCENE_REVIEW_UNAVAILABLE`
+  warning carries. A reason neither reader knows still falls back to
+  `"provider"` rather than dropping the verdict.
+
+  **New exports.** `SCENE3D_REVIEW_UNAVAILABLE_REASONS` (the one list every reader
+  uses), the `Scene3DReviewUnavailableReason` type, and the
+  `isScene3DReviewUnavailableReason` guard. `Scene3DReviewUnavailable["reason"]`
+  widens from `"provider"` to `"provider" | "unusable"`. A `switch` on it that
+  handled only `"provider"` still compiles, but it should add the new case.
+
+- 4657aef: VEO 3.1 Quality no longer claims reference-to-video support.
+
+  `MODEL_CATALOG["veo3"]` declared `features: [… "reference-image"]`, and
+  `VIDEO_REF_LIMITS_BY_PROVIDER["veo3"]` gave it a 3-image cap. KIE serves
+  reference-to-video on the Fast and Lite SKUs only, and says so in its own
+  words on a rejected production job: _"Reference to video only supports the Veo
+  Fast model and Veo Lite model."_ So every reference-carrying Quality run
+  advertised a capability, sent `generationType: "REFERENCE_2_VIDEO"`, and came
+  back 422 — after the credits were reserved.
+
+  - **`@nodaro/shared`**: `veo3` drops the `reference-image` feature and its
+    `VIDEO_REF_LIMITS_BY_PROVIDER` row (the drift guard binds the two 1:1, and
+    the catalog is the single authority on _which_ models carry references).
+    Everything derived from that flag follows on its own: `modelsWithFeature`,
+    the `{image:N}` token gate, the server-side `connectedReferences` assembly,
+    and `GVP_SUPPORTED_PROVIDERS` — so VEO 3.1 Quality also leaves the Generate
+    Video Pro model list, whose stated bar is "takes a start still **and** can
+    carry reference images". `veo3.1` (Fast) and `veo3_lite` (Lite) are
+    unchanged and keep the 3-image cap.
+  - **`@nodaro/prompts`**: the VEO prompt doctrine's "Frames & references"
+    section now says reference ingredients are a Fast/Lite capability.
+
+  Nothing else moves: Quality keeps every mode it actually has (t2v, i2v,
+  first+last frame, native audio) at the same price.
+
+- 834b7c5: Correct Z-Image's prompt-length cap to the 1000 characters its KIE schema states (it was listed as the 5000-char default, so a longer prompt was sent and refused upstream).
+
 ## 3.9.0
 
 ### Minor Changes

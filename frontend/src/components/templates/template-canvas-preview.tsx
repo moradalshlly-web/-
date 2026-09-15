@@ -7,7 +7,7 @@ import { useTemplateDetail } from "@/hooks/queries/use-template-marketplace-quer
 import { useT } from "@/lib/i18n"
 import { useAppDir } from "@/lib/locale-store"
 import { ReadOnlyCanvas } from "./read-only-canvas"
-import { hiddenNoteCount, templateCreatorName } from "./template-facts"
+import { templateCreatorName } from "./template-facts"
 import { TemplateCover } from "./template-marketplace-card"
 import { useCloneTemplate } from "./use-clone-template"
 
@@ -52,7 +52,6 @@ export function TemplateCanvasPreview({ slug, open, fallback, onBack }: Template
   const { data: detail, isLoading, isError } = useTemplateDetail(slug)
   // A template that is gone must not keep painting from the stale card.
   const summary = detail ?? (isError ? null : fallback)
-  const hiddenNotes = detail ? hiddenNoteCount(detail.snapshotNodes) : 0
   const { clone, isCloning } = useCloneTemplate()
   const startClone = () => summary && clone({ slug: summary.slug, name: summary.name })
 
@@ -88,7 +87,10 @@ export function TemplateCanvasPreview({ slug, open, fallback, onBack }: Template
             <span className="truncate">{summary?.name ?? t("templates.backToTemplates")}</span>
           </button>
           <div className={`${PILL} pointer-events-auto gap-3 py-1.5 pe-1.5 ps-3.5 text-[13px] text-[var(--home-fg-2)]`}>
-            <span className="whitespace-nowrap">{t("templates.readOnly")}</span>
+            <span className="whitespace-nowrap">
+              {t("templates.readOnly")}
+              <span className="text-[var(--home-muted)]"> · {t("templates.inspector.hint")}</span>
+            </span>
             <button
               type="button"
               onClick={startClone}
@@ -99,12 +101,6 @@ export function TemplateCanvasPreview({ slug, open, fallback, onBack }: Template
             </button>
           </div>
         </div>
-
-        {hiddenNotes > 0 && (
-          <p className={`${PILL} pointer-events-none absolute bottom-[18px] start-[18px] z-10 px-3 py-1.5 text-[11px] text-[var(--home-muted)]`}>
-            {t("templates.stickyHidden", { n: hiddenNotes })}
-          </p>
-        )}
 
         {/* Clone panel */}
         {summary && (
