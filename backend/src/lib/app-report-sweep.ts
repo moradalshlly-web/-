@@ -72,11 +72,49 @@ interface FailedExecutionRow {
   completed_at: string | null
 }
 
-/** The prompt the user actually sent: buildJobInputData mirrors the original
- *  to `userPrompt` when a route overwrites `prompt` with a derived one. */
+function promptField(inputData: Record<string, unknown> | null, key: string): string | null {
+  const v = inputData?.[key]
+  return typeof v === "string" && v.length > 0 ? v : null
+}
+
+/**
+ * THE TEXT THE PROVIDER JUDGED — `input_data.prompt`, which is what the route
+ * / orchestrator actually sent (buildJobInputData spreads the parsed body; the
+ * orchestrator writes the built payload back after buildPayload).
+ *
+ * This deliberately PREFERS `prompt` over `userPrompt`, reversing the original
+ * "show what the user typed" reading. `userPrompt` is the AUTHORED TEMPLATE,
+ * pre-resolution: the canvas stamps it straight from `node.data.prompt`
+ * (`execute-node.ts` setUserPromptTemplate) before `{Label}` refs, `{image:N}`
+ * reference tokens, @-mentions, identity-lock clauses, style folds and
+ * character descriptions are expanded into the real request. For a
+ * CONTENT-REJECTION report that is the wrong string twice over:
+ *   - it can be near-empty ("{Text}" for a 2 000-character scene), so the
+ *     report says nothing at all about what was refused;
+ *   - the expansion is OURS, so hiding it hides the one hypothesis the report
+ *     exists to test — whether Nodaro's own prompt assembly is what tripped
+ *     the filter.
+ * Measured on the 2026-09-15 rejection-sweep triage: 18 of 48 rows (37%) had
+ * `userPrompt !== prompt`, three of them excerpts of 6-15 characters standing
+ * in for 141-2 029-character prompts.
+ *
+ * The authored template is not lost — `excerptPromptTemplate` carries it
+ * alongside whenever it differs.
+ */
 export function excerptPrompt(inputData: Record<string, unknown> | null): string | null {
-  const p = inputData?.userPrompt ?? inputData?.prompt
-  return typeof p === "string" && p.length > 0 ? p.slice(0, PROMPT_EXCERPT_MAX) : null
+  const sent = promptField(inputData, "prompt") ?? promptField(inputData, "userPrompt")
+  return sent ? sent.slice(0, PROMPT_EXCERPT_MAX) : null
+}
+
+/** The author-typed template `prompt` was expanded from, and ONLY when the two
+ *  differ — a job whose request was never derived would otherwise carry the
+ *  same string twice. Null for every job that did no expansion, so the payload
+ *  grows only where the difference is the diagnosis. */
+export function excerptPromptTemplate(inputData: Record<string, unknown> | null): string | null {
+  const sent = promptField(inputData, "prompt")
+  const authored = promptField(inputData, "userPrompt")
+  if (!sent || !authored || sent === authored) return null
+  return authored.slice(0, PROMPT_EXCERPT_MAX)
 }
 
 /** The parameters that decide whether a provider accepts a request — read from
@@ -135,6 +173,7 @@ function commonPayload(job: FailedJobRow, model: string | null, jobType: string 
     errorDetail: job.error_detail,
     params: paramsOf(job.input_data),
     prompt: excerptPrompt(job.input_data),
+    promptTemplate: excerptPromptTemplate(job.input_data),
     failedAt: job.completed_at,
   }
 }
