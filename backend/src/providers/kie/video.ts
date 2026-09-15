@@ -50,7 +50,7 @@ import {
 import { logCreditAudit, extractCreditFields } from "../../lib/credit-audit.js"
 import { downloadFile, runFfmpeg, getVideoDuration, createWorkDir, cleanupWorkDir } from "../video/ffmpeg-utils.js"
 import { uploadBufferToR2, tmpObjectKey } from "../../lib/storage.js"
-import { safeFetch } from "../../lib/safe-fetch.js"
+import { fetchOwnMedia } from "../../lib/fetch-own-media.js"
 import { join } from "node:path"
 import { readFile } from "node:fs/promises"
 import sharp from "sharp"
@@ -739,7 +739,14 @@ export async function ensureImageForProvider(
   // because imageUrl is user-supplied and the bytes are decoded/processed
   // server-side — raw fetch here is an SSRF read-oracle (safeUrlSchema is
   // only a syntactic gate and cannot see what a hostname resolves to).
-  const res = await safeFetch(imageUrl, { timeoutMs: 30_000 })
+  //
+  // Through `fetchOwnMedia`, so a 404/5xx from OUR OWN media host — a
+  // contradiction, since we wrote the object — costs a short bounded pause
+  // instead of the whole job. Two production i2v runs died here on a
+  // `cdn.nodaro.ai` 404 with credits already reserved (app-reports lane G,
+  // 2026-09-04). Third-party and provider URLs are untouched: their 404 is an
+  // answer, not a blip.
+  const res = await fetchOwnMedia(imageUrl, { timeoutMs: 30_000 })
   if (!res.ok) {
     throw createSanitizedError(
       `Failed to download image: HTTP ${res.status}`,
