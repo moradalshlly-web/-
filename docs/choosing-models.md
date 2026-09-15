@@ -73,7 +73,6 @@ Text-to-image, image-to-image, editing, upscaling, and background removal. For e
 | GPT Image 2.5 Flare (I2I) | OpenAI | Premium | 15 | i2i | Fast GPT Image 2.5 edits (up to 16 source images) - the default when you are iterating rather than finishing. |
 | GPT Image 2.5 Sunburst | OpenAI | Premium | 15 | t2i | Precision GPT Image 2.5 - trades generation time for tighter control and detail fidelity. Pick it for brand-sensitive and production work: packaging, diagrams, ecommerce retouching, polished campaign creative. |
 | GPT Image 2.5 Sunburst (I2I) | OpenAI | Premium | 15 | i2i | Precision GPT Image 2.5 edits (up to 16 source images) - the most controlled edit in the GPT family, at the cost of a longer run. |
-| Ideogram Reframe | Ideogram | Premium | 18 | edit | Outpaint / reframe to a new aspect ratio while preserving subject. |
 | Ideogram V3 | Ideogram | Premium | 18 | t2i | Strong typography and stylized illustration. Speed/quality tiered (TURBO/BALANCED/QUALITY). |
 | Seedream 5 Pro | Bytedance | Premium | 18 | t2i | Flagship Seedream 5 Pro — strongest instruction following and visual reasoning. Basic = 1K, high = 2K. |
 | Seedream 5 Pro (I2I) | Bytedance | Premium | 19 | i2i | Image-to-image with Seedream 5 Pro — multi-reference instruction edits. Basic = 1K, high = 2K. |

@@ -438,9 +438,6 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   "ideogram-remix": 45,           // (BALANCED default)
   "ideogram-remix:TURBO": 30,
   "ideogram-remix:QUALITY": 60,
-  "ideogram-reframe": 18,         // (V3 Reframe BALANCED)
-  "ideogram-reframe:TURBO": 18,
-  "ideogram-reframe:QUALITY": 18,
   "ideogram-v3": 18,              // (BALANCED default)
   "ideogram-v3:TURBO": 18,
   "ideogram-v3:QUALITY": 18,

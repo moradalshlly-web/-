@@ -279,7 +279,6 @@ Lives in `packages/shared/src/prompt-wizard-categories.ts`. AI uses these descri
 | `gpt-image-i2i` | Creative reinterpretation of source images |
 | `ideogram-edit` | Instruction-based editing with text preservation |
 | `ideogram-remix` | Style remixing while preserving structure |
-| `ideogram-reframe` | Aspect ratio changes with AI fill |
 | `qwen-i2i` | Versatile transformation |
 | `qwen-edit` | Instruction-based editing |
 | `seedream-edit` | Artistic style editing |

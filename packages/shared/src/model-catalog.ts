@@ -755,23 +755,8 @@ const IMAGE_MODELS: Record<string, ModelCatalogEntry> = {
       { identifier: "ideogram-remix:QUALITY", credits: 60, note: "best quality" },
     ],
   },
-  "ideogram-reframe": {
-    id: "ideogram-reframe",
-    kind: "image",
-    modes: ["edit"] as const,
-    family: "Ideogram",
-    label: "Ideogram Reframe",
-    series: "Ideogram",
-    description: "Outpaint / reframe to a new aspect ratio while preserving subject.",
-    useCases: ["outpaint", "reframe"],
-    features: ["reference-image"],
-    aspectRatios: IDEOGRAM_RATIOS,
-    pricing: [
-      { identifier: "ideogram-reframe", credits: 18, note: "BALANCED default" },
-      { identifier: "ideogram-reframe:TURBO", credits: 18, note: "fastest" },
-      { identifier: "ideogram-reframe:QUALITY", credits: 18, note: "best quality" },
-    ],
-  },
+  // `ideogram-reframe` was retired 2026-09-15 — KIE's `ideogram/v3-reframe`
+  // fails every task upstream (#1331); see IDEOGRAM_PROVIDERS in model-constants.
 
   // ── Google Imagen ──
   "imagen4": {

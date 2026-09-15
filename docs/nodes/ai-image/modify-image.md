@@ -34,7 +34,7 @@ Modify Image exposes the full image-to-image provider catalog plus Nano Banana E
 | Flux Kontext / Flux Kontext Max | Context-aware editing via Kontext |
 | GPT Image / GPT Image 2 | Strong text rendering and complex compositions; GPT Image 2 supports up to 4K |
 | Grok | Creative, stylized imagery |
-| Ideogram Edit / Reframe / Remix | AI-guided editing, intelligent reframing, and restyling with character consistency |
+| Ideogram Edit / Remix | AI-guided editing and restyling with character consistency |
 | Nano Banana / Nano Banana Pro | Fast iteration; Pro for higher detail |
 | Qwen / Qwen Edit | Versatile transformation and targeted editing |
 | Seedream 5 Pro / Seedream 5 Lite / Seedream Edit | Seedream image-to-image — Pro for flagship instruction edits, Lite and Edit for lighter transforms |
@@ -51,7 +51,6 @@ Credits depend on the selected provider, and several providers cost more at high
 | Nano Banana | 1 |
 | Flux-2 Pro | 2 (1K) → 2 (2K) |
 | Nano Banana Edit | 2 |
-| Ideogram Reframe | 2 (Balanced) → 1 (Turbo) / 3 (Quality) |
 | Flux-2 | 4 (1K) → 6 (2K) |
 | GPT Image | 4 (medium) → 6 (high) |
 | Seedream 5 Pro | 3 (basic / 1K) → 6 (high / 2K) |
