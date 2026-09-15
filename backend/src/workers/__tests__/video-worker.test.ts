@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { randomUUID } from "node:crypto"
 
 // ---------------------------------------------------------------------------
 // Mocks — vi.hoisted() for variables used inside vi.mock()
@@ -20,6 +21,10 @@ const mocks = vi.hoisted(() => {
 
   // Handler mock — a single spy we can configure per test
   const mockHandler = vi.fn().mockResolvedValue(undefined)
+  // A handler the private-plugin LOADER contributes (keyed "pro-3d-render"
+  // below) and the pre-task refresh it must beat while it runs.
+  const mockPluginHandler = vi.fn().mockResolvedValue(undefined)
+  const mockRefreshPreTaskSentinel = vi.fn().mockResolvedValue(undefined)
 
   // Supabase mock
   const mockSingle = vi.fn().mockResolvedValue({ data: null, error: null })
@@ -49,6 +54,8 @@ const mocks = vi.hoisted(() => {
     mockInitProviders,
     mockTryInlineReconcile,
     mockHandler,
+    mockPluginHandler,
+    mockRefreshPreTaskSentinel,
     mockFrom,
     mockSingle,
     mockEq,
@@ -151,15 +158,25 @@ vi.mock("../handlers/entity.js", () => ({
 // Private-plugins loader (Stage 1 VCP extraction) — mocked to a no-op so this
 // suite never attempts a real `@nodaroai/cloud-plugins` import or builds the
 // real toolkit (which eagerly constructs a real BullMQ `Queue` via
-// lib/queue.js — this file's `bullmq` mock above only stubs `Worker`). None
-// of these tests exercise a private-plugin-contributed handler; load.ts's own
-// suite (lib/private-plugins/__tests__/load.test.ts) covers the merge logic.
-// `engines: {}` mirrors `emptyResult()`'s real shape (S8) — `video-worker.ts`
-// destructures `engines` off this result and reads `engines.surround`
-// unconditionally, so an incomplete mock here throws at module-import time,
-// not inside a test body.
+// lib/queue.js — this file's `bullmq` mock above only stubs `Worker`). It
+// contributes ONE handler, so the liveness tests can tell a loader-contributed
+// handler (wrapped in the pre-task heartbeat) from a core one (not wrapped);
+// load.ts's own suite (lib/private-plugins/__tests__/load.test.ts) covers the
+// merge logic. `engines: {}` mirrors `emptyResult()`'s real shape (S8) —
+// `video-worker.ts` destructures `engines` off this result and reads
+// `engines.surround` unconditionally, so an incomplete mock here throws at
+// module-import time, not inside a test body.
 vi.mock("@/lib/private-plugins/load.js", () => ({
-  loadPrivatePlugins: vi.fn().mockResolvedValue({ handlers: {}, loaded: [], engines: {} }),
+  loadPrivatePlugins: vi.fn().mockResolvedValue({
+    handlers: { "pro-3d-render": mocks.mockPluginHandler }, loaded: [], engines: {},
+  }),
+}))
+
+// Only the liveness refresh is replaced; the rest of the module stays real for
+// the core handlers this suite imports unmocked.
+vi.mock("@/lib/reconcile/persistence.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/reconcile/persistence.js")>()),
+  refreshPreTaskSentinel: mocks.mockRefreshPreTaskSentinel,
 }))
 
 // Mock KieError — must be a real class for instanceof checks
@@ -181,14 +198,22 @@ vi.mock("@/providers/kie/client.js", () => {
 // Import module under test
 // ---------------------------------------------------------------------------
 
-import { createVideoWorker } from "../video-worker.js"
+import { createVideoWorker, DRAIN_REQUEUE_DELAY_MS } from "../video-worker.js"
+import { PRE_TASK_HEARTBEAT_MS } from "../pre-task-heartbeat.js"
+import { STALE_THRESHOLD_MS } from "../../lib/reconcile/types.js"
+import { SCENE3D_HEARTBEAT_MS } from "../handlers/scene3d.js"
+import { LLM_STRUCTURED_HEARTBEAT_MS } from "../handlers/llm-structured.js"
 import { KieError } from "../../providers/kie/client.js"
 // Real class (module not mocked) — the worker's self-heal branch discriminates
 // on isPostProcessingError, so tests must throw the genuine type.
 import { PostProcessingError } from "../../lib/post-processing-error.js"
 // Real class (module not mocked) — the drain branch discriminates on
 // instanceof DrainAbortError, so tests must throw the genuine type.
-import { DrainAbortError } from "../../lib/worker-drain.js"
+import { DrainAbortError, beginWorkerDrain, _resetWorkerDrainForTests } from "../../lib/worker-drain.js"
+// Real journal (module not mocked) with a scripted Redis — the hand-off tests
+// drive the actual claim-time refusal, not a stand-in for it.
+import { createStageJournal } from "../../lib/private-plugins/stage-journal.js"
+import type { PluginStageKey, PluginStageToolkit } from "../../lib/private-plugins/scene3d-contract.js"
 import { DelayedError } from "bullmq"
 
 // ---------------------------------------------------------------------------
@@ -845,5 +870,210 @@ describe("video worker processor", () => {
     expect(mocks.mockUpdate).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: "failed" }),
     )
+  })
+
+  // -------------------------------------------------------------------------
+  // Private-plugin liveness (2026-09-15, staging Pro 3D Render job 99ede351).
+  //
+  // The pickup above stamps `pre-task` on every row, and the reconcile cron
+  // fails + refunds a row whose stamp is 30 minutes old. The Pro run never
+  // refreshed it and was failed at minute 31 with its worker alive. Every
+  // handler the plugin LOADER returns is wrapped in the pre-task heartbeat —
+  // derived from the loader's map, so a plugin job type nobody listed is
+  // covered the day it ships.
+  // -------------------------------------------------------------------------
+  describe("private-plugin liveness (pre-task heartbeat)", () => {
+    afterEach(() => { vi.useRealTimers() })
+
+    const runsFor = (ms: number) => () => new Promise<void>((resolve) => { setTimeout(resolve, ms) })
+
+    it("a loader-contributed handler beats the pre-task sentinel for its job for as long as it runs", async () => {
+      vi.useFakeTimers()
+      mocks.mockPluginHandler.mockImplementationOnce(runsFor(35 * 60_000))
+      const job = makeBullJob("pro-3d-render")
+
+      const run = processor(job, "lock-token")
+      await vi.advanceTimersByTimeAsync(35 * 60_000)
+      await run
+
+      expect(mocks.mockPluginHandler).toHaveBeenCalledWith(job, expect.objectContaining({ jobId: "job-1" }))
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBeGreaterThanOrEqual(34)
+      expect(new Set(mocks.mockRefreshPreTaskSentinel.mock.calls.map(([id]) => id))).toEqual(new Set(["job-1"]))
+
+      const beats = mocks.mockRefreshPreTaskSentinel.mock.calls.length
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBe(beats)
+    })
+
+    it("a core handler is NOT wrapped: its own heartbeat, or the 30-minute hung-handler backstop, stays its business", async () => {
+      vi.useFakeTimers()
+      mocks.mockHandler.mockImplementationOnce(runsFor(5 * 60_000))
+
+      const run = processor(makeBullJob("generate-image"), "lock-token")
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      await run
+
+      expect(mocks.mockHandler).toHaveBeenCalled()
+      expect(mocks.mockRefreshPreTaskSentinel).not.toHaveBeenCalled()
+    })
+
+    it("a drain hand-off stops the beats and still goes back to the queue at no attempt cost", async () => {
+      vi.useFakeTimers()
+      mocks.mockPluginHandler.mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => { setTimeout(resolve, 5 * 60_000) })
+        throw new Error("Scene processing did not complete", { cause: new DrainAbortError() })
+      })
+      const job = makeBullJob("pro-3d-render")
+
+      const run = processor(job, "lock-token").catch((error: unknown) => error)
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      expect(await run).toBeInstanceOf(DelayedError)
+      expect(job.moveToDelayed).toHaveBeenCalledTimes(1)
+
+      const beats = mocks.mockRefreshPreTaskSentinel.mock.calls.length
+      expect(beats).toBeGreaterThanOrEqual(4)
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBe(beats)
+    })
+
+    it("budget: a handed-back row waits out the requeue delay on a stamp at most one beat old, far inside the threshold", () => {
+      expect(DRAIN_REQUEUE_DELAY_MS + 2 * PRE_TASK_HEARTBEAT_MS).toBeLessThan(STALE_THRESHOLD_MS["pre-task"])
+    })
+
+    it("budget: the core long-running handlers' own pre-task heartbeats beat well inside the threshold too", () => {
+      for (const interval of [SCENE3D_HEARTBEAT_MS, LLM_STRUCTURED_HEARTBEAT_MS]) {
+        expect(2 * interval).toBeLessThan(STALE_THRESHOLD_MS["pre-task"])
+      }
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // A private plugin's PAID stage when the deploy SIGTERM lands
+  // (2026-09-15, staging, Pro jobs 351f0270 and 35bd1f1f).
+  //
+  // Both jobs were mid planner call when their container was replaced. The
+  // process was killed, the successor re-ran the job, found the stage's
+  // invocation marker with no result and — refusing to pay twice — failed and
+  // refunded the whole run. The hand-off contract: the in-flight call finishes
+  // and completes its stage; the NEXT claim (made with `handOffOnDrain`)
+  // throws DrainAbortError before any journal write; the plugin lets it leave
+  // its handler (wrapped or not); and this catch moves the job back to the
+  // queue without failing, refunding or spending an attempt.
+  // -------------------------------------------------------------------------
+  describe("private-plugin stage hand-off on SIGTERM", () => {
+    afterEach(() => _resetWorkerDrainForTests())
+
+    function scriptedJournal() {
+      const ops: string[] = []
+      const redis = {
+        eval: vi.fn(async (_script: string, _keys: number, _key: string, op: string, token: string, fence: number | string) => {
+          ops.push(op)
+          if (op === "claim") {
+            return JSON.stringify({ status: "claimed", checkpoint: null,
+              lease: { token, fence: Number(fence) + 1, expiresAt: Date.now() + 60_000 } })
+          }
+          return "true"
+        }),
+      }
+      return { journal: createStageJournal(redis, async () => {}), ops }
+    }
+
+    /** The plugin stage runner's shape: claim → invocation marker → paid work → complete → release. */
+    async function runStage(journal: PluginStageToolkit, key: PluginStageKey,
+      work: () => Promise<Record<string, unknown>>, handOffOnDrain: boolean) {
+      const claim = await journal.claim(key, 60_000, handOffOnDrain ? { handOffOnDrain } : undefined)
+      if (claim.status === "completed") return claim.output
+      if (claim.status !== "claimed") throw new Error("busy")
+      await journal.checkpoint(key, claim.lease, { invoked: true, receipt: null })
+      const output = await work()
+      await journal.complete(key, claim.lease, output)
+      await journal.release(key, claim.lease)
+      return output
+    }
+
+    /** A two-stage run whose loop wraps whatever a stage throws in its own run error. */
+    function planThenReview(journal: PluginStageToolkit, hooks: {
+      duringPlannerCall?: () => void; betweenStages?: () => void; handOffOnDrain?: boolean
+    }) {
+      const handOff = hooks.handOffOnDrain ?? true
+      const jobId = randomUUID(), userId = randomUUID()
+      const key = (stage: string): PluginStageKey =>
+        ({ jobId, userId, attemptIndex: 0, stage, inputHash: "c".repeat(64), engineVersion: "1.0.0" })
+      return async () => {
+        try {
+          await runStage(journal, key("planning"), async () => {
+            hooks.duringPlannerCall?.()
+            return { artifactId: "plan-1" }
+          }, handOff)
+          hooks.betweenStages?.()
+          await runStage(journal, key("review"), async () => ({ artifactId: "review-1" }), handOff)
+        } catch (error) {
+          throw new Error("Scene processing did not complete", { cause: error })
+        }
+      }
+    }
+
+    function expectHandedBackUnfailed(job: ReturnType<typeof makeBullJob>) {
+      expect(job.moveToDelayed).toHaveBeenCalledTimes(1)
+      expect(job.moveToDelayed.mock.calls[0][1]).toBe("lock-token")
+      expect(mocks.mockRefundJobCredits).not.toHaveBeenCalled()
+      expect(mocks.mockUpdate).not.toHaveBeenCalledWith(expect.objectContaining({ status: "failed" }))
+    }
+
+    it("SIGTERM during the in-flight paid call: the call completes its stage, the next stage is never opened, the job is handed back", async () => {
+      mocks.mockIsFinalJobAttempt.mockReturnValue(true) // even on the final attempt
+      const { journal, ops } = scriptedJournal()
+      mocks.mockHandler.mockImplementationOnce(planThenReview(journal, { duringPlannerCall: beginWorkerDrain }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).rejects.toBeInstanceOf(DelayedError)
+
+      // The planner stage recorded its result through the drain; the review
+      // stage left NOTHING in the journal for the successor to find ambiguous.
+      expect(ops).toEqual(["claim", "checkpoint", "complete", "release"])
+      expectHandedBackUnfailed(job)
+    })
+
+    it("SIGTERM at the boundary between two stages: handed back before the next stage opens", async () => {
+      const { journal, ops } = scriptedJournal()
+      mocks.mockHandler.mockImplementationOnce(planThenReview(journal, { betweenStages: beginWorkerDrain }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).rejects.toBeInstanceOf(DelayedError)
+
+      expect(ops).toEqual(["claim", "checkpoint", "complete", "release"])
+      expectHandedBackUnfailed(job)
+    })
+
+    it("a plugin bundle's own copy of DrainAbortError (matched by name) is handed back too", async () => {
+      const foreign = Object.assign(new Error("worker draining"), { name: "DrainAbortError" })
+      mocks.mockHandler.mockRejectedValueOnce(new Error("Scene processing did not complete", { cause: foreign }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).rejects.toBeInstanceOf(DelayedError)
+      expectHandedBackUnfailed(job)
+    })
+
+    it("control — a plugin that does not opt in keeps running its next stage through the drain (no change until it adopts the contract)", async () => {
+      const { journal, ops } = scriptedJournal()
+      mocks.mockHandler.mockImplementationOnce(planThenReview(journal,
+        { duringPlannerCall: beginWorkerDrain, handOffOnDrain: false }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).resolves.toBeUndefined()
+
+      expect(ops).toEqual(["claim", "checkpoint", "complete", "release", "claim", "checkpoint", "complete", "release"])
+      expect(job.moveToDelayed).not.toHaveBeenCalled()
+    })
+
+    it("an ordinary failure during a drain is NOT mistaken for a hand-back", async () => {
+      beginWorkerDrain()
+      mocks.mockHandler.mockRejectedValueOnce(new Error("Scene processing did not complete", { cause: new Error("provider 503") }))
+
+      const job = makeBullJob("generate-image")
+      await expect(processor(job, "lock-token")).rejects.toThrow("Scene processing did not complete")
+      expect(job.moveToDelayed).not.toHaveBeenCalled()
+      expect(mocks.mockRefundJobCredits).toHaveBeenCalled()
+    })
   })
 })

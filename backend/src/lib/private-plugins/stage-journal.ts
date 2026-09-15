@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto"
 import { z } from "zod"
-import type { PluginStageKey, PluginStageLease, PluginStageClaim, PluginStageToolkit } from "./scene3d-contract.js"
+import type { PluginStageKey, PluginStageLease, PluginStageClaim, PluginStageClaimOptions, PluginStageToolkit } from "./scene3d-contract.js"
+import { DrainAbortError, isWorkerDraining, workerDrainSignal } from "../worker-drain.js"
 
 const keySchema = z.object({
   jobId: z.uuid(), userId: z.uuid(), attemptIndex: z.number().int().min(0).max(100),
@@ -84,10 +85,41 @@ function boundedRecord(record: Record<string, unknown>): string {
   return encoded
 }
 
-/** Authorization is mandatory even for completed-stage replay and cancellation. */
+/** The process drain as the journal sees it. Injectable for tests; the default
+ *  is this process's own drain (lib/worker-drain.ts). */
+export interface StageJournalDrain {
+  isDraining(): boolean
+  signal(): AbortSignal
+}
+
+const processDrain: StageJournalDrain = { isDraining: isWorkerDraining, signal: workerDrainSignal }
+
+/** Why a hand-off claim refused, for the operator log line that carries it. */
+export const STAGE_DRAIN_HANDOFF_MESSAGE =
+  "worker draining (deploy restart) — scene stage not opened; the job is handed back to the queue"
+
+/**
+ * Authorization is mandatory even for completed-stage replay and cancellation.
+ *
+ * DRAIN HAND-OFF (2026-09-15, Pro jobs 351f0270 / 35bd1f1f). A claim made with
+ * `{ handOffOnDrain: true }` in a process that has begun a deploy drain throws
+ * `DrainAbortError` BEFORE authorization and before any Redis write — so no
+ * lease, no fence bump and no invocation marker exist for the successor to
+ * find ambiguous. The error travels out of the plugin handler to the
+ * video-worker catch, which moves the job back to the queue without spending
+ * an attempt; the successor then replays every completed stage from this
+ * journal and opens this one cleanly.
+ *
+ * Only the CLAIM refuses, and only when asked: renew, checkpoint, complete and
+ * release keep working during a drain, because they are how a stage that was
+ * already in flight finishes and records its result. A caller that does not
+ * pass the option (every plugin build that predates it) sees no change at all
+ * — a hand-off it cannot recognise would otherwise be finalized as a failure.
+ */
 export function createStageJournal(
   redis: JournalRedis,
   authorize: (key: PluginStageKey) => Promise<void>,
+  drain: StageJournalDrain = processDrain,
 ): PluginStageToolkit {
   async function run(op: string, key: PluginStageKey, lease?: PluginStageLease, leaseMs = LEASE_MIN_MS, value = "{}") {
     const storageKey = redisKey(key)
@@ -99,10 +131,20 @@ export function createStageJournal(
     return JSON.parse(raw) as unknown
   }
   return {
-    claim: async (key, leaseMs) => await run("claim", key, undefined, boundedLease(leaseMs)) as PluginStageClaim,
+    claim: async (key, leaseMs, options?: PluginStageClaimOptions) => {
+      const bounded = boundedLease(leaseMs)
+      if (options?.handOffOnDrain === true && drain.isDraining()) {
+        // Same scope validation as every other operation, so a malformed key
+        // fails identically whether or not the process is draining.
+        redisKey(key)
+        throw new DrainAbortError(STAGE_DRAIN_HANDOFF_MESSAGE)
+      }
+      return await run("claim", key, undefined, bounded) as PluginStageClaim
+    },
     renew: async (key, lease, leaseMs) => await run("renew", key, lease, boundedLease(leaseMs)) as PluginStageLease | null,
     checkpoint: async (key, lease, checkpoint) => await run("checkpoint", key, lease, undefined, boundedRecord(checkpoint)) === true,
     complete: async (key, lease, output) => await run("complete", key, lease, undefined, boundedRecord(output)) === true,
     release: async (key, lease) => await run("release", key, lease) === true,
+    drainSignal: () => drain.signal(),
   }
 }

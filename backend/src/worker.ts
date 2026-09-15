@@ -1,6 +1,7 @@
 import { createVideoWorker } from "./workers/video-worker.js"
 import { logFfmpegVersion } from "./providers/video/ffmpeg-utils.js"
-import { beginWorkerDrain, SHUTDOWN_DRAIN_MS } from "./lib/worker-drain.js"
+import { beginWorkerDrain, inFlightDrainDeadlineMs } from "./lib/worker-drain.js"
+import { createWorkerShutdown } from "./lib/worker-shutdown.js"
 import { loadOverlay } from "./lib/overlay/load.js"
 import { registerMainlinePromptPolicies } from "./lib/prompt-policies/index.js"
 
@@ -28,44 +29,35 @@ console.log("Worker started, waiting for jobs...")
 // version-dependent (see the Dockerfile FFMPEG_VERSION pin).
 logFfmpegVersion("worker")
 
-// SHUTDOWN_DRAIN_MS (lib/worker-drain.ts) is the shared Railway grace-window
-// deadline: drain, then force the exit before SIGKILL lands.
-//
 // NOTE (incident 2026-07-15): this handler only runs if the signal actually
 // REACHES this process — start.sh must forward SIGTERM to its background
 // children (it previously exec'd Caddy as PID 1, so node processes were
 // SIGKILLed without ever draining and their BullMQ locks dangled for the
 // full lockDuration). Keep worker.ts + start.sh in sync when touching either.
-
-let shuttingDown = false
-const shutdown = async (signal: NodeJS.Signals) => {
-  if (shuttingDown) return
-  shuttingDown = true
-  console.log(`[worker] ${signal} received — draining (≤${SHUTDOWN_DRAIN_MS}ms before forced exit)`)
-  const hardExit = setTimeout(() => {
-    console.error("[worker] Drain timed out, forcing exit")
-    process.exit(1)
-  }, SHUTDOWN_DRAIN_MS)
-  try {
-    // Abort every in-flight provider wait (the shared poll sleep in
-    // providers/kie/client.ts throws DrainAbortError once this flips).
-    // Handlers exit fast, the video-worker catch rethrows, and BullMQ
-    // requeues each active job WITH ITS LOCK RELEASED — so the replacement
-    // process re-picks them seconds after boot instead of waiting out
-    // lockDuration. Without this, worker.close() would sit on active poll
-    // loops (75s+) until the hardExit timeout and the locks died held.
-    beginWorkerDrain()
-    // worker.close() with default `force=false` stops accepting new jobs
-    // and waits for active jobs to settle — which is now fast, because the
-    // drain flag above aborts their provider waits at the next wait point.
-    await worker.close()
-    console.log("[worker] Drain complete.")
-  } catch (err) {
-    console.error("[worker] Error during drain:", err)
-  } finally {
-    clearTimeout(hardExit)
-    process.exit(0)
-  }
-}
+//
+// The drain (lib/worker-shutdown.ts) flips the process drain BEFORE
+// `worker.close()`:
+//  - every in-flight provider POLL aborts at its next wait point (the shared
+//    poll sleep in providers/kie/client.ts throws DrainAbortError), the
+//    video-worker catch moves the job back to the queue at zero cost, and the
+//    replacement container re-picks it seconds after boot;
+//  - a private plugin's in-flight PAID stage (a Scene3D planner or critic
+//    call) is NOT aborted — its response exists only in this process — so it
+//    finishes and persists, and the plugin hands the job back at its next
+//    stage boundary (the journal's `handOffOnDrain` claim option).
+//
+// The deadline is therefore the PLATFORM's window, not a fixed literal:
+// `inFlightDrainDeadlineMs()` reads RAILWAY_DEPLOYMENT_DRAINING_SECONDS (minus
+// a log-flush margin) and falls back to SHUTDOWN_DRAIN_MS when it is unset.
+// Evidence 2026-09-15 (jobs 351f0270, 35bd1f1f): with the variable unset the
+// container was killed ~11 s after SIGTERM while a planner call was 16–42 s
+// into its up-to-360 s budget, and the successor failed and refunded the run.
+const shutdown = createWorkerShutdown({
+  label: "worker",
+  worker,
+  deadlineMs: inFlightDrainDeadlineMs(),
+  beginDrain: beginWorkerDrain,
+  exit: (code) => process.exit(code),
+})
 process.on("SIGTERM", () => void shutdown("SIGTERM"))
 process.on("SIGINT", () => void shutdown("SIGINT"))

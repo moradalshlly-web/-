@@ -38,7 +38,9 @@ vi.mock("@/workers/orchestrator-worker.js", () => ({
   createOrchestratorWorker: mocks.createOrchestratorWorker,
 }))
 vi.mock("@/providers/video/ffmpeg-utils.js", () => ({ logFfmpegVersion: () => {} }))
-vi.mock("@/lib/worker-drain.js", () => ({ beginWorkerDrain: () => {} }))
+// Spread the real module: the entrypoints also read the drain deadline helpers at
+// load time, and only the process-global flag flip needs neutralising here.
+vi.mock("@/lib/worker-drain.js", async (imp) => ({ ...(await imp<typeof import("../../worker-drain.js")>()), beginWorkerDrain: () => {} }))
 // pipeline-worker.ts guards on hasCredits() then dynamic-imports the ee worker.
 vi.mock("@/lib/config.js", async (imp) => ({
   ...(await imp<Record<string, unknown>>()),

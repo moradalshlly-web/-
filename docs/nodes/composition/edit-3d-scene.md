@@ -58,8 +58,9 @@ does, because it runs the same authoring lane: `repairPasses`, `admissionRetries
 `mechanicalPasses`, `restoredAssertions`, `SCENE_AUTHORING_ASSUMPTION` warnings —
 and `metadata.review` when the edited scene passed every mandatory check but did
 not get the visual review's approval, either because the review objected
-(`verdict: "refused"`) or because it never reached its provider and nobody judged
-the scene (`verdict: "unavailable"`). `validation.status` is `passed` on both, so
+(`verdict: "refused"`) or because it produced no usable verdict and nobody judged
+the scene (`verdict: "unavailable"`, whose `reason` is `"provider"` when the review
+never reached its provider and `"unusable"` when the provider answered unusably). `validation.status` is `passed` on both, so
 test for `metadata.review` and branch on `verdict` rather than reading the status.
 The full shape is on
 [Generate 3D Scene](generate-3d-scene.md#api-and-sdk) and

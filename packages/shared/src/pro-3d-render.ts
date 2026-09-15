@@ -35,7 +35,11 @@ import { z } from "zod"
 import { SCENE3D_LIMITS, type Scene3DReference } from "./scene3d.js"
 import { scene3DAnyPlanSchema, type Scene3DPlan } from "./scene3d-v2-plan.js"
 import { scene3DInputAssetsSchema, type Scene3DInputAsset } from "./scene3d-input-assets.js"
-import type { Scene3DRestoredAssertion, Scene3DReviewVerdict } from "./scene3d-delivery-notes.js"
+import {
+  SCENE3D_REVIEW_UNAVAILABLE_REASONS,
+  type Scene3DRestoredAssertion,
+  type Scene3DReviewVerdict,
+} from "./scene3d-delivery-notes.js"
 
 /** Canvas/API/MCP node type. */
 export const PRO3D_RENDER_NODE_TYPE = "pro-3d-render"
@@ -276,7 +280,8 @@ export interface Pro3DRenderCapabilities {
  * with any normalization the engine applied to it; `SCENE_REVIEW_REFUSED` (exported as
  * `SCENE3D_REVIEW_REFUSED_CODE`) is one objection the paid visual reviewer raised against a
  * scene this job DELIVERED anyway; `SCENE_REVIEW_UNAVAILABLE` (exported as
- * `SCENE3D_REVIEW_UNAVAILABLE_CODE`) says that reviewer never answered at all, so the scene was
+ * `SCENE3D_REVIEW_UNAVAILABLE_CODE`) says that reviewer gave no usable verdict at all — it was
+ * never reached, or answered with nothing usable — so the scene was
  * delivered — or, with the advisory policy off, retained — with no verdict on it, and it LEADS
  * the array because it qualifies every line under it; a `SCENE_QUALITY_*` code is that same
  * reviewer's finding on a job that FAILED, where the finding is the reason there is no video.
@@ -321,8 +326,9 @@ export interface Pro3DRenderResultMetadata {
    * The visual reviewer's verdict, present ONLY on a delivery it did not APPROVE — a scene whose
    * every mandatory assertion passed, published either once the repair budget was spent and the
    * reviewer still objected (`verdict: "refused"`), or with no verdict at all because the review
-   * never reached its provider (`verdict: "unavailable"`, with `attempts` saying how many times
-   * it was asked). `validation.status` is `"passed"` on both, so this field's presence — not the
+   * never reached its provider or answered with nothing usable (`verdict: "unavailable"`, with
+   * `reason` saying which and `attempts` how many times it was asked). `validation.status` is
+   * `"passed"` on both, so this field's presence — not the
    * status, and not the warning count — is what tells them from a clean result.
    *
    * Use {@link scene3DReviewVerdictOf} rather than reading it by hand, and
@@ -437,7 +443,9 @@ export interface Pro3DRenderJobOutput {
  * absent AND one that is malformed both fall back, because the caller's alternative is losing a
  * delivered MP4 over a count that only ever decides a sentence. `attempts` falls back to `1` —
  * the review was asked at least once, or there would be no verdict to read — and `reason` to
- * `"provider"`, the only cause that exists. `verdict` is the one member that stays strict: it is
+ * `"provider"`, the only cause an older engine emits. The causes it KEEPS are
+ * `SCENE3D_REVIEW_UNAVAILABLE_REASONS`, read from the one list `scene3DReviewVerdictOf` and
+ * `scene3DReviewNote` also read, never re-spelled here. `verdict` is the one member that stays strict: it is
  * the discriminant, and guessing it is how a scene nobody reviewed gets reported as refused.
  */
 const pro3DRenderReviewFindingsShape = {
@@ -461,7 +469,7 @@ export const pro3DRenderReviewVerdictSchema = z.union([
   z
     .object({
       verdict: z.literal("unavailable"),
-      reason: z.literal("provider").catch("provider"),
+      reason: z.enum(SCENE3D_REVIEW_UNAVAILABLE_REASONS).catch("provider"),
       attempts: z.number().int().min(1).catch(1),
       ...pro3DRenderReviewFindingsShape,
     })

@@ -2,7 +2,7 @@ import type { Node, Edge } from "@xyflow/react"
 import { MODIFY_IMAGE_PROVIDERS, OVERLAY_ANCHORS } from "@nodaro/shared"
 import { MUSIC_GENRE_DEFAULT_DATA, MUSIC_MOOD_DEFAULT_DATA, INSTRUMENTATION_DEFAULT_DATA, VOICE_CHARACTER_DEFAULT_DATA, VOICE_DELIVERY_DEFAULT_DATA } from "@nodaro/prompts"
 import type { ImageI2IProvider, ImageGenProvider, ImageEditProvider, ModifyImageProvider, UpscaleImageProvider, ImageToVideoProvider, TextToVideoProvider, VideoToVideoProvider, VideoGenProvider, VideoUpscaleProvider, ExtendVideoProvider, FaceSwapProvider, TtsProvider, TextToAudioProvider, MusicProvider, TranscribeProvider, LipSyncProvider, ScriptProvider, QaCheckProvider, SunoModel, SunoAddTrackModel, VoiceDesignModel, VoiceChangerModel, CaptionStyle, ImageCriticMode, ReduceStrategyId, ReduceMeta, SelectorConfig, ScraperActorId, CharacterAspectRatio, AudioFxPreset, LocationReferencePhotoKind as SharedLocationReferencePhotoKind, PipelineFormat, PipelineMode, PipelinePinnableImageModel, PipelinePinnableScriptLlm, PipelinePinnableVideoModel, VideoCriticFrameMode, SceneNodeData as SharedSceneNodeData, PipelineState, ReferenceSheet, SheetType, SheetSkin, SheetFlavour, EntityKind, VideoAnalysisResult, ExposableField, ExposableOutput, ComponentMetadata, IdentityMeta, LlmReasoningEffort, Scene3DReference, OverlayLayerKind, OverlayTextStyle, OverlayQrStyle, OverlayShapeStyle, OverlayImageEffects, OverlayAnchor } from "@nodaro/shared"
-import type { WardrobeValue, TransitionPosition, TransitionDuration, TransitionIntensity, CharacterFxPosition, CharacterFxDuration, CharacterFxIntensity, PersonValue, PickerApplyMode, PickerGaps, DirectionFields, StructuredPromptFields } from "@nodaro/prompts"
+import type { WardrobeValue, TransitionPosition, TransitionDuration, TransitionIntensity, CharacterFxPosition, CharacterFxDuration, CharacterFxIntensity, CharacterMotionPosition, CharacterMotionPace, PersonValue, PickerApplyMode, PickerGaps, DirectionFields, StructuredPromptFields } from "@nodaro/prompts"
 import type { ReferencePhotoKind } from "@/lib/reference-photo-routing"
 import { IMAGE_STYLE_PRESETS, GVP_PROVIDERS, getAspectRatiosForVideoModel, getVideoResolutionOptions } from "@/components/editor/config-panels/model-options"
 
@@ -1218,7 +1218,7 @@ export interface PostProcessEffectsData extends PickerHintModeFields {
 }
 
 export type { TransitionPosition, TransitionDuration, TransitionIntensity }
-export type { CharacterFxPosition, CharacterFxDuration, CharacterFxIntensity }
+export type { CharacterFxPosition, CharacterFxDuration, CharacterFxIntensity, CharacterMotionPosition, CharacterMotionPace }
 
 export interface TransitionData extends PickerHintModeFields {
   label: string
@@ -1239,6 +1239,17 @@ export interface CharacterFxData extends PickerHintModeFields {
   intensity?: CharacterFxIntensity
   preText?:   string
   postText?:  string
+  [key: string]: unknown
+}
+
+export interface CharacterMotionData extends PickerHintModeFields {
+  label: string
+  /** One move id, or an ORDERED array of up to 3 (a "then" sequence). */
+  characterMotion: string | string[]
+  position?: CharacterMotionPosition
+  pace?:     CharacterMotionPace
+  preText?:  string
+  postText?: string
   [key: string]: unknown
 }
 
@@ -5968,6 +5979,7 @@ export type SceneNodeData =
   | CameraMotionData
   | TransitionData
   | CharacterFxData
+  | CharacterMotionData
   | ReferenceSheetData
   | FramingData
   | LensData
@@ -6160,6 +6172,7 @@ export type SceneNodeType =
   | "camera-motion"
   | "transition"
   | "character-fx"
+  | "character-motion"
   | "framing"
   | "lens"
   | "camera-format"
@@ -6555,6 +6568,20 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
       position: "auto",
       duration: "auto",
       intensity: "auto",
+    },
+  },
+  {
+    type: "character-motion",
+    label: "Character Motion",
+    category: "parameter",
+    creditCost: 0,
+    inputs: ["target", "partner"],
+    outputs: ["out"],
+    defaultData: {
+      label: "Character Motion",
+      characterMotion: "auto",
+      position: "auto",
+      pace: "auto",
     },
   },
   {

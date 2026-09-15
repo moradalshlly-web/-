@@ -262,9 +262,10 @@ export function repairEvidence({ output, quote, requested }) {
  * `verdict` says WHICH way the approval is missing, and both are read here:
  *
  *  - `"refused"` — the reviewer answered and objected;
- *  - `"unavailable"` — the review's provider never answered in `attempts` asks,
- *    so NOBODY judged the scene. `objections` may still be non-empty there: a
- *    review is batched, and what answered before the outage is real evidence
+ *  - `"unavailable"` — the review got no usable verdict in `attempts` asks
+ *    (`reason` `"provider"`: its provider was never reached; `"unusable"`: it
+ *    answered with nothing usable), so NOBODY judged the scene. `objections` may
+ *    still be non-empty there: a review is batched, and what answered usably first is real evidence
  *    that is not the whole verdict. A reader keyed on `"refused"` alone records
  *    such a run as a clean acceptance, which is the same silence this function
  *    exists to prevent — one step further out.
@@ -302,7 +303,8 @@ export function reviewEvidence(output) {
     observed: typeof review.observed === "string" && review.observed ? review.observed : null,
     refusedWarningCount: countCode("SCENE_REVIEW_REFUSED"),
     reviewEvidenceSentence: unavailable
-      ? "the scene was delivered UNREVIEWED: its review never reached a provider, so the objections "
+      ? `the scene was delivered UNREVIEWED: its review ${review.reason === "unusable"
+        ? "reached a provider but returned no usable verdict" : "never reached a provider"}, so the objections `
         + "below (if any) are the batches that answered first, not a verdict"
       : "the reviewer answered and refused this scene; the objections below are its whole verdict",
   }
@@ -338,8 +340,11 @@ export function deliveryOutcome({ terminalStatus, output }) {
 export function reviewDetail(review) {
   if (!review) return undefined
   const objections = `${review.objectionCount} objection${review.objectionCount === 1 ? "" : "s"}`
+  // `reason` picks the clause, as `scene3DReviewNote` does app-side: "never reached its
+  // provider" is untrue of a review whose provider answered, unusably (plugin round 10ag).
+  const missing = review.reason === "unusable" ? "returned no usable verdict" : "never reached its provider"
   return review.verdict === "unavailable"
-    ? `the visual review never reached its provider in ${review.attempts} attempt`
+    ? `the visual review ${missing} in ${review.attempts} attempt`
       + `${review.attempts === 1 ? "" : "s"}; the scene was delivered unreviewed`
       + `${review.objectionCount ? ` (${objections} from the batches that answered first)` : ""}`
     : `the visual reviewer refused this scene: ${objections}`

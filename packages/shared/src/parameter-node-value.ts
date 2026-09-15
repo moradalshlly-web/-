@@ -45,6 +45,7 @@ export const PARAMETER_NODE_TYPES: ReadonlySet<string> = new Set([
   "post-process-effects",
   "action-fx",
   "character-fx",
+  "character-motion",
   "transition",
   "loop-subject",
   "scene-count",
@@ -75,6 +76,36 @@ export const HINT_EXEMPT_PARAMETER_TYPES: ReadonlySet<string> = new Set([
   "scene-count",
   "duration",
   "aspect-ratio",
+])
+
+/**
+ * Parameter pickers whose fragment only makes sense in MOTION — a camera move,
+ * a transition, a timeline, a character effect or a character movement. Every
+ * still-image consumer (generate-image, edit-image, image-to-image,
+ * modify-image, location) excludes these on BOTH executors and in the add-node
+ * popup. One set instead of three hand-synced copies: `STILL_IMAGE_EXCLUDE_TYPES`
+ * (frontend cinematography-hints.ts and backend payload-builder.ts) and
+ * `MOTION_ONLY_PICKER_TYPES` (frontend node-compatibility.ts) alias it.
+ */
+export const VIDEO_ONLY_PARAMETER_NODE_TYPES: ReadonlySet<string> = new Set([
+  "camera-motion",
+  "temporal",
+  "transition",
+  "character-fx",
+  "character-motion",
+])
+
+/**
+ * Pickers whose fragment depends on OTHER nodes wired into them — camera
+ * motion's start / end states, character motion's target and partner names —
+ * so both executors must pass the graph to `getParameterPromptHint` for them.
+ * Transition and Character FX compose from the graph in the editor preview but
+ * are deliberately NOT here: adding them changes the prompt of workflows that
+ * already exist, which is its own reviewed change.
+ */
+export const EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES: ReadonlySet<string> = new Set([
+  "camera-motion",
+  "character-motion",
 ])
 
 /**
@@ -158,6 +189,8 @@ export function getParameterValue(
       return trim(data.actionFx)
     case "character-fx":
       return trim(data.characterFx)
+    case "character-motion":
+      return trim(data.characterMotion)
     case "transition":
       return trim(data.transition)
     case "style":

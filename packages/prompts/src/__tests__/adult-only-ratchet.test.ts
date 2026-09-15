@@ -4,6 +4,7 @@ import { STYLINGS } from "../styling.js"
 import { MOODS } from "../mood.js"
 import { POSES } from "../pose.js"
 import { PHOTO_GENRES } from "../photo-genre.js"
+import { CHARACTER_MOTIONS } from "../character-motion.js"
 import { getAdultOnlyEntries } from "../age-floor.js"
 
 /**
@@ -45,6 +46,20 @@ const EXEMPT: Readonly<Record<string, string>> = {
   "caught-off-guard": "lips parted from a startled reaction, not a seductive expression",
   "hands-on-hips": "neutral confident stance — hips referenced as a body part, no exposure or sexual content",
   "hand-position-hands-on-hips": "neutral confident stance, hand-position variant of hands-on-hips",
+  "sway-to-music": "character-motion: sway to the music — dance mechanics, hips as a body part, no exposure",
+  "sway-arms-raised": "character-motion: arms-up sway — dance mechanics, hips as a body part, no exposure",
+  "do-the-worm": "character-motion: the worm — dance mechanics, hips as a body part, no exposure",
+  "strike-vogue-poses": "character-motion: vogue — dance mechanics, hips as a body part, no exposure",
+  "spin-salsa-turn": "character-motion: salsa turn — dance mechanics, hips as a body part, no exposure",
+  "sway-bachata-hips": "character-motion: bachata sway — dance mechanics, hips as a body part, no exposure",
+  "flourish-bollywood-hands": "character-motion: bollywood flourish — dance mechanics, hips as a body part, no exposure",
+  "do-the-twist": "character-motion: the twist — dance mechanics, hips as a body part, no exposure",
+  "throw-disco-point": "character-motion: disco point — dance mechanics, hips as a body part, no exposure",
+  "do-the-floss": "character-motion: the floss — dance mechanics, hips as a body part, no exposure",
+  "tears-well-up": "character-motion: tear-filled glistening eyes — emotion, not skin",
+  "pout-sulkily": "character-motion: a sulky pout — emotional expression, not a seductive one",
+  "plant-hands-on-hips": "character-motion: neutral confident stance — hips as a body part, no exposure",
+  "freeze-on-the-drop": "character-motion: freeze on the drop — dance mechanics, hips as a body part, no exposure",
 }
 
 /** The hand-curated set. The test fails if any of these loses the flag. */
@@ -71,9 +86,11 @@ const CURATED = [
   "seductive", "sultry", "smoldering", "flirty",
   "biting-lip", "arched-back", "sitting-edge-of-bed", "lounging", "lying-down",
   "brand-helmut-newton", "glamour-portrait",
+  // character-motion
+  "sultry-look-over-shoulder", "sashay-forward", "sway-hips-walk", "drop-coat-off-shoulders", "sultry-look-back", "shimmy-the-hips", "roll-the-body", "bite-lip-teasingly", "lick-lips-suggestively", "smolder-heavy-lidded", "smolder-at-camera", "hug-partner-from-behind", "lean-in-almost-kiss", "kiss-partner", "rise-on-tiptoes-to-kiss-partner", "pull-partner-close",
 ] as const
 
-const ALL = [...PEOPLE, ...STYLINGS, ...MOODS, ...POSES, ...PHOTO_GENRES]
+const ALL = [...PEOPLE, ...STYLINGS, ...MOODS, ...POSES, ...PHOTO_GENRES, ...CHARACTER_MOTIONS]
 
 describe("adultOnly ratchet", () => {
   it("every id in CURATED exists and carries the flag", () => {

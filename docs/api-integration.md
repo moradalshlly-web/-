@@ -1690,14 +1690,15 @@ returns 400 `validation_error`):
 |---|---|---|
 | `detail` | `compact` (default) / `full` | `compact`: `id`, `label`, `category`, `term`, `icon`. `full`: additionally includes each option's `description` and `promptHint` (the prompt fragment it injects). |
 | `category` | string | Single-dim pickers: filter options to one category. |
-| `field` | string | Return only this dimension's field — multi-dim pickers (person / styling / framing), and the secondary parameters of a single-dim picker (transition / character-fx: `position` / `duration` / `intensity`). |
+| `field` | string | Return only this dimension's field — multi-dim pickers (person / styling / framing), and the secondary parameters of a single-dim picker (transition / character-fx: `position` / `duration` / `intensity`; character-motion: `position` / `pace`). |
 
 A single-dim catalog carries `options`; a multi-dim catalog carries
 `dimensions` (one `{ field, label, options }` per field). A single-dim catalog
 with secondary parameter fields beside its main picker — `transition` and
-`character-fx`, whose `position` / `duration` / `intensity` dropdowns are
-catalogs in their own right — carries **both**: `options` for the picker and
-`dimensions` for the three secondary fields. Every option carries a
+`character-fx` (`position` / `duration` / `intensity`) and `character-motion`
+(`position` / `pace`), whose dropdowns are catalogs in their own right —
+carries **both**: `options` for the picker and `dimensions` for the secondary
+fields. Every option carries a
 `term` at **both** detail levels — the short professional phrase to inject into
 a prompt when you want a compact instruction (`"whip pan left"`), where `label`
 is display-only and `promptHint` is the full mechanism sentence. It is `""` for
@@ -1728,7 +1729,7 @@ Query param (a bad value returns 400 `validation_error`):
 |---|---|---|
 | `detail` | `compact` (default) / `full` | `compact`: `id`, `label`, `category`, `term`, `icon`. `full`: additionally includes each option's `description` and `promptHint`. |
 
-Each `ProjectedCatalog` is `{ nodeType, label, catalogId, kind, valueField?, defaultValue?, categoryOrder?, categoryLabels?, detail, options?, fields?, dimensions? }` — single-dim catalogs carry `options`; multi-dim catalogs carry `dimensions` (one `{ field, label, options }` per field); a single-dim catalog with secondary parameter fields (`transition`, `character-fx`: `position` / `duration` / `intensity`) carries both. Each option is `{ id, label, category?, term, icon?, description?, promptHint? }`; `term` rides at **both** detail levels so a thin client can render `label` and inject the compact professional term without a second `detail=full` fetch. The shape is deliberately tag/policy-free.
+Each `ProjectedCatalog` is `{ nodeType, label, catalogId, kind, valueField?, defaultValue?, categoryOrder?, categoryLabels?, detail, options?, fields?, dimensions? }` — single-dim catalogs carry `options`; multi-dim catalogs carry `dimensions` (one `{ field, label, options }` per field); a single-dim catalog with secondary parameter fields (`transition`, `character-fx`: `position` / `duration` / `intensity`; `character-motion`: `position` / `pace`) carries both. Each option is `{ id, label, category?, term, icon?, description?, promptHint? }`; `term` rides at **both** detail levels so a thin client can render `label` and inject the compact professional term without a second `detail=full` fetch. The shape is deliberately tag/policy-free.
 
 ### Text → pickers (AI Fill)
 
@@ -2898,15 +2899,20 @@ only blocking findings become objections, and `validation.warnings[]` carries
 one `SCENE_REVIEW_REFUSED` entry per objection, tagged with a `shotId` where the
 cited frames fall inside one shot.
 
-`{ verdict: "unavailable", reason: "provider", attempts, objections[],
-observed? }` — the review never reached its provider. A repair cannot answer an
-outage, so instead of spending one the run asks again after a bounded pause and,
-if it is still unreachable, delivers the assertion-passing scene unreviewed:
-**nobody judged it**. `attempts` is how many times the review was asked.
-`validation.warnings[]` **leads** with one `SCENE_REVIEW_UNAVAILABLE` entry,
-then one `SCENE_REVIEW_REFUSED` per surviving objection — a review is batched,
-so objections on this arm are whichever batches answered before the outage and
-are **not** a verdict on the scene. The unanswered review is unbilled; the
+`{ verdict: "unavailable", reason, attempts, objections[], observed? }` — the
+review produced no usable verdict. `reason` is `"provider"` when it never reached
+its provider and `"unusable"` when the provider answered with nothing usable. A
+repair cannot answer either, so instead of spending one the run asks the review
+once more — after a bounded pause for an unreachable provider, at once for an
+unusable answer, and not at all when the provider broke after it had already
+streamed usage — and, if there is still no usable verdict, delivers the
+assertion-passing scene unreviewed: **nobody judged it**. `attempts` is how many
+times the review was asked. `validation.warnings[]` **leads** with one
+`SCENE_REVIEW_UNAVAILABLE` entry, then one `SCENE_REVIEW_REFUSED` per surviving
+objection — a review is batched, so objections on this arm are whichever batches
+answered usably first and are **not** a verdict on the scene. A retry is never
+billed on top of the asking before it: an asking that reported no usage is
+unbilled, and the second asking of an unusable answer is not charged again. The
 delivery bills as the refused one does.
 
 Three readings that look right and are not: `validation.status` is still

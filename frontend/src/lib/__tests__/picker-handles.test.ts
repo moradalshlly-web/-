@@ -32,8 +32,8 @@ describe("picker-handles", () => {
     }
   })
 
-  it("motion-family pickers (camera-motion, transition) get violet", () => {
-    for (const t of ["camera-motion", "transition"]) {
+  it("motion-family pickers (camera-motion, transition, character-motion) get violet", () => {
+    for (const t of ["camera-motion", "transition", "character-motion"]) {
       const meta = getPickerOutputMeta(t)
       expect(meta?.family).toBe("motion")
       expect(meta?.color).toBe("#A78BFA")

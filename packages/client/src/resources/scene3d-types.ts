@@ -237,9 +237,11 @@ export interface RenderScene3DParams extends Record<string, unknown> {
  * is delivered anyway, and `metadata.review` carries a verdict saying why. `verdict: "refused"`
  * is the ADVISORY delivery — the reviewer objected once the repair budget was spent — with one
  * `SCENE_REVIEW_REFUSED` warning per objection. `verdict: "unavailable"` is the UNREVIEWED
- * delivery: the review never reached its provider after `attempts` asks, so nobody judged the
- * scene, and `validation.warnings[]` LEADS with `SCENE_REVIEW_UNAVAILABLE` (any objections under
- * it came from review batches that answered before the outage, and are not the whole verdict).
+ * delivery: the review produced no usable verdict after `attempts` asks — `reason: "provider"`
+ * when it never reached its provider, `"unusable"` when the provider answered with nothing usable
+ * (`Scene3DReviewUnavailableReason` in `@nodaro/shared`) — so nobody judged the scene, and
+ * `validation.warnings[]` LEADS with `SCENE_REVIEW_UNAVAILABLE` (any objections under it came from
+ * review batches that answered usably first, and are not the whole verdict).
  *
  * `validation.status` stays `"passed"` on both, so `metadata.review` being present is the only
  * reliable test — use `scene3DReviewVerdictOf` from `@nodaro/shared` rather than reading it by
@@ -267,11 +269,12 @@ export type Scene3DJobOutput = Readonly<Scene3DWireJobOutput> & Readonly<Record<
  * `metadata.review` holds a verdict saying which way. `{ verdict: "refused", objections[],
  * observed? }` is the ADVISORY delivery: every mandatory assertion passed, the reviewer still
  * objected, and the scene was published once the repair budget was spent, with one
- * `SCENE_REVIEW_REFUSED` warning per objection. `{ verdict: "unavailable", reason: "provider",
- * attempts, objections[], observed? }` is the UNREVIEWED delivery: the review never reached its
- * provider in `attempts` asks, so the assertion-passing scene was delivered with no verdict on
- * it and `validation.warnings[]` LEADS with `SCENE_REVIEW_UNAVAILABLE`. Objections on that arm
- * are whatever review batches answered before the outage — real, but not the whole verdict.
+ * `SCENE_REVIEW_REFUSED` warning per objection. `{ verdict: "unavailable", reason, attempts,
+ * objections[], observed? }` is the UNREVIEWED delivery: the review produced no usable verdict in
+ * `attempts` asks — `reason: "provider"` when it never reached its provider, `"unusable"` when the
+ * provider answered with nothing usable — so the assertion-passing scene was delivered with no
+ * verdict on it and `validation.warnings[]` LEADS with `SCENE_REVIEW_UNAVAILABLE`. Objections on
+ * that arm are whatever review batches answered usably first — real, but not the whole verdict.
  *
  * `validation.status` is `"passed"` on both, so test for `metadata.review` — via
  * `scene3DReviewVerdictOf` from `@nodaro/shared` — rather than for the status or the warnings,

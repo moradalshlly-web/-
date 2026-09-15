@@ -548,6 +548,8 @@ export type { LocationCatalogRef } from "./location-preset-catalog-map.js"
 export {
   PARAMETER_NODE_TYPES,
   HINT_EXEMPT_PARAMETER_TYPES,
+  VIDEO_ONLY_PARAMETER_NODE_TYPES,
+  EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES,
   getParameterValue,
   setRegisteredPersonPackFields,
 } from "./parameter-node-value.js"

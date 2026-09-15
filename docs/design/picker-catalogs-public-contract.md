@@ -22,7 +22,7 @@ A catalog entry `{ id, label, category?, description?, promptHint }` + a prompt-
 
 ## What already exists (verified)
 
-- **Catalogs with `promptHint` on every entry** — ~25+ single-dim catalogs in `packages/shared/src/*.ts` (mood, lens, setting, pose, lighting, color-look, atmosphere, style, era, photo-genre, backdrop, aesthetic, render-quality, transitions, character-fx, materials, animals, vehicles, weapons, furniture, held-prop, action-fx, loop-subject, …), plus multi-dim (person, styling, framing, temporal, exposure-settings, music-genre).
+- **Catalogs with `promptHint` on every entry** — ~25+ single-dim catalogs in `packages/prompts/src/*.ts` (mood, lens, setting, pose, lighting, color-look, atmosphere, style, era, photo-genre, backdrop, aesthetic, render-quality, transitions, character-fx, character-motion, materials, animals, vehicles, weapons, furniture, held-prop, action-fx, loop-subject, …), plus multi-dim (person, styling, framing, temporal, exposure-settings, music-genre).
 - **Prompt assembly** — `getParameterPromptHint(node, ctx?)` (single source of truth, used by both frontend executor and backend) + per-catalog `get*PromptHint(id)` / `build*Hints(value)`.
 - **Value resolution** — `getParameterValue` + `PARAMETER_NODE_TYPES` (`parameter-node-value.ts`).
 - **i18n — already complete in `shared`.** `packages/shared/src/i18n/` carries per-catalog, per-locale bundles across **12 locales** (`en, es, fr, de, pt-BR, ru, hi, ja, ko, zh-CN, he, ar`); `I18nCatalogId` is the typed key. Localized labels resolve via the catalog's `catalogId`. **Nothing to add here** — the contract just needs to expose `catalogId` so consumers can localize.

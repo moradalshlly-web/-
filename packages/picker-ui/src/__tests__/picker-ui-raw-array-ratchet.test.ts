@@ -33,6 +33,7 @@ const ALLOWLIST = new Set<string>([
   "pickers/camera-format-picker.tsx",
   "pickers/camera-motion-picker.tsx",
   "pickers/character-fx-picker.tsx",
+  "pickers/character-motion-picker.tsx", // new picker reads the base array like every sibling; repoint with them
   "pickers/color-look-picker.tsx",
   "pickers/composition-effects-picker.tsx",
   "pickers/era-picker.tsx",

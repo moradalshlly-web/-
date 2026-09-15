@@ -1,8 +1,8 @@
 "use client"
 
 import { useMemo, type ReactNode } from "react"
-import { Frame, Aperture, Film, Lightbulb, SwatchBook, CloudFog, Clock, Video, SlidersHorizontal, Palette, Brush, GitBranch, Sparkles, type LucideIcon } from "lucide-react"
-import { getCameraMotion, getCameraMotionLabel, getFraming, FRAMING_FIELD_BY_CATEGORY, FRAMING_CATEGORY_LABELS, getLighting, LIGHTING_FIELD_BY_CATEGORY, LIGHTING_CATEGORY_LABELS, getLens, getLensLabel, getCameraFormat, getCameraFormatLabel, getColorLook, getColorLookLabel, getAtmosphere, getAtmosphereLabel, getStyle, getStyleLabel, getTransition, getTransitionLabel, getCharacterFx, getCharacterFxLabel, getTemporal, TEMPORAL_FIELD_BY_CATEGORY, TEMPORAL_CATEGORY_LABELS } from "@nodaro/prompts"
+import { Frame, Aperture, Film, Lightbulb, SwatchBook, CloudFog, Clock, Video, SlidersHorizontal, Palette, Brush, GitBranch, Sparkles, Footprints, type LucideIcon } from "lucide-react"
+import { getCameraMotion, getCameraMotionLabel, getFraming, FRAMING_FIELD_BY_CATEGORY, FRAMING_CATEGORY_LABELS, getLighting, LIGHTING_FIELD_BY_CATEGORY, LIGHTING_CATEGORY_LABELS, getLens, getLensLabel, getCameraFormat, getCameraFormatLabel, getColorLook, getColorLookLabel, getAtmosphere, getAtmosphereLabel, getStyle, getStyleLabel, getTransition, getTransitionLabel, getCharacterFx, getCharacterFxLabel, getCharacterMotion, getCharacterMotionLabel, getTemporal, TEMPORAL_FIELD_BY_CATEGORY, TEMPORAL_CATEGORY_LABELS } from "@nodaro/prompts"
 import { pickIds } from "@nodaro/shared"
 import { FramingPreview } from "@/lib/picker-ui"
 import { LightingPreview } from "@/lib/picker-ui"
@@ -234,6 +234,20 @@ function collectSources(
           key: src.id,
           icon: Sparkles,
           title: `${srcNodeLabel}: ${labels.join(" + ")}`,
+          description: primary?.description ?? "",
+          preview: null,
+        })
+        break
+      }
+      case "character-motion": {
+        const ids = pickIds(data.characterMotion)
+        if (ids.length === 0) continue
+        const labels = ids.map((id) => getCharacterMotionLabel(id))
+        const primary = getCharacterMotion(ids[0])
+        entries.push({
+          key: src.id,
+          icon: Footprints,
+          title: `${srcNodeLabel}: ${labels.join(" → ")}`,
           description: primary?.description ?? "",
           preview: null,
         })

@@ -4421,8 +4421,8 @@ get(nodeType: string, opts?: GetPickerCatalogOptions): Promise<{ data: PickerCat
 dim pickers carry `options`; multi-dim pickers carry `dimensions` (one
 `{ field, label, options }` per field); a single-dim picker with secondary
 parameter fields beside its main picker (`transition`, `character-fx`:
-`position` / `duration` / `intensity`) carries both. 404 `not_found` for an
-unknown type.
+`position` / `duration` / `intensity`; `character-motion`: `position` /
+`pace`) carries both. 404 `not_found` for an unknown type.
 
 **`GetPickerCatalogOptions`:**
 
@@ -4430,7 +4430,7 @@ unknown type.
 |-------|------|-------------|
 | `detail` | `"compact"` \| `"full"` | `"compact"` (default): `id`, `label`, `category`, `term`, `icon`. `"full"`: additionally includes each option's `description` and `promptHint` (the prompt fragment it injects). |
 | `category` | `string` | Single-dim pickers: filter options to one category. |
-| `field` | `string` | Return only this dimension's field — multi-dim pickers (person / styling / framing), and the secondary parameters of a single-dim picker (transition / character-fx: `position` / `duration` / `intensity`). |
+| `field` | `string` | Return only this dimension's field — multi-dim pickers (person / styling / framing), and the secondary parameters of a single-dim picker (transition / character-fx: `position` / `duration` / `intensity`; character-motion: `position` / `pace`). |
 
 ```ts
 const { data } = await client.pickerCatalogs.get("mood", { detail: "full" })
@@ -5116,7 +5116,7 @@ its own account of the answer — `metadata.summary`, `repairPasses`,
 `admissionRetries`, `mechanicalPasses`, `restoredAssertions` and any
 `SCENE_AUTHORING_ASSUMPTION` warnings (see below), plus
 `metadata.review` when the scene was delivered without the visual reviewer's
-approval — because it refused, or because it never answered at all.
+approval — because it refused, or because it gave no usable verdict at all.
 `nodes.run("pro-3d-render", …)` and
 `nodes.runAndWait("pro-3d-render", …)` reach the same routes with the same
 typed `Pro3DRenderRunParams` / `Pro3DRenderJobOutput`.
@@ -5258,10 +5258,13 @@ which, and it is a discriminated union, so a `switch` gets a compile-time answer
 - **`"refused"`** — the repair budget was spent, every mandatory check passed,
   and the reviewer still objected, so the scene was delivered with the refusal
   attached.
-- **`"unavailable"`** — the review never reached its provider. A repair cannot
-  answer an outage, so the run asks again after a bounded pause and, if it is
-  still unreachable, delivers the assertion-passing scene unreviewed. `attempts`
-  says how many times it was asked. **Nobody judged this scene.**
+- **`"unavailable"`** — the review produced no usable verdict. `reason` says
+  why: `"provider"` when it never reached its provider, `"unusable"` when the
+  provider answered with nothing usable (the full list is
+  `SCENE3D_REVIEW_UNAVAILABLE_REASONS`). A repair cannot answer either, so the
+  run asks the review once more and, if there is still no usable verdict,
+  delivers the assertion-passing scene unreviewed. `attempts` says how many
+  times it was asked. **Nobody judged this scene.**
 
 ```typescript
 import { scene3DReviewNote, scene3DReviewVerdictOf } from "@nodaro/shared";
@@ -5273,7 +5276,8 @@ if (review) {
   console.log(scene3DReviewNote(review));
 
   if (review.verdict === "unavailable") {
-    console.log(`unreviewed after ${review.attempts} attempts`);
+    // review.reason: "provider" (never reached) | "unusable" (answered with nothing usable)
+    console.log(`unreviewed (${review.reason}) after ${review.attempts} attempts`);
   }
   for (const objection of review.objections) {
     // category, what, correction?, frames[]
@@ -5298,7 +5302,7 @@ Three readings that look right and are not, which is why the helpers exist:
 - **`objections` may be empty.** A refusal that named nothing actionable is
   still a refusal, so counting `SCENE_REVIEW_REFUSED` warnings misses it.
 - **objections under an `"unavailable"` verdict are not the verdict.** A review
-  is batched, and those are whichever batches answered before the provider went
+  is batched, and those are whichever batches answered usably before one did not, or before the provider went
   away. An empty list there is silence, not approval.
 
 A visual refusal on its own no longer fails the job. `SCENE_QUALITY_FAILED` now

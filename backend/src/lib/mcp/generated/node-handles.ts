@@ -27,6 +27,7 @@ export const NODE_HANDLES: Readonly<Record<string, NodeHandleSpec>> = {
   "camera-motion": { inputs: ["in"], outputs: ["out"] },
   "character": { inputs: ["assets", "in"], outputs: ["characterRef", "image"] },
   "character-fx": { inputs: ["in"], outputs: ["out"] },
+  "character-motion": { inputs: ["target", "partner"], outputs: ["out"] },
   "cinematic-avatar": { inputs: ["prompt", "ref-video", "ref-audio", "ref-image"], outputs: ["video"] },
   "collect": { inputs: ["in"], outputs: ["out"] },
   "color-look": { inputs: ["in"], outputs: ["out"] },

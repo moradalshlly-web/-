@@ -36,11 +36,12 @@ approval**, and `metadata.review` says which of two ways. `{ verdict: "refused",
 objections[], observed? }` — the repair budget was spent, every mandatory check
 passed, and the review still objected, so the scene was delivered with the
 refusal attached and one `SCENE_REVIEW_REFUSED` warning per objection.
-`{ verdict: "unavailable", reason: "provider", attempts, objections[],
-observed? }` — the review never reached its provider in `attempts` asks, so
-**nobody judged the scene**; `validation.warnings[]` leads with a
-`SCENE_REVIEW_UNAVAILABLE` entry, and any objections under it are batches that
-answered before the outage rather than a verdict.
+`{ verdict: "unavailable", reason, attempts, objections[], observed? }` — the
+review produced no usable verdict in `attempts` asks (`reason` is `"provider"`
+when it never reached its provider, `"unusable"` when the provider answered with
+nothing usable), so **nobody judged the scene**; `validation.warnings[]` leads
+with a `SCENE_REVIEW_UNAVAILABLE` entry, and any objections under it are batches
+that answered usably first rather than a verdict.
 
 `validation.status` is still `passed` on both and the objection list may be
 empty, so the presence of `metadata.review` is the test — not the status, and

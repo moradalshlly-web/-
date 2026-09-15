@@ -64,8 +64,9 @@ preview, the config-panel preview, a direct wire into a Text Prompt or an LLM
 Chat) inherits nothing and uses its own mode, so the same node can read `full`
 in its preview and inject `compact` inside a compact composer.
 
-[Character FX](./character-fx.md) composes a `target` too, but a target is a
-character / face / object / location reference rather than a picker — it
+[Character FX](./character-fx.md) and [Character Motion](./character-motion.md)
+compose a `target` too (Character Motion also a `partner`), but those are
+character / face / object / location references rather than pickers — each
 contributes a NAME, not a fragment, and that name is injected in both modes.
 
 **Authoring workflow JSON directly** (MCP, SDK, or an imported file): set it on

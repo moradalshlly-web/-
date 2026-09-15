@@ -5,7 +5,7 @@ import { VISUAL_PARAMETER_PICKER_NODE_TYPES } from "./parameter-picker-types"
 import { IDENTITY_TYPES, IMAGE_PRODUCER_TYPES, TEXT_PRODUCER_TYPES } from "./generate-image-handles"
 import { ACCEPTS_PARAMETER_PICKER, TARGET_HANDLE_ACCEPTS } from "./target-handle-registry"
 import { FFMPEG_NODE_TYPES, isValidFfmpegConnection } from "./ffmpeg-handles"
-import { AUDIO_PRODUCER_TYPES, VIDEO_PRODUCER_TYPES } from "@nodaro/shared"
+import { AUDIO_PRODUCER_TYPES, VIDEO_PRODUCER_TYPES, VIDEO_ONLY_PARAMETER_NODE_TYPES, resolveEffectiveSourceType } from "@nodaro/shared"
 import { AUDIO_PICKER_TYPES, VOICE_PERSONA_TYPES } from "./audio-text-handles"
 import { ANALYSIS_PRODUCER_TYPES } from "./data-handles"
 
@@ -36,6 +36,17 @@ const TYPED_SOURCE_NODE_TYPES: ReadonlySet<string> = new Set([
   "describe-to-picker",
 ])
 
+/** The identity type whose declared ref output is `sourceHandleId` (`characterRef` → "character"), else
+ *  undefined; an entity's `image` pip is excluded (resolveEffectiveSourceType remaps it). Keyed on the handle
+ *  alone so resolveTargetHandle (no source node type) and getCompatibleNodes read it identically. */
+function identityRefSourceType(sourceHandleId: string): string | undefined {
+  for (const type of IDENTITY_TYPES) {
+    if (!NODE_DEF_MAP.get(type as SceneNodeType)?.outputs.includes(sourceHandleId)) continue
+    if (resolveEffectiveSourceType(type, sourceHandleId) === type) return type
+  }
+  return undefined
+}
+
 export interface ConnectionContext {
   readonly nodeId: string
   readonly handleId: string
@@ -57,15 +68,14 @@ export interface ConnectionContext {
 }
 
 /** Still-image consumer node types — their `cinematography` handle excludes
- *  motion-only pickers (mirrors `STILL_IMAGE_EXCLUDE_TYPES` in
- *  `cinematography-hints.ts`). */
+ *  motion-only pickers (`MOTION_ONLY_PICKER_TYPES` below). */
 const STILL_IMAGE_CONSUMERS: ReadonlySet<string> = new Set([
   "generate-image", "modify-image", "image-to-image", "edit-image", "location",
 ])
 
-const MOTION_ONLY_PICKER_TYPES: ReadonlySet<string> = new Set([
-  "camera-motion", "transition", "temporal", "character-fx",
-])
+/** Motion-only pickers — the shared video-only set itself, the same object
+ *  both executors exclude from still-image prompts (`STILL_IMAGE_EXCLUDE_TYPES`). */
+const MOTION_ONLY_PICKER_TYPES: ReadonlySet<string> = VIDEO_ONLY_PARAMETER_NODE_TYPES
 
 /**
  * Maps a handle ID to the set of handle IDs it can connect to.
@@ -150,7 +160,7 @@ export interface CompatibleNodes {
 export const TYPED_HANDLE_IDS: ReadonlySet<string> = new Set([
   // Camera-motion / transition + character-fx handles (consumer-type-
   // dependent dispatch; requires `consumerNodeType`).
-  "startState", "endState", "target", "in",
+  "startState", "endState", "target", "partner", "in",
   // Audio & Speech handles (Batch 1 of audio/text typed-handles migration).
   "prompt", "audio", "audio-style", "ref-audio", "voice", "transcript",
   // Suno mashup ordered audio inputs (Batch 2).
@@ -225,7 +235,7 @@ export const TYPED_HANDLE_IDS: ReadonlySet<string> = new Set([
  *  consumerNodeType, because their branches dispatch on consumer type to
  *  return the right candidate set. The rest of TYPED_HANDLE_IDS dispatch
  *  uniformly (no consumer-type discrimination needed). */
-const CONSUMER_TYPE_DEPENDENT_HANDLES: ReadonlySet<string> = new Set(["startState", "endState", "target", "in"])
+const CONSUMER_TYPE_DEPENDENT_HANDLES: ReadonlySet<string> = new Set(["startState", "endState", "target", "partner", "in"])
 
 /** Subset of TYPED_HANDLE_IDS whose typed dispatch requires Parameter-
  *  category candidates (tone, style-guide, person, lens, etc.) — which
@@ -316,6 +326,29 @@ export function getCompatibleNodes(
     return { direct, compatible: [], directTypes }
   }
 
+  // Identity ref sources (`characterRef`, `faceRef`, …) match no declared input, so the generic
+  // pass offers only `in` nodes (never Character Motion's `target`). Options whose
+  // TARGET_HANDLE_ACCEPTS entry accepts the identity type are promoted to direct (resolveTargetHandle
+  // wires that handle); the generic tiers are kept so the offered set only grows.
+  const identitySource = direction === "source" ? identityRefSourceType(handleId) : undefined
+  if (identitySource) {
+    const generic = classifyByHandleCompatibility(handleId, direction, nodeOptions)
+    const genericCompatible = new Set<SceneNodeType>(generic.compatible.map((o) => o.type))
+    const direct: NodeOption[] = []
+    const compatible: NodeOption[] = []
+    const directTypes = new Set<SceneNodeType>()
+    for (const option of nodeOptions) {
+      const acceptsIdentity = TARGET_HANDLE_ACCEPTS[option.type]?.some((e) => e.accepts(identitySource)) ?? false
+      if (acceptsIdentity || generic.directTypes.has(option.type)) {
+        direct.push(option)
+        directTypes.add(option.type)
+      } else if (genericCompatible.has(option.type)) {
+        compatible.push(option)
+      }
+    }
+    return { direct, compatible, directTypes }
+  }
+
   // Special-case: the `cinematography` / `style` target handle accepts only
   // parameter-picker nodes. v2.1 splits this into `look` and `scene`, but
   // the legacy IDs still resolve here for backwards compat (pre-migration
@@ -341,7 +374,7 @@ export function getCompatibleNodes(
       "aesthetic", "era", "photo-genre", "backdrop", "render-quality",
       "composition-effects", "action-fx", "loop-subject", "post-process-effects",
       "tone", "camera-motion", "lens", "camera-format", "framing", "lighting",
-      "exposure-settings", "temporal", "transition", "character-fx",
+      "exposure-settings", "temporal", "transition", "character-fx", "character-motion",
     ])
     const excludeMotion = consumerNodeType !== undefined && STILL_IMAGE_CONSUMERS.has(consumerNodeType)
     const direct: NodeOption[] = []
@@ -494,11 +527,16 @@ export function getCompatibleNodes(
     return { direct, compatible: [], directTypes }
   }
 
-  // Character FX: the `target` handle accepts identity-locking ref nodes
-  // only (character / face / object / location). See ACCEPTS_CHARACTER_REF
-  // in target-handle-registry; the shared hint-builder reads characterName
-  // / faceName / objectName / locationName from the source.
-  if (consumerNodeType === "character-fx" && direction === "target" && handleId === "target") {
+  // Character FX `target` and Character Motion `target` / `partner` accept
+  // identity-locking ref nodes only (character / face / object / location).
+  // See ACCEPTS_CHARACTER_REF in target-handle-registry; the shared
+  // hint-builder reads characterName / faceName / objectName / locationName
+  // from the source.
+  if (
+    direction === "target" &&
+    ((consumerNodeType === "character-fx" && handleId === "target") ||
+      (consumerNodeType === "character-motion" && (handleId === "target" || handleId === "partner")))
+  ) {
     const direct: NodeOption[] = []
     const directTypes = new Set<SceneNodeType>()
     for (const option of nodeOptions) {
@@ -683,6 +721,16 @@ export function getCompatibleNodes(
     return { direct, compatible: [], directTypes }
   }
 
+  return classifyByHandleCompatibility(handleId, direction, nodeOptions)
+}
+
+/** Generic tiers: direct when a node's inputs (source) / outputs (target) meet
+ *  HANDLE_COMPATIBILITY[handleId]; otherwise compatible via an `in` input / any output. */
+function classifyByHandleCompatibility(
+  handleId: string,
+  direction: "source" | "target",
+  nodeOptions: readonly NodeOption[],
+): CompatibleNodes {
   const compatibleSet = new Set(HANDLE_COMPATIBILITY[handleId] ?? [handleId])
 
   const direct: NodeOption[] = []
@@ -734,6 +782,13 @@ export function resolveTargetHandle(
     // still wires to "in" directly (via TARGET_HANDLE_ACCEPTS) — that
     // path is the passthrough flow and doesn't need column metadata.
     if (nodeType === "list") return "col_add"
+    // Identity ref source → the first registry handle accepting that identity type (the
+    // entries getCompatibleNodes promotes), never a phantom `in` (Character Motion / FX).
+    const identitySource = identityRefSourceType(sourceHandleId)
+    const accepting = identitySource
+      ? TARGET_HANDLE_ACCEPTS[nodeType]?.find((e) => e.accepts(identitySource))
+      : undefined
+    if (accepting) return accepting.handleId
     return def.inputs.find((h) => compatible.includes(h)) ?? "in"
   } else {
     return def.outputs.find((h) => compatible.includes(h)) ?? def.outputs[0] ?? "out"

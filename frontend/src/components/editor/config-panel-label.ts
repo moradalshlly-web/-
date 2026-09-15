@@ -64,6 +64,7 @@ const NODE_TYPE_DISPLAY_NAMES: Record<string, string> = {
   "post-process-effects": "Post-Process Effects",
   "transition": "Transition",
   "character-fx": "Character FX",
+  "character-motion": "Character Motion",
   "generate-script": "Generate Script",
   "generate-image": "Generate Image",
   "modify-image": "Modify Image",

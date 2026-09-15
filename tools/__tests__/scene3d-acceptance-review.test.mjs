@@ -9,7 +9,7 @@
 import { strict as assert } from "node:assert"
 import { describe, it } from "node:test"
 
-import { deliveryOutcome, isDelivered, repairEvidence, reviewEvidence, summarizeProOutput } from "../scene3d-acceptance/lib/pro.mjs"
+import { deliveryOutcome, isDelivered, repairEvidence, reviewDetail, reviewEvidence, summarizeProOutput } from "../scene3d-acceptance/lib/pro.mjs"
 import { createReceipt, finalize, markAdvisory, validateReceipt } from "../scene3d-acceptance/lib/receipt.mjs"
 import { advisoryClause } from "../scene3d-acceptance/lib/harness.mjs"
 
@@ -151,6 +151,18 @@ describe("reviewEvidence reads a review nobody could perform", () => {
     assert.equal(review.refusedWarningCount, 1)
     assert.equal(review.unavailableWarningCount, 1)
     assert.match(review.reviewEvidenceSentence, /not a verdict/)
+  })
+
+  /** Round 10ag: the provider ANSWERED, unusably. The ledger line must not say it
+   *  "never reached its provider" — that is the app-side note's arm, mirrored here. */
+  it("says the review returned no usable verdict when the reason is unusable", () => {
+    const review = reviewEvidence(unreviewedOutput({ reason: "unusable" }))
+    assert.equal(review.reason, "unusable")
+    assert.match(review.reviewEvidenceSentence, /returned no usable verdict/)
+    assert.doesNotMatch(review.reviewEvidenceSentence, /never reached/)
+    assert.equal(reviewDetail(review), "the visual review returned no usable verdict in 2 attempts; the scene was delivered unreviewed")
+    assert.equal(reviewDetail(reviewEvidence(unreviewedOutput())),
+      "the visual review never reached its provider in 2 attempts; the scene was delivered unreviewed")
   })
 
   it("clamps an attempt count that cannot describe asks that were made", () => {

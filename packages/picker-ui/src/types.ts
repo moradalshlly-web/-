@@ -7,13 +7,14 @@
  * on demand by `picker-input-card.tsx` when one of these node types renders.
  *
  * Keep in sync with the kind:"single" + kind:"multi" entries in
- * `parameter-picker-registry.tsx`.
+ * `registry.tsx`.
  */
 export const PARAMETER_PICKER_NODE_TYPES = new Set<string>([
   "setting", "atmosphere", "style", "color-look", "mood", "photographer",
   "aesthetic", "era", "photo-genre", "backdrop", "render-quality",
   "composition-effects", "post-process-effects", "action-fx", "loop-subject",
   "camera-motion", "lens", "camera-format", "transition", "character-fx",
+  "character-motion",
   "pose", "material", "animal", "vehicle", "weapon", "furniture", "held-prop",
   "framing", "lighting", "person", "styling", "temporal", "exposure-settings",
   "music-genre", "music-mood", "instrumentation", "voice-character", "voice-delivery",
