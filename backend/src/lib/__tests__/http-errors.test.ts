@@ -277,6 +277,97 @@ describe("server-error telemetry → app_reports", () => {
       via: "route-catch",
     })
     expect(String(report.payload?.stack)).toContain("relation jobs does not exist")
+    // A real Error carries no code/details/hint — none may be invented.
+    expect(report.payload).not.toHaveProperty("code")
+    expect(report.payload).not.toHaveProperty("details")
+    expect(report.payload).not.toHaveProperty("hint")
+    // ...and the sentence the user actually saw rides along beside it.
+    expect(report.payload).toMatchObject({ clientMessage: "Failed to create job" })
+  })
+
+  // A Supabase PostgrestError is a PLAIN OBJECT, not an Error (postgrest-js
+  // only constructs the class on the throwOnError path). Gating the report's
+  // message on `err instanceof Error` therefore dropped the only sentence that
+  // explained the failure and filed our generic client sentence instead —
+  // which is how `GET /v1/jobs/status — Failed to fetch job statuses` reached
+  // /admin/app-reports with nothing to triage on.
+  it("keeps a PostgrestError's message and diagnostics in the report (it is not an Error)", async () => {
+    const reply = makeReply()
+    const { req } = makeReq()
+    const pgError = {
+      code: "42703",
+      details: "Perhaps you meant to reference the column \"jobs.error_message\".",
+      hint: null,
+      message: 'column jobs.error_msg does not exist',
+    }
+    sendInternalError(reply as unknown as FastifyReply, req, pgError, "Failed to fetch job statuses")
+
+    // The wire is unchanged: the client still sees only the curated sentence.
+    expect(reply.body).toEqual({ error: { code: "internal_error", message: "Failed to fetch job statuses" } })
+    expect(JSON.stringify(reply.body)).not.toContain("error_msg")
+
+    await flushReports()
+    const report = vi.mocked(insertAppReport).mock.calls[0][0]
+    expect(report.title).toBe("POST /v1/things — column jobs.error_msg does not exist")
+    expect(report.payload).toMatchObject({
+      message: "column jobs.error_msg does not exist",
+      code: "42703",
+      details: pgError.details,
+      clientMessage: "Failed to fetch job statuses",
+      via: "route-catch",
+    })
+    // `hint: null` is omitted, not written as a null key; a plain object has no stack.
+    expect(report.payload).not.toHaveProperty("hint")
+    expect(report.payload).not.toHaveProperty("stack")
+  })
+
+  it("falls back to the client message when the thrown value has no usable message", async () => {
+    const reply = makeReply()
+    const { req } = makeReq()
+    sendInternalError(reply as unknown as FastifyReply, req, { message: "   " }, "Failed to load executions")
+    await flushReports()
+    const report = vi.mocked(insertAppReport).mock.calls[0][0]
+    expect(report.title).toBe("POST /v1/things — Failed to load executions")
+    expect(report.payload).toMatchObject({ message: "Failed to load executions" })
+    expect(report.payload).not.toHaveProperty("clientMessage")
+  })
+
+  // Before the fix every database failure on one route reported under the SAME
+  // client sentence, so the throttle collapsed unrelated outages into a single
+  // row for five minutes. Distinct messages are now distinct incidents.
+  it("no longer collapses two different database failures on one route into one report", async () => {
+    const reply = makeReply()
+    const { req } = makeReq()
+    const fail = async (message: string, code: string) => {
+      sendInternalError(reply as unknown as FastifyReply, req, { code, message, details: "", hint: null }, "Failed to fetch job statuses")
+      await __flushHttpErrorTelemetry()
+    }
+
+    await fail("column jobs.error_msg does not exist", "42703")
+    await fail("canceling statement due to statement timeout", "57014")
+    expect(insertAppReport).toHaveBeenCalledTimes(2)
+
+    // ...while a genuine repeat of the SAME failure is still throttled away.
+    await fail("column jobs.error_msg does not exist", "42703")
+    expect(insertAppReport).toHaveBeenCalledTimes(2)
+  })
+
+  it("registerErrorTelemetry keeps the message of a thrown non-Error too", async () => {
+    const app = Fastify()
+    registerErrorTelemetry(app)
+    app.get("/throws-pg", async () => {
+      // A route that lets a Supabase error propagate — Fastify hands the plain
+      // object to onError exactly as thrown, `message` and all.
+      throw { code: "PGRST301", message: "JWT expired", details: null, hint: null }
+    })
+    await app.ready()
+    await app.inject({ method: "GET", url: "/throws-pg" })
+
+    await flushReports()
+    const report = vi.mocked(insertAppReport).mock.calls[0][0]
+    expect(report.title).toBe("GET /throws-pg — JWT expired")
+    expect(report.payload).toMatchObject({ via: "uncaught", message: "JWT expired", code: "PGRST301" })
+    await app.close()
   })
 
   // The report is filed WITHOUT being awaited by the response path — right in
