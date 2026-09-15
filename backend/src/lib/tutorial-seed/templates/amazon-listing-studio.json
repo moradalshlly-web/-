@@ -1,0 +1,680 @@
+{
+  "slug": "amazon-listing-studio",
+  "name": "Amazon Listing Studio",
+  "description": "A packshot and your product notes in; the five images a marketplace listing needs out — main image on pure white, lifestyle, features callout, size and box contents, and a detail with your trust fact — one look, phone-legible, with the product exactly as photographed.",
+  "markdownDescription": "## Amazon Listing Studio\n\nA packshot and your product notes become the five images a marketplace listing needs — the main image, a lifestyle shot, a features callout, size and box contents, and a detail with your trust fact — one look, one listing, phone-legible. The product stays exactly as photographed.\n\n1. **Packshot** — a clean photo of the product on a plain background.\n2. **Product notes** — what it is, three benefits, dimensions, what is in the box, warranty or materials, who it is for. Only what is here gets used.\n3. **Listing plan** — an AI strategist writes the promise, the look, and a line per image.\n4. **Five briefs** — one writer per image, each with a fixed role: the main image is the product alone on pure white with no text; the others carry the look and the exact words.\n5. **Five images** — square, the words exactly as written. Edit a brief by hand and rerun just its image.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "amazon",
+    "marketplace",
+    "listing",
+    "product",
+    "ecommerce"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 87,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/8d9810c8-b95a-470e-93b2-516a42294079.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 28,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A packshot and your product notes go in; the five images a marketplace listing needs come out — the main image, a lifestyle shot, a features callout, size and box contents, and a detail with your trust fact — one look, one listing.\n\n1. Packshot — a clean photo of the product on a plain background.\n2. Product notes — what it is, three benefits, dimensions, what is in the box, warranty or materials, who it is for. Only what is here gets used.\n3. Listing plan — an AI strategist turns the notes into one plan: the promise, the look, and a line per image.\n4. Five briefs — one writer per image, each with a fixed role, each feeding its own image.\n5. Five images — square, phone-legible, the product exactly as photographed. Rerun one image alone for a new take.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Amazon listing studio — how it works",
+        "width": 1180,
+        "height": 650,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean photo of the product on a plain background. Every image gets it as a reference, so the shape, the materials, the markings and the colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Packshot",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1530
+      },
+      "data": {
+        "bold": false,
+        "text": "In plain words: what it is, who it is for, three benefits, the dimensions, what comes in the box, and a trust fact — warranty, material, certification. Nothing outside these notes gets invented; a missing detail simply stays off the image.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Product notes",
+        "width": 640,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-plan",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI strategist writes one plan for the set: the promise, the look every secondary image follows, and a line per image — main, lifestyle, features, size, trust. Edit a line by hand and rerun the images that quote it.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Listing plan",
+        "width": 480,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-briefs",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "One writer per image, each holding its role: the main image is the product alone on pure white with no text (marketplace rules); the others carry the look and the exact words to render. Read a brief, edit it by hand, then rerun just its image.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Five briefs",
+        "width": 560,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-images",
+      "type": "sticky-note",
+      "position": {
+        "x": 3060,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Square, one look, the product exactly as photographed, the words exactly as written. The main image goes first on the listing; the other four are your secondary images in order. Rerun one alone for another take.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Five images",
+        "width": 600,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 810
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/3e49c3a1-4941-4b19-a9aa-2085cf6e9db6.png",
+        "label": "Packshot",
+        "r2Url": "https://cdn.nodaro.ai/images/3e49c3a1-4941-4b19-a9aa-2085cf6e9db6.png",
+        "assetId": "3e49c3a1-4941-4b19-a9aa-2085cf6e9db6",
+        "filename": "espresso-machine-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/3e49c3a1-4941-4b19-a9aa-2085cf6e9db6.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1530
+      },
+      "data": {
+        "text": "Product: TERZO Barista One — a compact espresso machine in matte black steel with brass details and a walnut knob. For: home baristas who want café espresso without a café footprint. Benefits: 15-bar pump for real crema; PID temperature control, ready in 40 seconds; pro steam wand for silky milk. Size: 22 cm wide, 33 cm tall, 38 cm deep; 1.8-litre removable tank. In the box: the machine, a 54 mm portafilter, single and double baskets, a tamper, a milk jug. Trust: 2-year warranty; stainless-steel boiler. Tone: warm, precise, quietly confident.",
+        "label": "Product notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "plan",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1320
+      },
+      "data": {
+        "label": "Listing plan",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Product notes: {Product notes || a premium product sold on a marketplace.} The reference image is the packshot. Write the plan.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an Amazon listing strategist. From the product notes and the packshot, write the plan for the product's image set in exactly this shape, plain English, nothing else:\nProduct: <one line — what it is, for whom>\nPromise: <one sentence — the reason to buy>\nLook: <one paragraph of 50 to 80 words: the colour palette for the secondary images, the typography feel, how the product is lit and shown, the mood — one look every image follows; the main image is always the product alone on pure white>\nMain: <one sentence — the angle and framing of the product on white>\nLifestyle: <one sentence — who uses it, where, doing what>\nFeatures: <the three benefits from the notes, as three labels of at most four words each, separated by semicolons>\nSize: <the dimensions and the box contents from the notes, or: not given>\nTrust: <one sentence — the detail to show close up and the trust fact from the notes (warranty, material, certification), or: not given>\nUse only facts the notes state; never invent specifications, numbers or certifications. No other headings, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brief-main",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 1320
+      },
+      "data": {
+        "label": "Main image brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Listing plan: {Listing plan || a clean, premium look; the product large.} Product notes: {Product notes || a premium product.} The reference image is the packshot. Write this image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an Amazon listing designer. You get the listing plan, the product notes and the packshot. Write the brief for the MAIN IMAGE — the product alone on a pure white background, filling about 85 percent of the frame, no text, no props, no shadow beyond a faint contact shadow (marketplace rules) — this image only, square, in the plan's look, so the set reads as one listing.\nAnswer in exactly this shape, plain English, nothing else:\nText: <every word that appears on the image, each item in double quotes separated by semicolons — or the single word none>\nLook: <one paragraph of 60 to 90 words: the background, where the product sits and how big, what else is in the frame, where each text item sits and how large, the typography, the light and the mood — built to read on a phone thumbnail. The product from the packshot stays exactly as it is.>\nUse only facts from the notes and the plan; never invent specifications, numbers or claims. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brief-lifestyle",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2040
+      },
+      "data": {
+        "label": "Lifestyle brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Listing plan: {Listing plan || a clean, premium look; the product large.} Product notes: {Product notes || a premium product.} The reference image is the packshot. Write this image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an Amazon listing designer. You get the listing plan, the product notes and the packshot. Write the brief for the LIFESTYLE IMAGE — the product in real use by a real person in a real place, natural light, the product clearly visible and unchanged, at most one short text item — this image only, square, in the plan's look, so the set reads as one listing.\nAnswer in exactly this shape, plain English, nothing else:\nText: <every word that appears on the image, each item in double quotes separated by semicolons — or the single word none>\nLook: <one paragraph of 60 to 90 words: the background, where the product sits and how big, what else is in the frame, where each text item sits and how large, the typography, the light and the mood — built to read on a phone thumbnail. The product from the packshot stays exactly as it is.>\nUse only facts from the notes and the plan; never invent specifications, numbers or claims. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brief-features",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2760
+      },
+      "data": {
+        "label": "Features brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Listing plan: {Listing plan || a clean, premium look; the product large.} Product notes: {Product notes || a premium product.} The reference image is the packshot. Write this image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an Amazon listing designer. You get the listing plan, the product notes and the packshot. Write the brief for the FEATURES IMAGE — the product with the three benefit labels from the plan, each pointing at the part of the product it describes, big enough to read on a phone — this image only, square, in the plan's look, so the set reads as one listing.\nAnswer in exactly this shape, plain English, nothing else:\nText: <every word that appears on the image, each item in double quotes separated by semicolons — or the single word none>\nLook: <one paragraph of 60 to 90 words: the background, where the product sits and how big, what else is in the frame, where each text item sits and how large, the typography, the light and the mood — built to read on a phone thumbnail. The product from the packshot stays exactly as it is.>\nUse only facts from the notes and the plan; never invent specifications, numbers or claims. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brief-size",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 3480
+      },
+      "data": {
+        "label": "Size & box brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Listing plan: {Listing plan || a clean, premium look; the product large.} Product notes: {Product notes || a premium product.} The reference image is the packshot. Write this image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an Amazon listing designer. You get the listing plan, the product notes and the packshot. Write the brief for the SIZE AND BOX IMAGE — the product with its dimensions marked as clean lines and figures from the plan, and everything included in the box laid out beside it and labelled; if the plan says not given, show the product next to a familiar object for scale, no figures — this image only, square, in the plan's look, so the set reads as one listing.\nAnswer in exactly this shape, plain English, nothing else:\nText: <every word that appears on the image, each item in double quotes separated by semicolons — or the single word none>\nLook: <one paragraph of 60 to 90 words: the background, where the product sits and how big, what else is in the frame, where each text item sits and how large, the typography, the light and the mood — built to read on a phone thumbnail. The product from the packshot stays exactly as it is.>\nUse only facts from the notes and the plan; never invent specifications, numbers or claims. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brief-trust",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 4200
+      },
+      "data": {
+        "label": "Detail & trust brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Listing plan: {Listing plan || a clean, premium look; the product large.} Product notes: {Product notes || a premium product.} The reference image is the packshot. Write this image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an Amazon listing designer. You get the listing plan, the product notes and the packshot. Write the brief for the DETAIL AND TRUST IMAGE — one tight close-up of the detail from the plan, with the trust fact as one short line or badge; if the plan says not given, the close-up alone with no text — this image only, square, in the plan's look, so the set reads as one listing.\nAnswer in exactly this shape, plain English, nothing else:\nText: <every word that appears on the image, each item in double quotes separated by semicolons — or the single word none>\nLook: <one paragraph of 60 to 90 words: the background, where the product sits and how big, what else is in the frame, where each text item sits and how large, the typography, the light and the mood — built to read on a phone thumbnail. The product from the packshot stays exactly as it is.>\nUse only facts from the notes and the plan; never invent specifications, numbers or claims. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "image-main",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 1320
+      },
+      "data": {
+        "label": "Main image",
+        "style": "",
+        "prompt": "Finished square 1:1 marketplace listing image built from this brief: {Main image brief || Text: none Look: the product alone on a pure white background, large and centred, soft even light, a faint contact shadow, nothing else in the frame.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, sharp and unchanged. Render the text items from the brief exactly as written — same words, same spelling — and no other text; if the brief says none, render no text at all. Photorealistic, clean, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "image-lifestyle",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2040
+      },
+      "data": {
+        "label": "Lifestyle",
+        "style": "",
+        "prompt": "Finished square 1:1 marketplace listing image built from this brief: {Lifestyle brief || Text: none Look: the product alone on a pure white background, large and centred, soft even light, a faint contact shadow, nothing else in the frame.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, sharp and unchanged. Render the text items from the brief exactly as written — same words, same spelling — and no other text; if the brief says none, render no text at all. Photorealistic, clean, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "image-features",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2760
+      },
+      "data": {
+        "label": "Features",
+        "style": "",
+        "prompt": "Finished square 1:1 marketplace listing image built from this brief: {Features brief || Text: none Look: the product alone on a pure white background, large and centred, soft even light, a faint contact shadow, nothing else in the frame.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, sharp and unchanged. Render the text items from the brief exactly as written — same words, same spelling — and no other text; if the brief says none, render no text at all. Photorealistic, clean, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "image-size",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 3480
+      },
+      "data": {
+        "label": "Size & box",
+        "style": "",
+        "prompt": "Finished square 1:1 marketplace listing image built from this brief: {Size & box brief || Text: none Look: the product alone on a pure white background, large and centred, soft even light, a faint contact shadow, nothing else in the frame.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, sharp and unchanged. Render the text items from the brief exactly as written — same words, same spelling — and no other text; if the brief says none, render no text at all. Photorealistic, clean, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "image-trust",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 4200
+      },
+      "data": {
+        "label": "Detail & trust",
+        "style": "",
+        "prompt": "Finished square 1:1 marketplace listing image built from this brief: {Detail & trust brief || Text: none Look: the product alone on a pure white background, large and centred, soft even light, a faint contact shadow, nothing else in the frame.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, sharp and unchanged. Render the text items from the brief exactly as written — same words, same spelling — and no other text; if the brief says none, render no text at all. Photorealistic, clean, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-notes-plan",
+      "source": "notes",
+      "target": "plan",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-plan",
+      "source": "product",
+      "target": "plan",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-plan-brief-main",
+      "source": "plan",
+      "target": "brief-main",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-brief-main",
+      "source": "notes",
+      "target": "brief-main",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-brief-main",
+      "source": "product",
+      "target": "brief-main",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-image-main",
+      "source": "brief-main",
+      "target": "image-main",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-image-main",
+      "source": "product",
+      "target": "image-main",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-plan-brief-lifestyle",
+      "source": "plan",
+      "target": "brief-lifestyle",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-brief-lifestyle",
+      "source": "notes",
+      "target": "brief-lifestyle",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-brief-lifestyle",
+      "source": "product",
+      "target": "brief-lifestyle",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-image-lifestyle",
+      "source": "brief-lifestyle",
+      "target": "image-lifestyle",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-image-lifestyle",
+      "source": "product",
+      "target": "image-lifestyle",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-plan-brief-features",
+      "source": "plan",
+      "target": "brief-features",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-brief-features",
+      "source": "notes",
+      "target": "brief-features",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-brief-features",
+      "source": "product",
+      "target": "brief-features",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-image-features",
+      "source": "brief-features",
+      "target": "image-features",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-image-features",
+      "source": "product",
+      "target": "image-features",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-plan-brief-size",
+      "source": "plan",
+      "target": "brief-size",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-brief-size",
+      "source": "notes",
+      "target": "brief-size",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-brief-size",
+      "source": "product",
+      "target": "brief-size",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-image-size",
+      "source": "brief-size",
+      "target": "image-size",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-image-size",
+      "source": "product",
+      "target": "image-size",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-plan-brief-trust",
+      "source": "plan",
+      "target": "brief-trust",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-brief-trust",
+      "source": "notes",
+      "target": "brief-trust",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-brief-trust",
+      "source": "product",
+      "target": "brief-trust",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-image-trust",
+      "source": "brief-trust",
+      "target": "image-trust",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-image-trust",
+      "source": "product",
+      "target": "image-trust",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.167
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "notes": {
+          "title": "Product notes",
+          "description": "What it is, three benefits, size, box contents, trust fact — in plain words."
+        },
+        "product": {
+          "title": "Your packshot",
+          "description": "A clean photo on a plain background. It appears exactly as it is in every image."
+        },
+        "image-main": {
+          "title": "Main image",
+          "description": "The product alone on pure white — the listing's first image."
+        },
+        "image-size": {
+          "title": "Size & box",
+          "description": "Dimensions and what comes in the box."
+        },
+        "image-trust": {
+          "title": "Detail & trust",
+          "description": "A close-up with your trust fact."
+        },
+        "image-features": {
+          "title": "Features",
+          "description": "Three benefits, labelled on the product."
+        },
+        "image-lifestyle": {
+          "title": "Lifestyle",
+          "description": "The product in real use."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "notes"
+      ],
+      "outputOrder": [
+        "image-main",
+        "image-lifestyle",
+        "image-features",
+        "image-size",
+        "image-trust"
+      ]
+    }
+  }
+}
