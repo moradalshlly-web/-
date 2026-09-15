@@ -16,8 +16,8 @@ The Combine Videos node joins multiple video clips in sequence with configurable
 | Crossfade Duration | Number | 0.5 | AUDIO-only crossfade length (0-5s, shown when Audio = Crossfade). Never affects the video. Falls back to Transition Duration on older workflows. |
 | Crossfade Curve | Select | linear | Audio fade curve (shown when Audio = Crossfade) |
 | Boundary Cut | Select | manual | How each clip-to-clip boundary is cut. **Manual** trims an exact number of frames (fields below). The **Smart** methods (**Nodaro Cloud only**) find the cut automatically: `best-pair` (the single most similar frame pair), `preroll-keep-next` or `preroll-keep-prev` (see below). Manual and Smart are alternatives, not layers |
-| Smart: prev window | Number | 8 | Frames searched at the END of each clip (1-24, shown for Smart methods) |
-| Smart: next window | Number | 8 | Frames searched at the START of the following clip (1-24) |
+| Smart: prev window | Number | 8 | Frames searched at the END of each clip (1-24, shown for Smart methods). A value outside the range is narrowed to it before the run |
+| Smart: next window | Number | 8 | Frames searched at the START of the following clip (1-24). A value outside the range is narrowed to it before the run |
 | Trim Start Frames | Number | 1 | **Manual method only.** Frames trimmed from the start of EACH clip except the first (0-120). Default 1 drops the duplicated boundary frame AI continuation clips carry |
 | Trim End Frames | Number | 2 | **Manual method only.** Frames trimmed from the end of EACH clip except the last (0-120). Default 2 drops boundary generation artifacts |
 | Clip Ordering | Drag list | — | Reorder connected video clips |
@@ -83,6 +83,12 @@ For continuation clips (each generated from the previous clip's last frame), the
 **Fallback:** frames only count as a genuine match when they are close enough to be the same moment, and the pre-roll methods additionally require a real run of matching frames rather than one isolated pair. Boundaries with a match use the method's cut; boundaries **without** one (clips that don't actually continue each other, or a failed search) fall back to the **default trims** (start 1 / end 2). Custom trim values belong to the Manual method only — switching to a Smart method resets them, so nothing hidden steers the fallback.
 
 **Voice at smart boundaries (audio-preserving cut):** the trimmed frames are *duplicated video*, but their audio is not a duplicate — continuation models re-render the picture overlap while the speech simply carries on, so cutting both streams would clip words mid-syllable. With **Audio = Crossfade** and a hard-cut transition (`cut`, or any transition at duration 0), a **matched** boundary therefore trims only the previous clip's *video*: its real audio tail keeps playing under the next clip's first moments and fades out over the audio-crossfade length — an L-cut made of the genuine recording instead of a synthetic stretch. Unmatched boundaries, the Manual method, `keep`/`remove` audio, and blend transitions keep the classic symmetric trim.
+
+**Window bounds.** Both windows accept **1-24**. A value outside that range — typed
+into the panel, carried over by an imported workflow, or written into the workflow
+JSON by an agent — is narrowed to the nearest legal value before the request is
+sent (48 becomes 24, 0 becomes 1), and a non-numeric value falls back to the
+default 8. The run proceeds; it is never rejected for this.
 
 **Every junction is searched independently** — with 3 clips there are 2 boundaries, each with its own result. The applied values are reported in the job's `output_data.smartCuts`:
 

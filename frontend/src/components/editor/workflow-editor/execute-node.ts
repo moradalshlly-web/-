@@ -6397,8 +6397,8 @@ function executeNodeCore(
       combineData.audioCrossfadeCurve,
       combineData.audioCrossfadeDuration,
       combineData.smartCutEnabled,
-      combineData.smartCutFramesPrev,
-      combineData.smartCutFramesNext,
+      clampSmartCutWindow(combineData.smartCutFramesPrev),
+      clampSmartCutWindow(combineData.smartCutFramesNext),
       combineData.smartCutMode,
     );
   }

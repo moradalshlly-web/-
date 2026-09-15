@@ -2359,6 +2359,28 @@ describe("combine-videos", () => {
       undefined, // smartCutMode — best-pair by default (only sent when set)
     )
   })
+
+  // The route bounds the search windows at 1..24 and REJECTS anything else, so
+  // a node value out of range must degrade to a legal request rather than 400
+  // the run. `data` is not trusted: it can be typed into the panel, imported,
+  // or written straight into workflow JSON. Same clamp as the orchestrator.
+  it("clamps out-of-range smart-cut search windows instead of sending them", async () => {
+    mockResolveNodeInputs.mockReturnValue({
+      videoUrls: ["http://a.mp4", "http://b.mp4"],
+    })
+    mockRunCombineVideos.mockResolvedValue(undefined)
+    await executeNode(
+      makeNode("combine-videos", {
+        smartCutEnabled: true,
+        smartCutFramesPrev: 48,
+        smartCutFramesNext: 0,
+      }),
+      makeCtx(),
+    )
+    const call = mockRunCombineVideos.mock.calls[0]
+    expect(call[12]).toBe(24) // smartCutFramesPrev — clamped to the ceiling
+    expect(call[13]).toBe(1)  // smartCutFramesNext — clamped to the floor
+  })
 })
 
 // ---------------------------------------------------------------------------

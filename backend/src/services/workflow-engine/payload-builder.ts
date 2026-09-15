@@ -5331,8 +5331,12 @@ export function buildPayload(
         // Cut-point algorithm; unknown/legacy values degrade to best-pair
         // (the pre-mode behavior) at the worker's ?? fallback.
         smartCutMode: data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next" ? data.smartCutMode : undefined,
-        smartCutFramesPrev: data.smartCutFramesPrev as number | undefined,
-        smartCutFramesNext: data.smartCutFramesNext as number | undefined,
+        // Clamped through the SAME shared helper the canvas Run path uses (and
+        // the generate-video-pro case above): a stale or hand-edited node value
+        // degrades to a legal request instead of 400-ing the whole run at the
+        // route's Zod.
+        smartCutFramesPrev: clampSmartCutWindow(data.smartCutFramesPrev),
+        smartCutFramesNext: clampSmartCutWindow(data.smartCutFramesNext),
         // Unset trims default to start 1 / end 2 (the user-validated
         // continuation recipe) — same defaults as the route's Zod.
         trimStartFrames: (data.trimStartFrames as number) ?? 1,
