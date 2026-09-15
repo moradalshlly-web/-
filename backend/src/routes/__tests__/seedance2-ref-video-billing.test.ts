@@ -200,7 +200,29 @@ describe("/v1/generate-video Seedance 2 reference-video billing", () => {
     await app.close()
   })
 
-  it("a run the handler sends down the voiced-video lane (dialogue on a Seedance model) is NOT reserved at the ref-scaled worst case — that lane forwards no reference videos", async () => {
+  it("the loop-trim add-on stacks on the reference-video base (ceil(6.25 × 13) + 3 = 816)", async () => {
+    const app = await buildGenerateVideoApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/generate-video",
+      payload: {
+        provider: "seedance-2",
+        resolution: "720p",
+        duration: 8,
+        referenceVideoUrls: ["https://r2.example.com/ref.mp4"],
+        loopTrim: { enabled: true, framesToTest: 16, quality: "precise" },
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    // 813 (input + output) + ceil(8/5) + ceil(16/24) = 813 + 3.
+    expect(reserveSpy).toHaveBeenCalledWith(
+      "u-1", "job-1", expect.any(String), 0, 0,
+      expect.objectContaining({ creditOverride: 816 }),
+    )
+    await app.close()
+  })
+
+  it("a run the handler sends down the voiced-video lane (dialogue on a Seedance model) reserves the reference-video worst case PLUS the audio add-on (#1396)", async () => {
     const app = await buildGenerateVideoApp()
     const res = await app.inject({
       method: "POST",
@@ -215,17 +237,21 @@ describe("/v1/generate-video Seedance 2 reference-video billing", () => {
       },
     })
     expect(res.statusCode).toBe(200)
-    // The ordinary -ref composite (seedance-2-5:8s:720p-ref = 760) plus the
-    // dialogue add-on (elevenlabs-dialogue = 25) — never unit×(input+output),
-    // never the edit-mode worst case.
+    // The voiced lane forwards the reference video like any other run, so the
+    // reservation is the same unit×(input+output) worst case — ceil(95 × (5 +
+    // 8)) = 1235 — plus the dialogue add-on (elevenlabs-dialogue = 25).
     const { STATIC_CREDIT_COSTS } = await import("../../ee/billing/credits.js")
     expect(reserveSpy).toHaveBeenCalledWith(
-      "u-1", "job-1", expect.any(String), 0, 0,
-      expect.objectContaining({ creditOverride: STATIC_CREDIT_COSTS["seedance-2-5:8s:720p-ref"]! + STATIC_CREDIT_COSTS["elevenlabs-dialogue"]! }),
+      "u-1", "job-1", "seedance-2-5:8s:720p-ref", 0, 0,
+      expect.objectContaining({ creditOverride: 1235 + STATIC_CREDIT_COSTS["elevenlabs-dialogue"]! }),
     )
-    expect(refCreditsSpy).not.toHaveBeenCalled()
+    expect(refCreditsSpy).toHaveBeenCalledWith(expect.objectContaining({ provider: "seedance-2-5", outputDurationSec: 8, durationsSec: [5] }))
+    // …and the voiced job carries the references and the probe for the worker.
     const { videoQueue } = await import("../../lib/queue.js")
-    expect(videoQueue.add).toHaveBeenCalledWith("voiced-video", expect.anything())
+    expect(videoQueue.add).toHaveBeenCalledWith(
+      "voiced-video",
+      expect.objectContaining({ referenceVideoUrls: ["https://r2.example.com/ref.mp4"], refVideoDurationsSec: [5] }),
+    )
     await app.close()
   })
 

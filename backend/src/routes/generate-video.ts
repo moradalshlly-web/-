@@ -673,19 +673,20 @@ export async function generateVideoRoutes(app: FastifyInstance) {
           // the reserved AMOUNT disagree with the checked IDENTIFIER, which is
           // the exact drift this normalizer exists to remove.
           const normResolution = req.videoNorm?.resolution ?? (b.resolution as string | undefined)
+          // A dynamically priced BASE (reference-video runs) replaces the seeded
+          // composite below; the add-ons (loop trim, the voiced audio step)
+          // ride on top of whichever base applies, so a voiced Seedance run
+          // with a reference video — the `voiced-video` lane forwards the
+          // reference videos like any other run (#1396) — reserves the same
+          // worst case as an unvoiced one plus its audio step.
+          let dynamicBase: number | undefined
           // Seedance 2 reference-video runs are billed unit×(input+output). The
           // seeded `-ref` composite only encodes the per-8s OUTPUT rate, so we
           // ffprobe the connected reference videos and reserve the FULL scaled
           // base UP FRONT (commit_credits only refunds — never up-charges). Core
           // may not statically import ee/, so the helper is loaded dynamically
           // (the allowed escape hatch — same pattern the credit-guard shim uses).
-          //
-          // NOT for a run the handler will send down the `voiced-video` lane:
-          // that handler synthesises the dialogue first and runs the video with
-          // AUDIO references only — it forwards no reference videos — so the
-          // provider bills no input seconds and edit mode cannot arise. Such a
-          // run takes the ordinary composite (+ the audio add-on) below.
-          if (!dispatchesVoicedVideo(b) && isSeedance2Provider(b?.provider as string | undefined) && hasVideoRef) {
+          if (isSeedance2Provider(b?.provider as string | undefined) && hasVideoRef) {
             const { seedance2RefVideoBaseCreditsFromDurations } =
               await import("../ee/billing/seedance2-ref-video-credits.js")
             const priceArgs = {
@@ -710,7 +711,7 @@ export async function generateVideoRoutes(app: FastifyInstance) {
               req.refVideoDurationsSec ??
               (await probeRefVideoDurations({ provider: priceArgs.provider, referenceVideoUrls: b.referenceVideoUrls as unknown[] }))
             req.refVideoDurationsSec = durationsSec
-            return seedance2RefVideoBaseCreditsFromDurations({ ...priceArgs, durationsSec })
+            dynamicBase = seedance2RefVideoBaseCreditsFromDurations({ ...priceArgs, durationsSec })
           }
           // MiniMax Hailuo 3 bills unit×(input+output) for reference-video runs
           // AND surcharges input images beyond the first 5 (11 KIE cr each).
@@ -770,10 +771,9 @@ export async function generateVideoRoutes(app: FastifyInstance) {
               // ffprobed this request (minimax-h3 has a declared bound), so the
               // DEBIT prices from the very array the CHECK read, NaN included.
               const stashed = req.refVideoDurationsSec
-              if (stashed) {
-                return minimaxH3BaseCreditsFromDurations({ ...h3PriceArgs, durationsSec: stashed })
-              }
-              return minimaxH3BaseCreditsFromUrls({ ...h3PriceArgs, referenceVideoUrls: refVideos })
+              dynamicBase = stashed
+                ? minimaxH3BaseCreditsFromDurations({ ...h3PriceArgs, durationsSec: stashed })
+                : await minimaxH3BaseCreditsFromUrls({ ...h3PriceArgs, referenceVideoUrls: refVideos })
             }
             // No ref videos and ≤5 images → the seeded duration composite prices it.
           }
@@ -787,7 +787,9 @@ export async function generateVideoRoutes(app: FastifyInstance) {
             normResolution,
             hasVideoRef,
           )
-          const { creditCost: baseCost } = await getModelCreditBaseCost(modelId)
+          // The seeded composite prices every run the dynamic branches above
+          // did not; the add-ons stack on either base.
+          const baseCost = dynamicBase ?? (await getModelCreditBaseCost(modelId)).creditCost
           // Normalize legacy autoLoopTrim into loopTrim for addon math.
           const rawLoopTrim = b.loopTrim as { enabled?: boolean; framesToTest?: number } | undefined
           const legacyAuto = b.autoLoopTrim as boolean | undefined

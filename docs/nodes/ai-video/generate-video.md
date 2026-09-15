@@ -429,6 +429,8 @@ Kling models speak scripted dialogue natively: quote the line in the prompt (opt
 
 **Speaker mapping.** Each `dialogue[].speaker` is matched (case-insensitive) to a `characterVoices[].speaker` to pick that line's `voiceId`. An unmatched speaker falls back to the default (first) voice, mirroring the pipeline's non-fatal missing-voice behavior. Total dialogue text is capped at 5,000 characters (the shared Dialogue v3 limit); lines over the budget are dropped with a log entry.
 
+**References ride along.** Images, videos and audio wired to the node reach the model on the voiced path exactly as on an unvoiced run, with one substitution: on an `audio_driven` model the synthesised dialogue track takes the audio-reference slot. A Seedance reference-video run is reserved and settled like an unvoiced one (see *Reference videos bill input + output duration* under pricing), with the audio add-on on top.
+
 ### Credit pricing (character voice)
 
 The audio step is reserved as an add-on **on top of** the base video cost — same `computeCredits` mechanism as Loop Trim (the base cost is never counted twice) — and committed only if the step actually runs:
