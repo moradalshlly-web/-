@@ -20,6 +20,7 @@ import { mapReserveError } from "../../lib/reserve-errors.js"
 import { CreditsService } from "../../ee/billing/credits.js"
 import { refundJobCredits } from "../../workers/shared.js"
 import { buildScene3DHttpBody, isScene3DAuthoringType } from "./scene3d-http.js"
+import { loopbackFetch } from "./loopback-fetch.js"
 import { buildPayload, buildNodeRefMap, type WorkflowSettings } from "./payload-builder.js"
 import { ensureWorkflowSheetPanels } from "./reference-sheet-stage-a.js"
 import { buildNodeOutputFromJobData } from "./output-extractor.js"
@@ -621,12 +622,16 @@ async function executeSyncHttpNode(
   // re-pick of the same node must resolve to the same run rather than buy a
   // second one.
   if (node.type === "pro-3d-render") {
-    const quoted = await fetch(`${url}/quote`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(NODE_TIMEOUT_MS),
-    })
+    const quoted = await loopbackFetch(
+      `${url}/quote`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(NODE_TIMEOUT_MS),
+      },
+      { label: `Sync HTTP call to ${route}/quote` },
+    )
     if (!quoted.ok) {
       throw new Error(`Sync HTTP call to ${route}/quote failed (${quoted.status}): ${await quoted.text()}`)
     }
@@ -639,12 +644,16 @@ async function executeSyncHttpNode(
       `wf-${ctx.executionId}-${node.id}${iterationIndex === undefined ? "" : `-${iterationIndex}`}`
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(NODE_TIMEOUT_MS),
-  })
+  const response = await loopbackFetch(
+    url,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(NODE_TIMEOUT_MS),
+    },
+    { label: `Sync HTTP call to ${route}` },
+  )
 
   if (!response.ok) {
     const errorBody = await response.text()
@@ -2043,26 +2052,30 @@ async function executeComponentNode(
   // Call the component-execute route via internal HTTP.
   // Uses the shared-secret internal-orchestrator auth, same as other sync HTTP nodes.
   const port = process.env.BACKEND_PORT || process.env.PORT || "8000"
-  const res = await fetch(`http://localhost:${port}/v1/component/execute`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Internal-Orchestrator-Secret": config.INTERNAL_ORCHESTRATOR_SECRET,
+  const res = await loopbackFetch(
+    `http://localhost:${port}/v1/component/execute`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Orchestrator-Secret": config.INTERNAL_ORCHESTRATOR_SECRET,
+      },
+      body: JSON.stringify({
+        appSlug,
+        inputOverrides: mergedOverrides,
+        pinnedVersion: (data.pinnedVersion as number) || undefined,
+        componentDepth: depth + 1,
+        executingComponentIds: [...ancestorIds, appSlug],
+        userId: ctx.userId,
+        // P14: the component route replies 202 and starts a SEPARATE execution
+        // in the background — a header would die with this wrapper request, so
+        // the parent's resolved payer rides the BODY into the child execution's
+        // payload (the route honors it on the internal lane only).
+        billingContext: ctx.billingContext,
+      }),
     },
-    body: JSON.stringify({
-      appSlug,
-      inputOverrides: mergedOverrides,
-      pinnedVersion: (data.pinnedVersion as number) || undefined,
-      componentDepth: depth + 1,
-      executingComponentIds: [...ancestorIds, appSlug],
-      userId: ctx.userId,
-      // P14: the component route replies 202 and starts a SEPARATE execution
-      // in the background — a header would die with this wrapper request, so
-      // the parent's resolved payer rides the BODY into the child execution's
-      // payload (the route honors it on the internal lane only).
-      billingContext: ctx.billingContext,
-    }),
-  })
+    { label: "Component execute call to /v1/component/execute" },
+  )
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))

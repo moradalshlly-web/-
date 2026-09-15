@@ -3,6 +3,7 @@ import { config } from "../../lib/config.js"
 import { resolveSheetSections, planSheetGeneration } from "@nodaro/shared"
 import type { EntityKind, SheetType, SheetFlavour } from "@nodaro/shared"
 import { resolveSheetEntity } from "./payload-builder.js"
+import { loopbackFetch } from "./loopback-fetch.js"
 import type { SimpleNode, SimpleEdge, NodeExecutionState, OrchestratorContext } from "./types.js"
 
 /**
@@ -92,12 +93,16 @@ async function postGenerateAsset(
     attachName: req.attachName,
     [attachField]: entityDbId,
   }
-  const res = await fetch(`http://localhost:${port}${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(PANEL_TIMEOUT_MS),
-  })
+  const res = await loopbackFetch(
+    `http://localhost:${port}${path}`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(PANEL_TIMEOUT_MS),
+    },
+    { label: `reference-sheet Stage-A panel route ${path}` },
+  )
   if (!res.ok) {
     const text = await res.text().catch(() => "")
     console.warn(`[orchestrator] reference-sheet Stage-A panel route ${path} rejected (${res.status}): ${text.slice(0, 200)}`)
