@@ -1232,3 +1232,10 @@ Build artifacts remain available for seven days. “Re-run failed jobs” reuses
 successful preparation from the same workflow run. After artifact expiry,
 choose “Re-run all jobs” to regenerate the outputs. Full reruns replace the
 artifacts for that run; artifacts are never reused across workflow runs.
+
+A private-repository runner pilot can route the two main test suites to runners
+labelled `self-hosted,linux,x64,nodaro-ci-pilot` by setting the repository variable
+`CI_RAILWAY_PILOT_BRANCH` to a same-repository PR branch. Public forks and normal
+production runs stay hosted. Clear the variable and rerun to return pilot jobs
+to hosted runners. Docker build contexts exclude local session state, reports
+and test files; the full CI test and typecheck jobs continue to use the checkout.

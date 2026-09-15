@@ -114,7 +114,9 @@ jobs:
     name: Frontend Tests
     needs: [changes, prepare-packages]
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.prepare-packages.result != 'success' || needs.changes.outputs.frontend == 'true') }}
-    runs-on: ubuntu-latest
+    # Pilot opt-in is restricted to same-repository PRs on the named branch.
+    # An unset pilot branch leaves normal hosted scheduling in place.
+    runs-on: ${{ github.repository == 'nodaroai/app.nodaro.ai-internal' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.CI_RAILWAY_PILOT_BRANCH != '' && github.head_ref == vars.CI_RAILWAY_PILOT_BRANCH && fromJSON('["self-hosted", "linux", "x64", "nodaro-ci-pilot"]') || 'ubuntu-latest' }}
     steps:
       - name: Require successful preparation
         env:
@@ -201,7 +203,9 @@ jobs:
     name: Backend Tests
     needs: [changes, prepare-packages]
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.prepare-packages.result != 'success' || needs.changes.outputs.backend == 'true') }}
-    runs-on: ubuntu-latest
+    # Pilot opt-in is restricted to same-repository PRs on the named branch.
+    # An unset pilot branch leaves normal hosted scheduling in place.
+    runs-on: ${{ github.repository == 'nodaroai/app.nodaro.ai-internal' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.CI_RAILWAY_PILOT_BRANCH != '' && github.head_ref == vars.CI_RAILWAY_PILOT_BRANCH && fromJSON('["self-hosted", "linux", "x64", "nodaro-ci-pilot"]') || 'ubuntu-latest' }}
     # Hang guard (issue #801): the job wedged 48-83 min five times in two days.
     # Every one of those was the runner's apt mirror stalling inside the old
     # `apt-get install ffmpeg` step — vitest was never reached — so that step
