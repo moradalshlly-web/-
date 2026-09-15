@@ -1232,6 +1232,22 @@ export interface PluginSafeFetchInit {
 }
 
 /**
+ * Mirrors the return shape of `computeVoiceChangerProPricing`
+ * (`ee/billing/voice-changer-pro-credits.ts`). BASE (pre-markup) credits:
+ * the per-minute speech-to-speech unit and the per-1K Re-speak unit are read
+ * from `model_pricing` (static seed as fallback), each slot priced as
+ * `max(floor, ceil(unit × stemSec / 60))` / `max(floor, ceil(chars/1000) × per1K)`.
+ */
+export interface VoiceChangerProPricing {
+  unitPerMinute: number
+  respeakPer1K: number
+  floor: number
+  stsCredits: number[]
+  respeakCredits: number[]
+  reserveBase: number
+}
+
+/**
  * Mirrors the return shape of `computeGenerateVideoProPricing`
  * (`ee/billing/generate-video-pro-credits.ts`) — the pro split/pricing
  * formula's single source of truth, shared by the route's credit-guard
@@ -1360,7 +1376,27 @@ export interface PluginHttpToolkit {
     data: Record<string, unknown> & { user_id: string },
     idempotencyKey: string | null | undefined,
     billingContext?: PluginBillingContext,
+    /** The originating request. When given, the toolkit stamps the calling
+     *  surface (`source` / `source_detail`, `lib/job-source.ts`) UNDER the
+     *  plugin's row — caller-supplied columns still win — so plugin jobs stop
+     *  rendering as "—" in /admin/jobs. Additive-optional (no contract bump):
+     *  an older plugin omits it and its rows stay unstamped as before. */
+    req?: FastifyRequest,
   ): Promise<{ id: string; created: boolean }>
+  /**
+   * Mirrors `computeVoiceChangerProPricing`
+   * (`ee/billing/voice-changer-pro-credits.ts`) — see `VoiceChangerProPricing`.
+   * Same dynamic-import gate as `computeGenerateVideoProPricing` below.
+   * Additive-optional (no contract bump): `?.`-guard it and fall back to the
+   * plugin's own constants when the host predates it.
+   */
+  computeVoiceChangerProPricing?(args: {
+    /** Stem seconds per speech-to-speech slot (prorated per second, rounded up
+     *  to the next credit); null/0 = unknown → one minute. */
+    stsSlotSeconds: ReadonlyArray<number | null | undefined>
+    /** Re-spoken chars per v3 slot; null/0 = unknown → one 1K bucket. */
+    respeakChars: ReadonlyArray<number | null | undefined>
+  }): Promise<VoiceChangerProPricing>
   /**
    * Mirrors `computeGenerateVideoProPricing`
    * (`ee/billing/generate-video-pro-credits.ts`) — see `GenerateVideoProPricing`.

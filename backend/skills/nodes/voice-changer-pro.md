@@ -1,7 +1,7 @@
 ---
 node_type: voice-changer-pro
-generated_at: 2026-08-31T00:09:26.390Z
-generated_from: 5fe66b0ff
+generated_at: 2026-09-15T09:39:50.018Z
+generated_from: 3c1c187c8
 ---
 
 # Voice Changer Pro
@@ -9,7 +9,7 @@ generated_from: 5fe66b0ff
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `voice-changer-pro`
 **Category:** ai
-**Credit cost:** 4
+**Credit cost:** 40
 **Inputs (target handles):** `audio`, `video`
 **Outputs (source handles):** `audio`, `video`
 
