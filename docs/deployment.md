@@ -1213,3 +1213,22 @@ run `node --test tools/__tests__/managed-supabase-proxy.test.mjs`.
 - [Edge modes](./edge-modes.md) — request flow, auth, edition gates
 - [API Integration](./api-integration.md) — once you're up, talk to
   your instance from your own server
+
+## CI build preparation
+
+The CI workflow builds shared workspace packages once per run and compiles the
+backend once for both cloud and community boot probes. Each consumer still
+installs dependencies with `npm ci`; only compiled outputs are transferred.
+The artifact receipt checks the commit, workflow run, lockfile, Node major,
+operating system, architecture and archive checksum before extraction.
+
+Preparation failures explicitly fail dependent required checks. Frontend and
+backend tests may still skip when the diff gate confirms they are unrelated;
+post-merge production CI runs both suites. Coverage, cross-tree parity checks,
+real database migration proofs and both edition probes retain their assertions.
+Independent source guards run on lightweight runners.
+
+Build artifacts remain available for seven days. “Re-run failed jobs” reuses
+successful preparation from the same workflow run. After artifact expiry,
+choose “Re-run all jobs” to regenerate the outputs. Full reruns replace the
+artifacts for that run; artifacts are never reused across workflow runs.

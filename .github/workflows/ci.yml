@@ -36,7 +36,7 @@ jobs:
   # Push events (main) always run everything — post-merge coverage is total.
   changes:
     name: Diff Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       pull-requests: read
     outputs:
@@ -69,7 +69,7 @@ jobs:
           while IFS= read -r f; do
             case "$f" in
               docs/*|*.md) ;;                                  # affects neither suite
-              .github/workflows/ci.yml) frontend=true; backend=true ;;
+              .github/workflows/ci.yml|.github/actions/*) frontend=true; backend=true ;;
               .github/*) ;;                                    # other workflows: neither
               frontend/*) frontend=true ;;
               backend/*|supabase/*) backend=true ;;
@@ -80,11 +80,10 @@ jobs:
           echo "backend=$backend" >> "$GITHUB_OUTPUT"
           echo "changed=$count frontend=$frontend backend=$backend"
 
-  frontend-tests:
-    name: Frontend Tests
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+  prepare-packages:
+    name: Prepare Shared Packages
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
         with:
@@ -98,9 +97,46 @@ jobs:
         run: corepack enable npm && corepack prepare npm@11.12.1 --activate
       - name: Install workspace dependencies
         run: npm ci
-      - name: Build shared packages
-        id: build-packages
+      - name: Build shared packages once
         run: npm run build:packages
+      - name: Package verified build outputs
+        run: node tools/ci-build-artifact.mjs pack packages "$RUNNER_TEMP/ci-build-packages"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ci-build-packages
+          path: ${{ runner.temp }}/ci-build-packages/
+          retention-days: 7
+          overwrite: true
+          compression-level: 0
+          if-no-files-found: error
+
+  frontend-tests:
+    name: Frontend Tests
+    needs: [changes, prepare-packages]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.prepare-packages.result != 'success' || needs.changes.outputs.frontend == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful preparation
+        env:
+          DEPENDENCIES: ${{ toJSON(needs) }}
+        run: echo "$DEPENDENCIES" | jq -e 'all(.[]; .result == "success")'
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Pin npm 11
+        run: corepack enable npm && corepack prepare npm@11.12.1 --activate
+      - name: Install workspace dependencies
+        run: npm ci
+      - name: Restore shared packages
+        id: build-packages
+        uses: ./.github/actions/restore-ci-build
+        with:
+          kind: packages
       # Same reasoning as the shared/prompts suites in Backend Tests: a
       # workspace-package suite that only runs locally silently rots.
       # @nodaro/picker-ui's tests assert catalog/registry parity against
@@ -132,8 +168,14 @@ jobs:
 
   remotion-tests:
     name: Remotion Tests
+    needs: [prepare-packages]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
+      - name: Require successful preparation
+        env:
+          DEPENDENCIES: ${{ toJSON(needs) }}
+        run: echo "$DEPENDENCIES" | jq -e 'all(.[]; .result == "success")'
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -146,16 +188,19 @@ jobs:
         run: corepack enable npm && corepack prepare npm@11.12.1 --activate
       - name: Install workspace dependencies
         run: npm ci
-      - name: Build shared packages
-        run: npm run build:packages
+      - name: Restore shared packages
+        id: build-packages
+        uses: ./.github/actions/restore-ci-build
+        with:
+          kind: packages
       - name: Run remotion tests
         run: npm run test
         working-directory: packages/remotion
 
   backend-tests:
     name: Backend Tests
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    needs: [changes, prepare-packages]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.prepare-packages.result != 'success' || needs.changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     # Hang guard (issue #801): the job wedged 48-83 min five times in two days.
     # Every one of those was the runner's apt mirror stalling inside the old
@@ -171,6 +216,10 @@ jobs:
       NODE_ENV: test
       YOUTUBE_DL_SKIP_DOWNLOAD: true
     steps:
+      - name: Require successful preparation
+        env:
+          DEPENDENCIES: ${{ toJSON(needs) }}
+        run: echo "$DEPENDENCIES" | jq -e 'all(.[]; .result == "success")'
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -196,9 +245,11 @@ jobs:
         run: corepack enable npm && corepack prepare npm@11.12.1 --activate
       - name: Install workspace dependencies
         run: npm ci
-      - name: Build shared packages
+      - name: Restore shared packages
         id: build-packages
-        run: npm run build:packages
+        uses: ./.github/actions/restore-ci-build
+        with:
+          kind: packages
       # gen-skills drift gate moved to Type Check (unfiltered) — its input is
       # frontend/src/types/nodes.ts, so gating it behind `backend=true` meant
       # a frontend-only node-field edit skipped the very check it can break.
@@ -238,6 +289,8 @@ jobs:
 
   typecheck:
     name: Type Check
+    needs: [changes, prepare-packages]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     env:
       YOUTUBE_DL_SKIP_DOWNLOAD: true
@@ -247,6 +300,10 @@ jobs:
       # 16 GB runner leaves ample headroom for npm + the gen-skills step.
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
+      - name: Require successful preparation
+        env:
+          DEPENDENCIES: ${{ toJSON(needs) }}
+        run: echo "$DEPENDENCIES" | jq -e 'all(.[]; .result == "success")'
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -259,9 +316,11 @@ jobs:
         run: corepack enable npm && corepack prepare npm@11.12.1 --activate
       - name: Install workspace dependencies
         run: npm ci
-      - name: Build shared packages
+      - name: Restore shared packages
         id: build-packages
-        run: npm run build:packages
+        uses: ./.github/actions/restore-ci-build
+        with:
+          kind: packages
       # Cross-tree gates live HERE, not in Backend Tests, because their inputs
       # are frontend files while their code sits under backend/. The Diff Gate
       # classifies by file LOCATION, so a frontend-only PR skips Backend Tests
@@ -320,7 +379,7 @@ jobs:
 
   tenant-scope-lint:
     name: Tenant Scope Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -471,7 +530,7 @@ jobs:
 
   check-locale-completeness:
     name: Check Locale Completeness
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -484,7 +543,7 @@ jobs:
 
   chrome-i18n-coverage:
     name: Chrome i18n Coverage Report
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -497,7 +556,7 @@ jobs:
 
   check-no-internal-specs:
     name: No Internal Specs In Repo
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -517,8 +576,7 @@ jobs:
 
   check-ee-imports:
     name: Check EE Imports
-    runs-on: ubuntu-latest
-    needs: [frontend-tests, backend-tests, typecheck]
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -545,8 +603,7 @@ jobs:
 
   check-surface-funnel:
     name: Check Surface Funnel
-    runs-on: ubuntu-latest
-    needs: [frontend-tests, backend-tests, typecheck]
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -568,8 +625,7 @@ jobs:
     # content leaking into a future release. See the 2026-07-06 public-flip
     # IP audit (S5).
     name: Check Pricing Leaks
-    runs-on: ubuntu-latest
-    needs: [frontend-tests, backend-tests, typecheck]
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -590,7 +646,7 @@ jobs:
     # pushes full history, so a line one commit adds and a later commit scrubs
     # is public forever via `git log -p` with the tree gate green.
     name: Check Public Surface
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -627,7 +683,7 @@ jobs:
     # 2026-07-30 until the v1.29.6 artifact audit. Detection is by JSON shape,
     # so a rename or a new script still trips it.
     name: Check Billing Dumps
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
         with:
@@ -638,6 +694,47 @@ jobs:
       - name: Check for tracked provider-billing extracts
         run: node tools/check-billing-dumps.mjs
 
+  build-backend:
+    name: Build Backend Once
+    needs: [prepare-packages]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require successful preparation
+        env:
+          DEPENDENCIES: ${{ toJSON(needs) }}
+        run: echo "$DEPENDENCIES" | jq -e 'all(.[]; .result == "success")'
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Pin npm 11
+        run: corepack enable npm && corepack prepare npm@11.12.1 --activate
+      - name: Install workspace dependencies
+        run: npm ci
+      - name: Restore shared packages
+        uses: ./.github/actions/restore-ci-build
+        with:
+          kind: packages
+      - name: Build backend (mirrors the Dockerfile — tsc + runtime asset copy)
+        run: npx tsc -p tsconfig.build.json && node scripts/copy-build-assets.mjs
+        working-directory: backend
+      - name: Package verified build outputs
+        run: node tools/ci-build-artifact.mjs pack backend "$RUNNER_TEMP/ci-build-backend"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ci-build-backend
+          path: ${{ runner.temp }}/ci-build-backend/
+          retention-days: 7
+          overwrite: true
+          compression-level: 0
+          if-no-files-found: error
+
   backend-boot-smoke:
     # Catches startup crashes that vitest masks (e.g. ERR_MODULE_NOT_FOUND from
     # extensionless ESM imports). Compiles backend with tsconfig.build.json and
@@ -647,7 +744,8 @@ jobs:
     # 2026-05-21 (Collect node strategies shipped with extensionless imports).
     name: Backend Boot Smoke Test (${{ matrix.edition }})
     runs-on: ubuntu-latest
-    needs: [typecheck]
+    needs: [typecheck, build-backend]
+    if: ${{ !cancelled() }}
     # Boot under BOTH cloud and community so a fresh self-host clone (the public
     # entry point) is covered — community gates off Stripe/admin via
     # hasCredits()/hasAdmin(), a different startup path than cloud.
@@ -678,6 +776,10 @@ jobs:
       PRIVATE_MODULES: optional
       PORT: 9000
     steps:
+      - name: Require successful preparation
+        env:
+          DEPENDENCIES: ${{ toJSON(needs) }}
+        run: echo "$DEPENDENCIES" | jq -e 'all(.[]; .result == "success")'
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -690,11 +792,15 @@ jobs:
         run: corepack enable npm && corepack prepare npm@11.12.1 --activate
       - name: Install workspace dependencies
         run: npm ci
-      - name: Build shared packages
-        run: npm run build:packages
-      - name: Build backend (mirrors the Dockerfile — tsc + runtime asset copy)
-        run: npx tsc -p tsconfig.build.json && node scripts/copy-build-assets.mjs
-        working-directory: backend
+      - name: Restore shared packages
+        id: build-packages
+        uses: ./.github/actions/restore-ci-build
+        with:
+          kind: packages
+      - name: Restore compiled backend
+        uses: ./.github/actions/restore-ci-build
+        with:
+          kind: backend
       - name: Boot backend and probe /health
         # NODE_ENV=production only on the actual boot — mirrors prod runtime
         # without breaking the upstream `npm ci` (which prunes devDependencies
@@ -757,7 +863,7 @@ jobs:
     # Without it here, a migration whose proof failed still reached production
     # — the job ran, went red, and nothing downstream cared. Found while
     # planning the content-scoping migrations, 2026-08-23.
-    needs: [frontend-tests, backend-tests, typecheck, tenant-scope-lint, check-locale-completeness, check-ee-imports, check-pricing-leaks, check-billing-dumps, check-public-surface, check-surface-funnel, i18n-completeness, backend-boot-smoke, migration-behavior]
+    needs: [prepare-packages, build-backend, frontend-tests, backend-tests, typecheck, tenant-scope-lint, check-locale-completeness, check-ee-imports, check-pricing-leaks, check-billing-dumps, check-public-surface, check-surface-funnel, i18n-completeness, backend-boot-smoke, migration-behavior]
     env:
       # Disable CLI telemetry. The CLI flushes anonymous PostHog analytics on
       # exit; on a runner that flush can time out and surface as a spurious
@@ -799,7 +905,7 @@ jobs:
     # `dev` has moved on to work that is still soaking — and it carries the same
     # already-consumed changesets, so it is skipped on the same grounds.
     if: github.event_name == 'pull_request' && github.head_ref != 'dev' && !startsWith(github.head_ref, 'changeset-release/') && !startsWith(github.head_ref, 'promote/')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
     steps:
@@ -851,6 +957,8 @@ jobs:
   # and ship all of it in one PR.
   characterize:
     name: FFmpeg Output Characterization
+    needs: [prepare-packages]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     container: node:22-slim
     env:
@@ -859,6 +967,10 @@ jobs:
       # (bare-runner jobs never see this — GitHub runners ship python).
       YOUTUBE_DL_SKIP_PYTHON_CHECK: 1
     steps:
+      - name: Require successful preparation
+        env:
+          PREPARE_RESULT: ${{ needs.prepare-packages.result }}
+        run: test "$PREPARE_RESULT" = success
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -877,8 +989,11 @@ jobs:
         run: corepack enable npm && corepack prepare npm@11.12.1 --activate
       - name: Install dependencies
         run: npm ci
-      - name: Build workspace packages
-        run: npm run build:packages
+      - name: Restore shared packages
+        id: build-packages
+        uses: ./.github/actions/restore-ci-build
+        with:
+          kind: packages
       - name: Characterization check (decoded-output goldens)
         working-directory: backend
         run: npm run characterize:check
