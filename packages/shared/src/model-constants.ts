@@ -91,9 +91,15 @@ export const MAX_IMAGE_PROMPT_CHARS_BY_PROVIDER: Record<string, number> = {
   "seedream-5-lite-i2i": 3000, // docs.kie.ai/market/seedream-5-lite-image-to-image (NB: t2i sibling is 1000)
   "qwen": 3000,                // docs.kie.ai/market/qwen/text-to-image
   "qwen-edit": 2000,           // docs.kie.ai/market/qwen/image-edit
+  // Z-Image is the SHORTEST of the family — "maxLength: 1000" in its schema
+  // (docs.kie.ai/market/z-image/z-image, re-fetched 2026-09-15). It was listed
+  // below as "verified == 5000", which is how three production runs on
+  // 2026-09-07 sent a workflow-assembled prompt straight into KIE's
+  // `{"code":500,"msg":"The text length cannot exceed the maximum limit"}`.
+  "z-image": 1000,             // docs.kie.ai/market/z-image/z-image
   // verified == 5000 default (no entry needed): imagen4(-fast/-ultra), nano-banana,
   //   nano-banana-edit, flux, flux-flex, gpt-image-2, ideogram-v3/-edit/-remix,
-  //   z-image, grok, qwen-i2i, seedream-5-pro, seedream-5-pro-i2i
+  //   grok, qwen-i2i, seedream-5-pro, seedream-5-pro-i2i
   //   (docs.kie.ai/market/seedream/5-pro-text-to-image + 5-pro-image-to-image).
   // grok-i2i: doc states 390000 (78× its t2i sibling) — treated as a KIE schema
   //   typo and left at the 5000 default per the sanity-cap decision.

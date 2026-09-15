@@ -40,6 +40,10 @@ describe("per-model prompt length limits", () => {
       expect(getMaxImagePromptChars("seedream-5-lite")).toBe(1000)
       expect(getMaxImagePromptChars("qwen")).toBe(3000)
       expect(getMaxImagePromptChars("qwen-edit")).toBe(2000)
+      // The shortest of the family. Listing it as the 5000 default is what sent
+      // three prod runs (2026-09-07) into KIE's "The text length cannot exceed
+      // the maximum limit".
+      expect(getMaxImagePromptChars("z-image")).toBe(1000)
     })
     it("siblings differ — does not copy the t2i number to i2i/edit", () => {
       // seedream t2i 3000, 5-lite t2i 1000 but its i2i is 3000

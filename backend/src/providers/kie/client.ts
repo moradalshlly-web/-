@@ -194,6 +194,23 @@ export function createSanitizedError(
     sanitizedMessage =
       "This operation is not supported with the current provider."
   } else if (
+    // BEFORE the file-size group, which "cannot exceed" / "too long" would
+    // otherwise claim: a prompt over the model's character cap has nothing to do
+    // with a file, and telling the user to "use a shorter or smaller file" when
+    // no file exists is advice they cannot act on. KIE phrases it
+    // `{"code":500,"msg":"The text length cannot exceed the maximum limit"}`
+    // (three z-image runs, prod 2026-09-07 — reported as an oversized upload).
+    lowerMsg.includes("text length") ||
+    lowerMsg.includes("prompt is too long") ||
+    lowerMsg.includes("prompt length") ||
+    lowerMsg.includes("prompt exceeds")
+  ) {
+    // "too long" is deliberate wording: it is one of the INPUT_LIMIT_PATTERNS
+    // in lib/mcp/tools/_job-error.ts, so this stays NON-retryable — re-running
+    // the same prompt fails identically.
+    sanitizedMessage =
+      "That prompt is too long for this model. Shorten it, or pick a model with a larger prompt limit."
+  } else if (
     lowerMsg.includes("cannot exceed") ||
     lowerMsg.includes("too long") ||
     lowerMsg.includes("too large") ||

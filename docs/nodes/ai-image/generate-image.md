@@ -10,7 +10,7 @@ Generate Image is the primary text-to-image node. It accepts a text prompt (with
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | Provider | select | `nano-banana-pro` | AI model to use for generation (24 options) |
-| Prompt | text | `""` | Text description of the image to generate |
+| Prompt | text | `""` | Text description of the image to generate. Each model has its own prompt-length limit -- 20 000 characters on the Nano Banana / GPT Image families, 5 000 by default, and as little as **1 000 on Z-Image and Seedream 5 Lite**. The editor counts down to your model's limit as you type, and a prompt still over it at run time is **shortened to fit** rather than refused |
 | Style | select | `""` | One of 16 presets (Photorealistic, Cinematic, Anime, Digital Art, Oil Painting, Watercolor, Children's Book, Comic Book, Pixel Art, 3D Render, Pencil Sketch, Pop Art, Minimalist, Retro/Vintage, Fantasy, Noir) or "Custom..." free text. Style text is appended to the prompt at execution time. |
 | Negative Prompt | text | `""` | Elements to exclude. Sent natively for imagen4, ideogram, qwen; appended as "Avoid:..." for other providers. |
 | Aspect Ratio | select | `"16:9"` | Provider-specific ratio sets (see table below) |
@@ -90,7 +90,7 @@ The migration runs on the frontend (`loadWorkflow`) plus three defensive backend
 | seedream | Seedream | Photorealistic, high detail | 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 21:9 |
 | seedream-5-lite | Seedream 5 Lite | Latest Seedream, fast and sharp | Same as Seedream |
 | seedream-5-pro | Seedream 5 Pro | Flagship Seedream, best instruction following. Quality-tiered pricing: **3 credits** at basic (1K output) / **6 credits** at high (2K output). | Same as Seedream |
-| z-image | Z-Image | Fast, lightweight generation | 1:1, 16:9, 9:16, 4:3, 3:4 |
+| z-image | Z-Image | Fast, lightweight generation. **Shortest prompt limit in the catalog: 1 000 characters** | 1:1, 16:9, 9:16, 4:3, 3:4 |
 | wan-2.7 | Wan 2.7 | Text-to-image, 1K/2K/4K resolution, up to 9 optional reference images | 1:1, 16:9, 9:16, 4:3, 3:4, 21:9, 8:1, 1:8 |
 | wan-2.7-pro | Wan 2.7 Pro | Higher quality text-to-image, 1K/2K/4K resolution | 1:1, 16:9, 9:16, 4:3, 3:4, 21:9, 8:1, 1:8 |
 | flux-2-klein | Flux 2 Klein (Open) | BFL Flux 2 9B Klein via Replicate — fast, no safety filter. Resolution 0.5 / 1 / 2 / 4 MP (default 1 MP). **3 credits at 1 MP** (0 refs), scaling with resolution and reference count. | Same as Flux |

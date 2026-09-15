@@ -16,7 +16,7 @@ import { KieError, createSanitizedError, runKieTask, type KieResultJson } from "
 import { runFluxKontextTask } from "./kontext-client.js"
 import { KIE_IMAGE_MODELS } from "./models.js"
 import { ensureImageForProvider } from "./video.js"
-import { TASK_CHAINED_EDIT_PROVIDERS } from "@nodaro/shared"
+import { TASK_CHAINED_EDIT_PROVIDERS, getMaxImagePromptChars } from "@nodaro/shared"
 import { logCreditAudit, extractCreditFields } from "../../lib/credit-audit.js"
 import { uploadBufferToR2 } from "../../lib/storage.js"
 import { safeFetch } from "../../lib/safe-fetch.js"
@@ -150,6 +150,35 @@ async function ensureMaskDimensions(
   return uploadBufferToR2(resized, key, "image/png")
 }
 
+/**
+ * The prompt this model can actually be sent.
+ *
+ * LAST MILE ON PURPOSE. The per-provider cap
+ * (`getMaxImagePromptChars`, catalog-owned) was enforced only inside the
+ * structured prompt assembler — so the flat path (a pre-assembled prompt, which
+ * is what the workflow orchestrator, the API and MCP send) reached KIE
+ * unclamped, and even the structured path could exceed the cap afterwards,
+ * because the route appends character descriptions, the identity-preserve
+ * suffix and any PromptPolicy text AFTER the assembler truncated. Three
+ * production runs on 2026-09-07 died that way on z-image (cap 1000):
+ * `{"code":500,"msg":"The text length cannot exceed the maximum limit"}`.
+ *
+ * Clamping HERE — after every provider swap (t2i → i2i), immediately before the
+ * wire — means every caller is covered by the one catalog number, and a new
+ * model is covered by declaring its cap honestly and nothing else. Truncation,
+ * never rejection: the editor already warns the author before submit
+ * (`PromptLengthCounter`), so by this point the only alternative to a slightly
+ * shortened prompt is no image at all.
+ */
+function clampPromptForProvider(prompt: string, provider: string): string {
+  const max = getMaxImagePromptChars(provider)
+  if (prompt.length <= max) return prompt
+  console.log(
+    `[KIE.ai] Prompt is ${prompt.length} chars but ${provider} accepts ${max} — truncating to fit`
+  )
+  return `${prompt.slice(0, Math.max(0, max - 3))}...`
+}
+
 export class KieImageProvider
   implements ImageGenerationProvider, ImageEditingProvider
 {
@@ -215,7 +244,9 @@ export class KieImageProvider
 
     // Build input with model-specific parameters, then caller overrides
     const input: Record<string, unknown> = {
-      prompt,
+      // Clamped against the FINAL provider (the t2i → i2i swaps above can change
+      // the cap: gpt-image-2 5000 → gpt-image-2-i2i 20000, qwen 3000 → i2i 5000).
+      prompt: clampPromptForProvider(prompt, provider),
       // Apply model-specific extra params (aspect_ratio, image_size, resolution, etc.)
       ...modelConfig.extraParams,
       // Caller overrides (e.g. face generation uses 1:1 aspect ratio)
@@ -442,7 +473,7 @@ export class KieImageProvider
     console.log(`[KIE.ai] grok-2 reference chain: editing via task ${segTaskId}`)
     const result = await runKieTask(
       editConfig.model,
-      { prompt, task_id: segTaskId },
+      { prompt: clampPromptForProvider(prompt, modelKey), task_id: segTaskId },
       undefined,
       undefined,
       { ...reconcileOpts, modelKey },
@@ -572,7 +603,7 @@ export class KieImageProvider
       provider === "seedream-5-pro-i2i" ||
       provider === "grok-2-edit"
     )) {
-      input.prompt = prompt
+      input.prompt = clampPromptForProvider(prompt, provider)
     }
 
     console.log(
