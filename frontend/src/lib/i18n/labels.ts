@@ -95,6 +95,7 @@ const NODE_LABELS_HE: Record<string, string> = {
   "Post-Process Effects": "אפקטי פוסט־עיבוד",
   "Transition": "מעבר",
   "Character FX": "אפקטי דמות",
+  "Character Motion": "תנועת דמות",
   // AI generation
   "Generate Script": "יצירת תסריט",
   "Generate Image": "יצירת תמונה",
@@ -248,6 +249,7 @@ const HANDLE_LABELS_HE: Record<string, string> = {
   "Start state": "מצב פתיחה",
   "Subject": "נושא",
   "Target subject": "נושא היעד",
+  "Partner": "דמות שנייה",
   "Text": "טקסט",
   "URL / Query": "כתובת / שאילתה",
   "Variables": "משתנים",
@@ -300,6 +302,7 @@ const HANDLE_LABELS_HE: Record<string, string> = {
   "Held prop": "אביזר יד",
   "Material": "חומר",
   "Character FX": "אפקטי דמות",
+  "Character motion": "תנועת דמות",
   "Camera motion": "תנועת מצלמה",
   "Transition": "מעבר",
   "Music genre": "ז׳אנר מוזיקלי",

@@ -174,6 +174,7 @@ const MULTI_PICK_FIELDS: ReadonlyArray<readonly [string, string]> = [
   ["post-process-effects", "postProcess"],
   ["transition", "transition"],
   ["character-fx", "characterFx"],
+  ["character-motion", "characterMotion"],
 ]
 
 for (const [nodeType, field] of MULTI_PICK_FIELDS) {
@@ -212,6 +213,7 @@ const firstInjecting = (nodeType: string): string =>
 
 const TRANSITION_ID = firstInjecting("transition")
 const CHARACTER_FX_ID = firstInjecting("character-fx")
+const CHARACTER_MOTION_ID = firstInjecting("character-motion")
 const CAMERA_MOTION_ID = firstInjecting("camera-motion")
 
 /** A two-node upstream graph feeding the composer's startState / endState. */
@@ -324,6 +326,30 @@ add(
   {
     nodes: [{ id: "c1", type: "character-ref", data: { characterName: "Mira" } }],
     edges: [{ source: "c1", target: "n1", sourceHandle: "output", targetHandle: "target" }],
+  },
+)
+add(
+  "character-motion/sequence-timing",
+  "character-motion: three ordered picks + position + pace, no ctx",
+  {
+    id: "n1",
+    type: "character-motion",
+    data: { characterMotion: ["walk-in-from-left", "turn-to-camera", "wave-hello"], position: "middle", pace: "slow" },
+  },
+)
+add(
+  "character-motion/with-ctx",
+  "character-motion substituting upstream names for 'the subject' and 'the partner'",
+  { id: "n1", type: "character-motion", data: { characterMotion: [CHARACTER_MOTION_ID, "hug-partner"] } },
+  {
+    nodes: [
+      { id: "c1", type: "character-ref", data: { characterName: "Mira" } },
+      { id: "c2", type: "character-ref", data: { characterName: "Theo" } },
+    ],
+    edges: [
+      { source: "c1", target: "n1", sourceHandle: "output", targetHandle: "target" },
+      { source: "c2", target: "n1", sourceHandle: "output", targetHandle: "partner" },
+    ],
   },
 )
 

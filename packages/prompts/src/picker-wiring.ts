@@ -51,6 +51,7 @@ import { ACTION_FX, ACTION_FX_CATEGORY_LABELS, ACTION_FX_CATEGORY_ORDER } from "
 import { LOOP_SUBJECTS, LOOP_SUBJECT_CATEGORY_LABELS, LOOP_SUBJECT_CATEGORY_ORDER } from "./loop-subject.js"
 import { TRANSITIONS, TRANSITION_CATEGORY_LABELS, TRANSITION_CATEGORY_ORDER } from "./transitions.js"
 import { CHARACTER_FX, CHARACTER_FX_CATEGORY_LABELS, CHARACTER_FX_CATEGORY_ORDER } from "./character-fx.js"
+import { CHARACTER_MOTIONS, CHARACTER_MOTION_CATEGORY_LABELS, CHARACTER_MOTION_CATEGORY_ORDER } from "./character-motion.js"
 import { FRAMINGS, FRAMING_CATEGORY_ORDER, FRAMING_FIELD_BY_CATEGORY } from "./framing.js"
 import { LIGHTINGS, LIGHTING_CATEGORY_ORDER, LIGHTING_FIELD_BY_CATEGORY } from "./lighting.js"
 import { STYLINGS, STYLING_DIMENSION_ORDER, STYLING_FIELD_BY_DIMENSION } from "./styling.js"
@@ -159,6 +160,7 @@ export const SINGLE_PICKER_WIRING: ReadonlyArray<SingleDimPickerWiring> = [
   { kind: "single", nodeType: "camera-format", label: "Camera / Film", valueField: "cameraFormat", defaultValue: "35mm-film", catalogId: "camera-format", entries: mapCat(CAMERA_FORMATS) },
   { kind: "single", nodeType: "transition", label: "Transition", valueField: "transition", defaultValue: "auto", catalogId: "transitions", entries: mapCat(TRANSITIONS, "category"), groupOrder: TRANSITION_CATEGORY_ORDER as ReadonlyArray<string>, groupLabels: TRANSITION_CATEGORY_LABELS },
   { kind: "single", nodeType: "character-fx", label: "Character FX", valueField: "characterFx", defaultValue: "auto", catalogId: "character-fx", entries: mapCat(CHARACTER_FX, "category"), groupOrder: CHARACTER_FX_CATEGORY_ORDER as ReadonlyArray<string>, groupLabels: CHARACTER_FX_CATEGORY_LABELS },
+  { kind: "single", nodeType: "character-motion", label: "Character Motion", valueField: "characterMotion", defaultValue: "auto", catalogId: "character-motion", entries: mapCat(CHARACTER_MOTIONS, "category"), groupOrder: CHARACTER_MOTION_CATEGORY_ORDER as ReadonlyArray<string>, groupLabels: CHARACTER_MOTION_CATEGORY_LABELS },
 
   // -------- "Subject / Object" family --------
   { kind: "single", nodeType: "pose", label: "Pose", valueField: "pose", defaultValue: "standing-upright", catalogId: "pose", entries: mapCat(POSES, "category"), groupOrder: POSE_CATEGORY_ORDER as ReadonlyArray<string>, groupLabels: POSE_CATEGORY_LABELS },

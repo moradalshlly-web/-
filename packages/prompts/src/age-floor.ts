@@ -34,7 +34,7 @@ export interface AdultOnlyEntry {
  *  sweeps for the flag, and which analyzer keys `FLOORED_PICKER_KEYS` strips
  *  flagged ids out of (a `photo-genre` swept for the flag but absent from the
  *  strip list let `glamour-portrait` survive on a minor). */
-export const ADULT_SWEPT_CATALOG_IDS = ["styling", "mood", "pose", "photo-genre"] as const
+export const ADULT_SWEPT_CATALOG_IDS = ["styling", "mood", "pose", "photo-genre", "character-motion"] as const
 
 /** Membership form of the list above (the sweep does one lookup per catalog). */
 const ADULT_SWEPT_CATALOG_ID_SET: ReadonlySet<string> = new Set(ADULT_SWEPT_CATALOG_IDS)

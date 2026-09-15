@@ -146,6 +146,8 @@ const SAMPLE_DATA_BY_TYPE: Record<string, Record<string, unknown>> = {
   // CHARACTER_FX[0] is "auto" with an intentionally empty promptHint — use a
   // real effect id so the sync test exercises the hint dispatch.
   "character-fx": { characterFx:  "werewolf" },
+  // CHARACTER_MOTIONS[0] is the "auto" no-op head — use a real move.
+  "character-motion": { characterMotion: "wave-hello" },
   "loop-subject": { loopSubject: firstId(LOOP_SUBJECTS) },
   "scene-count": { count: 5 },
   "duration": { seconds: 8 },

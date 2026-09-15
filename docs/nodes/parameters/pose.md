@@ -42,3 +42,4 @@ The Pose parameter node describes the physical posture of the subject in a gener
 - [Person](./person.md) — multi-dim subject attributes.
 - [Styling](./styling.md) — costume, makeup, jewelry, etc.
 - [Framing](./framing.md) — shot size and angle.
+- [Character Motion](./character-motion.md) — the subject moving over time instead of holding a pose.

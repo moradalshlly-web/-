@@ -334,6 +334,13 @@ export function isValidWorkflowConnection(
     return ACCEPTS_CHARACTER_REF(typeOf(connection.source) ?? "")
   }
 
+  // Character-motion — `target` and `partner` accept ONLY identity refs; its
+  // other handles fall through (mirrors the character-fx rule above).
+  if (targetType === "character-motion" && connection.targetHandle) {
+    if (connection.targetHandle !== "target" && connection.targetHandle !== "partner") return true
+    return ACCEPTS_CHARACTER_REF(typeOf(connection.source) ?? "")
+  }
+
   // Any analyzable picker's `picker-json` target accepts ONLY the
   // describe-to-picker producer (catalog-valid picker JSON). Set-driven via
   // `isAnalyzablePicker` (@nodaro/shared). Scoped to the `picker-json` handle

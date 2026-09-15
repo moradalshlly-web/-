@@ -4421,8 +4421,8 @@ get(nodeType: string, opts?: GetPickerCatalogOptions): Promise<{ data: PickerCat
 dim pickers carry `options`; multi-dim pickers carry `dimensions` (one
 `{ field, label, options }` per field); a single-dim picker with secondary
 parameter fields beside its main picker (`transition`, `character-fx`:
-`position` / `duration` / `intensity`) carries both. 404 `not_found` for an
-unknown type.
+`position` / `duration` / `intensity`; `character-motion`: `position` /
+`pace`) carries both. 404 `not_found` for an unknown type.
 
 **`GetPickerCatalogOptions`:**
 
@@ -4430,7 +4430,7 @@ unknown type.
 |-------|------|-------------|
 | `detail` | `"compact"` \| `"full"` | `"compact"` (default): `id`, `label`, `category`, `term`, `icon`. `"full"`: additionally includes each option's `description` and `promptHint` (the prompt fragment it injects). |
 | `category` | `string` | Single-dim pickers: filter options to one category. |
-| `field` | `string` | Return only this dimension's field — multi-dim pickers (person / styling / framing), and the secondary parameters of a single-dim picker (transition / character-fx: `position` / `duration` / `intensity`). |
+| `field` | `string` | Return only this dimension's field — multi-dim pickers (person / styling / framing), and the secondary parameters of a single-dim picker (transition / character-fx: `position` / `duration` / `intensity`; character-motion: `position` / `pace`). |
 
 ```ts
 const { data } = await client.pickerCatalogs.get("mood", { detail: "full" })

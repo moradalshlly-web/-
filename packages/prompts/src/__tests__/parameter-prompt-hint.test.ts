@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import { getParameterPromptHint } from "../parameter-prompt-hint.js"
 import { PARAMETER_NODE_TYPES, getParameterValue } from "@nodaro/shared"
 import { ACTION_FX } from "../action-fx.js"
+import { getCharacterMotionPromptHint, getCharacterMotionTerm } from "../character-motion.js"
 
 describe("getParameterPromptHint — action-fx", () => {
   it("returns the catalog hint for a single id", () => {
@@ -266,5 +267,163 @@ describe("getParameterPromptHint — preText/postText for graph-aware nodes", ()
     })
     expect(out).toContain("PRE_FX")
     expect(out).toContain("POST_FX")
+  })
+})
+
+describe("getParameterPromptHint — character-motion", () => {
+  const ctx = {
+    nodes: [
+      { id: "c1", type: "character", data: { characterName: "Mira" } },
+      { id: "c2", type: "character", data: { characterName: "Theo" } },
+    ],
+    edges: [
+      { source: "c1", target: "n1", targetHandle: "target" },
+      { source: "c2", target: "n1", targetHandle: "partner" },
+    ],
+  }
+
+  it("composes the ordered sequence with target and partner names from the graph", () => {
+    const out = getParameterPromptHint(
+      { id: "n1", type: "character-motion", data: { characterMotion: ["wave-hello", "hug-partner"] } },
+      ctx,
+    )
+    expect(out).toBe(
+      `${getCharacterMotionPromptHint("wave-hello").replace(/\bthe subject\b/g, "Mira")}, then ${getCharacterMotionPromptHint("hug-partner").replace(/\bthe subject\b/g, "Mira").replace(/\bthe partner\b/g, "Theo")}`,
+    )
+  })
+
+  it("reads position and pace and wraps preText / postText", () => {
+    const out = getParameterPromptHint({
+      id: "n1",
+      type: "character-motion",
+      data: { characterMotion: "wave-hello", position: "end", pace: "fast", preText: "PRE_M", postText: "POST_M" },
+    })
+    expect(out.startsWith("PRE_M")).toBe(true)
+    expect(out.endsWith("POST_M")).toBe(true)
+    expect(out).toContain("the movement happens in the closing moments of the clip")
+    expect(out).toContain("performed quickly")
+  })
+
+  it("compact mode names the target by prefix and the partner in the term", () => {
+    const out = getParameterPromptHint(
+      { id: "n1", type: "character-motion", data: { characterMotion: "hug-partner", hintMode: "compact" } },
+      ctx,
+    )
+    expect(out).toBe(`Mira: ${getCharacterMotionTerm("hug-partner").replace(/\bthe partner\b/g, "Theo")}`)
+  })
+
+  it("ignores edges on other handles", () => {
+    const out = getParameterPromptHint(
+      { id: "n1", type: "character-motion", data: { characterMotion: "wave-hello" } },
+      { nodes: ctx.nodes, edges: [{ source: "c1", target: "n1", targetHandle: "in" }] },
+    )
+    expect(out).toBe(getCharacterMotionPromptHint("wave-hello"))
+  })
+})
+
+// D9 option (b)-lite: a ref wired into `target` OR `partner` that describes a
+// minor (structured `person` age, or an age in its free-text description)
+// makes the composer drop every adultOnly move. wave-hello is neutral;
+// kiss-partner is adultOnly.
+describe("getParameterPromptHint — character-motion minor-age floor", () => {
+  const MINOR = { age: "age-child" }
+  const ADULT = { age: "age-30s" }
+  const motion = { id: "n1", type: "character-motion", data: { characterMotion: ["wave-hello", "kiss-partner"] } }
+  const wave = (target: string) => getCharacterMotionPromptHint("wave-hello").replace(/\bthe subject\b/g, target)
+  const kiss = (target: string, partner: string) =>
+    getCharacterMotionPromptHint("kiss-partner").replace(/\bthe subject\b/g, target).replace(/\bthe partner\b/g, partner)
+
+  it("a minor wired to target drops the adult-only move and keeps the neutral one", () => {
+    const out = getParameterPromptHint(motion, {
+      nodes: [{ id: "c1", type: "character", data: { characterName: "Mira", person: MINOR } }],
+      edges: [{ source: "c1", target: "n1", targetHandle: "target" }],
+    })
+    expect(out).toBe(wave("Mira"))
+    expect(out).not.toMatch(/kiss/i)
+  })
+
+  it("an adult wired to target keeps both moves", () => {
+    const out = getParameterPromptHint(motion, {
+      nodes: [{ id: "c1", type: "character", data: { characterName: "Mira", person: ADULT } }],
+      edges: [{ source: "c1", target: "n1", targetHandle: "target" }],
+    })
+    expect(out).toBe(`${wave("Mira")}, then ${kiss("Mira", "another person")}`)
+    expect(out).toMatch(/kiss/)
+  })
+
+  it("a minor wired only to partner also drops the adult-only move", () => {
+    const out = getParameterPromptHint(motion, {
+      nodes: [
+        { id: "c1", type: "character", data: { characterName: "Mira", person: ADULT } },
+        { id: "c2", type: "character", data: { characterName: "Theo", person: MINOR } },
+      ],
+      edges: [
+        { source: "c1", target: "n1", targetHandle: "target" },
+        { source: "c2", target: "n1", targetHandle: "partner" },
+      ],
+    })
+    expect(out).toBe(wave("Mira"))
+    expect(out).not.toMatch(/kiss/i)
+  })
+
+  it("a minor described only in free text drops the adult-only move", () => {
+    for (const field of ["description", "seedPrompt", "canonicalDescription"] as const) {
+      const out = getParameterPromptHint(motion, {
+        nodes: [{ id: "c1", type: "character", data: { characterName: "Mira", [field]: "a 12-year-old girl in a red coat" } }],
+        edges: [{ source: "c1", target: "n1", targetHandle: "target" }],
+      })
+      expect(out, field).toBe(wave("Mira"))
+    }
+  })
+
+  it("an unnamed ref that describes a minor still floors", () => {
+    const out = getParameterPromptHint(motion, {
+      nodes: [{ id: "c1", type: "character", data: { person: MINOR } }],
+      edges: [{ source: "c1", target: "n1", targetHandle: "target" }],
+    })
+    expect(out).toBe(getCharacterMotionPromptHint("wave-hello"))
+    expect(out).not.toMatch(/kiss/i)
+  })
+
+  it("a minor on an unrelated handle does not floor", () => {
+    const out = getParameterPromptHint(motion, {
+      nodes: [{ id: "c1", type: "character", data: { characterName: "Mira", person: MINOR } }],
+      edges: [{ source: "c1", target: "n1", targetHandle: "in" }],
+    })
+    expect(out).toMatch(/kiss/)
+  })
+})
+
+// A Creature (data.creatureName) wired to Character Motion's target / partner is
+// named like the other identity refs. The creature read is local to Character
+// Motion: Character FX (and Camera Motion) keep the shared name read unchanged.
+describe("getParameterPromptHint — character-motion names a creature ref", () => {
+  const rex = { id: "k1", type: "creature", data: { creatureName: "  Rex  " } }
+
+  it("a creature on partner is named in the two-person move", () => {
+    const out = getParameterPromptHint(
+      { id: "n1", type: "character-motion", data: { characterMotion: "hug-partner" } },
+      { nodes: [rex], edges: [{ source: "k1", target: "n1", targetHandle: "partner" }] },
+    )
+    expect(out).toBe(getCharacterMotionPromptHint("hug-partner").replace(/\bthe partner\b/g, "Rex"))
+    expect(out).not.toContain("another person")
+  })
+
+  it("a creature on target becomes the subject", () => {
+    const out = getParameterPromptHint(
+      { id: "n1", type: "character-motion", data: { characterMotion: "wave-hello" } },
+      { nodes: [rex], edges: [{ source: "k1", target: "n1", targetHandle: "target" }] },
+    )
+    expect(out).toBe(getCharacterMotionPromptHint("wave-hello").replace(/\bthe subject\b/g, "Rex"))
+  })
+
+  it("Character FX with a creature on target is unchanged (still unnamed)", () => {
+    const fx = { id: "n1", type: "character-fx", data: { characterFx: "werewolf" } }
+    const out = getParameterPromptHint(fx, {
+      nodes: [rex],
+      edges: [{ source: "k1", target: "n1", targetHandle: "target" }],
+    })
+    expect(out).toBe(getParameterPromptHint(fx))
+    expect(out).not.toContain("Rex")
   })
 })

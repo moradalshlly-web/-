@@ -14,6 +14,7 @@ export const PARAMETER_PICKER_NODE_TYPES = new Set<string>([
   "aesthetic", "era", "photo-genre", "backdrop", "render-quality",
   "composition-effects", "post-process-effects", "action-fx", "loop-subject",
   "camera-motion", "lens", "camera-format", "transition", "character-fx",
+  "character-motion",
   "pose", "material", "animal", "vehicle", "weapon", "furniture", "held-prop",
   "framing", "lighting", "person", "styling", "temporal", "exposure-settings",
   "music-genre", "music-mood", "instrumentation", "voice-character", "voice-delivery",

@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest"
 import {
   PARAMETER_NODE_TYPES,
+  VIDEO_ONLY_PARAMETER_NODE_TYPES,
+  EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES,
   getParameterValue,
 } from "../parameter-node-value.js"
 import { setRegisteredPersonPackFields } from "../index.js"
@@ -120,6 +122,39 @@ describe("getParameterValue — character-fx", () => {
   })
   it("character-fx is in PARAMETER_NODE_TYPES set", () => {
     expect(PARAMETER_NODE_TYPES.has("character-fx")).toBe(true)
+  })
+})
+
+describe("getParameterValue — character-motion", () => {
+  it("returns the id for a single string value", () => {
+    expect(getParameterValue({ characterMotion: "wave-hello" }, "character-motion")).toBe("wave-hello")
+  })
+  it("returns the first id of an ordered multi-pick", () => {
+    expect(getParameterValue({ characterMotion: ["walk-in-from-left", "wave-hello"] }, "character-motion")).toBe("walk-in-from-left")
+  })
+  it("returns undefined for empty string / empty array", () => {
+    expect(getParameterValue({ characterMotion: "" }, "character-motion")).toBeUndefined()
+    expect(getParameterValue({ characterMotion: [] }, "character-motion")).toBeUndefined()
+  })
+  it("character-motion is a parameter node", () => {
+    expect(PARAMETER_NODE_TYPES.has("character-motion")).toBe(true)
+  })
+})
+
+describe("VIDEO_ONLY_PARAMETER_NODE_TYPES", () => {
+  it("names exactly the pickers a still image must never receive", () => {
+    expect([...VIDEO_ONLY_PARAMETER_NODE_TYPES].sort()).toEqual(
+      ["camera-motion", "character-fx", "character-motion", "temporal", "transition"],
+    )
+  })
+  it("is a subset of PARAMETER_NODE_TYPES", () => {
+    for (const t of VIDEO_ONLY_PARAMETER_NODE_TYPES) expect(PARAMETER_NODE_TYPES.has(t), t).toBe(true)
+  })
+})
+
+describe("EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES", () => {
+  it("names the pickers whose fragment needs the graph at execution", () => {
+    expect([...EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES].sort()).toEqual(["camera-motion", "character-motion"])
   })
 })
 

@@ -33,6 +33,7 @@ vi.mock("../node-executor.js", () => ({
   executeNode: vi.fn().mockResolvedValue({ output: { text: "mock output" } }),
 }))
 
+import { getCharacterMotionPromptHint, getParameterPromptHint } from "@nodaro/prompts"
 import { executeSubWorkflow } from "../sub-workflow-handler.js"
 import { executeNode } from "../node-executor.js"
 import { DrainAbortError } from "../../../lib/worker-drain.js"
@@ -506,5 +507,53 @@ describe("executeSubWorkflow", () => {
 describe("MAX_SUB_WORKFLOW_DEPTH", () => {
   it("is set to 5", () => {
     expect(MAX_SUB_WORKFLOW_DEPTH).toBe(5)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Parameter pre-completion composes character-motion from the SUB-graph.
+// That pre-completed text is what a `{Label}` ref inside the sub-workflow
+// resolves to, so it must match the editor: wired names + minor-age floor.
+// ---------------------------------------------------------------------------
+
+describe("executeSubWorkflow: character-motion pre-completion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const KISS_BODY = getCharacterMotionPromptHint("kiss-partner")
+    .split(/\bthe partner(?:'s)?/)
+    .map((s) => s.trim())
+    .reduce((a, b) => (b.length > a.length ? b : a), "")
+  const NAMED_WAVE = getCharacterMotionPromptHint("wave-hello").replace(/\bthe subject\b/g, "Mira")
+
+  async function preCompletedText(age: string) {
+    const nodes = [
+      node("mira", "character", { label: "Mira", characterName: "Mira", person: { age } }),
+      node("m", "character-motion", { label: "Motion", characterMotion: ["wave-hello", "kiss-partner"] }),
+    ]
+    const edges: SimpleEdge[] = [
+      { id: "mira->m", source: "mira", target: "m", sourceHandle: null, targetHandle: "target" },
+    ]
+    mockSingle.mockResolvedValue({ data: { nodes, edges }, error: null })
+    // No output node: the terminal-node fallback surfaces the character-motion
+    // node's pre-completed text (it is the only terminal node).
+    const result = await executeSubWorkflow(node("sw", "sub-workflow", { workflowId: "motion-sub-wf" }), {}, ctx())
+    return { text: result.output.text ?? "", editor: getParameterPromptHint(nodes[1], { nodes, edges }) }
+  }
+
+  it("names the wired Character and drops the adult-only move for a minor", async () => {
+    expect(KISS_BODY.length).toBeGreaterThan(20)
+    const { text, editor } = await preCompletedText("age-child")
+    expect(text).toContain(NAMED_WAVE)
+    expect(text).not.toContain(KISS_BODY)
+    expect(text).toBe(editor)
+  })
+
+  it("keeps the move for an adult Character (control) and still names it", async () => {
+    const { text, editor } = await preCompletedText("age-30s")
+    expect(text).toContain(NAMED_WAVE)
+    expect(text).toContain(KISS_BODY)
+    expect(text).toBe(editor)
   })
 })

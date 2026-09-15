@@ -39,6 +39,7 @@ const LOOK_PICKER_TYPES: ReadonlySet<string> = new Set([
   "composition-effects", "action-fx", "loop-subject", "post-process-effects",
   "tone", "camera-motion", "lens", "camera-format", "framing", "lighting",
   "exposure-settings", "temporal", "transition", "character-fx",
+  "character-motion",
 ])
 const ELEMENTS_PICKER_TYPES: ReadonlySet<string> = new Set([
   "person", "pose", "animal", "vehicle", "weapon", "furniture", "material",

@@ -93,6 +93,7 @@ import {
   PostProcessEffectsConfig,
   TransitionConfig,
   CharacterFxConfig,
+  CharacterMotionConfig,
   GenerateScriptConfig,
   QACheckConfig,
   ImageCriticConfig,
@@ -378,6 +379,7 @@ function NodeTypeConfig({ nodeType, nodeData, configProps, updateNodeData, onExp
     case "post-process-effects": return <PostProcessEffectsConfig {...configProps} />
     case "transition": return <TransitionConfig {...configProps} />
     case "character-fx": return <CharacterFxConfig {...configProps} />
+    case "character-motion": return <CharacterMotionConfig {...configProps} />
     case "generate-script": return <GenerateScriptConfig {...configProps} nodeId={selectedNodeId} />
     case "generate-image": return <GenerateImageConfig {...configProps} nodeId={selectedNodeId} />
     case "modify-image": return <ModifyImageConfig {...configProps} nodeId={selectedNodeId} />

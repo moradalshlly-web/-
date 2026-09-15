@@ -472,6 +472,14 @@ describe("entity image handle is discoverable as an image producer", () => {
     expect(has("character", "character-fx", "target")).toBe(true)
     expect(has("character", "reference-sheet", "in")).toBe(true)
   })
+
+  it("character-motion's target and partner accept identity refs and nothing else", () => {
+    expect(has("character", "character-motion", "target")).toBe(true)
+    expect(has("character", "character-motion", "partner")).toBe(true)
+    expect(has("face", "character-motion", "partner")).toBe(true)
+    expect(has("mood", "character-motion", "target")).toBe(false)
+    expect(has("upload-image", "character-motion", "partner")).toBe(false)
+  })
 })
 
 // Reverse direction (the second half of the fix): the target-direction popover
