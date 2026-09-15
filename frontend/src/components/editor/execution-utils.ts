@@ -79,7 +79,6 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   "edit-3d-scene": "Edit 3D Scene",
   "motion-graphics": "Motion Graphics",
   "render-video": "Video Render",
-  "voice-clone": "Voice Clone",
   "voice-changer": "Voice Changer",
   "voice-changer-pro": "Voice Changer Pro",
   "voice-design": "Voice Design",

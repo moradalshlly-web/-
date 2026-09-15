@@ -237,7 +237,7 @@ app.post("/v1/collect", {
 }, ...)
 ```
 
-`{ dedup: false }` is the established escape hatch (precedent: `routes/voice-clones.ts` uses it for both POST handlers). The optional `workflowExecutionId` in the body is a belt-and-suspenders measure but is NOT sufficient on its own — pass `dedup: false`.
+`{ dedup: false }` is the established escape hatch (historical precedent: the since-retired voice-clone create handlers used it). The optional `workflowExecutionId` in the body is a belt-and-suspenders measure but is NOT sufficient on its own — pass `dedup: false`.
 
 - **Inline execution** (no BullMQ queue) — strategies are either pure functions (0-credit ones) or a single `llmComplete` call (pick-best-llm). The worker pattern is overkill; the LLM call is bounded by `llm-client.ts:16` (`LLM_TIMEOUT_MS = 120s`) which is well inside the 30-min `NODE_TIMEOUT_MS`. If pick-best-llm latency becomes an issue at scale, promote to the queue then.
 - **Returns** `{ jobId, output, meta }` — `output` is `string` (for url/text strategies) or stringified `number` (for `count`); `meta` is the `ResultMeta` shape from §2. Matches existing `NodeOutput` conventions so frontend `executeNode` integration is symmetric.
@@ -334,7 +334,7 @@ None blocking. The single-vs-multi-source question was resolved in conversation 
 Once Collect ships and proves the shape:
 
 1. **Parallelize `executeNodeForList`** — concurrency knob on Loop/List nodes (default `4`, configurable up to `16`).
-2. **Dedup-fingerprint × fan-out concurrency-safety pass** — either `dedup: false` from `executeNodeForList` (option already exists on `creditGuard`, used by `voice-clones.ts`) or mix iteration index into fingerprint payload. Settle before flipping parallel on.
+2. **Dedup-fingerprint × fan-out concurrency-safety pass** — either `dedup: false` from `executeNodeForList` (option already exists on `creditGuard`) or mix iteration index into fingerprint payload. Settle before flipping parallel on.
 3. **Credit reservation race audit** — verify `FOR UPDATE` locks on credit RPC survive parallel fan-out load; add a load test if not already covered.
 
 v2 additions (no spec yet):

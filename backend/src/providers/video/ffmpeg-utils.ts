@@ -111,6 +111,58 @@ export async function withFfmpegSlot<T>(fn: () => Promise<T>, signal?: AbortSign
 // re-dispatches piling on the same slot.
 const DEFAULT_FFMPEG_TIMEOUT_MS = 10 * 60 * 1000
 
+/**
+ * How much of ffmpeg's output a failure message carries.
+ *
+ * WHY A TAIL, AND WHY THIS SMALL. ffmpeg opens EVERY run with a ~2-4 KB banner
+ * (`ffmpeg version …`, `built with …`, `configuration: --prefix=… (60 flags)`,
+ * a `lib*` line per library) and writes the actual error LAST. `markJobFailed`
+ * stores `error_message.slice(0, 500)` (lib/job-failure.ts), so a message built
+ * head-first stores the banner and drops the cause — every ffmpeg failure in
+ * `/admin/app-reports` reads "ffmpeg version n8.1.2 … configuration: --prefix"
+ * and nothing else (prod report 2026-09-06, a voice-changer-pro remux: the
+ * stderr that would have named the broken step never left the worker).
+ * `runFfmpegWithProgress` already keeps only a tail for the same reason.
+ *
+ * The budget is deliberately under that 500-char cut so the cause SURVIVES it.
+ */
+const FFMPEG_ERROR_TAIL_CHARS = 420
+
+/** Last non-empty lines of ffmpeg output, newest-last, within the budget. */
+function ffmpegOutputTail(text: string, maxChars = FFMPEG_ERROR_TAIL_CHARS): string {
+  const lines = text.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim().length > 0)
+  const kept: string[] = []
+  let budget = maxChars
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]!
+    // Always keep something: a single over-long line is tail-cut rather than
+    // dropped (an ffmpeg filter-graph error is often one very long line).
+    if (kept.length === 0) {
+      kept.unshift(line.length > maxChars ? `…${line.slice(-maxChars)}` : line)
+      budget -= Math.min(line.length, maxChars) + 1
+      continue
+    }
+    if (line.length + 1 > budget) break
+    kept.unshift(line)
+    budget -= line.length + 1
+  }
+  return kept.join("\n")
+}
+
+/**
+ * The message every ffmpeg failure throws: the "ffmpeg failed:" prefix other
+ * layers key off (`lib/mcp/tools/_job-error.ts` uses it to keep keyword
+ * classification away from raw ffmpeg diagnostics) plus the TAIL of whatever
+ * ffmpeg said. `fallback` is the spawn error's own message, used when ffmpeg
+ * wrote no stderr at all — it too is tailed, because Node's execFile message is
+ * `Command failed: ffmpeg -y -i … <every argument>` and would otherwise eat the
+ * whole budget with the command line.
+ */
+export function ffmpegFailureMessage(stderr: string | undefined, fallback: string): string {
+  const tail = ffmpegOutputTail(stderr ?? "") || ffmpegOutputTail(fallback) || "no output"
+  return `ffmpeg failed: ${tail}`
+}
+
 export async function runFfmpeg(args: readonly string[], timeoutMs?: number): Promise<string> {
   const release = await acquireFfmpegSlot()
   try {
@@ -120,7 +172,7 @@ export async function runFfmpeg(args: readonly string[], timeoutMs?: number): Pr
         timeout: timeoutMs ?? DEFAULT_FFMPEG_TIMEOUT_MS,
       }, (error, stdout, stderr) => {
         if (error) {
-          reject(new Error(`ffmpeg failed: ${stderr || error.message}`))
+          reject(new Error(ffmpegFailureMessage(stderr, error.message)))
         } else {
           resolve(stdout)
         }
@@ -150,9 +202,11 @@ export async function runFfmpegCapture(
       }, (error, stdout, stderr) => {
         if (error) {
           // Some filters (e.g. `-f null -`) exit non-zero after writing useful
-          // stderr; let the caller decide whether to parse anyway.
+          // stderr; let the caller decide whether to parse anyway — so the FULL
+          // stderr stays on the error object even though the message carries
+          // only its tail.
           reject(
-            Object.assign(new Error(`ffmpeg failed: ${stderr || error.message}`), {
+            Object.assign(new Error(ffmpegFailureMessage(stderr, error.message)), {
               stdout,
               stderr,
             }),
@@ -200,6 +254,7 @@ export async function runFfmpegWithProgress(
       }, timeoutMs ?? DEFAULT_FFMPEG_TIMEOUT_MS)
 
       // Keep only the stderr tail — that's where ffmpeg writes its real error.
+      // (8 KB here, then `ffmpegFailureMessage` narrows it to the last lines.)
       let stderrTail = ""
       proc.stderr.on("data", (chunk: Buffer) => {
         stderrTail = (stderrTail + chunk.toString()).slice(-8192)
@@ -227,7 +282,7 @@ export async function runFfmpegWithProgress(
         } else if (code === 0) {
           resolve()
         } else {
-          reject(new Error(`ffmpeg failed: ${stderrTail || `exit code ${code}`}`))
+          reject(new Error(ffmpegFailureMessage(stderrTail, `exit code ${code}`)))
         }
       })
     })

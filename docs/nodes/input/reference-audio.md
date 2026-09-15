@@ -43,7 +43,7 @@ The Reference Audio node provides audio from multiple sources: extract from a Yo
 ## Common Use Cases
 
 - Extract background music from YouTube for reference or dubbing
-- Provide audio for voice cloning workflows
+- Provide audio for voice-changer workflows
 - Source audio for Forced Alignment (word-level timestamps)
 - Extract narration from video for transcription
 

@@ -22,7 +22,7 @@
 
 import { describe, it, expect } from "vitest"
 import { STATIC_CREDIT_COSTS } from "../credits.js"
-import { IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, IMAGE_GEN_PROVIDERS, IMAGE_I2I_PROVIDERS, IMAGE_EDIT_PROVIDERS, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildCreditModelIdentifier, buildLlmCreditIdentifier, LLM_MODELS, FLUX2_RES_MP, type Flux2Model, PIPELINE_PINNABLE_SCRIPT_LLMS, SUNO_MODELS, sunoCreditType, SUNO_VERSION_PRICED_OPERATIONS, SUNO_SELECT_OPERATIONS } from "@nodaro/shared"
+import { IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, IMAGE_GEN_PROVIDERS, IMAGE_I2I_PROVIDERS, IMAGE_EDIT_PROVIDERS, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildCreditModelIdentifier, buildLlmCreditIdentifier, LLM_MODELS, FLUX2_RES_MP, type Flux2Model, PIPELINE_PINNABLE_SCRIPT_LLMS, SUNO_MODELS, sunoCreditType, SUNO_VERSION_PRICED_OPERATIONS, SUNO_SELECT_OPERATIONS, MODEL_CATALOG } from "@nodaro/shared"
 
 // ---------------------------------------------------------------------------
 // Plausible-input matrices for each builder
@@ -174,10 +174,28 @@ describe("hard-fail policy: every runtime-emitted credit identifier is in STATIC
       }
     }
 
-    // FLUX 2 family — sweep full ref count matrix (0..8 × all MP tiers).
-    // These models use "N MP" resolution tokens and encode ref count into the identifier.
+    // FLUX 2 family — sweep full ref count matrix (0..8 × all MP tiers) AND
+    // every resolution token ANY image model in the catalog declares.
+    //
+    // The foreign tokens are not hypothetical: Flux 2 is the only family whose
+    // identifier INTERPOLATES the resolution instead of matching it, and the
+    // multi-provider cost preview prices ONE node's data against EVERY selected
+    // provider (frontend `ee/hooks/use-providers-credits-sum.ts`), so a node
+    // sitting on "2K" asks for a Flux 2 price at "2K". Sweeping only the MP
+    // tiers is what let `flux-2-pro:2KMP:0ref` reach production — 503
+    // price_not_configured on every cost badge (18 app-reports 2026-09-07..14).
+    // Derived from the catalog so a resolution token added to ANY image model
+    // is covered here for free.
+    const FOREIGN_IMAGE_RESOLUTIONS = [
+      ...new Set(
+        Object.values(MODEL_CATALOG)
+          .filter((entry) => entry.kind === "image")
+          .flatMap((entry) => entry.resolutions ?? []),
+      ),
+      "", // unset-but-present, e.g. a cleared dropdown persisted as ""
+    ]
     for (const m of ["flux-2-klein", "flux-2-pro", "flux-2-max"] as Flux2Model[]) {
-      for (const resolution of [undefined, ...FLUX2_IMAGE_RESOLUTIONS]) {
+      for (const resolution of [undefined, ...FLUX2_IMAGE_RESOLUTIONS, ...FOREIGN_IMAGE_RESOLUTIONS]) {
         for (let r = 0; r <= 8; r++) {
           const id = buildCreditModelIdentifier(m, undefined, resolution, undefined, undefined, r)
           check(id, `flux2 ${m} res=${resolution} r=${r}`)

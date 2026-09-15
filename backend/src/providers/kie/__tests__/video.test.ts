@@ -586,6 +586,37 @@ describe("imageToVideo — veo3 identity references", () => {
     expect(imageUrls).toEqual(["https://img/start.png", "https://r2/r1.png"])
   })
 
+  // KIE refuses any non-8s reference-to-video run outright ("Invalid duration.
+  // Veo 3.1 reference-to-video currently only supports 8-second generation.") —
+  // prod job 2026-09-06 died at createTask on veo3_lite + 4s + one character
+  // reference. VEO pricing is flat across 4/6/8s, so the coercion is free.
+  it("reference mode runs at 8s even when the caller asked for 4s (flat price)", async () => {
+    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3_lite", 4, undefined, {
+      referenceImageUrls: ["https://r2/r1.png"],
+    })
+    const [, , , opts, reconcile] = mocks.mockRunVeoTask.mock.calls[0]!
+    expect((opts as { generationType?: string }).generationType).toBe("REFERENCE_2_VIDEO")
+    expect((opts as { duration?: number }).duration).toBe(8)
+    // The egress bookkeeping must see the duration actually sent, not the ask.
+    expect((reconcile as { dimensions?: { duration?: number } }).dimensions?.duration).toBe(8)
+  })
+
+  it("t2v reference-only runs are coerced to 8s too", async () => {
+    await provider.textToVideo("a slow push-in", "veo3_lite", 4, "16:9", {
+      referenceImageUrls: ["https://cdn.example/ref1.png"],
+    })
+    const [, , , opts] = mocks.mockRunVeoTask.mock.calls[0]!
+    expect((opts as { generationType?: string }).generationType).toBe("REFERENCE_2_VIDEO")
+    expect((opts as { duration?: number }).duration).toBe(8)
+  })
+
+  it("plain frame mode keeps the caller's duration (4s stays 4s)", async () => {
+    await provider.imageToVideo("https://img/start.png", "cinematic", "veo3_lite", 4, undefined, {})
+    const [, , , opts] = mocks.mockRunVeoTask.mock.calls[0]!
+    expect((opts as { generationType?: string }).generationType).toBeUndefined()
+    expect((opts as { duration?: number }).duration).toBe(4)
+  })
+
   it("an EXPLICIT caller REFERENCE_2_VIDEO keeps its refs-only list — no anchor prepend, no suffix", async () => {
     await provider.imageToVideo(undefined, "cinematic", "veo3", 8, undefined, {
       generationType: "REFERENCE_2_VIDEO",

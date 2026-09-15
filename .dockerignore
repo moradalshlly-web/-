@@ -25,3 +25,20 @@ Dockerfile
 *.md
 !backend/skills/**/*.md
 LICENSE
+
+# Local session state and reports must not enter the build context.
+.superpowers
+.remember
+.agents
+.codex
+**/coverage
+**/playwright-report
+**/test-results
+
+# CI runs and typechecks these before release. They are not runtime inputs;
+# test-only edits should not invalidate application compilation layers.
+**/*.test.ts
+**/*.test.tsx
+**/*.test.mjs
+**/*.spec.ts
+**/*.spec.tsx

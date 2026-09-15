@@ -68,6 +68,11 @@ export interface ValidationResult {
   readonly valid: boolean
   readonly error?: string
   readonly category?: FileCategory
+  /** The CANONICAL type the file was accepted as — `resolveUploadMime`'s
+   *  output, which may differ from what the client declared (an alias, or a
+   *  generic `application/octet-stream` resolved by filename). Callers must
+   *  store and forward THIS, not the declared value. */
+  readonly mimeType?: string
 }
 
 export interface StorageQuotaResult {
@@ -82,6 +87,152 @@ export interface StorageQuotaResult {
 // ============================================================
 // Helpers
 // ============================================================
+
+/**
+ * MIME RESOLUTION — what the client DECLARED vs what the file IS.
+ *
+ * A browser upload carries whatever type the OS handed the file input, and
+ * that is not always the canonical spelling in `ALLOWED_MIME_TYPES`:
+ *
+ *  - **Aliases.** Windows maps `.aac` to `audio/vnd.dlna.adts` (its ADTS
+ *    container type), Safari sends `image/jpg`, MediaRecorder sends
+ *    `audio/webm;codecs=opus`. All of these are formats we accept and
+ *    advertise — rejecting them tells the user their `.aac` file is an
+ *    "unsupported file type" while the same message lists `aac` as accepted.
+ *  - **Generic.** With no registry entry the platform falls back to
+ *    `application/octet-stream`, which says nothing at all. There the
+ *    filename EXTENSION is the only signal, so it decides.
+ *
+ * Resolution is not a security boundary and does not weaken one: the declared
+ * type was always client-controlled, and an extension is exactly as forgeable.
+ * The bytes are what the downstream processors (sharp, ffprobe) actually read,
+ * and the deployment upload policy sees the resolved type plus the buffer.
+ *
+ * An unknown type resolves to itself, so `validateFile` still rejects it with
+ * the honest message.
+ */
+const MIME_ALIASES: Readonly<Record<string, string>> = {
+  // audio
+  "audio/vnd.dlna.adts": "audio/aac",   // Windows' type for a plain .aac file
+  "audio/aacp": "audio/aac",
+  "audio/x-aac": "audio/aac",
+  "audio/m4a": "audio/mp4",
+  "audio/mp4a-latm": "audio/mp4",
+  "audio/x-mp4a-latm": "audio/mp4",
+  "audio/mpeg3": "audio/mpeg",
+  "audio/x-mpeg": "audio/mpeg",
+  "audio/x-mpeg-3": "audio/mpeg",
+  "audio/wave": "audio/wav",
+  "audio/vnd.wave": "audio/wav",
+  "audio/x-pn-wav": "audio/wav",
+  "audio/vorbis": "audio/ogg",
+  "audio/x-ogg": "audio/ogg",
+  "audio/x-vorbis+ogg": "audio/ogg",
+  // video
+  "video/x-quicktime": "video/quicktime",
+  "video/mov": "video/quicktime",
+  "video/avi": "video/x-msvideo",
+  "video/msvideo": "video/x-msvideo",
+  "video/x-avi": "video/x-msvideo",
+  "video/x-m4v": "video/mp4",
+  "video/mpeg4": "video/mp4",
+  "video/x-matroska-webm": "video/webm",
+  // image
+  "image/jpg": "image/jpeg",
+  "image/pjpeg": "image/jpeg",
+  "image/x-png": "image/png",
+  "image/heic-sequence": "image/heic",
+  "image/heif-sequence": "image/heif",
+  // data
+  "text/json": "application/json",
+}
+
+/** Declared types that carry no information — the filename decides instead. */
+const UNINFORMATIVE_MIME_TYPES: ReadonlySet<string> = new Set([
+  "",
+  "application/octet-stream",
+  "binary/octet-stream",
+  "application/binary",
+  "application/download",
+  "application/force-download",
+  "application/unknown",
+  "*/*",
+])
+
+/** Extension → canonical accepted type. Only extensions we already accept. */
+const EXTENSION_MIME: Readonly<Record<string, string>> = {
+  png: "image/png",
+  jpg: "image/jpeg", jpeg: "image/jpeg", jpe: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  avif: "image/avif",
+  heic: "image/heic", heif: "image/heif",
+  mp4: "video/mp4", m4v: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime", qt: "video/quicktime",
+  avi: "video/x-msvideo",
+  mp3: "audio/mpeg",
+  wav: "audio/wav", wave: "audio/wav",
+  m4a: "audio/mp4",
+  aac: "audio/aac", adts: "audio/aac",
+  ogg: "audio/ogg", oga: "audio/ogg",
+  weba: "audio/webm",
+  flac: "audio/flac",
+  json: "application/json",
+}
+
+/** Canonical accepted type for `filename`'s extension, or null. */
+function mimeFromFilename(filename?: string | null): string | null {
+  if (!filename) return null
+  const dot = filename.lastIndexOf(".")
+  if (dot < 0 || dot === filename.length - 1) return null
+  return EXTENSION_MIME[filename.slice(dot + 1).toLowerCase()] ?? null
+}
+
+/**
+ * The canonical type an upload should be validated and stored as.
+ *
+ * Order: strip parameters (`audio/webm;codecs=opus`) → already canonical →
+ * known alias → uninformative, so fall back to the filename extension →
+ * otherwise return it unchanged so the caller rejects it honestly.
+ */
+export function resolveUploadMime(
+  declaredMime: string | null | undefined,
+  filename?: string | null,
+): string {
+  const declared = (declaredMime ?? "").split(";")[0]!.trim().toLowerCase()
+  if (ALL_ALLOWED_TYPES.has(declared)) return declared
+  const alias = MIME_ALIASES[declared]
+  if (alias) return alias
+  if (UNINFORMATIVE_MIME_TYPES.has(declared)) {
+    const byExtension = mimeFromFilename(filename)
+    if (byExtension) return byExtension
+  }
+  return declared
+}
+
+/** Human category names for the "Accepted types" sentence. */
+const CATEGORY_LABELS: Readonly<Record<FileCategory, string>> = {
+  image: "images",
+  video: "videos",
+  audio: "audio",
+  data: "data",
+}
+
+/**
+ * The accepted-types sentence, DERIVED from `ALLOWED_MIME_TYPES` rather than
+ * hand-written — the hand-written copy had already drifted (it advertised
+ * neither flac, webm audio nor json, all of which the table accepts).
+ */
+export function acceptedTypesSentence(): string {
+  const parts = (Object.keys(ALLOWED_MIME_TYPES) as FileCategory[]).map((category) => {
+    const extensions = [
+      ...new Set(ALLOWED_MIME_TYPES[category]!.map(getExtensionFromMime)),
+    ].filter((ext) => ext !== "bin")
+    return `${CATEGORY_LABELS[category]} (${extensions.join(", ")})`
+  })
+  return `Accepted types: ${parts.join(", ")}`
+}
 
 /**
  * Detect file category from MIME type
@@ -154,16 +305,21 @@ function formatBytes(bytes: number): string {
 export function validateFile(
   mimeType: string,
   sizeBytes: number,
+  filename?: string | null,
 ): ValidationResult {
+  // What the file IS, not only what the client called it — see
+  // `resolveUploadMime`. Callers forward `result.mimeType`, never `mimeType`.
+  const resolved = resolveUploadMime(mimeType, filename)
+
   // Check MIME type
-  if (!ALL_ALLOWED_TYPES.has(mimeType)) {
+  if (!ALL_ALLOWED_TYPES.has(resolved)) {
     return {
       valid: false,
-      error: `Unsupported file type: ${mimeType}. Accepted types: images (png, jpg, webp, gif, avif, heic, heif), videos (mp4, webm, mov, avi), audio (mp3, wav, m4a, aac, ogg)`,
+      error: `Unsupported file type: ${mimeType}. ${acceptedTypesSentence()}`,
     }
   }
 
-  const category = detectCategory(mimeType)
+  const category = detectCategory(resolved)
   if (!category) {
     return { valid: false, error: `Could not determine file category for: ${mimeType}` }
   }
@@ -175,10 +331,11 @@ export function validateFile(
       valid: false,
       error: `File too large (${formatBytes(sizeBytes)}). Maximum for ${category}: ${formatBytes(limit)}`,
       category,
+      mimeType: resolved,
     }
   }
 
-  return { valid: true, category }
+  return { valid: true, category, mimeType: resolved }
 }
 
 /**

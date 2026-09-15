@@ -62,7 +62,7 @@ An explicitly-set `provider` is always respected as-is.
 - Use ElevenLabs v3 for the widest language support and audio tag capabilities.
 - Keep Stability around 0.5 for a balance between expressiveness and consistency. Push toward 1.0 for narration that needs to sound uniform.
 - When using audio tags with v3, place them inline in the text at the point where the effect should occur (e.g., `"I can't believe it [laughs] that's amazing"`).
-- For custom voices, clone a voice first (see [Voice Clone](./voice-clone.md) — the "My Voices" tab in the Voice Browser), then select it here.
+- Custom voices you already own appear under the "My Voices" tab in the Voice Browser; for a new custom voice use [Voice Design](./voice-design.md).
 - Avoid mixing audio tags into text that will be sent to v2 models -- the tags are stripped automatically, but the resulting text may read awkwardly.
 
 ## Common Use Cases
@@ -79,4 +79,4 @@ An explicitly-set `provider` is always respected as-is.
 - Audio tags supported by v3 include emotions (`[excited]`, `[sad]`, `[angry]`), reactions (`[laughs]`, `[sighs]`, `[gasps]`), delivery styles (`[whispers]`, `[shouting]`), pacing (`[pause]`, `[long pause]`), tone (`[cheerfully]`, `[deadpan]`), and sound effects (`[applause]`, `[thunder]`).
 - v2 models support SSML break tags (e.g., `<break time="1.0s" />`) for inserting pauses.
 - Setting Language to auto-detect works well for most cases, but explicitly selecting a language can improve pronunciation accuracy for non-English text.
-- Custom cloned voices always route through the direct ElevenLabs API.
+- Custom voices always route through the direct ElevenLabs API.

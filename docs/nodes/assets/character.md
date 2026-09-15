@@ -151,8 +151,7 @@ Named composite reference boards — a different compositing paradigm from Sheet
 ### Character → Voice, Personality
 
 - **Voice (reworked)** — a full voice workspace:
-  - **Browse** — pick an ElevenLabs voice from premade voices, the public library, and your own custom clones (with search and preview).
-  - **Clone from audio** — upload a 30s–2min clean audio sample and create a custom voice clone, which becomes the character's selected voice.
+  - **Browse** — pick an ElevenLabs voice from premade voices, the public library, and any custom voices you already own (with search and preview).
   - **Design from text** — describe a voice ("a warm, gravelly old storyteller with a slight Irish lilt"), then **audition** it with a preview line. *Design is audition-only* — saving a designed voice for reuse is a planned follow-up.
   - **Selected-voice card** — shows the chosen voice with a free-form **voice traits** textarea (e.g. "deep, calm, British accent, slight rasp") and a preview player.
   - **▶ Talk** — type a line and **🔊 Speak** to hear the character speak it via text-to-speech. If the character has an **approved portrait**, **🎬 Speak + lip-sync portrait** renders a short talking clip of the portrait saying the line. Lip-sync is **credit-metered** (priced per second of output — see the [Lip Sync](../ai-video/lip-sync.md) node for the rate); plain Speak uses standard text-to-speech credits.

@@ -15,6 +15,7 @@
  */
 import type Anthropic from "@anthropic-ai/sdk"
 import { TURN_CAPS } from "./constants.js"
+import { anthropicVisionAccepts } from "../../lib/anthropic-image.js"
 import type { CopilotMessageRow } from "./store.js"
 
 interface TurnGroup {
@@ -23,9 +24,26 @@ interface TurnGroup {
   chars: number
 }
 
+/**
+ * Drop a stored image block the model cannot read.
+ *
+ * Admission (turn-runner) keeps unreadable attachments out from now on, but a
+ * thread that already stored one replays it on EVERY later turn, so the whole
+ * conversation 400s forever. This is what un-bricks those: the stored block
+ * carries only a URL, so the extension is all there is to go on — an unknown
+ * extension is kept, exactly as before.
+ */
+function readableByModel(block: Anthropic.Messages.ContentBlockParam): boolean {
+  if (block.type !== "image") return true
+  const source = block.source as { type?: string; url?: unknown }
+  if (source?.type !== "url" || typeof source.url !== "string") return true
+  return anthropicVisionAccepts(source.url)
+}
+
 function toMessage(row: CopilotMessageRow): Anthropic.Messages.MessageParam | null {
   let content = Array.isArray(row.content) ? (row.content as Anthropic.Messages.ContentBlockParam[]) : null
   if (!content || content.length === 0) return null
+  if (content.some((block) => !readableByModel(block))) content = content.filter(readableByModel)
   // Drop the turn's own `<workflow-context>` snapshot: only the CURRENT turn's
   // preamble is sent, or a ten-turn thread replays ten contradictory node
   // inventories and version numbers.

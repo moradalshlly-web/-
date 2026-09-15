@@ -73,8 +73,6 @@ describe("job-auto widget bindings", () => {
         expect(tool._meta?.["ui/resourceUri"], `${name} missing job-auto _meta`).toBe(JOB_AUTO_URI)
       }
     }
-    // voice_clone stays deliberately widget-less (returns a voice_id, not media).
-    expect(byName.get("voice_clone")?._meta?.["ui/resourceUri"]).toBeUndefined()
   })
 })
 

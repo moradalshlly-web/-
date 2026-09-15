@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import Fastify, { type FastifyInstance } from "fastify"
 
-// B4c — the three voice-CREATION routes (clone/design/remix) reuse B1's
-// nodes.deny. These direct routes create jobs WITHOUT passing a workflow write
-// guard, so B1's findDeniedNodeTypes never sees them — the guard is added at the
-// top of each handler. A deployment sets nodes.deny to remove the capability.
-// (The MCP tools reach these routes via dispatchJob, which surfaces the route's
-// 403 as an MCP error — so the route is the single chokepoint for MCP too.)
+// B4c — the voice-CREATION routes (design/remix) reuse B1's nodes.deny. These
+// direct routes create jobs WITHOUT passing a workflow write guard, so B1's
+// findDeniedNodeTypes never sees them — the guard is added at the top of each
+// handler. A deployment sets nodes.deny to remove the capability. (The MCP
+// tools reach these routes via dispatchJob, which surfaces the route's 403 as
+// an MCP error — so the route is the single chokepoint for MCP too.)
+//
+// Voice CLONING is retired platform-wide (2026-09-15): its create routes answer
+// 410 `voice_cloning_retired` for every caller, denied or not, and reserve
+// nothing — pinned below so the retirement cannot silently regress into a
+// deployment knob.
 
 vi.mock("@/lib/config.js", () => ({
   // Business edition → surfaceGateOpen() true → the nodes.deny profile applies.
@@ -72,18 +77,36 @@ function denyAll() {
   __resetSurfaceProfileCacheForTests()
 }
 
-describe("voice-creation routes honor B1 nodes.deny (B4c)", () => {
-  it("refuses POST /v1/voice-clones/from-url when voice-clone is denied", async () => {
-    denyAll()
+describe("voice-creation routes: B1 nodes.deny (B4c) + the voice-clone retirement", () => {
+  it("answers 410 voice_cloning_retired on POST /v1/voice-clones/from-url — retired, not a deny knob", async () => {
+    const app = await buildApp(voiceCloneRoutes)
+    try {
+      for (const deny of [false, true]) {
+        if (deny) denyAll()
+        const res = await app.inject({
+          method: "POST",
+          url: "/v1/voice-clones/from-url",
+          payload: { name: "x", audioUrl: "https://example.com/a.mp3", userId: USER },
+        })
+        expect(res.statusCode).toBe(410)
+        expect(res.json().error.code).toBe("voice_cloning_retired")
+      }
+    } finally {
+      await app.close()
+    }
+  })
+
+  it("answers 410 voice_cloning_retired on the multipart POST /v1/voice-clones too", async () => {
     const app = await buildApp(voiceCloneRoutes)
     try {
       const res = await app.inject({
         method: "POST",
-        url: "/v1/voice-clones/from-url",
-        payload: { name: "x", audioUrl: "https://example.com/a.mp3", userId: USER },
+        url: "/v1/voice-clones",
+        headers: { "content-type": "multipart/form-data; boundary=xx" },
+        payload: "--xx\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nx\r\n--xx--\r\n",
       })
-      expect(res.statusCode).toBe(403)
-      expect(res.json().error.code).toBe("node_not_available")
+      expect(res.statusCode).toBe(410)
+      expect(res.json().error.code).toBe("voice_cloning_retired")
     } finally {
       await app.close()
     }

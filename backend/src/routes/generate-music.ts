@@ -12,6 +12,19 @@ import { MUSIC_PROVIDERS } from "@nodaro/shared"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 
+/**
+ * What MiniMax Music refuses to run without.
+ *
+ * `minimax/music-01` is a reference-conditioned model: with no `song_file` /
+ * `voice_file` / `instrumental_file` it answers E006 "At least one reference
+ * song, voice or instrumental is required" — so a prompt-only run of this node
+ * (its ONLY provider) could never succeed. It failed in production on
+ * 2026-09-08 exactly that way: credits reserved, job created, provider refusal,
+ * refund. Refusing HERE costs the user nothing and says what to do.
+ */
+export const MINIMAX_MUSIC_NEEDS_REFERENCE =
+  "MiniMax Music needs a reference song, voice or instrumental. Upload one, paste a YouTube link, or wire an audio node into the node's reference input, then run again."
+
 const generateMusicBody = z.object({
   prompt: z.string().min(1).max(2000),
   userPrompt: z.string().max(8000).optional(),
@@ -24,7 +37,10 @@ const generateMusicBody = z.object({
   referenceAudioUrl: safeUrlSchema.optional(),
   modelVersion: z.string().optional(),
   userId: z.string().uuid().optional(),
-})
+}).refine(
+  (data) => (data.provider ?? "minimax") !== "minimax" || Boolean(data.referenceAudioUrl),
+  { message: MINIMAX_MUSIC_NEEDS_REFERENCE, path: ["referenceAudioUrl"] },
+)
 
 export async function generateMusicRoutes(app: FastifyInstance) {
   app.post("/v1/generate-music", { preHandler: creditGuard(() => "generate-music") }, async (req, reply) => {

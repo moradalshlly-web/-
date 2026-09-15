@@ -16,7 +16,7 @@ import {
   LLM_TEXT_INPUT_MAX,
   type LlmModelDef,
 } from "@nodaro/shared"
-import { llmCompleteStructured, type StructuredLlmOutput } from "./llm-client.js"
+import { llmCompleteStructured, LLM_MAX_LANES_PER_CALL, type StructuredLlmOutput } from "./llm-client.js"
 import { LLM_ADVANCED_SHAPE, advancedModeError, resolveLlmParams } from "./llm-advanced-mode.js"
 import { buildJobInputData } from "./job-input-data.js"
 
@@ -53,6 +53,33 @@ export const JSON_SCHEMA_MAX_DEPTH = 20
  * synchronously, so this is also the ceiling on how long a client waits.
  */
 export const STRUCTURED_LLM_TIMEOUT_MS = 240_000
+
+/**
+ * Ceiling on the caller's `maxRetries` — named, because two things read it: the
+ * body schema below, and the reconciliation threshold that has to outlast the
+ * worst case it implies ({@link STRUCTURED_LLM_MAX_RUNTIME_MS}).
+ */
+export const STRUCTURED_LLM_MAX_RETRIES = 3
+
+/**
+ * The longest ONE `POST /v1/llm/structured` call can legitimately occupy its
+ * job row — the bound the reconciliation sweep must not undercut.
+ *
+ * Three multipliers, each already a constant here or in the client:
+ *  - `STRUCTURED_LLM_MAX_RETRIES + 1` validation attempts. A retry re-asks a
+ *    provider that ANSWERED, so every one is a fresh call with a fresh budget.
+ *  - `LLM_MAX_LANES_PER_CALL` lanes per attempt — `llmComplete` falls back from
+ *    the primary lane to one alternate, and each lane reads `timeoutMs` again.
+ *  - `STRUCTURED_LLM_TIMEOUT_MS`, this route's per-lane budget.
+ *
+ * It is a BUDGET, not a measurement: a real draft answers in under a minute
+ * (the studio Director's 20-scene plan measured ~50 s). But a call that spends
+ * every attempt on both lanes is the route doing exactly what it is configured
+ * to do, and it can still succeed on the last one — so it is legitimate
+ * runtime, and a reconciliation sweep that fires inside it kills a live job.
+ */
+export const STRUCTURED_LLM_MAX_RUNTIME_MS =
+  (STRUCTURED_LLM_MAX_RETRIES + 1) * LLM_MAX_LANES_PER_CALL * STRUCTURED_LLM_TIMEOUT_MS
 
 /** How much of an oversized text field the job row keeps verbatim. */
 const TEXT_HEAD_CHARS = 500
@@ -160,7 +187,7 @@ export const llmStructuredBody = z.object({
   reasoningEffort: z.enum(LLM_REASONING_EFFORTS).optional(),
   /** Invalid answers fed back to the model with their validation error before
    *  the call fails. `llmCompleteStructured`'s own default is 2. */
-  maxRetries: z.number().int().min(0).max(3).default(2),
+  maxRetries: z.number().int().min(0).max(STRUCTURED_LLM_MAX_RETRIES).default(2),
   /** Originating client app slug ('studio', …) — attribution only. */
   origin: z.string().max(64).optional(),
   ...LLM_ADVANCED_SHAPE,

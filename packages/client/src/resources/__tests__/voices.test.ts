@@ -63,7 +63,7 @@ describe("voices resource", () => {
     ])
   })
 
-  it("createClone() POSTs /v1/voice-clones/from-url with a JSON { name, audioUrl } body", async () => {
+  it("createClone() (deprecated) still POSTs /v1/voice-clones/from-url so old callers receive the server's 410", async () => {
     const fetchMock = vi.fn().mockReturnValueOnce(
       mockOk({ id: "vc2", name: "Cloned", elevenlabsVoiceId: "el2", sampleAudioUrl: "https://r2/b.mp3", createdAt: "2026-06-02T00:00:00Z", jobId: "j1" }),
     )
@@ -164,7 +164,7 @@ describe("voices resource", () => {
     expect(JSON.parse(init.body)).toEqual({ audioUrl: "https://r2/a.mp3", targetLanguage: "es", numSpeakers: 2 })
   })
 
-  it("createCloneFromFile() POSTs multipart /v1/voice-clones (FormData with name + file)", async () => {
+  it("createCloneFromFile() (deprecated) still POSTs multipart /v1/voice-clones so old callers receive the server's 410", async () => {
     const fetchMock = vi.fn().mockReturnValueOnce(
       mockOk({ id: "vc3", name: "Mine", elevenlabsVoiceId: "el3", sampleAudioUrl: "https://r2/s.mp3", createdAt: "2026-07-16T00:00:00Z" }),
     )

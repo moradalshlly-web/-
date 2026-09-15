@@ -54,7 +54,6 @@ const NODE_TYPE_LABELS: Record<string, string> = {
   "render-video": "Render Video",
   "text-to-speech": "Text to Speech",
   "text-to-audio": "Text to Audio",
-  "voice-clone": "Voice Clone",
   "voice-design": "Voice Design",
   "voice-changer": "Voice Changer",
   "voice-remix": "Voice Remix",

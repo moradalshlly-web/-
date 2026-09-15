@@ -1171,26 +1171,6 @@ describe("voice_design verb", () => {
   })
 })
 
-describe("voice_clone verb", () => {
-  it("calls /v1/voice-clones/from-url and returns voiceId", async () => {
-    const { fastify, received } = stubRoute(
-      "POST",
-      "/v1/voice-clones/from-url",
-      { jobId: "j-vcl", id: "vc-1", elevenlabsVoiceId: "el-abc", name: "MyVoice", sampleAudioUrl: "https://r2/sample.mp3" },
-    )
-    const server = buildServer()
-    registerVerbs({ server, session: executeSession(), fastify })
-    const result = await callTool(server, "voice_clone", {
-      audio_url: "https://a/sample.mp3",
-      name: "MyVoice",
-    })
-    expect(result.isError).toBeUndefined()
-    expect(received.body?.audioUrl).toBe("https://a/sample.mp3")
-    expect(received.body?.name).toBe("MyVoice")
-    expect((result.structuredContent as Record<string, unknown>)?.voiceId).toBe("el-abc")
-  })
-})
-
 // suno_separate_stems / suno_extend error-path coverage requires a
 // supabase mock that matches resolveSunoIds' specific column selection
 // (output_data, user_id, is_public, status). The shared file-level mock

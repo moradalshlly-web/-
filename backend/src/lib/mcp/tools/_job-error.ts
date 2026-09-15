@@ -24,7 +24,6 @@ const CONTENT_REJECTION_PATTERNS = [
   "content policy",
   "safety filter",
   "safety policy",
-  "moderation",
   "nsfw",
   "prohibited",
   "inappropriate",
@@ -37,6 +36,11 @@ const CONTENT_REJECTION_PATTERNS = [
   "was filtered",
   "filtered by",
   "filtered due",
+  // "moderat" (not "moderation"): the provider says "caught by our AI
+  // moderator" and the noun form matched nothing, so the block read as
+  // retryable to every MCP caller (prod report 2026-09-07). Mirrors the same
+  // widening in providers/kie/client.ts SAFETY_RE.
+  "moderat",
   // W0 (2026-09-01): the KIE copyright / likeness messages
   // (providers/kie/client.ts CONTENT_POLICY_MESSAGES + the sanitizer's
   // "Blocked for copyright") were filed as plain job failures. Match the
@@ -53,6 +57,13 @@ const INPUT_LIMIT_PATTERNS = [
   "too long",
   "file size",
   "duration limit",
+  // The provider answered the REQUEST with 400/422 — `createSanitizedError`'s
+  // request-reject branch (providers/kie/client.ts, isRequestRejectStatus).
+  // Permanent for these inputs, so an MCP caller must not re-run it unchanged;
+  // NOT a content rejection, so it stays out of CONTENT_REJECTION_PATTERNS and
+  // the app-report sweep keeps filing it as `job-failure`, never as a
+  // provider content block.
+  "rejected these settings",
 ]
 
 const NON_RETRYABLE_PATTERNS = [...CONTENT_REJECTION_PATTERNS, ...INPUT_LIMIT_PATTERNS]

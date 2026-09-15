@@ -3213,6 +3213,14 @@ function executeNodeCore(
     const finalGenre = (d.genre || audioStyle.fields.genre) ?? "";
     const finalMood  = (d.mood  || audioStyle.fields.mood)  ?? "";
     const finalInstrumental = d.instrumental || audioStyle.fields.instrumental || false;
+    // MiniMax Music is reference-CONDITIONED — the provider refuses a run with
+    // no reference song / voice / instrumental (E006), so say so here instead
+    // of spending a round trip to be told. Same refusal the route and the DAG
+    // payload-builder make; this one just arrives instantly.
+    if ((d.provider || "minimax") === "minimax" && !refUrl) {
+      toast.error(`Node "${d.label}": MiniMax needs a reference song, voice or instrumental`);
+      return Promise.reject(new Error("Reference audio required"));
+    }
     setUserPromptTemplate(d.prompt?.trim() || undefined);
     return runProcessingNode(
       node.id,
@@ -6397,8 +6405,8 @@ function executeNodeCore(
       combineData.audioCrossfadeCurve,
       combineData.audioCrossfadeDuration,
       combineData.smartCutEnabled,
-      combineData.smartCutFramesPrev,
-      combineData.smartCutFramesNext,
+      clampSmartCutWindow(combineData.smartCutFramesPrev),
+      clampSmartCutWindow(combineData.smartCutFramesNext),
       combineData.smartCutMode,
     );
   }

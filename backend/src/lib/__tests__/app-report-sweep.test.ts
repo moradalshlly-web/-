@@ -13,6 +13,7 @@ vi.mock("@/lib/supabase.js", () => ({ supabase: { from: vi.fn() } }))
 import { supabase } from "@/lib/supabase.js"
 import {
   excerptPrompt,
+  excerptPromptTemplate,
   rejectionReportFor,
   failureReportFor,
   policyBlockReportFor,
@@ -299,11 +300,40 @@ describe("report builders", () => {
     expect(report.title).toBe("Workflow execution timed out")
   })
 
-  it("prefers the mirrored userPrompt and caps length", () => {
-    expect(excerptPrompt({ userPrompt: "original", prompt: "derived" })).toBe("original")
+  // The excerpt is the evidence a content-rejection report is READ for, so it
+  // has to be the string the provider judged — not the authored template the
+  // canvas stamps into `userPrompt` before refs/mentions/style are expanded.
+  it("excerpts the prompt the provider was sent, not the authored template", () => {
+    expect(excerptPrompt({ userPrompt: "{Text}", prompt: "a lone woman at the edge of a crystal city" }))
+      .toBe("a lone woman at the edge of a crystal city")
     expect(excerptPrompt({ prompt: "x".repeat(5000) })).toHaveLength(1000)
     expect(excerptPrompt(null)).toBeNull()
     expect(excerptPrompt({})).toBeNull()
+  })
+
+  it("falls back to userPrompt only when no sent prompt was recorded", () => {
+    expect(excerptPrompt({ userPrompt: "typed" })).toBe("typed")
+    expect(excerptPrompt({ userPrompt: "typed", prompt: "" })).toBe("typed")
+  })
+
+  it("carries the authored template alongside, and only when it differs", () => {
+    expect(excerptPromptTemplate({ userPrompt: "{Text}", prompt: "expanded" })).toBe("{Text}")
+    expect(excerptPromptTemplate({ userPrompt: "same", prompt: "same" })).toBeNull()
+    expect(excerptPromptTemplate({ prompt: "expanded" })).toBeNull()
+    expect(excerptPromptTemplate({ userPrompt: "typed" })).toBeNull()
+    expect(excerptPromptTemplate(null)).toBeNull()
+    expect(excerptPromptTemplate({ userPrompt: "y".repeat(5000), prompt: "expanded" })).toHaveLength(1000)
+  })
+
+  it("a rejection report carries both the judged prompt and the template it grew from", () => {
+    const report = rejectionReportFor({
+      ...REJECTED,
+      input_data: { type: "generate-image", model: "gpt-image-2", userPrompt: "{Generate Text}", prompt: "studio product photograph of a silk shirt" },
+    })
+    expect(report.payload).toMatchObject({
+      prompt: "studio product photograph of a silk shirt",
+      promptTemplate: "{Generate Text}",
+    })
   })
 
   it("falls back to the job type when input_data has no model", () => {

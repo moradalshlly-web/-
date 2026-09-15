@@ -8,7 +8,7 @@ import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
-import { estimateCombineVideosCredits, type CombineVideosEstimatorInput, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, DEFAULT_AUDIO_CROSSFADE_CURVE_ID } from "@nodaro/shared"
+import { estimateCombineVideosCredits, type CombineVideosEstimatorInput, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT } from "@nodaro/shared"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { isCloud } from "../lib/config.js"
@@ -39,8 +39,11 @@ const combineVideosBody = z.object({
    *  keep-next favors the incoming clip, keep-prev the outgoing one.
    *  Windows and the fixed-trims fallback are shared by every mode. */
   smartCutMode: z.enum(["best-pair", "preroll-keep-prev", "preroll-keep-next"]).optional().default("best-pair"),
-  smartCutFramesPrev: z.number().int().min(1).max(24).optional().default(8),
-  smartCutFramesNext: z.number().int().min(1).max(24).optional().default(8),
+  /** Search windows — bounds and default come from the SAME shared constants
+   *  `clampSmartCutWindow` narrows to, so the route and every send path cannot
+   *  disagree about what is legal. */
+  smartCutFramesPrev: z.number().int().min(SMART_CUT_WINDOW_MIN).max(SMART_CUT_WINDOW_MAX).optional().default(SMART_CUT_WINDOW_DEFAULT),
+  smartCutFramesNext: z.number().int().min(SMART_CUT_WINDOW_MIN).max(SMART_CUT_WINDOW_MAX).optional().default(SMART_CUT_WINDOW_DEFAULT),
   /** Defaults 1 start / 2 end — the user-validated recipe for AI
    *  continuation clips: the NEXT clip re-renders the boundary moment as
    *  its first frame (drop 1), and the previous clip's last couple of

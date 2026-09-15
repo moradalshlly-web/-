@@ -19,6 +19,7 @@ import {
   isUpstreamKieFailure,
   pollDelay,
 } from "../client.js"
+import { isRetryableFailure } from "../../../lib/mcp/tools/_job-error.js"
 
 describe("createUpstreamFailureError + isUpstreamKieFailure", () => {
   it("flags the KieError as a terminal upstream failure (sanitized message preserved)", () => {
@@ -149,6 +150,34 @@ describe("createSanitizedError", () => {
     expect(error.message).toBe("Generation timed out. Please try again.")
     expect(error.internalDetails).toBe("Request timed out after 30s")
     expect(error.context).toBe("Video generation")
+  })
+
+  it("maps a prompt-length overrun to a PROMPT message, not the oversized-file one", () => {
+    // Verbatim prod errorDetail (2026-09-07, z-image): the "cannot exceed"
+    // branch below claimed it and told three users to "use a shorter or smaller
+    // file" for a run that uploaded no file at all.
+    const error = createSanitizedError(
+      'createTask error (code 500): {"code":500,"msg":"The text length cannot exceed the maximum limit","data":null}',
+      "Image generation"
+    )
+
+    expect(error.message).toBe(
+      "That prompt is too long for this model. Shorten it, or pick a model with a larger prompt limit."
+    )
+    // "too long" keeps it inside INPUT_LIMIT_PATTERNS → non-retryable, which is
+    // the truth: the same prompt fails the same way.
+    expect(isRetryableFailure(error.message)).toBe(false)
+  })
+
+  it("still maps a real file-size overrun to the oversized-file message", () => {
+    const error = createSanitizedError(
+      "Image file size cannot exceed 10MB",
+      "Image generation"
+    )
+
+    expect(error.message).toBe(
+      "Input file exceeds the size or duration limit. Please use a shorter or smaller file."
+    )
   })
 
   it("maps copyright-restriction failures to a copyright message, not the generic retry fallback", () => {

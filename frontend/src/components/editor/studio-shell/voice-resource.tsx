@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState } from "react"
 import { VoiceBrowser } from "../config-panels/voice-browser"
 import { textToSpeech, lipSyncApi, voiceDesignApi, getJobStatusLean } from "@/lib/api"
-import { useCreateVoiceClone } from "@/hooks/use-voice-clones"
-import type { VoiceClone } from "@/lib/api"
 import type { CharacterVoice } from "@/types/nodes"
 import { tx } from "@/lib/i18n"
 
-type Mode = "browse" | "clone" | "design"
+type Mode = "browse" | "design"
 
 /**
  * Shared voice resource — the entity-agnostic core of the studio Voice page.
  *
  * Extracted verbatim from `character-studio/pages/voice-page.tsx` so the
  * character AND creature studios share one ~300-line voice surface (Browse /
- * Clone / Design-audition modes, the selected-voice card, and the Talk panel
+ * Design-audition modes, the selected-voice card, and the Talk panel
  * that speaks + lip-syncs against the entity's main image). The ONLY coupling
  * to the host studio is the minimal `{ voice, onVoiceChange, sourceImageUrl }`
  * interface — there is no read of `state.staged` / `state.patch` here, so the
@@ -37,7 +35,7 @@ export interface VoiceResourceProps {
 /** Studio-side job poll → output URL. The canvas `pollJobToCompletion` takes an
  *  ExecutionContext and returns ONLY output_data.imageUrl — useless for audio/video
  *  here. Confirmed: getJobStatusLean returns a JobStatusLean whose `output_data`
- *  carries `audioUrl` (AUDIO_TYPES finalize: text-to-speech / voice-clone) and
+ *  carries `audioUrl` (AUDIO_TYPES finalize: text-to-speech) and
  *  `videoUrl` (VIDEO_TYPES finalize: lip-sync).
  *
  *  Cancellable: the Talk/Design preview is page-local and ephemeral, and
@@ -142,13 +140,13 @@ export function VoiceResource({ voice: v, onVoiceChange, sourceImageUrl }: Voice
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4 max-w-2xl">
       <div className="flex gap-2">
-        {(["browse", "clone", "design"] as Mode[]).map((m) => (
+        {(["browse", "design"] as Mode[]).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
             className={`text-[11px] px-3 py-1.5 rounded ${mode === m ? "bg-[#1a2744] text-[#3b82f6]" : "text-slate-400 hover:text-slate-200"}`}
           >
-            {m === "browse" ? "Browse" : m === "clone" ? "Clone from audio" : "Design from text"}
+            {m === "browse" ? "Browse" : "Design from text"}
           </button>
         ))}
       </div>
@@ -160,14 +158,6 @@ export function VoiceResource({ voice: v, onVoiceChange, sourceImageUrl }: Voice
           showCustomVoices
           onSelect={(voiceId, voiceName, voiceType, meta) =>
             setVoice({ voiceId, voiceName, voiceType, ttsProvider: meta?.recommendedProvider })
-          }
-        />
-      )}
-
-      {mode === "clone" && (
-        <ClonePanel
-          onCloned={(c) =>
-            setVoice({ voiceId: c.elevenlabsVoiceId, voiceName: c.name, voiceType: "custom", previewUrl: c.previewUrl })
           }
         />
       )}
@@ -223,48 +213,6 @@ export function VoiceResource({ voice: v, onVoiceChange, sourceImageUrl }: Voice
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-/** Clone a voice from an uploaded audio sample. Wraps `useCreateVoiceClone()`
- *  (`mutate({ name, file: Blob })`); on success hands the new `VoiceClone` back
- *  to the page, which stores it as the selected voice (voiceType: "custom").
- *  Recording (mic) is available in the Browse tab's VoiceBrowser. */
-function ClonePanel({ onCloned }: { onCloned: (c: VoiceClone) => void }) {
-  const create = useCreateVoiceClone()
-  const [name, setName] = useState("")
-  const [file, setFile] = useState<File | null>(null)
-
-  async function submit() {
-    if (!name.trim() || !file) return
-    const clone = await create.mutateAsync({ name: name.trim(), file })
-    onCloned(clone)
-  }
-
-  return (
-    <div className="border border-[#1e293b] rounded p-3 space-y-2">
-      <div className="text-[10px] text-slate-400">Clone a voice from a 30s–2min clean audio sample.</div>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Voice name (e.g. Narrator)"
-        className="w-full text-[11px] bg-[#13161f] border border-[#334155] rounded px-2 py-1 text-slate-200"
-      />
-      <input
-        type="file"
-        accept=".wav,.mp3,.webm,.m4a,audio/*"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        className="block w-full text-[11px] text-slate-400 file:mr-2 file:rounded file:border-0 file:bg-[#2a3b6e] file:px-2 file:py-1 file:text-[11px] file:text-[#cdd9ff]"
-      />
-      <button
-        disabled={!name.trim() || !file || create.isPending}
-        onClick={submit}
-        className="text-[11px] px-3 py-1.5 rounded bg-[#2a3b6e] text-[#cdd9ff] disabled:opacity-50"
-      >
-        {create.isPending ? "Cloning…" : "Create voice"}
-      </button>
-      {create.isError && <div className="text-[9px] text-red-400">Clone failed — try a longer, cleaner sample.</div>}
     </div>
   )
 }

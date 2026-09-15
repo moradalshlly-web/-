@@ -103,7 +103,7 @@ const KIND_META: Record<"image" | "audio" | "video", KindMeta> = {
   audio: {
     kind: "audio",
     supportedMime: SUPPORTED_AUDIO_MIME,
-    callsiteHint: "lip_sync (audio_url) / voice_clone / dubbing",
+    callsiteHint: "lip_sync (audio_url) / dubbing",
   },
   video: {
     kind: "video",

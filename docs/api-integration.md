@@ -690,7 +690,13 @@ otherwise.) Unlike `safety-block`, the platform does not retry a policy rejectio
 and offers no fallback model: whether the same request would be judged
 differently is the deployment's policy's business, not the platform's.
 
-`error_hint` is `null`/absent on every other failure. For `safety-block`,
+`error_hint` is `null`/absent on every other failure — including a **request
+reject**, where the provider answered the submission with a 4xx because the
+settings or input media are invalid for that model. That one has no structured
+hint, but its `error_message` says the provider *rejected these settings for
+this model* and `retryable` is `false`: change the settings or the media before
+re-running. A provider 5xx stays retryable however validation-shaped its
+wording is. For `safety-block`,
 `class` distinguishes a
 deterministic block (`copyright`, `likeness` — retrying the identical request
 never helps) from `safety`, whose filter is known to be non-deterministic for
@@ -1778,13 +1784,18 @@ while `temperature` is **silently ignored** unless you also send
 where those levers take effect, and therefore bills **one credit tier up**;
 asking for it on a model with no direct lane is a 400
 `advanced_mode_unsupported`. The call is
-**synchronous and a single call may run several minutes** — each attempt is
-allowed up to 240 seconds — so give your HTTP client a matching timeout.
+**synchronous and a single call may run several minutes**: each attempt is
+allowed up to 240 seconds *per provider lane*, and a call that cannot reach its
+primary lane falls back to one alternate, so the ceiling is
+`(maxRetries + 1) x 2 x 240 s` — 24 minutes at the default `maxRetries: 2`, 32 at
+the maximum. Give your HTTP client a timeout sized against that, or use the
+asynchronous twin below and stop holding a connection open.
 Errors: 400 `validation_error`, 401, 402 (credits), 500 `internal_error` (the
 job row could not be created), 502 `llm_error` once the retries are spent, 503
 `provider_unavailable`. SDK: `client.llm.structured(body)` — mind the client's
-`timeoutMs` (the default 60 s is shorter than this call can run; create the
-client with `timeoutMs: 300_000`, or use the asynchronous twin below).
+`timeoutMs`: the default 60 s is far shorter than this call can run, and even
+`timeoutMs: 300_000` only covers a fast draft, not the ceiling above. Size it
+against your own `maxRetries`, or use the asynchronous twin below.
 
 ### Asynchronous structured drafts (`POST /v1/llm/structured/jobs`)
 
@@ -1831,6 +1842,17 @@ Accepted audio formats include MP3, WAV, M4A/AAC, OGG, WebM and FLAC
 (`audio/flac` / `audio/x-flac`); size caps are enforced per media type
 (50 MB for audio). The SDK wraps this as `client.uploads`; MCP clients use
 `prepare_audio_upload` / `request_audio_upload` and friends.
+
+**The declared content type does not have to be the canonical one.** The
+server resolves the part's `Content-Type` before validating it: parameters are
+stripped (`audio/webm;codecs=opus` → `audio/webm`), well-known vendor
+spellings map to the format they mean (`audio/vnd.dlna.adts` — what Windows
+calls a plain `.aac` — → `audio/aac`; `image/jpg` → `image/jpeg`;
+`video/mov` → `video/quicktime`), and an uninformative type
+(`application/octet-stream`, or none at all) is resolved from the **filename
+extension**. A type that still resolves to nothing we accept is rejected with
+`400 validation_error` listing the accepted formats. The resolved type is what
+comes back as `mimeType` and what the stored object is served as.
 
 ### Media processing (free, synchronous)
 
@@ -2483,11 +2505,10 @@ until `status` is `completed`, read the result from `output_data`.
 |---|---|---|
 | `GET` | `/v1/voices` | Premade voice catalog (name, `voice_id`, gender/accent/age metadata). |
 | `GET` | `/v1/voices/library` | Search the shared Voice Library (`?search=`, `?gender=`, `?language=`, … `?page=`, `?page_size=`). |
-| `GET` | `/v1/voice-clones` | List your voice clones. |
-| `POST` | `/v1/voice-clones` | Clone from an uploaded **file** (multipart: `name` field + `file` part, ≤10 MB). |
-| `POST` | `/v1/voice-clones/from-url` | Clone from an already-uploaded sample URL (`{ name, audioUrl }`). |
-| `PATCH` | `/v1/voice-clones/:id` | Rename / edit a clone. |
-| `DELETE` | `/v1/voice-clones/:id` | Delete a clone. |
+| `GET` | `/v1/voice-clones` | List the voice clones you created before cloning was retired. |
+| `POST` | `/v1/voice-clones`, `/v1/voice-clones/from-url` | **Retired** — voice cloning is no longer offered. Both answer `410` with `error.code = "voice_cloning_retired"`. Use `/v1/voice-design` for a new custom voice. |
+| `PATCH` | `/v1/voice-clones/:id` | Rename / edit an existing clone. |
+| `DELETE` | `/v1/voice-clones/:id` | Delete an existing clone. |
 | `POST` | `/v1/voice-design` | Design a synthetic voice from a description (`{ text, voiceDescription, model?, loudness?, guidanceScale?, seed?, quality?, shouldEnhance? }`) → job. |
 | `POST` | `/v1/voice-remix` | Speak a text in a described voice, no cloning (`{ text, voiceDescription }`) → job. |
 | `POST` | `/v1/dubbing` | Translate-and-revoice audio OR video (`{ audioUrl \| videoUrl \| sourceUrl (exactly one), targetLanguage, sourceLanguage?, numSpeakers? (0=auto), disableVoiceCloning?, dropBackgroundAudio?, startTime?, endTime?, highestResolution?, useProfanityFilter?, targetAccent?, watermark? }`) → job. Video mode delivers `output_data.videoUrl` + the dubbed `audioUrl`. Priced per minute of the dubbed span (min 1); span capped at 30 minutes (413 past it — the start/end window is the lever). |

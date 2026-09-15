@@ -1,9 +1,11 @@
 # Generate Music
-> Create original music tracks from text prompts using MiniMax.
+> Create original music tracks from a reference track plus a text prompt, using MiniMax.
 
 ## Overview
 
-The Generate Music node produces original music from a text description using MiniMax. This is the basic music generation node -- for Suno-based generation (covers, extensions, lyrics, stem separation, and more), use the dedicated **Suno Generate** node and the other Suno-specific nodes.
+The Generate Music node produces original music with MiniMax, steered by a **reference song, voice or instrumental** plus your text description. This is the basic music generation node -- for Suno-based generation (covers, extensions, lyrics, stem separation, and more), use the dedicated **Suno Generate** node and the other Suno-specific nodes.
+
+> **A reference is required.** MiniMax Music is reference-conditioned: it refuses any run that carries no reference song, voice or instrumental. Supply one by uploading a file, pasting a YouTube link, or wiring an audio node into the node's reference input. A run without one is refused **before** any credits are reserved (in the editor, in workflow runs, and over the API) -- you will see "MiniMax Music needs a reference song, voice or instrumental", not a provider error. For prompt-only music with no reference track, use the **Suno Generate** node.
 
 ## Configuration
 
@@ -16,8 +18,8 @@ The Generate Music node produces original music from a text description using Mi
 | Mood | `string` | `""` | Optional mood descriptor (e.g., "uplifting", "dark", "relaxing") |
 | Instrumental | `boolean` | `true` | Generate instrumental-only track (no vocals) |
 | Lyrics | `string` | `""` | Optional lyrics for vocal tracks (ignored when Instrumental is true) |
-| Reference Source | `"none" \| "upload" \| "youtube"` | `"none"` | Optional reference audio source for style guidance |
-| Reference Audio URL | `string` | `""` | URL of uploaded reference audio (when Reference Source is "upload") |
+| Reference Source | `"none" \| "upload" \| "youtube"` | `"none"` | **Required** -- where the reference audio comes from. A wired upstream audio node satisfies it too |
+| Reference Audio URL | `string` | `""` | URL of uploaded reference audio (when Reference Source is "upload"). Also the API field (`referenceAudioUrl`), which `POST /v1/generate-music` requires for `minimax` |
 | Reference YouTube URL | `string` | `""` | YouTube URL for style reference (when Reference Source is "youtube") |
 | `promptPrefix` / `promptSuffix` | text | -- | Optional pre/post text wrapped around the prompt at run time (settings panel → **Pre & post text**; hidden from app users; captured by presets). See [Prompt pre & post text](../../prompt-pre-post-text.md). |
 
@@ -31,14 +33,14 @@ The Generate Music node produces original music from a text description using Mi
 
 ## Inputs & Outputs
 
-- **Input**: `in` -- optional upstream text connection for dynamic prompt via field mapping
+- **Input**: `in` -- optional upstream text connection for dynamic prompt via field mapping; an upstream **audio** connection supplies the required reference track
 - **Output**: `audio` -- generated music track (URL)
 ## Best Practices
 
 - Write detailed prompts that specify genre, instruments, tempo, mood, and structure. "Upbeat electronic dance track, 120 BPM, synth leads, punchy drums, building energy" works better than "dance music."
 - Keep Instrumental enabled unless you specifically need generated vocals. Instrumental tracks are generally more versatile for video backgrounds and compositions.
 - When providing lyrics, structure them with line breaks. The model interprets line breaks as phrasing cues.
-- Use reference audio sparingly -- it guides style but can sometimes constrain creativity.
+- The reference track is what MiniMax builds from -- pick one whose genre, instrumentation and energy are close to what you want, then let the prompt describe the differences.
 
 ## Common Use Cases
 
@@ -52,6 +54,6 @@ The Generate Music node produces original music from a text description using Mi
 
 - For Suno-based generation and advanced features (covers, extensions, style boost, stem separation, mashups), use the dedicated Suno nodes: Suno Generate, Suno Cover, Suno Extend, Suno Lyrics, Suno Separate, Suno Music Video, and Suno Upload Extend.
 - The prompt maximum is 3000 characters, providing room for very detailed descriptions including specific instruments, arrangement notes, and dynamic changes.
-- Reference audio can help steer the style, but the output will never be a copy of the reference. It influences mood and instrumentation rather than melody.
+- The output is never a copy of the reference: it influences mood and instrumentation rather than melody.
 - Generated music tracks can be connected to Merge Video & Audio for adding background music to video, or to Mix Audio for layering with other audio sources.
 - Use the `instrumental` option to generate music without vocals, and the `duration` field to control track length. (This node generates via MiniMax; Suno model/version selection lives in the dedicated Suno nodes.)

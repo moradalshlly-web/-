@@ -419,7 +419,7 @@ Carrying forward from existing patterns:
 ## 11. Non-goals (v1)
 
 Deliberately out of scope:
-- **Per-tool skills** for utility MCP tools (extract_frame, voice_clone, etc.) — Claude uses the tool's own description. Future enhancement only if pain emerges.
+- **Per-tool skills** for utility MCP tools (extract_frame, voice_design, etc.) — Claude uses the tool's own description. Future enhancement only if pain emerges.
 - **Skill versioning** beyond frontmatter timestamps — no semver per node skill, no concurrent versions. Single canonical content per node type.
 - **Multi-language skill content** — English only.
 - **User-customizable skill overrides** — content is repo-controlled. Per-tenant overrides via DB are deferred to Phase 2+.

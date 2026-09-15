@@ -147,11 +147,61 @@ function fileHttpReport(
   }
 }
 
+/**
+ * The message a thrown value carries, whatever its prototype.
+ *
+ * A Supabase `PostgrestError` is NOT an `Error`: in the non-throwing
+ * `{ data, error }` lane postgrest-js hands back the parsed response body as a
+ * plain object, so `err instanceof Error` is false and an `err.message` read
+ * gated on that check silently drops the only sentence that explains the
+ * failure. That is how `GET /v1/jobs/status — Failed to fetch job statuses`
+ * reached /admin/app-reports carrying our generic client sentence and nothing
+ * else — untriageable. Read `message` STRUCTURALLY instead (which also covers
+ * every real `Error`, a thrown string, and any future error-like value), and
+ * treat a blank one as absent so the caller's fallback still applies.
+ *
+ * Report-side only: what the client is sent is still the curated
+ * `clientMessage`, never this.
+ */
+export function errorMessageOf(err: unknown): string | undefined {
+  const raw =
+    typeof err === "string"
+      ? err
+      : err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string"
+        ? (err as { message: string }).message
+        : undefined
+  const trimmed = raw?.trim()
+  return trimmed ? trimmed : undefined
+}
+
+/** Per-field cap for the diagnostics below — `details` can quote row values. */
+const ERROR_DETAIL_MAX = 500
+
+/**
+ * The structured diagnostics an error carries NEXT to its message: `code` /
+ * `details` / `hint` on a PostgrestError, `code` on a Node system error. Those
+ * are what turn "column does not exist" into a fixable report, so they ride
+ * along in the payload — again report-side only, never on the wire. Absent and
+ * non-scalar values are omitted rather than written as nulls (PGRST116 ships
+ * `hint: null`; the raw-body shape `{ message }` has none of the three).
+ */
+function errorDetailOf(err: unknown): Record<string, string> {
+  if (!err || typeof err !== "object") return {}
+  const out: Record<string, string> = {}
+  for (const key of ["code", "details", "hint"] as const) {
+    const value = (err as Record<string, unknown>)[key]
+    if (typeof value === "number" && Number.isFinite(value)) out[key] = String(value)
+    else if (typeof value === "string" && value.trim()) out[key] = value.slice(0, ERROR_DETAIL_MAX)
+  }
+  return out
+}
+
 function reportServerError(
   req: FastifyRequest,
   message: string,
   via: "route-catch" | "uncaught" | "sanitizer-net",
   err?: unknown,
+  clientMessage?: string,
 ): void {
   try {
     if (isClientAbort(req, err)) return
@@ -164,6 +214,10 @@ function reportServerError(
       payload: {
         message,
         via,
+        // The sentence the USER actually saw, when it differs from the one we
+        // are reporting — the only link between an admin row and a user report.
+        ...(clientMessage && clientMessage !== message ? { clientMessage } : {}),
+        ...errorDetailOf(err),
         ...(err instanceof Error && err.stack ? { stack: err.stack.slice(0, 2000) } : {}),
       },
     })
@@ -230,7 +284,7 @@ export function sendInternalError(
     return reply.status(422).send(jobBlockedBody({ userMessage: blocked.message }))
   }
   req.log.error({ err }, clientMessage)
-  reportServerError(req, err instanceof Error ? err.message : clientMessage, "route-catch", err)
+  reportServerError(req, errorMessageOf(err) ?? clientMessage, "route-catch", err, clientMessage)
   sanitizedReplies.add(reply)
   return reply.status(500).send({
     error: { code: "internal_error", message: clientMessage },
@@ -249,7 +303,7 @@ export function registerErrorTelemetry(app: FastifyInstance): void {
   app.addHook("onError", async (req, _reply, error) => {
     const status = (error as { statusCode?: number }).statusCode ?? 500
     if (status < 500) return // 4xx = client errors (validation, auth) — not telemetry
-    reportServerError(req, error.message || "Unknown error", "uncaught", error)
+    reportServerError(req, errorMessageOf(error) ?? "Unknown error", "uncaught", error)
   })
 }
 

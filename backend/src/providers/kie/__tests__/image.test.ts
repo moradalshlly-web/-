@@ -38,6 +38,9 @@ vi.mock("../models.js", async (importOriginal) => ({
     "gpt-image-2-5-flare": { model: "gpt-image-2-5-flare-text-to-image", cost: 0.03, extraParams: { aspect_ratio: "16:9", resolution: "1K" } },
     "gpt-image-2-5-flare-i2i": { model: "gpt-image-2-5-flare-image-to-image", cost: 0.03, inputType: "image-to-image", imageParam: "input_urls", extraParams: { aspect_ratio: "16:9", resolution: "1K" } },
     "grok-i2i": { model: "grok-imagine/image-to-image", cost: 0.04, inputType: "image-to-image", imageParam: "image_urls", extraParams: {} },
+    // Z-Image — the family's SHORTEST prompt cap (1000 chars, docs.kie.ai), so
+    // it is the fixture the per-provider clamp is exercised on.
+    "z-image": { model: "z-image", cost: 0.004, extraParams: { aspect_ratio: "16:9" } },
     "recraft-upscale": { model: "recraft/crisp-upscale", cost: 0.04, inputType: "image-to-image", imageParam: "image", extraParams: {} },
     "recraft-remove-bg": { model: "recraft/remove-background", cost: 0.03, inputType: "image-to-image", imageParam: "image", extraParams: {} },
     "nano-banana-edit": { model: "google/nano-banana-edit", cost: 0.04, inputType: "image-to-image", imageParam: "image_urls", extraParams: {} },
@@ -60,6 +63,7 @@ vi.mock("../../../lib/storage.js", async (importOriginal) => ({
 import sharp from "sharp"
 import { KieError } from "../client.js"
 import { KieImageProvider } from "../image.js"
+import { getMaxImagePromptChars } from "@nodaro/shared"
 
 let provider: KieImageProvider
 let pngFixture: Buffer
@@ -128,6 +132,33 @@ describe("KieImageProvider.generateImage", () => {
   it("throws when no URL in result", async () => {
     mocks.mockRunKieTask.mockResolvedValueOnce({ resultJson: { resultUrls: [] } })
     await expect(provider.generateImage("test")).rejects.toThrow()
+  })
+
+  // Prod 2026-09-07: three z-image runs from one workflow reached KIE with a
+  // prompt over the model's 1000-char cap and came back
+  // {"code":500,"msg":"The text length cannot exceed the maximum limit"}. The
+  // per-provider cap was enforced only inside the structured prompt assembler,
+  // so the flat path (orchestrator / API / MCP) sent whatever it was handed.
+  it("truncates a prompt over the provider's cap instead of sending it (z-image, 1000)", async () => {
+    await provider.generateImage("x".repeat(4000), undefined, "z-image")
+    const input = mocks.mockRunKieTask.mock.calls[0][1] as { prompt: string }
+    expect(input.prompt.length).toBe(getMaxImagePromptChars("z-image"))
+    expect(input.prompt.endsWith("...")).toBe(true)
+  })
+
+  it("leaves a prompt inside the cap byte-identical", async () => {
+    await provider.generateImage("a short prompt", undefined, "z-image")
+    const input = mocks.mockRunKieTask.mock.calls[0][1] as { prompt: string }
+    expect(input.prompt).toBe("a short prompt")
+  })
+
+  // The cap follows the FINAL provider: the t2i → i2i swap below raises
+  // gpt-image-2's 5000 to gpt-image-2-i2i's 20000, so an 8000-char prompt that
+  // would be cut on the t2i lane must survive intact on the i2i one.
+  it("clamps against the swapped-to provider, not the requested one", async () => {
+    await provider.generateImage("y".repeat(8000), ["https://ref1.png"], "gpt-image-2")
+    const input = mocks.mockRunKieTask.mock.calls[0][1] as { prompt: string }
+    expect(input.prompt.length).toBe(8000)
   })
 
   it("passes aspect_ratio through to KIE for nano-banana (Pro endpoint accepts aspect_ratio, not image_size)", async () => {

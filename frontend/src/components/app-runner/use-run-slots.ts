@@ -311,41 +311,70 @@ export function useRunSlots({ slug, user, persistRuns, initialRunId, initialSide
     }))
   }, [runtimes, app?.thumbnailNodeId])
 
+  // The ONE place a slot is written back to the DB.
+  //
+  // The "Original" slot is SYNTHETIC: it is built from the published snapshot
+  // (`originalSlot` above), has no `app_runs` row, and its id is the literal
+  // string `"original"` — not a UUID. `PATCH /v1/app/:slug/runs/:runId` parses
+  // its params with `z.string().uuid()`, so a write for that slot is not a
+  // harmless no-op: it is a guaranteed 400 (and an `app_reports`
+  // validation-reject row). Routing every write through one funnel — rather
+  // than repeating `!== ORIGINAL_SLOT_ID` at each call site, which is how
+  // `handleCreateNew` → `saveCurrentSlotInputs` came to fire it — keeps a
+  // future call site correct by default.
+  const persistSlot = useCallback(
+    (
+      slotId: string | null,
+      inputValues?: Record<string, Record<string, unknown>>,
+      name?: string | null,
+    ) => {
+      if (!slotId || slotId === ORIGINAL_SLOT_ID) return
+      if (!slug || !persistRuns) return
+      if (inputValues === undefined && name === undefined) return
+      updateAppRunInputs(slug, slotId, inputValues, name).catch(() => {})
+    },
+    [slug, persistRuns],
+  )
+
   // Wire run action — saves slot inputs before running, passes runId to backend
   const activeSlotIdRef = useRef(activeSlotId)
   activeSlotIdRef.current = activeSlotId
 
   useEffect(() => {
+    // `runId` is `z.string().uuid().optional()` on `POST /v1/app/:slug/run`, so
+    // the synthetic Original id must not ride the wire either — omitting it
+    // makes the backend mint a fresh run, which is what running from the
+    // read-only snapshot means.
+    const persistedRunId = () => {
+      const id = activeSlotIdRef.current
+      return id === ORIGINAL_SLOT_ID ? null : id
+    }
     const bridgedRun = createBridgedRun(
       () => usePresentationStore.getState().inputValues,
-      () => activeSlotIdRef.current,
+      persistedRunId,
     )
     usePresentationStore.setState({
       run: async () => {
-        const slotId = activeSlotIdRef.current
+        const slotId = persistedRunId()
         if (slotId) {
           const inputs = usePresentationStore.getState().inputValues
           setSlots((prev) => prev.map((s) => s.id === slotId ? { ...s, inputValues: inputs } : s))
           // Save inputs to DB before running
-          if (slug && persistRuns) {
-            updateAppRunInputs(slug, slotId, inputs).catch(() => {})
-          }
+          persistSlot(slotId, inputs)
         }
         await bridgedRun()
       },
     })
-  }, [appRun, slug, persistRuns])
+  }, [appRun, slug, persistRuns, persistSlot])
 
   // Save current slot inputs from presentation store
   const saveCurrentSlotInputs = useCallback(() => {
     if (!activeSlotId) return
     const inputs = usePresentationStore.getState().inputValues
     setSlots((prev) => prev.map((s) => s.id === activeSlotId ? { ...s, inputValues: inputs } : s))
-    // Persist to DB
-    if (slug && persistRuns) {
-      updateAppRunInputs(slug, activeSlotId, inputs).catch(() => {})
-    }
-  }, [activeSlotId, slug, persistRuns])
+    // Persist to DB (a no-op for the synthetic Original slot — see persistSlot)
+    persistSlot(activeSlotId, inputs)
+  }, [activeSlotId, persistSlot])
 
   // Create a fresh idle draft slot (DB-persisted when authenticated, else
   // local-only) seeded with the given inputs. Prepends it and returns it.
@@ -405,10 +434,8 @@ export function useRunSlots({ slug, user, persistRuns, initialRunId, initialSide
     newRun()
     resetPresentationToIdle(emptyInputs)
     // Persist cleared inputs to DB
-    if (slug && persistRuns) {
-      updateAppRunInputs(slug, activeSlotId, emptyInputs).catch(() => {})
-    }
-  }, [activeSlotId, inputNodes, newRun, slug, persistRuns])
+    persistSlot(activeSlotId, emptyInputs)
+  }, [activeSlotId, inputNodes, newRun, persistSlot])
 
   // Retry — reset failed slot to idle (keep inputs), so Run becomes available
   const handleRetry = useCallback(() => {
@@ -534,10 +561,8 @@ export function useRunSlots({ slug, user, persistRuns, initialRunId, initialSide
   const handleRenameSlot = useCallback((slotId: string, name: string | null) => {
     if (slotId === ORIGINAL_SLOT_ID) return
     setSlots((prev) => prev.map((s) => s.id === slotId ? { ...s, name } : s))
-    if (slug && persistRuns) {
-      updateAppRunInputs(slug, slotId, undefined, name).catch(() => {})
-    }
-  }, [slug, persistRuns])
+    persistSlot(slotId, undefined, name)
+  }, [persistSlot])
 
   // (Run navigation via up/down arrows lives in FullscreenView only — see
   // fullscreen-view.tsx. A global handler here hijacked the chat composer.)

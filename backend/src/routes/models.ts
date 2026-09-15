@@ -20,7 +20,7 @@ const modelsQuery = z.object({
     .enum([
       "t2i", "i2i", "edit", "upscale", "remove-bg",
       "i2v", "t2v", "v2v", "extend", "motion-transfer", "lip-sync", "video-upscale",
-      "tts", "music", "sfx", "stt", "voice-clone", "voice-design",
+      "tts", "music", "sfx", "stt", "voice-design",
       "voice-changer", "voice-changer-pro", "isolation", "dubbing", "forced-alignment",
       "video-analysis", "video-audit",
     ])

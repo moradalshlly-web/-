@@ -36,7 +36,11 @@ vi.mock("@/lib/credits-job-lifecycle.js", () => ({
   refundReservedCreditsForJob: mocks.refundReservedCreditsForJob,
 }))
 vi.mock("@/lib/reconcile/persistence.js", () => ({ markProviderCallStart: mocks.markProviderCallStart }))
-vi.mock("@/lib/llm-client.js", () => ({ llmCompleteStructured: mocks.llmCompleteStructured }))
+vi.mock("@/lib/llm-client.js", () => ({ llmCompleteStructured: mocks.llmCompleteStructured,
+  // Read at import time by STRUCTURED_LLM_MAX_RUNTIME_MS; the REAL value is
+  // asserted in reconcile/__tests__/sync-threshold-budget.test.ts, which does
+  // not mock this module.
+  LLM_MAX_LANES_PER_CALL: 2 }))
 vi.mock("@/lib/supabase.js", () => {
   // .update({...}).eq("id", …).eq("user_id", …) — the exact chain the route uses.
   const second = vi.fn().mockResolvedValue({ data: null, error: null })

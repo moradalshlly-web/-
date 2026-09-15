@@ -19,7 +19,7 @@ import {
 import { AspectRatioSelector } from "./aspect-ratio-selector"
 import { COMPOSITION_RATIOS, COLLAGE_ASPECT_RATIOS } from "./model-options"
 import { CombineTransitionPicker } from "@/lib/picker-ui"
-import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID } from "@nodaro/shared"
+import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT } from "@nodaro/shared"
 import { isCloud } from "@/lib/edition"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { WaveformAudioPlayer } from "@/components/audio-player"
@@ -257,35 +257,35 @@ export function CombineVideosConfig({ data, onUpdate, sources }: ConfigProps<Com
         <div className="flex flex-col gap-2 ps-3 border-s-2 border-muted-foreground/20">
           <div>
             <Label htmlFor="smart-cut-prev" className="text-[11px] text-muted-foreground">
-              {t("proccfg.searchWindowEndOfPreviousClip", { n: data.smartCutFramesPrev ?? 8 })}
+              {t("proccfg.searchWindowEndOfPreviousClip", { n: data.smartCutFramesPrev ?? SMART_CUT_WINDOW_DEFAULT })}
             </Label>
             <Input
               id="smart-cut-prev"
               type="number"
-              min={1}
-              max={24}
+              min={SMART_CUT_WINDOW_MIN}
+              max={SMART_CUT_WINDOW_MAX}
               step={1}
               className="h-8 text-xs"
-              value={data.smartCutFramesPrev ?? 8}
+              value={data.smartCutFramesPrev ?? SMART_CUT_WINDOW_DEFAULT}
               onChange={(e) =>
-                onUpdate({ smartCutFramesPrev: e.target.value === "" ? undefined : parseInt(e.target.value, 10) })
+                onUpdate({ smartCutFramesPrev: e.target.value === "" ? undefined : clampSmartCutWindow(parseInt(e.target.value, 10)) })
               }
             />
           </div>
           <div>
             <Label htmlFor="smart-cut-next" className="text-[11px] text-muted-foreground">
-              {t("proccfg.searchWindowStartOfNextClip", { n: data.smartCutFramesNext ?? 8 })}
+              {t("proccfg.searchWindowStartOfNextClip", { n: data.smartCutFramesNext ?? SMART_CUT_WINDOW_DEFAULT })}
             </Label>
             <Input
               id="smart-cut-next"
               type="number"
-              min={1}
-              max={24}
+              min={SMART_CUT_WINDOW_MIN}
+              max={SMART_CUT_WINDOW_MAX}
               step={1}
               className="h-8 text-xs"
-              value={data.smartCutFramesNext ?? 8}
+              value={data.smartCutFramesNext ?? SMART_CUT_WINDOW_DEFAULT}
               onChange={(e) =>
-                onUpdate({ smartCutFramesNext: e.target.value === "" ? undefined : parseInt(e.target.value, 10) })
+                onUpdate({ smartCutFramesNext: e.target.value === "" ? undefined : clampSmartCutWindow(parseInt(e.target.value, 10)) })
               }
             />
           </div>

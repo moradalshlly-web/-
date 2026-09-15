@@ -13,6 +13,7 @@ import {
   reserveStorageIfWithinLimit,
   refundStorage,
   getExtensionFromMime,
+  resolveUploadMime,
   type FileCategory,
 } from "../utils/file-validation.js"
 import {
@@ -103,9 +104,13 @@ export async function uploadRoutes(app: FastifyInstance) {
       })
     }
 
-    // Step 0: Validate MIME type BEFORE buffering the entire file
+    // Step 0: Validate MIME type BEFORE buffering the entire file.
+    // The filename rides along: a browser that hands us
+    // `application/octet-stream` (no registry entry) or a vendor alias like
+    // `audio/vnd.dlna.adts` (Windows' spelling for a plain .aac) is resolved
+    // against it — see `resolveUploadMime`.
     const mimeType = data.mimetype
-    const earlyValidation = validateFile(mimeType, 0) // size=0 skips size check
+    const earlyValidation = validateFile(mimeType, 0, data.filename) // size=0 skips size check
     if (!earlyValidation.valid && earlyValidation.error?.includes("Unsupported file type")) {
       // Consume and discard the stream to prevent connection hang
       data.file.resume()
@@ -115,8 +120,12 @@ export async function uploadRoutes(app: FastifyInstance) {
     }
 
     let buffer = await data.toBuffer()
-    let mimeTypeFinal = mimeType
     const originalFilename = data.filename
+    // The CANONICAL type — everything downstream (transcode branch, stored
+    // object Content-Type, extension, asset row, upload policy) reads this,
+    // never the raw `mimeType` the client declared.
+    const resolvedMime = resolveUploadMime(mimeType, originalFilename)
+    let mimeTypeFinal = resolvedMime
 
     // Parse optional fields from multipart form
     const fields = data.fields as Record<string, { value?: string } | undefined>
@@ -131,7 +140,7 @@ export async function uploadRoutes(app: FastifyInstance) {
     const filenameOverride = fields?.filename?.value ?? null
 
     // Step 1: Validate MIME type and size (full validation with actual size)
-    const validation = validateFile(mimeType, buffer.length)
+    const validation = validateFile(mimeType, buffer.length, originalFilename)
     if (!validation.valid) {
       return reply.status(400).send({
         error: { code: "validation_error", message: validation.error },
@@ -143,13 +152,13 @@ export async function uploadRoutes(app: FastifyInstance) {
     // HEIC/HEIF render only in Safari and cost libheif decodes per provider
     // call; transcode once to JPEG so thumbnails work everywhere and providers
     // skip re-decode.
-    if (mimeType === "image/heic" || mimeType === "image/heif") {
+    if (resolvedMime === "image/heic" || resolvedMime === "image/heif") {
       try {
         buffer = await sharp(buffer).jpeg({ quality: 90, mozjpeg: true }).toBuffer()
         mimeTypeFinal = "image/jpeg"
       } catch (err) {
         return reply.status(400).send({
-          error: { code: "validation_error", message: `Failed to decode ${mimeType} image: ${(err as Error).message}` },
+          error: { code: "validation_error", message: `Failed to decode ${resolvedMime} image: ${(err as Error).message}` },
         })
       }
     }
@@ -297,7 +306,10 @@ export async function uploadRoutes(app: FastifyInstance) {
       })
     }
 
-    if (!ALLOWED_AUDIO_TYPES.has(file.mimetype)) {
+    // Same resolution as /v1/upload — a vendor alias or a generic
+    // `application/octet-stream` is not a different file.
+    const audioMime = resolveUploadMime(file.mimetype, file.filename)
+    if (!ALLOWED_AUDIO_TYPES.has(audioMime)) {
       return reply.status(400).send({
         error: { code: "validation_error", message: `Unsupported audio type: ${file.mimetype}. Accepted: mp3, wav, m4a, aac` },
       })
@@ -315,7 +327,7 @@ export async function uploadRoutes(app: FastifyInstance) {
     const uploadDecision = await applyUploadPolicies({
       kind: "audio",
       lane: "upload-audio",
-      mime: file.mimetype,
+      mime: audioMime,
       sizeBytes: buffer.length,
       userId: req.userId,
       filename: file.filename,
@@ -328,7 +340,7 @@ export async function uploadRoutes(app: FastifyInstance) {
     const ext = file.filename.split(".").pop() ?? "mp3"
     const key = `uploads/${randomUUID()}.${ext}`
 
-    const publicUrl = await uploadBufferToS3(buffer, key, file.mimetype)
+    const publicUrl = await uploadBufferToS3(buffer, key, audioMime)
 
     return { url: publicUrl }
   })
@@ -341,14 +353,15 @@ export async function uploadRoutes(app: FastifyInstance) {
       })
     }
 
-    if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
+    const imageMime = resolveUploadMime(file.mimetype, file.filename)
+    if (!ALLOWED_IMAGE_TYPES.has(imageMime)) {
       return reply.status(400).send({
         error: { code: "validation_error", message: `Unsupported image type: ${file.mimetype}. Accepted: png, jpeg, webp, avif, heic, heif` },
       })
     }
 
     let buffer = await file.toBuffer()
-    let mime = file.mimetype
+    let mime = imageMime
 
     if (buffer.length > LEGACY_MAX_FILE_SIZE) {
       return reply.status(400).send({

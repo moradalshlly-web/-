@@ -244,7 +244,10 @@ export async function kling3Generate(
   if (createData.code !== 200 && createData.code !== 0) {
     throw createSanitizedError(
       `createTask error (code ${createData.code}): ${createData.msg ?? JSON.stringify(createData)}`,
-      "Kling 3.0"
+      "Kling 3.0",
+      false,
+      false,
+      { upstreamStatus: createData.code },
     )
   }
 

@@ -230,6 +230,56 @@ describe("buildCreditModelIdentifier", () => {
     it("does not affect non-flux-2 providers", () => {
       expect(buildCreditModelIdentifier("nano-banana", undefined, undefined, undefined, undefined, 4)).toBe("nano-banana")
     })
+
+    // ── Off-grid resolutions ────────────────────────────────────────────────
+    // Flux 2 is the ONLY family whose identifier interpolates `resolution`
+    // rather than matching it, and its callers legitimately hand it another
+    // model's value space: the multi-provider cost preview prices ONE node's
+    // data against EVERY selected provider (frontend
+    // `ee/hooks/use-providers-credits-sum.ts`), and node data written straight
+    // into workflow JSON by an agent/import/template never ran the config
+    // panel's provider-change fail-safe. "2K" used to interpolate into
+    // "flux-2-pro:2KMP:0ref" — an id no pricing row can answer, so every cost
+    // badge 503'd price_not_configured (18 production app-reports 2026-09-07..14).
+    it.each([
+      ["flux-2-pro", "2K", "flux-2-pro:2MP:0ref"],
+      ["flux-2-max", "2K", "flux-2-max:2MP:0ref"],
+      ["flux-2-klein", "2K", "flux-2-klein:1MP:0ref"],
+      ["flux-2-pro", "4K", "flux-2-pro:2MP:0ref"],
+      ["flux-2-pro", "1080p", "flux-2-pro:2MP:0ref"],
+      // Empty string is "unset", not a foreign value — it must not emit ":MP:".
+      ["flux-2-pro", "", "flux-2-pro:1MP:0ref"],
+    ])("%s + off-grid resolution %p snaps to the model default", (model, resolution, expected) => {
+      expect(buildCreditModelIdentifier(model, undefined, resolution)).toBe(expected)
+    })
+
+    it("an off-grid resolution keeps the ref count", () => {
+      expect(buildCreditModelIdentifier("flux-2-max", undefined, "2K", undefined, undefined, 3)).toBe("flux-2-max:2MP:3ref")
+    })
+
+    it("a same-value different-spelling resolution keeps its tier, in the grid's spelling", () => {
+      // "2.0 MP" is the same point on the grid as "2 MP" — snapping it to the
+      // model default would silently re-price a correct node — but the id must
+      // still read ":2MP:", the spelling the pricing rows are keyed on.
+      expect(buildCreditModelIdentifier("flux-2-klein", undefined, "2.0 MP")).toBe("flux-2-klein:2MP:0ref")
+      expect(buildCreditModelIdentifier("flux-2-klein", undefined, " 2 ")).toBe("flux-2-klein:2MP:0ref")
+      expect(buildCreditModelIdentifier("flux-2-klein", undefined, "0.5")).toBe("flux-2-klein:0.5MP:0ref")
+    })
+
+    it("the snap agrees with the route: normalize-then-build === build", () => {
+      // resolveNormalizedImageGen (routes + orchestrator) snaps "2K" through
+      // normalizeModelInput BEFORE building. The badge builds directly. Both
+      // must land on the same id or the preview quotes a price the reserve
+      // will not charge.
+      for (const provider of ["flux-2-klein", "flux-2-pro", "flux-2-max"]) {
+        for (const resolution of ["2K", "4K", "1K"]) {
+          expect(
+            resolveNormalizedImageGen({ provider, resolution, refCount: 0 }).identifier,
+            `${provider} + ${resolution}`,
+          ).toBe(buildCreditModelIdentifier(provider, undefined, resolution))
+        }
+      }
+    })
   })
 })
 

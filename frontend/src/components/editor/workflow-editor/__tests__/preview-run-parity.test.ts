@@ -824,6 +824,8 @@ describe("preview↔run parity — audio", () => {
     }
     const musicNode = makeNode("generate-music", {
       prompt: "an uplifting chorus",
+      // MiniMax is reference-conditioned; the node refuses to run without one.
+      referenceAudioUrl: "https://cdn.example/ref.mp3",
     })
     mockNodes = [genreNode, musicNode]
     mockEdges = [

@@ -921,6 +921,44 @@ function snapToAllowedDuration(requested: number, allowed: number[]): number {
   )
 }
 
+/**
+ * VEO 3.1 reference-to-video accepts exactly ONE duration: 8 seconds.
+ *
+ * Every VEO tier advertises 4 / 6 / 8s (`allowedDurations`) and that is true for
+ * TEXT_2_VIDEO and FIRST_AND_LAST_FRAMES_2_VIDEO — but the moment the call
+ * carries reference ingredients, KIE refuses anything else outright: "Invalid
+ * duration. Veo 3.1 reference-to-video currently only supports 8-second
+ * generation." (prod job 2026-09-06: veo3_lite, 4s, one character reference —
+ * the run died at createTask after the reservation).
+ *
+ * COERCE, DON'T REJECT. VEO bills a FLAT price per generation across 4/6/8s in
+ * every tier — the catalog and `STATIC_CREDIT_COSTS` composite VEO on
+ * RESOLUTION only (`:1080p`, `:4k`), never on duration — so the 8s the user
+ * gets costs them exactly what the 4s would have, while refusing costs them the
+ * run. Same doctrine as `normalizeModelInput`: coerce an unsupported lever to
+ * the one the model actually has.
+ */
+const VEO_REFERENCE_TO_VIDEO_DURATION = 8
+
+/** The duration a VEO call may actually send: 8s in reference mode, else the
+ *  caller's request snapped to the tier's allowed set. Shared by the i2v and
+ *  t2v entry points so neither can drift from the other. */
+function veoDurationFor(
+  generationType: string | undefined,
+  requested: number | undefined,
+  allowed: number[] | undefined,
+): number | undefined {
+  if (generationType === "REFERENCE_2_VIDEO") {
+    if (requested !== undefined && requested !== VEO_REFERENCE_TO_VIDEO_DURATION) {
+      console.log(
+        `[KIE.ai] VEO reference-to-video supports ${VEO_REFERENCE_TO_VIDEO_DURATION}s only — running the requested ${requested}s at ${VEO_REFERENCE_TO_VIDEO_DURATION}s (same price)`
+      )
+    }
+    return VEO_REFERENCE_TO_VIDEO_DURATION
+  }
+  return requested ? snapToAllowedDuration(requested, allowed ?? []) : undefined
+}
+
 // Longest-side cap for Seedance 2 reference images — the same 2048px ceiling the
 // i2v start/end frames use (no Seedance 2 input needs a larger image).
 const SEEDANCE_2_REF_MAX_DIMENSION = 2048
@@ -1500,9 +1538,10 @@ export class KieVideoProvider
           ? [imageUrl!, endFrameUrl]
           : [imageUrl!]
       }
-      const snappedDuration = duration
-        ? snapToAllowedDuration(duration, modelConfig.allowedDurations ?? [])
-        : undefined
+      // AFTER the resolver above, deliberately: `resolveVeoI2vInputs` can FLIP
+      // an anchored call to REFERENCE_2_VIDEO, and it is the wire mode actually
+      // sent — not the caller's request — that decides the legal duration.
+      const snappedDuration = veoDurationFor(veoGenerationType, duration, modelConfig.allowedDurations)
       const veoResult = await runVeoTask(
         modelConfig.model,
         veoPrompt,
@@ -1921,9 +1960,8 @@ export class KieVideoProvider
       // refs condition the output (a bare single image would otherwise be
       // misread as an IMAGE_2_VIDEO start frame).
       const veoRefUrls = (options?.referenceImageUrls ?? []).filter((u): u is string => !!u).slice(0, 3)
-      const snappedDuration = duration
-        ? snapToAllowedDuration(duration, modelConfig.allowedDurations ?? [])
-        : undefined
+      const veoGenerationType = veoRefUrls.length > 0 ? "REFERENCE_2_VIDEO" : undefined
+      const snappedDuration = veoDurationFor(veoGenerationType, duration, modelConfig.allowedDurations)
       const veoResult = await runVeoTask(
         modelConfig.model,
         effectivePrompt,
@@ -1931,7 +1969,7 @@ export class KieVideoProvider
         {
           aspectRatio: aspectRatio ?? options?.aspectRatio,
           seed: options?.seed,
-          ...(veoRefUrls.length > 0 ? { generationType: "REFERENCE_2_VIDEO" } : {}),
+          ...(veoGenerationType ? { generationType: veoGenerationType } : {}),
           resolution: options?.resolution,
           enableTranslation: options?.enableTranslation,
           duration: snappedDuration,

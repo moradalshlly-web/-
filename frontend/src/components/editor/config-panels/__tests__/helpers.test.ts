@@ -8,7 +8,7 @@ import {
   getModelIdentifier,
   buildCreditModelIdentifier,
 } from "../helpers"
-import { sunoCreditType, SUNO_SELECT_OPERATIONS, SUNO_MODELS } from "@nodaro/shared"
+import { sunoCreditType, SUNO_SELECT_OPERATIONS, SUNO_MODELS, applyDefaultVideoSelection, buildVideoCreditModelIdentifier } from "@nodaro/shared"
 import type { SourceNodeInfo } from "../types"
 import type { WorkflowNode, WorkflowEdge } from "@/types/nodes"
 
@@ -249,6 +249,49 @@ describe("getModelIdentifier", () => {
   it("returns 'unknown' when node has no type and no provider", () => {
     const node = makeNode({ type: undefined as any, data: { label: "X" } as any })
     expect(getModelIdentifier(node)).toBe("unknown")
+  })
+
+  // A provider-less VIDEO node is not an unpriced node: the routes and the
+  // orchestrator both fill the provider from applyDefaultVideoSelection, so
+  // the estimate must quote that model. Falling through to the bare node type
+  // asked GET /v1/credits/model-cost for "generate-video" — no pricing row, so
+  // 503 price_not_configured and a blank cost on the Run button (production
+  // app-report, 2026-09-13).
+  it.each(["generate-video", "image-to-video", "text-to-video"])(
+    "%s with no provider quotes the default video model, not the bare node type",
+    (type) => {
+      const id = getModelIdentifier(makeNode({ type: type as any, data: { label: "Vid" } as any }))
+      expect(id).not.toBe(type)
+      expect(id.length).toBeGreaterThan(0)
+      // Identical to what the route/orchestrator will select for the same data.
+      const sel = applyDefaultVideoSelection({ provider: undefined, duration: undefined })
+      expect(id).toBe(
+        buildVideoCreditModelIdentifier(
+          sel.provider,
+          sel.duration,
+          undefined,
+          type === "text-to-video" ? "text-to-video" : "image-to-video",
+          undefined,
+          undefined,
+          false,
+        ),
+      )
+    },
+  )
+
+  it("an explicit video provider still wins over the default", () => {
+    const node = makeNode({ type: "generate-video", data: { label: "Vid", provider: "kling", duration: 5 } as any })
+    expect(getModelIdentifier(node)).toBe(
+      buildVideoCreditModelIdentifier("kling", 5, undefined, "image-to-video", undefined, undefined, false),
+    )
+  })
+
+  // Flux 2 is priced per megapixel and its identifier INTERPOLATES the
+  // resolution. A node carrying another model's token ("2K") used to build
+  // "flux-2-pro:2KMP:0ref" — unpriced, so the badge 503'd (18 app-reports).
+  it("a flux-2 node carrying a foreign resolution token still asks for a priced id", () => {
+    const node = makeNode({ type: "generate-image", data: { label: "Img", provider: "flux-2-pro", resolution: "2K" } as any })
+    expect(getModelIdentifier(node)).toBe("flux-2-pro:2MP:0ref")
   })
 
   it("motion-graphics defaults to the elements feature", () => {

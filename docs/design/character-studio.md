@@ -158,7 +158,7 @@ The three turnaround grids lifted verbatim: Head Angles (`arrayField:"angles"`, 
 | Premade voices | `GET /v1/voices` | `getVoices` | `useVoices` |
 | Library search | `GET /v1/voices/library` | `searchVoiceLibrary` | `useVoiceLibrary` |
 | List custom clones | `GET /v1/voice-clones` | `getVoiceClones` | `useVoiceClones` |
-| Clone from audio | `POST /v1/voice-clones` (multipart) / `/from-url` | `createVoiceClone` | `useCreateVoiceClone` |
+| ~~Clone from audio~~ | retired 2026-09-15 — the create routes answer `410 voice_cloning_retired` | — | — |
 | Delete clone | `DELETE /v1/voice-clones/:id` | `deleteVoiceClone` | `useDeleteVoiceClone` |
 | Design from text | `POST /v1/voice-design` | `voiceDesignApi` | — |
 | Preview / Talk (audio) | `POST /v1/text-to-speech` | `textToSpeech` (api.ts:2566) | — |

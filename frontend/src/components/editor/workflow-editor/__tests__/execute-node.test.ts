@@ -1879,8 +1879,20 @@ describe("generate-music", () => {
     expect(mockToastError).toHaveBeenCalled()
   })
 
-  it("calls pollJobWithNodeUpdate via runProcessingNode", async () => {
+  // MiniMax (the node's only provider) is reference-conditioned — the provider
+  // refuses a run with no reference song / voice / instrumental, so the node
+  // refuses first. Every run test here therefore carries one.
+  it("rejects a MiniMax run with no reference song, voice or instrumental", async () => {
     mockResolveNodeInputs.mockReturnValue({ prompt: "jazz" })
+    const promise = executeNode(makeNode("generate-music", {}), makeCtx())
+    promise.catch(() => {})
+    await expect(promise).rejects.toThrow("Reference audio required")
+    expect(mockToastError).toHaveBeenCalled()
+    expect(mockPollJobWithNodeUpdate).not.toHaveBeenCalled()
+  })
+
+  it("calls pollJobWithNodeUpdate via runProcessingNode", async () => {
+    mockResolveNodeInputs.mockReturnValue({ prompt: "jazz", audioUrl: "https://cdn.example/ref.mp3" })
     mockPollJobWithNodeUpdate.mockResolvedValue(undefined)
     await executeNode(makeNode("generate-music", {}), makeCtx())
     expect(mockPollJobWithNodeUpdate).toHaveBeenCalledWith(
@@ -2358,6 +2370,28 @@ describe("combine-videos", () => {
       undefined, // smartCutFramesNext
       undefined, // smartCutMode — best-pair by default (only sent when set)
     )
+  })
+
+  // The route bounds the search windows at 1..24 and REJECTS anything else, so
+  // a node value out of range must degrade to a legal request rather than 400
+  // the run. `data` is not trusted: it can be typed into the panel, imported,
+  // or written straight into workflow JSON. Same clamp as the orchestrator.
+  it("clamps out-of-range smart-cut search windows instead of sending them", async () => {
+    mockResolveNodeInputs.mockReturnValue({
+      videoUrls: ["http://a.mp4", "http://b.mp4"],
+    })
+    mockRunCombineVideos.mockResolvedValue(undefined)
+    await executeNode(
+      makeNode("combine-videos", {
+        smartCutEnabled: true,
+        smartCutFramesPrev: 48,
+        smartCutFramesNext: 0,
+      }),
+      makeCtx(),
+    )
+    const call = mockRunCombineVideos.mock.calls[0]
+    expect(call[12]).toBe(24) // smartCutFramesPrev — clamped to the ceiling
+    expect(call[13]).toBe(1)  // smartCutFramesNext — clamped to the floor
   })
 })
 

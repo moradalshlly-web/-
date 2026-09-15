@@ -142,7 +142,6 @@ nodaro voice export --source <url> --tracks-file mix.json --watch        # rende
 nodaro voice design --description "..." --text "..." --watch
 nodaro voice remix --description "..." --text "..." --watch
 nodaro voice dub --audio <url> --target-language es --watch
-nodaro voice clones create --name Me --file ./sample.wav
 
 # Media — social-video import, trim, save, metadata probe
 nodaro media download <url> [--max-height 720] [--section 30-90] --watch

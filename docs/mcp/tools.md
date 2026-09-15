@@ -736,7 +736,6 @@ hand-maintained; if the two ever disagree, the tool description is right.
 | `generate_dialogue` | Multi-speaker dialogue as ONE audio file (ElevenLabs Dialogue v3, direct API). Accepts `dialogue` — an ordered array of `{ text, voice_id }` lines (premade names or cloned/library UUIDs, mixed casts fine; `[audio tags]` allowed in line text) — plus optional `stability` (0 / 0.5 / 1), `language_code`, `seed`, `apply_text_normalization`. Limits: 5,000 chars total across lines, 10 unique voices. Use it instead of stitching per-line `generate_speech` calls. |
 | `text_to_audio` | Text-to-sound-effect (ElevenLabs SFX). Accepts `prompt` and optional `duration`. Also accepts `presetId` (from `list_node_presets { nodeType: "text-to-audio" }`) to apply a built-in or saved preset's config server-side; any explicit field overrides the preset, and `prompt` may be omitted when the preset supplies one. A preset's `promptPrefix` / `promptSuffix` wrap your `prompt`. |
 | `list_voices` | List the available premade voices (id + name, plus any gender/accent/description metadata) so you can pick a `voice_id` for `generate_speech`, `voice_changer`, or `voice_changer_pro` — all of which require a voice id. Read-only; returns the catalog as JSON. |
-| `voice_clone` | Instant voice clone from a reference audio clip (ElevenLabs). Returns a `voice_id` for use with `generate_speech`. |
 | `voice_design` | Design a new synthetic voice from text descriptors (ElevenLabs `/v1/text-to-voice/design`). Accepts `text`, `voice_description`, `model` (default `eleven_ttv_v3`; `eleven_multilingual_ttv_v2` is the legacy model), `loudness`, `guidance_scale`, `seed`, `quality`, `should_enhance`. Returns a `voice_id`. |
 | `voice_changer` | Transform the speaker identity in an audio clip — or a whole talking video — to a target voice. Accepts `audio_url`/`audio_asset_id` or `video_url`/`video_asset_id` (video is demuxed, revoiced, remuxed), `voice_id` (premade name or clone UUID; required), `model`, `stability`, `similarity_boost`, `style`, `remove_background_noise`. |
 | `voice_changer_pro` | Detect each speaker in a multi-speaker clip and convert each to a chosen voice, preserving words and timing (Cloud only). Accepts `audio_url`/`audio_asset_id` or `video_url`/`video_asset_id`; `ordered_voices` (required, positional: speaker N → entry N; each entry a voice id, a per-voice settings object with `engine` (`"sts"` default recast / `"v3"` Re-speak — regenerates the performance from the transcript with eleven_v3, `[audio tags]` supported, stability 0/0.5/1 only), `stability`/`similarity_boost`/`style`/`use_speaker_boost`/`seed`/`volume_mode`/`volume`, or `null`); `analysis` (a prior analyze run's output_data — the recast works from the exact speaker list you mapped against; its `segments[].text` is the required transcript for a `"v3"` speaker, and omitting `analysis` re-speaks from the engine's own transcription); `voice_fx` (preset + `wet_dry_mix`/`delay_ms`/`decay`); `model`; `preserve_background`; `separation_quality` (`fast`/`best`); `music_volume_mode` (`match`/`normalize`/`manual`) + `music_volume`; `remove_background_noise`; `output` (`video` default / `stems`). A `null` entry in `ordered_voices` is a keep-slot — that speaker keeps their original voice while later speakers are still recast. `output: "stems"` returns the dry per-track stems for interactive mixing instead of a finished video. |
@@ -1154,10 +1153,20 @@ provider. Visible for your own jobs (any status) and any user's public
 completed jobs. For a **failed** job it returns the failure reason plus a
 `retryable` flag, a `guidance` sentence, and — when the provider's safety
 filter blocked the output and the catalog offers a fallback model —
-`suggestedProvider`. `retryable: false` (e.g. a content-policy block) means
-the same request will fail again unchanged; when `suggestedProvider` is
+`suggestedProvider`. `retryable: false` (a content-policy block, or a
+provider that refused the request outright — see below) means the same request
+will fail again unchanged; when `suggestedProvider` is
 present, retry the SAME prompt and references with that model id instead of
-guessing at a new one. For a job in **`pending_review`** (a deployment's job
+guessing at a new one.
+
+A job whose `error_message` says the provider **rejected these settings for
+this model** is the request-reject case: the provider answered the submission
+with a 4xx, so the combination of settings and input media is invalid for that
+model. It comes back `retryable: false` — change the settings or the input
+media (duration, aspect ratio, resolution, or the reference image/video/audio)
+before re-running, or pick a model whose `list_models` capability sheet allows
+the combination. A provider 5xx is the opposite case and stays `retryable`,
+even when its wording reads like a validation complaint. For a job in **`pending_review`** (a deployment's job
 policy held the output for human review) it returns `status: "pending_review"`,
 `outputUrl: null`, `retryable: false` and a `guidance` sentence: the status is
 in-flight, so keep polling and do **not** re-run the request — a duplicate

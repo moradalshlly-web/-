@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { validateFile, detectCategory, getExtensionFromMime, getSizeLimit } from "../file-validation.js"
+import { validateFile, detectCategory, getExtensionFromMime, getSizeLimit, resolveUploadMime, acceptedTypesSentence } from "../file-validation.js"
 
 describe("detectCategory", () => {
   it("detects image types", () => {
@@ -127,5 +127,103 @@ describe("validateFile", () => {
     const result = validateFile("audio/wav", 60 * 1024 * 1024)
     expect(result.valid).toBe(false)
     expect(result.error).toContain("File too large")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveUploadMime
+// ---------------------------------------------------------------------------
+
+/**
+ * Production app_reports rows this closes (2026-09-03 and 2026-09-15):
+ *   Unsupported file type: audio/vnd.dlna.adts
+ *   Unsupported file type: application/octet-stream
+ * Both from first-party clients, and the first one names a format the very
+ * same message advertises as accepted ("audio (… aac …)").
+ */
+describe("resolveUploadMime", () => {
+  it("leaves a canonical type alone", () => {
+    expect(resolveUploadMime("image/png", "a.png")).toBe("image/png")
+    expect(resolveUploadMime("audio/aac", "a.aac")).toBe("audio/aac")
+  })
+
+  it("resolves a vendor alias to the canonical type", () => {
+    // Windows' registry type for a plain .aac file
+    expect(resolveUploadMime("audio/vnd.dlna.adts", "voice.aac")).toBe("audio/aac")
+    expect(resolveUploadMime("image/jpg", "p.jpg")).toBe("image/jpeg")
+    expect(resolveUploadMime("video/mov", "c.mov")).toBe("video/quicktime")
+    expect(resolveUploadMime("audio/x-pn-wav", "s.wav")).toBe("audio/wav")
+  })
+
+  it("strips MIME parameters (MediaRecorder sends codecs=…)", () => {
+    expect(resolveUploadMime("audio/webm;codecs=opus", "rec.weba")).toBe("audio/webm")
+    expect(resolveUploadMime("video/webm; codecs=vp9", "c.webm")).toBe("video/webm")
+  })
+
+  it("falls back to the filename when the declared type says nothing", () => {
+    expect(resolveUploadMime("application/octet-stream", "clip.mp4")).toBe("video/mp4")
+    expect(resolveUploadMime("application/octet-stream", "Song.MP3")).toBe("audio/mpeg")
+    expect(resolveUploadMime("", "shot.heic")).toBe("image/heic")
+    expect(resolveUploadMime("binary/octet-stream", "track.m4a")).toBe("audio/mp4")
+  })
+
+  it("does NOT let the filename override an informative declared type", () => {
+    // A real declared type wins: only uninformative ones consult the name.
+    expect(resolveUploadMime("text/html", "evil.mp4")).toBe("text/html")
+  })
+
+  it("returns an unresolvable type unchanged, so the caller still rejects it", () => {
+    expect(resolveUploadMime("application/octet-stream", "notes.xyz")).toBe("application/octet-stream")
+    expect(resolveUploadMime("application/octet-stream", null)).toBe("application/octet-stream")
+    expect(resolveUploadMime("application/x-msdownload", "setup.exe")).toBe("application/x-msdownload")
+  })
+})
+
+describe("validateFile — resolution", () => {
+  it("accepts a Windows .aac upload and reports the canonical type", () => {
+    const result = validateFile("audio/vnd.dlna.adts", 1024, "voice.aac")
+    expect(result.valid).toBe(true)
+    expect(result.category).toBe("audio")
+    expect(result.mimeType).toBe("audio/aac")
+  })
+
+  it("accepts an octet-stream upload resolved by its extension", () => {
+    const result = validateFile("application/octet-stream", 1024, "clip.mp4")
+    expect(result.valid).toBe(true)
+    expect(result.category).toBe("video")
+    expect(result.mimeType).toBe("video/mp4")
+  })
+
+  it("still rejects an octet-stream upload with no usable extension", () => {
+    const result = validateFile("application/octet-stream", 1024, "notes.xyz")
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain("Unsupported file type: application/octet-stream")
+  })
+
+  it("sizes a resolved file by its RESOLVED category", () => {
+    // 100 MB: over the 50 MB audio limit, under the 500 MB video one.
+    expect(validateFile("application/octet-stream", 100 * 1024 * 1024, "clip.mp4").valid).toBe(true)
+    expect(validateFile("audio/vnd.dlna.adts", 100 * 1024 * 1024, "voice.aac").valid).toBe(false)
+  })
+
+  it("keeps working with no filename at all (every pre-existing caller)", () => {
+    expect(validateFile("image/png", 1024).valid).toBe(true)
+    expect(validateFile("text/html", 1024).valid).toBe(false)
+  })
+})
+
+describe("acceptedTypesSentence", () => {
+  it("is derived from the allow-table, so it cannot drift from it", () => {
+    const sentence = acceptedTypesSentence()
+    // The hand-written copy this replaced omitted all three of these.
+    expect(sentence).toContain("flac")
+    expect(sentence).toContain("weba")
+    expect(sentence).toContain("json")
+    expect(sentence).toContain("aac")
+    expect(sentence).toMatch(/^Accepted types: images \(/)
+  })
+
+  it("is what an unsupported-type rejection quotes", () => {
+    expect(validateFile("text/html", 1).error).toContain(acceptedTypesSentence())
   })
 })

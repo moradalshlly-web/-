@@ -37,6 +37,78 @@ describe("required media inputs", () => {
       .toThrow(/My Node/)
   })
 
+  // ABSENT is not the only way an input fails. A non-empty value that is not a
+  // URL (a Text node wired into videoUrl, a field mapping pointing at the wrong
+  // output) passed the emptiness test and died inside safeFetch as a bare
+  // "Invalid URL" — after the reservation, and, because mergeVideoAudio wraps
+  // its impl in runPostProcessing, tagged post-delivery so the refund guard
+  // skipped. That is the 2026-09-04 merge-video-audio report.
+  it("refuses a media input that is not a URL, and names the value", () => {
+    const n = node("merge-video-audio")
+    expect(() =>
+      buildPayload(n, JOB, { videoUrl: "Scene 3 — the wide shot", audioUrl: "https://cdn.example/a.mp3" }, undefined, ctx(n)),
+    ).toThrow(/video_required.*not a media URL.*Scene 3/)
+  })
+
+  it("refuses a resolved audio LIST whose entry carries a non-URL", () => {
+    const n = node("merge-video-audio")
+    expect(() =>
+      buildPayload(
+        n,
+        JOB,
+        { videoUrl: "https://cdn.example/v.mp4", audioSources: [{ url: "not-a-url", sourceNodeId: "n2" }] } as unknown as ResolvedInputs,
+        undefined,
+        ctx(n),
+      ),
+    ).toThrow(/audio_required.*not a media URL/)
+  })
+
+  // The verdict can only change WHICH refusal a doomed node gets — never refuse
+  // a node that has something usable. Here `videoUrl` is junk but the node's own
+  // data carries a real one, which is what the case reads.
+  it("still runs when a usable value exists alongside the junk", () => {
+    const n = node("merge-video-audio", { videoUrl: "https://cdn.example/v.mp4" })
+    const result = buildPayload(n, JOB, { audioUrl: "https://cdn.example/a.mp3" }, undefined, ctx(n))
+    expect(result.jobName).toBe("merge-video-audio")
+  })
+
+  // The `*WithSourceIds` lists are `{ nodeId, url }` — read by url like any
+  // other list. A real one must still satisfy its requirement on its own (it is
+  // often the ONLY key present, the plain `*Urls` twin being absent).
+  it("accepts a *WithSourceIds list as the only media source", () => {
+    const n = node("combine-videos")
+    const result = buildPayload(
+      n,
+      JOB,
+      { videoUrlsWithSourceIds: [{ nodeId: "a", url: "https://cdn.example/1.mp4" }, { nodeId: "b", url: "https://cdn.example/2.mp4" }] } as unknown as ResolvedInputs,
+      undefined,
+      ctx(n),
+    )
+    expect(result.jobName).toBe("combine-videos")
+  })
+
+  // A list whose entries carry no `url` at all is a shape this guard cannot
+  // read — it must TRUST it, exactly as the old emptiness test did, rather than
+  // refuse a graph on a shape it does not understand.
+  it("trusts a list entry whose shape carries no url", () => {
+    const n = node("combine-videos")
+    const result = buildPayload(
+      n,
+      JOB,
+      { videoUrlsWithSourceIds: [{ nodeId: "a", somethingElse: 1 }] } as unknown as ResolvedInputs,
+      undefined,
+      ctx(n),
+    )
+    expect(result.jobName).toBe("combine-videos")
+  })
+
+  // The table's non-media alternatives are NOT urls and must stay untouched.
+  it("accepts an upstream VEO task id for extend-video (no URL involved)", () => {
+    const n = node("extend-video", { kieTaskId: "veo-task-123" })
+    const result = buildPayload(n, JOB, {}, undefined, ctx(n))
+    expect(result.jobName).toBe("extend-video")
+  })
+
   it("accepts merge-video-audio when the video comes from node data rather than upstream", () => {
     const n = node("merge-video-audio", { videoUrl: "https://cdn.example/v.mp4" })
     expect(() => buildPayload(n, JOB, { audioUrl: "https://cdn.example/a.mp3" }, undefined, ctx(n)))

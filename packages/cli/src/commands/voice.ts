@@ -1,6 +1,5 @@
 import { Command } from "commander"
 import { readFileSync } from "node:fs"
-import { basename, extname } from "node:path"
 import { buildClient, handleError } from "../client.js"
 import { emit, success, dim, info, warn, table, type OutputOpts } from "../output.js"
 import { reportQueuedJob } from "../util.js"
@@ -16,17 +15,6 @@ interface WatchOpts extends GlobalOpts {
 }
 
 const FX_PRESETS = "room|bathroom|car|hall|concert-hall|church|cave|arena|outdoor|telephone|megaphone|echo|custom"
-
-/** MIME by extension for `voice clones create --file` uploads. */
-const AUDIO_CONTENT_TYPES: Record<string, string> = {
-  ".mp3": "audio/mpeg",
-  ".wav": "audio/wav",
-  ".m4a": "audio/mp4",
-  ".aac": "audio/aac",
-  ".ogg": "audio/ogg",
-  ".flac": "audio/flac",
-  ".webm": "audio/webm",
-}
 
 interface VoiceFxFlags {
   voiceFx?: string
@@ -769,7 +757,7 @@ Example:
       }
     })
 
-  const clones = new Command("clones").description("manage your voice clones (list / create / delete)")
+  const clones = new Command("clones").description("manage the voice clones you already have (list / delete) — cloning new voices is no longer offered")
 
   clones
     .command("list")
@@ -789,49 +777,6 @@ Example:
           ["name", "voice_id", "clone_id", "created"],
         )
         dim(`${rows.length} clone${rows.length === 1 ? "" : "s"} — pass voice_id to --voice / --voices`)
-      } catch (err) {
-        handleError(err)
-      }
-    })
-
-  clones
-    .command("create")
-    .description("clone a voice from a sample — an already-uploaded URL (--audio) or a local file (--file). Costs credits.")
-    .requiredOption("--name <name>", "name for the new clone")
-    .option("--audio <url>", "URL of an uploaded audio sample to clone from")
-    .option("--file <path>", "local audio file to upload and clone from (mp3/wav/m4a/aac/ogg/flac/webm)")
-    .option("--profile <name>")
-    .option("--json")
-    .addHelpText("after", `
-Examples:
-  $ nodaro voice clones create --name "Narrator" --audio https://.../sample.mp3
-  $ nodaro voice clones create --name "Narrator" --file ./sample.wav`)
-    .action(async (opts: { name: string; audio?: string; file?: string } & GlobalOpts) => {
-      try {
-        if (!opts.audio && !opts.file) {
-          warn("Provide --audio <url> or --file <path> (one is required)")
-          process.exit(1)
-        }
-        if (opts.audio && opts.file) {
-          warn("--audio and --file are mutually exclusive — pass one")
-          process.exit(1)
-        }
-        const client = buildClient(opts.profile)
-        const clone = opts.file
-          ? await client.voices.createCloneFromFile({
-              name: opts.name,
-              file: readFileSync(opts.file),
-              filename: basename(opts.file),
-              contentType: AUDIO_CONTENT_TYPES[extname(opts.file).toLowerCase()] ?? "audio/mpeg",
-            })
-          : await client.voices.createClone({ name: opts.name, audioUrl: opts.audio! })
-        if (opts.json) {
-          emit(clone, opts)
-          return
-        }
-        success(`created voice clone "${clone.name}"`)
-        info(`voice_id: ${clone.elevenlabsVoiceId}`)
-        dim(`use it: nodaro voice changer --voice ${clone.elevenlabsVoiceId} --audio <url>`)
       } catch (err) {
         handleError(err)
       }

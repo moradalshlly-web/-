@@ -32,7 +32,7 @@ You need:
     own catalog.
   - [Anthropic](https://www.anthropic.com) — LLM fallback.
   - [ElevenLabs](https://elevenlabs.io) — voice features (TTS, dubbing,
-    voice clone, voice changer, forced alignment).
+    voice changer, forced alignment).
   - [fal.ai](https://fal.ai) — optional; enables fal-hosted models (e.g.
     the Sync Lipsync v3 lip-sync model). Without `FAL_KEY` those models
     are inert and the rest of the app is unaffected.
@@ -583,7 +583,7 @@ optional; each array empty = "keep the default"):
   disallowed gender is refused at request validation with `voice_not_available`,
   every default/fallback voice resolves to the first allowed-gender voice, and the
   Suno vocal-gender tags in the editor hide the disallowed side. Pair with
-  `nodes.deny: ["voice-clone","voice-design","voice-remix"]` to remove the
+  `nodes.deny: ["voice-design","voice-remix"]` to remove the
   voice-creation nodes (whose output gender is not knowable up front).
 - `features` — whole features this deployment switches off:
   `{"features":{"hide":["copilot","presentation"]}}`. `copilot` removes the
@@ -1213,3 +1213,38 @@ run `node --test tools/__tests__/managed-supabase-proxy.test.mjs`.
 - [Edge modes](./edge-modes.md) — request flow, auth, edition gates
 - [API Integration](./api-integration.md) — once you're up, talk to
   your instance from your own server
+
+## CI build preparation
+
+The CI workflow builds shared workspace packages once per run and compiles the
+backend once for both cloud and community boot probes. Each consumer still
+installs dependencies with `npm ci`; only compiled outputs are transferred.
+The artifact receipt checks the commit, workflow run, lockfile, Node major,
+operating system, architecture and archive checksum before extraction.
+
+Preparation failures explicitly fail dependent required checks. Frontend and
+backend tests may still skip when the diff gate confirms they are unrelated;
+post-merge production CI runs both suites. Coverage, cross-tree parity checks,
+real database migration proofs and both edition probes retain their assertions.
+Independent source guards run on lightweight runners.
+
+Build artifacts remain available for seven days. “Re-run failed jobs” reuses
+successful preparation from the same workflow run. After artifact expiry,
+choose “Re-run all jobs” to regenerate the outputs. Full reruns replace the
+artifacts for that run; artifacts are never reused across workflow runs.
+
+A private-repository runner pilot can route the two main test suites to runners
+labelled `self-hosted,linux,x64,nodaro-ci` by setting the repository variable
+`CI_RAILWAY_PILOT_BRANCH` to a same-repository PR branch. After verifying the
+pool's capacity and unattended scheduling, `CI_RAILWAY_ENABLED=true` enables
+routing for trusted PRs and post-merge production tests. Public forks and
+mirrors stay hosted. Clear both variables and rerun to return tests to hosted
+runners. Docker build contexts exclude local session state, reports
+and test files; the full CI test and typecheck jobs continue to use the checkout.
+
+The optional disposable Railway runner pool is documented in
+[`tools/ci-runner/README.md`](../tools/ci-runner/README.md). Its controller holds
+the administrative credentials; each runner receives only a single-use job
+identity and exits after one job. Deploying the pool does not enable CI routing.
+Railway test runners restore npm downloads from the hosted preparation cache
+without saving a second copy. Cache misses still use a clean `npm ci`.
