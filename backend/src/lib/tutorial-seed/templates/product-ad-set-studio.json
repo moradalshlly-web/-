@@ -1,0 +1,644 @@
+{
+  "slug": "product-ad-set-studio",
+  "name": "Product Ad Set Studio",
+  "description": "A product photo, brand notes and a short brief in; three ads on three angles out — hero, benefit, scene — each as a 9:16 story and a 1:1 feed post, six placements from one photo, with the product exactly as photographed and the copy exactly as written.",
+  "markdownDescription": "## Product Ad Set Studio\n\nA product photo, your brand notes and a short brief become three ads on three angles — hero, benefit, scene — each as a 9:16 story and a 1:1 feed post: six placements from one photo, with the product exactly as photographed and the copy exactly as written.\n\n1. **Product photo** — a clean packshot. The hero of every ad.\n2. **Brand notes + Creative brief** — what is true about the product and the brand; what the ads should do.\n3. **Three angles** — Hero (product-led), Benefit (copy-led), Scene (life-led) — one writer each, each writing a headline, a small line, a button and the look. Edit a brief by hand and rerun its story and feed post.\n4. **Three stories** — vertical, the copy clear of the phone's edges.\n5. **Three feed posts** — each story re-framed square.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "product",
+    "stories",
+    "feed",
+    "campaign",
+    "placements"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 96,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/4ef244de-fac7-4f6f-9add-0ba3b64a3ca6.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 31,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A product photo, your brand notes and a short brief go in; three ads on three angles come out — hero, benefit, scene — each as a 9:16 story and a 1:1 feed post, with the product exactly as photographed.\n\n1. Product photo — a clean packshot. The hero of every ad.\n2. Brand notes + Creative brief — what is true about the product and the brand; what the ads should do.\n3. Three angles — Hero (product-led), Benefit (copy-led), Scene (life-led) — one writer each, each writing a headline, a small line, a button and the look.\n4. Three stories — vertical, the copy clear of the phone's edges.\n5. Three feed posts — each story re-framed square. Six placements from one photo.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Product ad set studio — how it works",
+        "width": 1180,
+        "height": 560,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 720
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. Every ad gets it as a reference, so the shape, the materials, the markings and the colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1440
+      },
+      "data": {
+        "bold": false,
+        "text": "The brand name, what the product is and does, who it is for, the tone, and the claims you can stand behind. Only what is here gets used — nothing is invented.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Brand notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1830
+      },
+      "data": {
+        "bold": false,
+        "text": "What the ads should do, for whom, and anything they must say or avoid. One line serves all three angles.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Creative brief",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 720
+      },
+      "data": {
+        "bold": false,
+        "text": "Hero puts the product first. Benefit puts the strongest true claim first. Scene puts a real moment first. Each writer holds its angle and returns a headline, a small line, a button and the look in a fixed shape. Edit a brief by hand and rerun its story and feed post.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Three angles",
+        "width": 560,
+        "height": 430,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-stories",
+      "type": "sticky-note",
+      "position": {
+        "x": 2340,
+        "y": 720
+      },
+      "data": {
+        "bold": false,
+        "text": "Vertical 9:16, the product exactly as photographed, the copy exactly as written and clear of the phone's interface. Rerun one alone for another take.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Three stories",
+        "width": 560,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-feeds",
+      "type": "sticky-note",
+      "position": {
+        "x": 3140,
+        "y": 720
+      },
+      "data": {
+        "bold": false,
+        "text": "Each story re-framed as a square: same product, same words, same look, re-set for the feed. Rerun after changing its story.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Three feed posts",
+        "width": 600,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 720
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/7b800a33-87ab-4098-835f-2baf87a692fd.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/7b800a33-87ab-4098-835f-2baf87a692fd.png",
+        "assetId": "7b800a33-87ab-4098-835f-2baf87a692fd",
+        "filename": "sport-stick-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/7b800a33-87ab-4098-835f-2baf87a692fd.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1440
+      },
+      "data": {
+        "text": "Brand: BASELINE — grooming for people who train. Product: BASELINE 72H Sport — an antiperspirant stick that lasts 72 hours, no white marks, no alcohol, a clean citrus-cedar scent. Made for hard sessions and long days. Tone: direct, athletic, no fluff.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1830
+      },
+      "data": {
+        "text": "Launch ads for club-level tennis players and gym regulars, 25 to 40. Show the product in the heat of the game. Say what is true: 72 hours, no white marks.",
+        "label": "Creative brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "writer-hero",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1270
+      },
+      "data": {
+        "label": "Hero brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Brand notes: {Brand notes || a premium consumer product.} Creative brief: {Creative brief || one strong ad per angle.} The reference image is the product. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director for product advertising. You get the brand notes, the creative brief and the product photo. Write the HERO ad — product-led: the product huge and beautiful on a clean dramatic background, the headline short, nothing else competing — one of three ads on the same product, each with its own angle, all in the same brand world.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words>\"\nSmall line: \"<one supporting line, at most ten words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words for a vertical 9:16 story: the scene and the background, where the product sits and how large, any person and what they do, where the headline, the small line and the button sit — clear of the top and bottom edges where the phone's interface sits — the typography, the light and the mood. The product from the photo is the hero and stays exactly as it is.>\nUse only facts from the brand notes and the brief; never invent claims, numbers or prices. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-benefit",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 2386
+      },
+      "data": {
+        "label": "Benefit brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Brand notes: {Brand notes || a premium consumer product.} Creative brief: {Creative brief || one strong ad per angle.} The reference image is the product. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director for product advertising. You get the brand notes, the creative brief and the product photo. Write the BENEFIT ad — copy-led: the strongest true benefit from the notes as the headline, big, with the product supporting it — one of three ads on the same product, each with its own angle, all in the same brand world.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words>\"\nSmall line: \"<one supporting line, at most ten words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words for a vertical 9:16 story: the scene and the background, where the product sits and how large, any person and what they do, where the headline, the small line and the button sit — clear of the top and bottom edges where the phone's interface sits — the typography, the light and the mood. The product from the photo is the hero and stays exactly as it is.>\nUse only facts from the brand notes and the brief; never invent claims, numbers or prices. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-scene",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 3502
+      },
+      "data": {
+        "label": "Scene brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Brand notes: {Brand notes || a premium consumer product.} Creative brief: {Creative brief || one strong ad per angle.} The reference image is the product. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director for product advertising. You get the brand notes, the creative brief and the product photo. Write the SCENE ad — life-led: a real person in the exact moment the product is for, caught mid-action, the product clearly present and unchanged, the headline about that moment — one of three ads on the same product, each with its own angle, all in the same brand world.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words>\"\nSmall line: \"<one supporting line, at most ten words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words for a vertical 9:16 story: the scene and the background, where the product sits and how large, any person and what they do, where the headline, the small line and the button sit — clear of the top and bottom edges where the phone's interface sits — the typography, the light and the mood. The product from the photo is the hero and stays exactly as it is.>\nUse only facts from the brand notes and the brief; never invent claims, numbers or prices. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story-hero",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 1270
+      },
+      "data": {
+        "label": "Story · Hero",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen, built from this brief: {Hero brief || Headline: \"Seventy-two hours. One swipe.\" Small line: none Button: none Look: a deep charcoal background with one neon-orange rim light, the stick huge and centred, a bold white condensed headline in the upper third, clear of the phone's edges, hard and athletic.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, sharp and unchanged. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text, all of it clear of the top and bottom edges. Photorealistic, crisp typography, thumb-stopping, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "feed-hero",
+      "type": "generate-image",
+      "position": {
+        "x": 3140,
+        "y": 1270
+      },
+      "data": {
+        "label": "Feed · Hero",
+        "style": "",
+        "prompt": "Recreate the reference advertisement as a square 1:1 feed ad: the same product exactly as it is, the same headline, small line and button word for word, the same colours, light and mood — the scene re-framed for the square, the product large, the copy re-set to fit with generous margins. The brief it was built from: {Hero brief || Headline: \"Seventy-two hours. One swipe.\" Small line: none Button: none Look: a deep charcoal background with one neon-orange rim light, the stick huge and centred, a bold white condensed headline in the upper third, clear of the phone's edges, hard and athletic.} Nothing added, no other text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story-benefit",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 2386
+      },
+      "data": {
+        "label": "Story · Benefit",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen, built from this brief: {Benefit brief || Headline: \"Seventy-two hours. One swipe.\" Small line: none Button: none Look: a deep charcoal background with one neon-orange rim light, the stick huge and centred, a bold white condensed headline in the upper third, clear of the phone's edges, hard and athletic.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, sharp and unchanged. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text, all of it clear of the top and bottom edges. Photorealistic, crisp typography, thumb-stopping, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "feed-benefit",
+      "type": "generate-image",
+      "position": {
+        "x": 3140,
+        "y": 2386
+      },
+      "data": {
+        "label": "Feed · Benefit",
+        "style": "",
+        "prompt": "Recreate the reference advertisement as a square 1:1 feed ad: the same product exactly as it is, the same headline, small line and button word for word, the same colours, light and mood — the scene re-framed for the square, the product large, the copy re-set to fit with generous margins. The brief it was built from: {Benefit brief || Headline: \"Seventy-two hours. One swipe.\" Small line: none Button: none Look: a deep charcoal background with one neon-orange rim light, the stick huge and centred, a bold white condensed headline in the upper third, clear of the phone's edges, hard and athletic.} Nothing added, no other text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story-scene",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 3502
+      },
+      "data": {
+        "label": "Story · Scene",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen, built from this brief: {Scene brief || Headline: \"Seventy-two hours. One swipe.\" Small line: none Button: none Look: a deep charcoal background with one neon-orange rim light, the stick huge and centred, a bold white condensed headline in the upper third, clear of the phone's edges, hard and athletic.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, sharp and unchanged. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text, all of it clear of the top and bottom edges. Photorealistic, crisp typography, thumb-stopping, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "feed-scene",
+      "type": "generate-image",
+      "position": {
+        "x": 3140,
+        "y": 3502
+      },
+      "data": {
+        "label": "Feed · Scene",
+        "style": "",
+        "prompt": "Recreate the reference advertisement as a square 1:1 feed ad: the same product exactly as it is, the same headline, small line and button word for word, the same colours, light and mood — the scene re-framed for the square, the product large, the copy re-set to fit with generous margins. The brief it was built from: {Scene brief || Headline: \"Seventy-two hours. One swipe.\" Small line: none Button: none Look: a deep charcoal background with one neon-orange rim light, the stick huge and centred, a bold white condensed headline in the upper third, clear of the phone's edges, hard and athletic.} Nothing added, no other text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-brand-writer-hero",
+      "source": "brand",
+      "target": "writer-hero",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-hero",
+      "source": "brief",
+      "target": "writer-hero",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-hero",
+      "source": "product",
+      "target": "writer-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-story-hero",
+      "source": "writer-hero",
+      "target": "story-hero",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-story-hero",
+      "source": "product",
+      "target": "story-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-story-feed-hero",
+      "source": "story-hero",
+      "target": "feed-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-feed-hero",
+      "source": "writer-hero",
+      "target": "feed-hero",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-benefit",
+      "source": "brand",
+      "target": "writer-benefit",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-benefit",
+      "source": "brief",
+      "target": "writer-benefit",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-benefit",
+      "source": "product",
+      "target": "writer-benefit",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-story-benefit",
+      "source": "writer-benefit",
+      "target": "story-benefit",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-story-benefit",
+      "source": "product",
+      "target": "story-benefit",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-story-feed-benefit",
+      "source": "story-benefit",
+      "target": "feed-benefit",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-feed-benefit",
+      "source": "writer-benefit",
+      "target": "feed-benefit",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-scene",
+      "source": "brand",
+      "target": "writer-scene",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-scene",
+      "source": "brief",
+      "target": "writer-scene",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-scene",
+      "source": "product",
+      "target": "writer-scene",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-story-scene",
+      "source": "writer-scene",
+      "target": "story-scene",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-story-scene",
+      "source": "product",
+      "target": "story-scene",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-story-feed-scene",
+      "source": "story-scene",
+      "target": "feed-scene",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-feed-scene",
+      "source": "writer-scene",
+      "target": "feed-scene",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.178
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "brand": {
+          "title": "Brand notes",
+          "description": "What it is, what it does, who it is for, the tone."
+        },
+        "brief": {
+          "title": "Creative brief",
+          "description": "What the ads should do and for whom."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean packshot. It appears exactly as it is in every ad."
+        },
+        "feed-hero": {
+          "title": "Hero · feed",
+          "description": "The same ad, square."
+        },
+        "feed-scene": {
+          "title": "Scene · feed",
+          "description": "The same ad, square."
+        },
+        "story-hero": {
+          "title": "Hero · story",
+          "description": "Product-led, vertical."
+        },
+        "story-scene": {
+          "title": "Scene · story",
+          "description": "Life-led, vertical."
+        },
+        "feed-benefit": {
+          "title": "Benefit · feed",
+          "description": "The same ad, square."
+        },
+        "story-benefit": {
+          "title": "Benefit · story",
+          "description": "Copy-led, vertical."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "brand",
+        "brief"
+      ],
+      "outputOrder": [
+        "story-hero",
+        "feed-hero",
+        "story-benefit",
+        "feed-benefit",
+        "story-scene",
+        "feed-scene"
+      ]
+    }
+  }
+}

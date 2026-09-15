@@ -15,7 +15,7 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, PARAMETER_NODE_TYPES } from "@nodaro/shared"
-import { getParameterPromptHint } from "@nodaro/prompts"
+import { getParameterPromptHint, composeCameraMotionHintFromConnections } from "@nodaro/prompts"
 import { LABEL_REF_GRAPH_COMPOSED_PARAMETER_TYPES, labelRefHintContext } from "../label-ref-hint-context.js"
 import { buildPayload } from "../payload-builder.js"
 import type { SimpleNode, SimpleEdge } from "../types.js"
@@ -45,7 +45,20 @@ describe("labelRefHintContext", () => {
     expect(getParameterPromptHint(nodes[1], ctx)).toMatch(/^Mira /)
   })
 
-  it.each(["camera-motion", "transition", "character-fx", "mood", "character", ""])(
+  it("hands camera-motion the graph it was given", () => {
+    const cam = node("cam", "camera-motion", { cameraMotion: "dolly-in" })
+    const tone = node("tone", "tone", { tone: "warm golden morning light" })
+    const camNodes = [cam, tone]
+    const camEdges = [edge("tone", "cam", "startState")]
+
+    const ctx = labelRefHintContext(cam, camNodes, camEdges)
+    expect(ctx?.nodes).toBe(camNodes)
+    expect(ctx?.edges).toBe(camEdges)
+    // Not vacuous: the graph really does change camera-motion's text.
+    expect(getParameterPromptHint(cam, ctx)).not.toBe(getParameterPromptHint(cam))
+  })
+
+  it.each(["transition", "character-fx", "mood", "character", ""])(
     "gives %s no graph (its server {Label} text stays context-free)",
     (type) => {
       expect(labelRefHintContext(node("x", type), nodes, edges)).toBeUndefined()
@@ -57,8 +70,8 @@ describe("labelRefHintContext", () => {
     expect(labelRefHintContext(undefined, nodes, edges)).toBeUndefined()
   })
 
-  it("is exactly {character-motion}: widening it changes existing workflows' prompts and needs sign-off", () => {
-    expect([...LABEL_REF_GRAPH_COMPOSED_PARAMETER_TYPES].sort()).toEqual(["character-motion"])
+  it("is exactly {camera-motion, character-motion}: widening it changes existing workflows' prompts and needs sign-off", () => {
+    expect([...LABEL_REF_GRAPH_COMPOSED_PARAMETER_TYPES].sort()).toEqual(["camera-motion", "character-motion"])
   })
 
   it("is a subset of the execution-path graph-composed set and of the parameter types", () => {
@@ -69,25 +82,89 @@ describe("labelRefHintContext", () => {
   })
 })
 
-describe("camera-motion server {Label} text is unchanged (pin)", () => {
-  it("resolves to the context-free hint even though a start state is wired", () => {
+describe("camera-motion server {Label} text composes from the graph", () => {
+  it("resolves to the composed start/end-state hint, matching the editor", () => {
     const s2v = node("s2v", "speech-to-video", {
       prompt: "a man walks forward, {Cam}",
       imageUrl: "https://example.com/a.png",
       audioUrl: "https://example.com/a.mp3",
     })
-    const tone = node("tone", "tone", { label: "Tone", tone: "warm golden morning light" })
+    const startTone = node("start", "tone", { label: "Start", tone: "warm golden morning light" })
+    const endTone = node("end", "tone", { label: "End", tone: "cold blue dusk" })
     const cam = node("cam", "camera-motion", { label: "Cam", cameraMotion: "dolly-in" })
-    const nodes = [s2v, tone, cam]
-    const edges = [edge("tone", "cam", "startState"), edge("cam", "s2v", "cinematography")]
+    const nodes = [s2v, startTone, endTone, cam]
+    const edges = [
+      edge("start", "cam", "startState"),
+      edge("end", "cam", "endState"),
+      edge("cam", "s2v", "cinematography"),
+    ]
 
     const contextFree = getParameterPromptHint(cam)
     const composed = getParameterPromptHint(cam, { nodes, edges })
-    // Not vacuous: the graph WOULD change camera-motion's text if it were passed.
+    // Not vacuous: the graph really does change camera-motion's text.
     expect(contextFree).not.toBe("")
     expect(composed).not.toBe(contextFree)
 
+    // Derived from the real catalog composer, never a hand-written sentence:
+    // this also cross-checks the walker in resolveParameterHint against it.
+    const expected = composeCameraMotionHintFromConnections(
+      "dolly-in",
+      [getParameterPromptHint(startTone)],
+      [getParameterPromptHint(endTone)],
+    )
+    expect(composed).toBe(expected)
+
     const prompt = buildPayload(s2v, "job-1", {}, undefined, { nodes, edges, nodeStates: {} }).payload.prompt as string
+    // `contextFree` is a PREFIX of `composed`, so asserting it discriminates
+    // nothing — the composed clause is the assertion that flipped.
+    expect(prompt).toContain(expected)
+    // And say what was ADDED, still derived (the composer's own tail past the
+    // bare motion hint), never a hand-written "beginning with …" sentence.
+    const addedClause = expected.slice(contextFree.length)
+    expect(addedClause.trim()).not.toBe("")
+    expect(prompt).toContain(addedClause)
+  })
+})
+
+describe("transition + character-fx server {Label} text is still context-free (pin)", () => {
+  it("transition: a wired startState does NOT reach its {Label} text", () => {
+    const s2v = node("s2v", "speech-to-video", {
+      prompt: "a man walks forward, {Cut}",
+      imageUrl: "https://example.com/a.png",
+      audioUrl: "https://example.com/a.mp3",
+    })
+    const tone = node("tone", "tone", { label: "Tone", tone: "warm golden morning light" })
+    const cut = node("cut", "transition", { label: "Cut", transition: "cross-dissolve" })
+    const nodes = [s2v, tone, cut]
+    const edges = [edge("tone", "cut", "startState"), edge("cut", "s2v", "cinematography")]
+
+    const contextFree = getParameterPromptHint(cut)
+    const composed = getParameterPromptHint(cut, { nodes, edges })
+    expect(contextFree).not.toBe("")
+    expect(composed).not.toBe(contextFree)
+
+    const prompt = buildPayload(s2v, "job-2", {}, undefined, { nodes, edges, nodeStates: {} }).payload.prompt as string
+    expect(prompt).toContain(contextFree)
+    expect(prompt).not.toContain(composed)
+  })
+
+  it("character-fx: a wired target ref does NOT reach its {Label} text", () => {
+    const s2v = node("s2v", "speech-to-video", {
+      prompt: "a man walks forward, {FX}",
+      imageUrl: "https://example.com/a.png",
+      audioUrl: "https://example.com/a.mp3",
+    })
+    const mira = node("mira", "character", { label: "Mira", characterName: "Mira" })
+    const fx = node("fx", "character-fx", { label: "FX", characterFx: "werewolf" })
+    const nodes = [s2v, mira, fx]
+    const edges = [edge("mira", "fx", "target"), edge("fx", "s2v", "cinematography")]
+
+    const contextFree = getParameterPromptHint(fx)
+    const composed = getParameterPromptHint(fx, { nodes, edges })
+    expect(contextFree).not.toBe("")
+    expect(composed).not.toBe(contextFree)
+
+    const prompt = buildPayload(s2v, "job-3", {}, undefined, { nodes, edges, nodeStates: {} }).payload.prompt as string
     expect(prompt).toContain(contextFree)
     expect(prompt).not.toContain(composed)
   })

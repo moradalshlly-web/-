@@ -1,0 +1,575 @@
+{
+  "slug": "winning-ad-variations-studio",
+  "name": "Winning Ad Variations Studio",
+  "description": "Your best-performing ad, your packshot and a few notes in; three fresh variations out — a new hook, a new world, a new angle — each changing exactly one thing, so the campaign keeps working while the creative stops fatiguing, with the product exactly as photographed.",
+  "markdownDescription": "## Winning Ad Variations Studio\n\nYour best-performing ad, your packshot and a few notes become three fresh variations — each changing exactly one thing — so the campaign keeps working while the creative stops fatiguing. The product stays exactly as photographed.\n\n1. **Winning ad** — the one that performs. It is read for what makes it win.\n2. **Packshot + Notes** — your product exactly as it is; what must stay, what may change, hooks or worlds to try, the facts you can stand behind.\n3. **Ad anatomy** — an AI analyst writes the headline, the hook, the world, the product placement, the layout and what every variation must keep.\n4. **Three levers** — New hook (same world, new headline), New world (same headline, new scene), New angle (same world, new message) — one writer each. Edit a brief by hand and rerun its variation.\n5. **Three variations** — square, faithful to the winner's core, the words exactly as written.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "variations",
+    "creative-fatigue",
+    "iteration",
+    "campaign",
+    "product"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 53,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/826085db-27cf-4784-92b0-acd1abf84379.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 34,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "Your best-performing ad, your packshot and a few notes go in; three fresh variations come out — each changing exactly one thing, so the campaign keeps working while the creative stops fatiguing.\n\n1. Winning ad — the one that performs. It is read for what makes it win.\n2. Packshot + Notes — your product exactly as it is; what must stay, what may change, new hooks or worlds you would try, the facts you can stand behind.\n3. Ad anatomy — an AI analyst writes the hook, the world, the product placement, the layout and what every variation must keep.\n4. Three levers — New hook (same world, new headline), New world (same headline, new scene), New angle (same world, new message) — one writer each.\n5. Three variations — square, the product exactly as photographed, the words exactly as written. Rerun one alone for another take.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Winning ad variations studio — how it works",
+        "width": 1180,
+        "height": 650,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-winner",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "The ad that performs. The analyst reads what makes it win — hook, world, product placement, layout — and every variation keeps that core.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Winning ad",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1530
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean photo of the product on a plain background, so every variation carries it exactly as it is.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Packshot",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2250
+      },
+      "data": {
+        "bold": false,
+        "text": "What must stay, what may change, a hook or two you would try, a world you would try, an offer or angle, and the facts you can stand behind. Nothing outside these notes gets invented.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-anatomy",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Five lines on why the ad wins: the hook, the world, the product, the layout, and what to keep. Edit the Keep line to protect more or less of the original.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Ad anatomy",
+        "width": 480,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writers",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Each writer changes exactly one thing: New hook keeps the picture and rewrites the words; New world keeps the words and moves the scene; New angle keeps the world and changes the message. Edit a brief by hand and rerun its variation.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Three levers",
+        "width": 560,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ads",
+      "type": "sticky-note",
+      "position": {
+        "x": 3060,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Square, faithful to the winner's core, the product exactly as photographed, the copy exactly as written. Rerun one alone for another take.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Three variations",
+        "width": 600,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "winner",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 810
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/1ce13501-66b1-433c-b975-2847de468eb6.png",
+        "label": "Winning ad",
+        "r2Url": "https://cdn.nodaro.ai/images/1ce13501-66b1-433c-b975-2847de468eb6.png",
+        "assetId": "1ce13501-66b1-433c-b975-2847de468eb6",
+        "filename": "winning-ad-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/1ce13501-66b1-433c-b975-2847de468eb6.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1530
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/35baf250-ba7e-475a-b70a-716284acef44.png",
+        "label": "Packshot",
+        "r2Url": "https://cdn.nodaro.ai/images/35baf250-ba7e-475a-b70a-716284acef44.png",
+        "assetId": "35baf250-ba7e-475a-b70a-716284acef44",
+        "filename": "fragrance-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/35baf250-ba7e-475a-b70a-716284acef44.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2250
+      },
+      "data": {
+        "text": "Brand: Noir Étoile — an eau de parfum in a faceted crystal bottle. Keep: the bottle exactly as it is, the gold serif type, the night mood. May change: the headline, the scene, the message. Hooks to try: \"Some nights deserve a signature.\" Worlds to try: a rain-wet city street at night; a candlelit dinner table. Angle to try: the 30-day scent guarantee — full refund if it fades. Facts: 12-hour wear; made in Grasse.",
+        "label": "Notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "anatomy",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1240
+      },
+      "data": {
+        "label": "Ad anatomy",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Explain the winning advertisement in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an advertising analyst. Look at the reference advertisement — the client's own best-performing ad — and write what makes it win, in exactly this shape, plain English, nothing else:\nHeadline: \"<the headline word for word, exactly as printed on the ad>\"\nSmall line: \"<the smaller line word for word, exactly as printed, or the single word none>\"\nHook: <one sentence — the headline idea and why it stops the thumb>\nWorld: <one paragraph of 40 to 70 words: the scene, the background, the colours, the light, the mood>\nProduct: <one sentence — where the product sits, how big, how it is lit>\nLayout: <one sentence — where the headline, the small line and the button sit and in what typography>\nKeep: <one sentence — the two or three things every variation must keep so it still reads as this campaign>\nNo other headings, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-hook",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 1320
+      },
+      "data": {
+        "label": "New hook brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Anatomy of the winning ad: {Ad anatomy || a bold product ad with one strong headline.} Notes: {Notes || keep the product and the brand look; change one thing.} The reference image is the product. Write this variation.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director fighting creative fatigue. You get the anatomy of the client's winning ad, the client's notes and the product photo. Write the NEW HOOK variation — keep the world, the product placement and the layout exactly; change only the headline and the small line to a fresh idea from the notes.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words: the scene and the background, where the product sits and how big, where the headline, the small line and the button sit, the typography, the light and the mood — everything the anatomy says to keep, kept; only this variation's lever changed. The product from the packshot stays exactly as it is.>\nUse only facts from the notes; never invent claims, numbers or offers. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-world",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2040
+      },
+      "data": {
+        "label": "New world brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Anatomy of the winning ad: {Ad anatomy || a bold product ad with one strong headline.} Notes: {Notes || keep the product and the brand look; change one thing.} The reference image is the product. Write this variation.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director fighting creative fatigue. You get the anatomy of the client's winning ad, the client's notes and the product photo. Write the NEW WORLD variation — the Headline and the Small line are the winning ad's own, copied word for word from the anatomy's Headline and Small line (never a new hook); keep the product placement and the layout exactly; change only the scene, the background and the colour mood to a new world from the notes.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words: the scene and the background, where the product sits and how big, where the headline, the small line and the button sit, the typography, the light and the mood — everything the anatomy says to keep, kept; only this variation's lever changed. The product from the packshot stays exactly as it is.>\nUse only facts from the notes; never invent claims, numbers or offers. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-angle",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2760
+      },
+      "data": {
+        "label": "New angle brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Anatomy of the winning ad: {Ad anatomy || a bold product ad with one strong headline.} Notes: {Notes || keep the product and the brand look; change one thing.} The reference image is the product. Write this variation.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director fighting creative fatigue. You get the anatomy of the client's winning ad, the client's notes and the product photo. Write the NEW ANGLE variation — keep the world and the product placement; change the message to a different angle from the notes (an offer, a benefit, a moment) with a headline, a small line and a button to match.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words: the scene and the background, where the product sits and how big, where the headline, the small line and the button sit, the typography, the light and the mood — everything the anatomy says to keep, kept; only this variation's lever changed. The product from the packshot stays exactly as it is.>\nUse only facts from the notes; never invent claims, numbers or offers. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-hook",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 1320
+      },
+      "data": {
+        "label": "Variation · New hook",
+        "style": "",
+        "prompt": "Finished square 1:1 advertisement, one variation of a winning campaign, built from this brief: {New hook brief || Headline: \"Wear the night.\" Small line: none Button: none Look: a deep midnight gradient with a soft scatter of golden dust, the bottle large and centred on a dark reflective surface, a fine gold serif headline across the top, expensive and still.} Of the two reference images, the finished advertisement is the campaign to stay faithful to — keep everything the brief keeps — and the product alone on a plain background is the product: it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-world",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2040
+      },
+      "data": {
+        "label": "Variation · New world",
+        "style": "",
+        "prompt": "Finished square 1:1 advertisement, one variation of a winning campaign, built from this brief: {New world brief || Headline: \"Wear the night.\" Small line: none Button: none Look: a deep midnight gradient with a soft scatter of golden dust, the bottle large and centred on a dark reflective surface, a fine gold serif headline across the top, expensive and still.} Of the two reference images, the finished advertisement is the campaign to stay faithful to — keep everything the brief keeps — and the product alone on a plain background is the product: it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-angle",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2760
+      },
+      "data": {
+        "label": "Variation · New angle",
+        "style": "",
+        "prompt": "Finished square 1:1 advertisement, one variation of a winning campaign, built from this brief: {New angle brief || Headline: \"Wear the night.\" Small line: none Button: none Look: a deep midnight gradient with a soft scatter of golden dust, the bottle large and centred on a dark reflective surface, a fine gold serif headline across the top, expensive and still.} Of the two reference images, the finished advertisement is the campaign to stay faithful to — keep everything the brief keeps — and the product alone on a plain background is the product: it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-winner-anatomy",
+      "source": "winner",
+      "target": "anatomy",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-anatomy-writer-hook",
+      "source": "anatomy",
+      "target": "writer-hook",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-writer-hook",
+      "source": "notes",
+      "target": "writer-hook",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-hook",
+      "source": "product",
+      "target": "writer-hook",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-hook",
+      "source": "writer-hook",
+      "target": "ad-hook",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-winner-ad-hook",
+      "source": "winner",
+      "target": "ad-hook",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-ad-hook",
+      "source": "product",
+      "target": "ad-hook",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-anatomy-writer-world",
+      "source": "anatomy",
+      "target": "writer-world",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-writer-world",
+      "source": "notes",
+      "target": "writer-world",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-world",
+      "source": "product",
+      "target": "writer-world",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-world",
+      "source": "writer-world",
+      "target": "ad-world",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-winner-ad-world",
+      "source": "winner",
+      "target": "ad-world",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-ad-world",
+      "source": "product",
+      "target": "ad-world",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-anatomy-writer-angle",
+      "source": "anatomy",
+      "target": "writer-angle",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-writer-angle",
+      "source": "notes",
+      "target": "writer-angle",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-angle",
+      "source": "product",
+      "target": "writer-angle",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-angle",
+      "source": "writer-angle",
+      "target": "ad-angle",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-winner-ad-angle",
+      "source": "winner",
+      "target": "ad-angle",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-ad-angle",
+      "source": "product",
+      "target": "ad-angle",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.238
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "notes": {
+          "title": "Notes",
+          "description": "What must stay, what may change, hooks and worlds to try."
+        },
+        "winner": {
+          "title": "Winning ad",
+          "description": "The ad that performs. Read for what makes it win."
+        },
+        "ad-hook": {
+          "title": "New hook",
+          "description": "Same world, new headline."
+        },
+        "product": {
+          "title": "Packshot",
+          "description": "Your product on a plain background. It appears exactly as it is."
+        },
+        "ad-angle": {
+          "title": "New angle",
+          "description": "Same world, new message."
+        },
+        "ad-world": {
+          "title": "New world",
+          "description": "Same headline, new scene."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "winner",
+        "product",
+        "notes"
+      ],
+      "outputOrder": [
+        "ad-hook",
+        "ad-world",
+        "ad-angle"
+      ]
+    }
+  }
+}

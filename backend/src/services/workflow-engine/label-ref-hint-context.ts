@@ -16,19 +16,33 @@ import type { HintEdgeLike, HintGraphContext, HintNodeLike } from "@nodaro/share
  * move, because it composes the `{Label}` value with the graph
  * (`extractNodeOutput` in the frontend execution-graph.ts).
  *
- * CAMERA-MOTION IS DELIBERATELY NOT HERE, although it is in
- * `EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`. Its server `{Label}` output has
- * always been context-free: start / end states are not composed on this path.
- * Composing it now would change the prompt of workflows that already exist,
- * which needs its own signed-off change. Transition and Character FX stay
- * context-free here for the same reason.
+ * CAMERA-MOTION COMPOSES HERE AS OF THIS CHANGE. Its server `{Label}` text was
+ * context-free until now — start / end states were dropped on this path only —
+ * so a `{Cam}` ref disagreed with the editor, which has always composed it, and
+ * with the cinematography path, which passes the graph for every member of
+ * `EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`. The blast radius was measured
+ * before the flip: with nothing wired to a picker's identity / state handles the
+ * with-graph and without-graph strings are byte-identical (0 differences across
+ * 472,168 comparisons), so ONLY workflows that actually wire camera-motion's
+ * startState / endState change at all — and they change to the text the editor
+ * already shows for them.
  *
- * ADD A NEW GRAPH-COMPOSED PICKER HERE (and to
- * `EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`) when it ships. Its `{Label}` text
+ * TRANSITION AND CHARACTER-FX STAY OUT. They are not in
+ * `EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`, so admitting them here would not
+ * be aligning the `{Label}` path with an already-composed execution path — it
+ * would newly compose them, and the same widening on the execution side would
+ * also change the prompts of workflows that wire them DIRECTLY (the
+ * cinematography handle), not just by label. That is its own signed-off change.
+ *
+ * ADD A NEW GRAPH-COMPOSED PICKER TO BOTH SETS — here and
+ * `EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES` — when it ships. Its `{Label}` text
  * then matches the editor and the cinematography path from its first release,
- * and no existing workflow's prompt changes.
+ * and no existing workflow's prompt changes. This set stays a SUBSET of that
+ * one: a type composed by label but not on the execution path would disagree
+ * with itself depending on how the prompt placed it.
  */
 export const LABEL_REF_GRAPH_COMPOSED_PARAMETER_TYPES: ReadonlySet<string> = new Set([
+  "camera-motion",
   "character-motion",
 ])
 
