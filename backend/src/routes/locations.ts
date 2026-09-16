@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
+import { expectedUpdatedAtSchema } from "../lib/optimistic-token-schema.js"
 import { LOCATION_REFERENCE_PHOTO_KINDS, LOCATION_ATTACH_COLUMNS } from "@nodaro/shared"
 import type { ReferenceSheet } from "@nodaro/shared"
 import { safeUrlSchema } from "../lib/url-validator.js"
@@ -88,7 +89,7 @@ const upsertLocationBody = z.object({
   // Optimistic-concurrency token: when present, UPDATE only succeeds if the
   // row's `updated_at` still matches. On mismatch we return 409 so the Studio
   // can re-fetch + merge instead of silently overwriting a worker write.
-  expectedUpdatedAt: z.string().datetime().optional(),
+  expectedUpdatedAt: expectedUpdatedAtSchema,
 })
 
 const deleteLocationParams = z.object({

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
+import { expectedUpdatedAtSchema } from "../lib/optimistic-token-schema.js"
 import { config } from "../lib/config.js"
 import { supabase } from "../lib/supabase.js"
 import { captionCreature } from "../lib/creature-caption.js"
@@ -72,7 +73,7 @@ const bodySchema = z.object({
    * with the fresh `updated_at` so the caller can re-fetch + retry.
    * Mirrors the pattern in POST /v1/creatures (Phase B).
    */
-  expectedUpdatedAt: z.string().datetime().optional(),
+  expectedUpdatedAt: expectedUpdatedAtSchema,
 })
 
 export async function creatureMainImageApprovalRoutes(app: FastifyInstance) {
