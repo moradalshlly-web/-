@@ -1891,6 +1891,8 @@ export const en = {
   "templates.updated": "Template updated",
   "templates.failedUpdate": "Failed to update template",
   "templates.readOnly": "Read-only template",
+  "templates.results": "Results",
+  "templates.resultsHint": "Play the template's finished outputs — with sound.",
   "templates.cloneWorkflow": "Clone workflow",
   "templates.cloneAndCustomize": "Clone & customize",
   "templates.cloneHelper": "Copies into My Workflows.",

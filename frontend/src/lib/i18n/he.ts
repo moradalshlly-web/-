@@ -1872,6 +1872,8 @@ export const he: ChromeDict = {
   "templates.updated": "התבנית עודכנה",
   "templates.failedUpdate": "עדכון התבנית נכשל",
   "templates.readOnly": "תבנית לקריאה בלבד",
+  "templates.results": "תוצאות",
+  "templates.resultsHint": "נגנו את התוצרים המוכנים של התבנית — עם סאונד.",
   "templates.cloneWorkflow": "שכפול התהליך",
   "templates.cloneAndCustomize": "שכפול והתאמה",
   "templates.cloneHelper": "נשמר אל התהליכים שלי.",
