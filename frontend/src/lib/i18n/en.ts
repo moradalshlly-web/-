@@ -170,6 +170,8 @@ export const en = {
   "dash.newWorkflow": "New Workflow",
   "dash.creating": "Creating…",
   "dash.newProject": "New project",
+  "dash.importJson": "Import JSON",
+  "dash.importSignIn": "Please sign in to import a workflow.",
   "dash.gridView": "Grid view",
   "dash.listView": "List view",
   "dash.searchProjects": "Search projects and workflows",

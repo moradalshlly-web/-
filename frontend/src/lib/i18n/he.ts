@@ -165,6 +165,8 @@ export const he: ChromeDict = {
   "dash.newWorkflow": "תהליך חדש",
   "dash.creating": "יוצר…",
   "dash.newProject": "פרויקט חדש",
+  "dash.importJson": "ייבוא JSON",
+  "dash.importSignIn": "יש להתחבר כדי לייבא תהליך עבודה.",
   "dash.gridView": "תצוגת רשת",
   "dash.listView": "תצוגת רשימה",
   "dash.searchProjects": "חיפוש פרויקטים ותהליכים",
