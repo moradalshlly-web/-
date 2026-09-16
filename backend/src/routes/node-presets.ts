@@ -1,8 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify"
 import { sendInternalError } from "../lib/http-errors.js"
 import { z } from "zod"
-import { extractPresetData } from "@nodaro/shared"
-import { getFactoryPresets } from "@nodaro/prompts"
+import { portablePresetData, presetCatalog } from "../lib/presets/app-presets.js"
 import { supabase } from "../lib/supabase.js"
 import { requireScope } from "../lib/scopes.js"
 import { rejectProgrammaticAuth } from "../lib/api-auth-mode.js"
@@ -30,7 +29,10 @@ const createBody = z.object({
   sortOrder: z.number().int().optional(),
 })
 
+const expectedUpdatedAt = z.string().max(64).refine(v => Number.isFinite(Date.parse(v)), "Invalid timestamp")
+
 const patchBody = z.object({
+  expectedUpdatedAt: expectedUpdatedAt.optional(),
   name: z.string().min(1).max(120).optional(),
   description: z.string().max(500).optional(),
   data: presetDataSchema.optional(),
@@ -87,7 +89,7 @@ function toCamel(r: Row) {
     nodeType: r.node_type,
     name: r.name,
     description: r.description ?? undefined,
-    data: r.data ?? {},
+    data: portablePresetData(r.node_type, r.data ?? {}) ?? {},
     groupId: r.group_id ?? undefined,
     tags: r.tags ?? [],
     sortOrder: r.sort_order ?? 0,
@@ -131,7 +133,7 @@ export async function nodePresetRoutes(app: FastifyInstance) {
     return reply.send({ data: ((data ?? []) as Row[]).map(toCamel) })
   })
 
-  // FACTORY (built-in) presets — read-only catalog from @nodaro/shared. Lets SDK/CLI/MCP
+  // FACTORY (built-in) presets — read-only catalog from the node and app registries. Lets SDK/CLI/MCP
   // clients list and USE the shipped presets (their `data` merges into a node's config).
   // Static path "/factory" is matched ahead of any `:id` route (there is no GET /:id here).
   app.get("/v1/node-presets/factory", async (req, reply) => {
@@ -145,7 +147,7 @@ export async function nodePresetRoutes(app: FastifyInstance) {
     if (!nodeType) {
       return reply.status(400).send({ error: { code: "validation_error", message: "nodeType query param is required" } })
     }
-    const data = getFactoryPresets(nodeType).map((p) => ({
+    const data = presetCatalog(nodeType).map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description,
@@ -229,6 +231,8 @@ export async function nodePresetRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: { code: "validation_error", message: parsed.error.issues[0]?.message ?? "Invalid body" } })
     }
     const { nodeType, name, description, data, groupId, tags, sortOrder } = parsed.data
+    const portable = portablePresetData(nodeType, data)
+    if (!portable) return reply.status(400).send({ error: { code: "validation_error", message: "Invalid settings for this preset type." } })
     if (groupId && (await unownedGroupIds(userId, [groupId])).length > 0) {
       return reply.status(400).send({ error: { code: "invalid_group", message: "Group not found." } })
     }
@@ -239,7 +243,7 @@ export async function nodePresetRoutes(app: FastifyInstance) {
         node_type: nodeType,
         name,
         description: description ?? null,
-        data: extractPresetData(data), // defensive strip
+        data: portable,
         ...(groupId !== undefined ? { group_id: groupId } : {}),
         ...(tags !== undefined ? { tags } : {}),
         ...(sortOrder !== undefined ? { sort_order: sortOrder } : {}),
@@ -268,20 +272,25 @@ export async function nodePresetRoutes(app: FastifyInstance) {
     if (parsed.data.groupId && (await unownedGroupIds(userId, [parsed.data.groupId])).length > 0) {
       return reply.status(400).send({ error: { code: "invalid_group", message: "Group not found." } })
     }
+    // Resolve the namespace from the OWNED row, never from caller-controlled data.
+    const { data: current, error: readError } = await supabase.from("node_presets")
+      .select("node_type").eq("id", id).eq("user_id", userId).single()
+    if (readError || !current) return reply.status(404).send({ error: { code: "not_found", message: "Preset not found." } })
+    const portable = parsed.data.data === undefined ? undefined : portablePresetData(current.node_type, parsed.data.data)
+    if (portable === null) return reply.status(400).send({ error: { code: "validation_error", message: "Invalid settings for this preset type." } })
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (parsed.data.name !== undefined) updates.name = parsed.data.name
     if (parsed.data.description !== undefined) updates.description = parsed.data.description
-    if (parsed.data.data !== undefined) updates.data = extractPresetData(parsed.data.data)
+    if (portable !== undefined) updates.data = portable
     if (parsed.data.groupId !== undefined) updates.group_id = parsed.data.groupId
     if (parsed.data.tags !== undefined) updates.tags = parsed.data.tags
     if (parsed.data.sortOrder !== undefined) updates.sort_order = parsed.data.sortOrder
-    const { data: row, error } = await supabase
-      .from("node_presets")
-      .update(updates)
-      .eq("id", id)
-      .eq("user_id", userId)
-      .select("*")
-      .single()
+    let update = supabase.from("node_presets").update(updates).eq("id", id).eq("user_id", userId)
+    if (parsed.data.expectedUpdatedAt) update = update.eq("updated_at", parsed.data.expectedUpdatedAt)
+    const { data: row, error } = await update.select("*").single()
+    if (error?.code === "PGRST116" && parsed.data.expectedUpdatedAt) {
+      return reply.status(409).send({ error: { code: "conflict", message: "This preset changed on another device. Refresh and try again." } })
+    }
     if (error) {
       if (error.code === "23505") {
         return reply.status(409).send({ error: { code: "name_taken", message: "Name already exists." } })
@@ -297,7 +306,15 @@ export async function nodePresetRoutes(app: FastifyInstance) {
     if (!userId) return unauthorized(reply)
     if (rejectProgrammaticAuth(req, reply, PRESETS_READ_ONLY_MSG)) return
     const id = (req.params as { id: string }).id
-    const { error } = await supabase.from("node_presets").delete().eq("id", id).eq("user_id", userId)
+    const query = z.object({ expectedUpdatedAt: expectedUpdatedAt.optional() }).safeParse(req.query)
+    if (!query.success) return reply.status(400).send({ error: { code: "validation_error", message: "Invalid timestamp." } })
+    let deletion = supabase.from("node_presets").delete().eq("id", id).eq("user_id", userId)
+    if (query.data.expectedUpdatedAt) deletion = deletion.eq("updated_at", query.data.expectedUpdatedAt)
+    const result = query.data.expectedUpdatedAt ? await deletion.select("id").single() : await deletion
+    const { error } = result
+    if (error?.code === "PGRST116" && query.data.expectedUpdatedAt) {
+      return reply.status(409).send({ error: { code: "conflict", message: "This preset changed on another device. Refresh and try again." } })
+    }
     if (error) return sendInternalError(reply, req, error, "Failed to delete preset")
     // Best-effort: drop any favorite rows pointing at this now-deleted user preset
     // (preset_id is polymorphic → no FK cascade). Non-fatal if it errors.
@@ -315,16 +332,18 @@ export async function nodePresetRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: { code: "validation_error", message: parsed.error.issues[0]?.message ?? "Invalid body" } })
     }
 
+    const portable = parsed.data.presets.map(p => ({ ...p, data: portablePresetData(p.nodeType, p.data) }))
+    if (portable.some(p => p.data === null)) return reply.status(400).send({ error: { code: "validation_error", message: "Invalid settings for this preset type." } })
+
     // Load existing (type,name) to avoid unique-violation churn on import.
     const { data: existing } = await supabase.from("node_presets").select("node_type,name").eq("user_id", userId)
     const taken = new Set(
       ((existing ?? []) as { node_type: string; name: string }[]).map((r) => `${r.node_type}::${r.name.toLowerCase()}`),
     )
 
-    const rows = parsed.data.presets
+    const rows = portable
       // Skip presets that carry no portable config after stripping (useless empty rows).
-      .map((p) => ({ ...p, data: extractPresetData(p.data) }))
-      .filter((p) => Object.keys(p.data).length > 0)
+      .filter((p) => p.data && Object.keys(p.data).length > 0)
       .map((p) => {
         let name = p.name
         let i = 2

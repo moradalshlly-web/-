@@ -1,5 +1,4 @@
-import { getFactoryPresets } from "@nodaro/prompts"
-import { extractPresetData } from "@nodaro/shared"
+import { portablePresetData, presetCatalog } from "./app-presets.js"
 import { supabase } from "../supabase.js"
 
 /**
@@ -37,7 +36,7 @@ export async function resolvePreset(args: {
   const { nodeType, presetId, userId } = args
 
   // Factory first (ids are "<nodeType>/<slug>").
-  const factory = getFactoryPresets(nodeType).find((p) => p.id === presetId)
+  const factory = presetCatalog(nodeType).find((p) => p.id === presetId)
   if (factory) {
     return {
       id: factory.id,
@@ -46,7 +45,7 @@ export async function resolvePreset(args: {
       group: factory.group,
       nodeType,
       source: "factory",
-      data: extractPresetData(factory.data as Record<string, unknown>),
+      data: portablePresetData(nodeType, factory.data as Record<string, unknown>)!,
     }
   }
 
@@ -66,12 +65,14 @@ export async function resolvePreset(args: {
     description: string | null
     data: Record<string, unknown>
   }
+  const portable = portablePresetData(nodeType, row.data ?? {})
+  if (!portable) return null
   return {
     id: row.id,
     name: row.name,
     description: row.description ?? undefined,
     nodeType,
     source: "custom",
-    data: extractPresetData(row.data ?? {}),
+    data: portable,
   }
 }
