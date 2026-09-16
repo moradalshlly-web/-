@@ -1,5 +1,7 @@
 "use client"
 
+import { hasCredits } from "@/lib/edition"
+
 import { useT } from "@/lib/i18n"
 import { memo, useState, useMemo, useEffect } from "react"
 import { Position, useUpdateNodeInternals, type NodeProps } from "@xyflow/react"
@@ -16,7 +18,7 @@ import { MediaPreviewModal } from "@/components/editor/media-preview-modal"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { getJobStatusLean } from "@/lib/api"
-import { useModelCredits } from "@/ee/hooks/use-model-credits"
+import { useModelCredits, useVideoProCredits } from "@/ee/hooks/use-model-credits"
 import { useResultAspectRatio } from "@/hooks/use-result-aspect-ratio"
 import { videoNodeSizing } from "./video-node-defaults"
 import { isValidGenerateVideoProConnection } from "@/lib/generate-video-pro-handles"
@@ -204,7 +206,9 @@ function GenerateVideoProNodeComponent({ id, data, selected }: NodeProps) {
   useModelCredits(`${provider}:8s:${resolution}`, 82)
   useModelCredits(`${provider}:8s:${resolution}-ref`, 50)
   useModelCredits("generate-video-pro", 10)
-  const credits = estimateGenerateVideoProCredits(nodeData)
+  const liveEstimate = useVideoProCredits(nodeData)
+  const needsQuote = hasCredits() && nodeData.segmentMode !== undefined
+  const credits = needsQuote ? liveEstimate.data?.credits : estimateGenerateVideoProCredits(nodeData)
 
   // Result-aspect-ratio for the BaseNode minHeight calc + video-element sizing.
   const { aspectRatio: mediaAspectRatio, onLoadDimensions: handleLoadDimensions } =
@@ -311,7 +315,9 @@ function GenerateVideoProNodeComponent({ id, data, selected }: NodeProps) {
         // !isRunning so Stop/Discard stays visible mid-run. The Continue control
         // self-hides unless the last run was a stopped/partial delivery.
         topToolbarContent={
-          <NodeQuickStrip nodeId={id} credits={credits} isRunning={status === "running"}>
+          <NodeQuickStrip nodeId={id} credits={credits} isRunning={status === "running"}
+            disabled={needsQuote && !liveEstimate.data}
+            disabledReason={liveEstimate.isError ? t("vidcfg.segmentMode.quoteError") : t("vidcfg.segmentMode.quoting")}>
             <GvpContinueControl nodeId={id} />
           </NodeQuickStrip>
         }

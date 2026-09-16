@@ -1,3 +1,4 @@
+import { registerVideoProEstimate } from "./video-pro-estimate.js"
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { openApiRegistry } from "../../lib/openapi-registry.js"
 import { mapReserveError } from "../../lib/reserve-errors.js"
@@ -193,6 +194,7 @@ export function invalidateBalanceCache(userId: string): void {
 }
 
 export async function creditsRoutes(app: FastifyInstance) {
+  registerVideoProEstimate(app)
   // Registered inside the route function so the path only appears in the
   // OpenAPI doc on editions where the route actually exists (Cloud).
   openApiRegistry.registerPath({

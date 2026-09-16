@@ -1,7 +1,7 @@
 ---
 node_type: generate-video-pro
-generated_at: 2026-08-29T19:02:38.504Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-16T12:05:16.644Z
+generated_from: 5c263d23b
 ---
 
 # Generate Video Pro
@@ -38,6 +38,8 @@ generated_from: 7dbf4818b
 - `rollingRefs?: boolean`
 - `wordCut?: boolean`
 - `shotTimestamps?: boolean`
+- `segmentMode?: "short" | "long" | "max"`
+- `sourceSegmentDurations?: number[]`
 - `preferredSegmentSec?: number`
 - `segmentDurations?: number[]`
 - `audioTail?: boolean`
@@ -72,6 +74,7 @@ generated_from: 7dbf4818b
   "provider": "seedance-2",
   "prompt": "",
   "duration": 8,
+  "segmentMode": "max",
   "aspectRatio": "adaptive",
   "resolution": "720p",
   "generateAudio": true,
@@ -111,6 +114,7 @@ generated_from: 7dbf4818b
     "provider": "seedance-2",
     "prompt": "",
     "duration": 8,
+    "segmentMode": "max",
     "aspectRatio": "adaptive",
     "resolution": "720p",
     "generateAudio": true,

@@ -5032,6 +5032,8 @@ export function buildPayload(
         rollingRefs: data.rollingRefs === true ? true : undefined,
         wordCut: data.wordCut === true ? true : undefined,
         shotTimestamps: data.shotTimestamps === true ? true : undefined,
+        segmentMode: data.segmentMode === "short" || data.segmentMode === "long" || data.segmentMode === "max" ? data.segmentMode : undefined,
+        sourceSegmentDurations: Array.isArray(data.sourceSegmentDurations) ? data.sourceSegmentDurations : undefined,
         preferredSegmentSec: typeof data.preferredSegmentSec === "number" ? data.preferredSegmentSec : undefined,
         // EXPLICIT scene-aligned durations (2026-08-03) — passed VERBATIM; the
         // reserve (node-executor override) and the plugin route both validate

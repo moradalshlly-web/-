@@ -1,3 +1,4 @@
+import { highestCostPartitions } from "./video-pro-segment-reserve.js"
 import {
   MODEL_CATALOG,
   buildVideoCreditModelIdentifier,
@@ -26,6 +27,10 @@ import { STATIC_CREDIT_COSTS, PriceNotConfiguredError, getModelCreditBaseCost } 
  * segment's tail frames).
  */
 export interface GenerateVideoProPricing {
+  /** Delivered source spans, before padding to the model duration menu. */
+  sourceSegmentDurations?: number[]
+  /** Upper-bound reservation awaiting action-aligned planning. */
+  segmentPlanning?: { mode: "short" | "long"; durationSec: number; minSeg: number; maxSeg: number; lossSec: number; capSec: number }
   mode: "single" | "multi"
   clampedDurationSec: number
   segmentCount: number
@@ -632,6 +637,8 @@ async function segmentCost(provider: string, resolution: string, durationSec: nu
 }
 
 export async function computeGenerateVideoProPricing(args: {
+  sourceSegmentDurations?: number[]
+  segmentMode?: "short" | "long" | "max"
   provider: string
   resolution: string
   durationSec: number
@@ -678,6 +685,7 @@ export async function computeGenerateVideoProPricing(args: {
    *  that reserves exactly what it spends (today's number, byte-identical). */
   aspectRatio?: string
 }): Promise<GenerateVideoProPricing> {
+  if (args.segmentMode && (args.preferredSegmentSec !== undefined || args.segmentDurations !== undefined)) throw new Error("segmentMode is exclusive with explicit or preferred segment lengths")
   const { provider, durationSec } = args
   const tailSec = clampContextTailSec(args.tailSec)
   const resolution = clampResolution(provider, args.resolution)
@@ -700,14 +708,27 @@ export async function computeGenerateVideoProPricing(args: {
     )
   }
 
+  const sourceDurations = args.sourceSegmentDurations
+  if (sourceDurations !== undefined && (
+    (args.segmentMode !== "short" && args.segmentMode !== "long") ||
+    args.segmentDurations !== undefined || args.preferredSegmentSec !== undefined ||
+    sourceDurations.length < 1 || sourceDurations.length > EXPLICIT_MAX_SEGMENTS ||
+    sourceDurations.some(d => !Number.isInteger(d) || d < bounds.minSeg || d > bounds.maxSeg) ||
+    sourceDurations.reduce((a,b) => a+b,0) !== Math.min(Math.max(Math.round(durationSec),bounds.minSeg),cap)
+  )) throw new Error("Invalid source segment durations for natural planning")
   const useExplicit = Array.isArray(args.segmentDurations) && args.segmentDurations.length > 0
   const usePreferred =
     !useExplicit && typeof args.preferredSegmentSec === "number" && Number.isFinite(args.preferredSegmentSec)
-  const split = useExplicit
+  const sourceRenderDurations = sourceDurations?.map(d => bounds.allowed.find(a => a >= d)!)
+  const sourceSplit: SplitResult | undefined = sourceDurations && sourceRenderDurations ? {
+    mode: sourceDurations.length === 1 ? "single" : "multi", clampedD: sourceDurations.reduce((a,b)=>a+b,0), n: sourceDurations.length,
+    s: sourceRenderDurations.reduce((a,b)=>a+b,0), durations: sourceRenderDurations,
+  } : undefined
+  const split = sourceSplit ?? (useExplicit
     ? explicitSplit(durationSec, args.segmentDurations as number[], cap, bounds)
     : usePreferred
       ? computePreferredSplit(durationSec, args.preferredSegmentSec as number, cap, bounds)
-      : computeSplit(durationSec, cap, bounds)
+      : computeSplit(durationSec, cap, bounds))
 
   // Per-second transparency fields — always derived from STATIC_CREDIT_COSTS
   // directly (never the DB-aware getter: there is no per-duration DB row for
@@ -722,6 +743,29 @@ export async function computeGenerateVideoProPricing(args: {
   const perSecPriced = hasPerSecRate(provider, resolution)
   const noRefPerSec = perSecPriced ? perSecRate(provider, resolution, false) : 0
   const refPerSec = perSecPriced ? perSecRate(provider, resolution, true) : 0
+
+  if (!sourceDurations && (args.segmentMode === "short" || args.segmentMode === "long")) {
+    if (args.segmentDurations !== undefined || args.preferredSegmentSec !== undefined) {
+      throw new Error("segmentMode is exclusive with explicit or preferred segment lengths")
+    }
+    const duration = Math.min(Math.max(Math.round(durationSec), bounds.minSeg), cap)
+    const costs = new Map<number, number>()
+    if (args.renderMethod === "keyframes" && !perSecPriced) {
+      await Promise.all(bounds.allowed.map(async d => costs.set(d, await segmentCost(provider, resolution, d))))
+    }
+    const candidates = highestCostPartitions(duration, { ...bounds, lossSec: 0, maxCount: EXPLICIT_MAX_SEGMENTS }, (raw, index) => {
+      const normalized = bounds.allowed.find(a => a >= raw)!
+      return args.renderMethod === "keyframes"
+        ? (perSecPriced ? Math.ceil(normalized * noRefPerSec) : costs.get(normalized)!)
+        : index === 0 ? Math.ceil(normalized * noRefPerSec) : normalized * refPerSec
+    })
+    if (!candidates.length) throw new Error("Requested duration cannot fit the model's segment bounds")
+    const quotes = await Promise.all(candidates.map(sourceSegmentDurations => computeGenerateVideoProPricing({ ...args, sourceSegmentDurations })))
+    const upper = quotes.reduce((a, b) => a.reserveBase >= b.reserveBase ? a : b)
+    // The candidate's lengths are a reservation envelope, not a screenplay.
+    // Preserve requested time for the boundary pass and every caller's echo.
+    return { ...upper, clampedDurationSec: duration, segmentPlanning: { mode: args.segmentMode, durationSec: duration, minSeg: bounds.minSeg, maxSeg: bounds.maxSeg, lossSec: 0, capSec: cap } }
+  }
 
   // KEYFRAMES (2026-08-03) — one formula for BOTH modes: nothing re-seeds off
   // a previous segment, so every segment (single or not) bills at the no-ref
@@ -759,6 +803,7 @@ export async function computeGenerateVideoProPricing(args: {
       segmentCount: split.n,
       totalRawSec: split.s,
       segmentDurations: split.durations,
+      ...(sourceDurations ? { sourceSegmentDurations: [...sourceDurations] } : {}),
       resolution,
       ...(split.snapped ? { segmentDurationsSnapped: true as const } : {}),
       feeBase,
@@ -776,7 +821,9 @@ export async function computeGenerateVideoProPricing(args: {
     }
   }
 
-  if (split.mode === "single") {
+  // Natural plans always use the planned-chain meter, even with one clip.
+  // This keeps reservation and settlement on the same rate and planning fee.
+  if (split.mode === "single" && !sourceDurations) {
     // Single-segment run behaves exactly like a normal t2v run — same
     // identifier + BASE cost path every other video node uses, so it stays
     // DB-override-aware (an admin can reprice the underlying composite and
@@ -797,14 +844,15 @@ export async function computeGenerateVideoProPricing(args: {
       segmentCount: split.n,
       totalRawSec: split.s,
       segmentDurations: split.durations,
+      ...(sourceDurations ? { sourceSegmentDurations: [...sourceDurations] } : {}),
       resolution,
       ...(split.snapped ? { segmentDurationsSnapped: true as const } : {}),
-      feeBase: 0,
+      feeBase: sourceDurations ? STATIC_CREDIT_COSTS["generate-video-pro"]! : 0,
       noRefPerSec,
       refPerSec,
       tailSec,
-      reserveBase: creditCost,
-      creditIdentifier,
+      reserveBase: creditCost + (sourceDurations ? STATIC_CREDIT_COSTS["generate-video-pro"]! : 0),
+      ...(sourceDurations ? {} : { creditIdentifier }),
     }
   }
 
@@ -822,7 +870,7 @@ export async function computeGenerateVideoProPricing(args: {
   // negative in the ref term (e.g. 10s @ preferred 4 → s−15 < 0), and the
   // engine's commitBase settles on durations[0] — reserve and commit stay
   // aligned.
-  const firstSegBillSec = usePreferred || useExplicit ? split.durations[0]! : bounds.maxSeg
+  const firstSegBillSec = sourceDurations || usePreferred || useExplicit ? split.durations[0]! : bounds.maxSeg
   const reserveBase =
     feeBase +
     Math.ceil(noRefPerSec * firstSegBillSec) +
@@ -834,6 +882,7 @@ export async function computeGenerateVideoProPricing(args: {
     segmentCount: split.n,
     totalRawSec: split.s,
     segmentDurations: split.durations,
+      ...(sourceDurations ? { sourceSegmentDurations: [...sourceDurations] } : {}),
     resolution,
     ...(split.snapped ? { segmentDurationsSnapped: true as const } : {}),
     feeBase,

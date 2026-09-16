@@ -1273,6 +1273,9 @@ export async function computeGenerateVideoProCreditOverride(
     // reserve diverges from the plugin route's for the same payload
     // (preferredSegmentSec was silently dropped here before — levered DAG
     // runs over-reserved at the maxSeg padding).
+    ...((payload.segmentMode === "short" || payload.segmentMode === "long" || payload.segmentMode === "max") ? {segmentMode:payload.segmentMode} : {}),
+    ...(Array.isArray(payload.sourceSegmentDurations) ? {sourceSegmentDurations:payload.sourceSegmentDurations as number[]} : {}),
+    ...(payload.segmentMode ? {aspectRatio:typeof payload.aspectRatio === "string" && payload.aspectRatio !== "adaptive" ? payload.aspectRatio : "16:9", ...(payload.anchorMode === "none" ? {anchorsSeeded:true} : {})} : {}),
     ...(typeof payload.preferredSegmentSec === "number" ? { preferredSegmentSec: payload.preferredSegmentSec } : {}),
     ...(Array.isArray(payload.segmentDurations) && payload.segmentDurations.length > 0
       ? { segmentDurations: payload.segmentDurations as number[] }

@@ -7,6 +7,7 @@ import { hasCredits } from "@/lib/edition"
 import { creditUnits, creditUnitLabel } from "@/lib/credit-units"
 import { lazyWithRetry } from "@/lib/lazy-with-retry"
 import { ImageIcon } from "lucide-react"
+import { VideoProSegmentPicker } from "./video-pro-segment-picker"
 import { Input } from "@/components/ui/input"
 import { ClampedNumberInput } from "@/components/ui/clamped-number-input"
 import { Label } from "@/components/ui/label"
@@ -4374,11 +4375,11 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </label>
       </div>
 
-      {/* PREFERRED SEGMENT LENGTH — A/B lever: even segments near a
-          recommended point instead of pack-to-cap (~13s = fewer boundaries,
-          longer per-generation vs ~4s = more boundaries, shorter
-          generations). Empty = auto (classic split). Flows into pricing —
-          the reserve is computed on the same split the planner uses. */}
+      <VideoProSegmentPicker
+        value={data.segmentMode ?? (data.preferredSegmentSec !== undefined || data.segmentDurations?.length ? undefined : "max")}
+        onChange={(segmentMode) => onUpdate({segmentMode,preferredSegmentSec:undefined,segmentDurations:undefined,sourceSegmentDurations:undefined})}
+      />
+      {data.preferredSegmentSec !== undefined && (
       <div className="flex items-center gap-2 px-1">
         <label htmlFor="gvp-preferredSegmentSec" className="text-xs shrink-0">
           {t("vidcfg.preferredSegmentLength")}
@@ -4391,13 +4392,14 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           allowEmpty
           placeholder={t("vidcfg.phAutoLower")}
           value={data.preferredSegmentSec}
-          onCommit={(n) => onUpdate({ preferredSegmentSec: n })}
+          onCommit={(n) => onUpdate({ segmentMode: undefined, preferredSegmentSec: n })}
           className="h-7 w-20 text-xs"
         />
         <span className="text-[11px] text-muted-foreground">
           {t("vidcfg.preferredSegmentHint")}
         </span>
       </div>
+      )}
 
       {/* AUDIO TAIL — A/B lever: ~8s of the soundtrack-so-far rides every
           continuation as an audio reference (more music context than the

@@ -20,7 +20,9 @@ export const QuickStripOpenChangeContext = createContext<((open: boolean) => voi
 
 interface NodeQuickStripProps {
   readonly nodeId: string
-  readonly credits: number
+  readonly credits?: number
+  readonly disabled?: boolean
+  readonly disabledReason?: string
   readonly isRunning: boolean
   /** Extra inline controls appended after the registry configs, before Run. */
   readonly children?: ReactNode
@@ -36,7 +38,7 @@ interface NodeQuickStripProps {
  * which would let the hover toolbar hide mid-pick — so we pin the node via
  * `setQuickStripPinned` (BaseNode keeps the toolbar visible while pinned).
  */
-export function NodeQuickStrip({ nodeId, credits, isRunning, children }: NodeQuickStripProps) {
+export function NodeQuickStrip({ nodeId, credits, isRunning, children, disabled, disabledReason }: NodeQuickStripProps) {
   const runSingleNode = useWorkflowStore((s) => s.runSingleNode)
   const setQuickStripPinned = useWorkflowStore((s) => s.setQuickStripPinned)
   const node = useWorkflowStore((s) => s.nodes.find((n) => n.id === nodeId))
@@ -94,6 +96,8 @@ export function NodeQuickStrip({ nodeId, credits, isRunning, children }: NodeQui
       <RunNodeButton
         nodeId={nodeId}
         credits={credits}
+        disabled={disabled}
+        disabledReason={disabledReason}
         isRunning={isRunning}
         onRun={(nid) => runSingleNode?.(nid)}
       />

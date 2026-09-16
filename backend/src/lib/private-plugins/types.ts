@@ -1264,6 +1264,9 @@ export interface VoiceChangerProPricing {
  * `computeCredits` and the node-executor override path.
  */
 export interface GenerateVideoProPricing {
+  sourceSegmentDurations?: number[]
+  /** Upper-bound reservation awaiting action-aligned planning. */
+  segmentPlanning?: { mode: "short" | "long"; durationSec: number; minSeg: number; maxSeg: number; lossSec: number; capSec: number }
   mode: "single" | "multi"
   clampedDurationSec: number
   segmentCount: number
@@ -1416,6 +1419,8 @@ export interface PluginHttpToolkit {
    * `applyStaticCreditCosts`/`applyPipelinePrompts`).
    */
   computeGenerateVideoProPricing(args: {
+    sourceSegmentDurations?: number[]
+    segmentMode?: "short" | "long" | "max"
     provider: string
     resolution: string
     durationSec: number

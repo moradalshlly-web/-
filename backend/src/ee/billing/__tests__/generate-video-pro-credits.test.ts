@@ -1291,3 +1291,57 @@ describe("clampResolution — an unsupported tier snaps to the NEAREST, not the 
     expect(p.creditIdentifier).toBe("seedance-2:8s:720p")
   })
 })
+
+describe("natural segment reservation", () => {
+  it("returns provider bounds and covers every legal 12s sparse partition", async () => {
+    const args = { provider: "gemini-omni-flash", resolution: "720p", durationSec: 12, renderMethod: "keyframes" as const, aspectRatio: "16:9" }
+    const upper = await computeGenerateVideoProPricing({ ...args, segmentMode: "short" })
+    expect(upper.segmentPlanning).toMatchObject({ mode: "short", durationSec: 12, minSeg: 4, maxSeg: 10 })
+    expect(upper.clampedDurationSec).toBe(12)
+    for (let n=2; n<=3; n++) {
+      const target=12
+      const walk=async(parts:number[]):Promise<void>=>{
+        if(parts.length===n) {
+          if(parts.reduce((a,b)=>a+b,0)!==target) return
+          const actual=await computeGenerateVideoProPricing({...args,segmentMode:"short",sourceSegmentDurations:parts})
+          expect(actual.reserveBase).toBeLessThanOrEqual(upper.reserveBase)
+          return
+        }
+        for(let d=4;d<=10;d++) await walk([...parts,d])
+      }
+      await walk([])
+    }
+  })
+  it("Max preserves the existing model-cap sizing and Long uses the model ceiling rather than splitting a renderable whole action", async () => {
+    const args={provider:"seedance-2-5",resolution:"720p",durationSec:28,renderMethod:"keyframes" as const,aspectRatio:"16:9"}
+    const max=await computeGenerateVideoProPricing({...args,segmentMode:"max"})
+    expect(max).toEqual(await computeGenerateVideoProPricing(args))
+    const long=await computeGenerateVideoProPricing({...args,segmentMode:"long"})
+    expect(long.segmentPlanning?.maxSeg).toBe(30)
+    expect(long.segmentPlanning?.durationSec).toBe(28)
+  })
+})
+
+  it("prices a complete 5s action at a supported 6s render without moving the source boundary", async () => {
+    const p=await computeGenerateVideoProPricing({provider:"gemini-omni-flash",resolution:"720p",durationSec:12,renderMethod:"keyframes",aspectRatio:"16:9",segmentMode:"short",sourceSegmentDurations:[5,7]})
+    expect(p.segmentDurations).toEqual([6,8])
+    expect(p.sourceSegmentDurations).toEqual([5,7])
+    expect(p.clampedDurationSec).toBe(12)
+    expect(p.segmentPlanning).toBeUndefined()
+    await expect(computeGenerateVideoProPricing({provider:"gemini-omni-flash",resolution:"720p",durationSec:12,renderMethod:"keyframes",segmentMode:"short",sourceSegmentDurations:[4,4]})).rejects.toThrow("source segment")
+  })
+
+it("natural extend reserves the same separately-rounded meter used by settlement", async () => {
+  for (const provider of ["seedance-2", "seedance-2-mini"]) {
+    const args={provider,resolution:"720p",durationSec:13,segmentMode:"short" as const}
+    const upper=await computeGenerateVideoProPricing(args)
+    for (const parts of [[13],[4,9],[5,8],[6,7],[7,6],[8,5],[9,4],[4,4,5],[4,5,4],[5,4,4]]) {
+      const actual=await computeGenerateVideoProPricing({...args,sourceSegmentDurations:parts})
+      const first=actual.segmentDurations[0]!
+      const tail=actual.segmentDurations.slice(1).reduce((sum,d)=>sum+d+actual.tailSec,0)
+      const settled=actual.feeBase+Math.ceil(actual.noRefPerSec*first)+Math.ceil(actual.refPerSec*tail)
+      expect(actual.reserveBase).toBe(settled)
+      expect(actual.reserveBase).toBeLessThanOrEqual(upper.reserveBase)
+    }
+  }
+})

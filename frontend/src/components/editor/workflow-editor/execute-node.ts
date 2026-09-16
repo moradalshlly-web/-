@@ -2331,6 +2331,8 @@ function executeNodeCore(
       rollingRefs: gvpData.rollingRefs === true ? true : undefined,
       wordCut: gvpData.wordCut === true ? true : undefined,
       shotTimestamps: gvpData.shotTimestamps === true ? true : undefined,
+      segmentMode: gvpData.segmentMode,
+      sourceSegmentDurations: gvpData.sourceSegmentDurations,
       preferredSegmentSec: typeof gvpData.preferredSegmentSec === "number" ? gvpData.preferredSegmentSec : undefined,
       // EXPLICIT scene-aligned durations — passed VERBATIM (no clamping: the
       // route + pricing validate the same array; a bad one must 400 loudly,

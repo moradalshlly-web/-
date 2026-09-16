@@ -2107,6 +2107,9 @@ export interface GenerateVideoProNodeData extends PromptAffixFields {
    *  segments near this point instead of packing to the 15s cap. Empty = auto.
    *  Can turn a short request into a multi-segment run (the point: A/B long
    *  vs short segments). */
+  /** Natural action packing, or provider-cap packing. */
+  segmentMode?: "short" | "long" | "max"
+  sourceSegmentDurations?: number[]
   preferredSegmentSec?: number
   /** EXPLICIT per-segment durations (scene-aligned split, 2026-08-03) —
    *  integers 4–15 summing to ceil(duration + 0.3×(n−1)), ≤24 entries; priced
@@ -7138,6 +7141,7 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
       provider: "seedance-2",
       prompt: "",
       duration: 8,
+      segmentMode: "max",
       aspectRatio: "adaptive",
       resolution: "720p",
       generateAudio: true,
