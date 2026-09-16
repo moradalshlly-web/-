@@ -3022,3 +3022,7 @@ same new revision ID and body when retrying a transport failure. The response is
 409. The request accepts operations, not uploaded geometry or a replacement
 manifest. Saving creates an immutable revision; the caller separately selects
 it in its workflow, checking that the active revision has not changed meanwhile.
+
+### Character Motion metadata
+
+Character Motion catalog options include optional `motion` metadata at both compact and full detail. It carries authored `requires`, `startPose`/`endPose`, `endVisibility`, `handsAfter`, `needsFreeHands`, `kind`, `fixedPace`, `counterpart`, search `aliases`, and `deprecated`/`replacementId`. Missing fields mean unknown. Preserve retired IDs when loading saved workflows; hide them from new choices. See [Character Motion](nodes/parameters/character-motion.md) for composition, naming, review and advisory-diagnostic behavior. `client.pickerCatalogs.get("character-motion")` exposes this as `PickerOption.motion`; the structural type is `CharacterMotionMetadata` from `@nodaro/shared`.

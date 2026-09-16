@@ -92,3 +92,5 @@ export * from "./object-asset-presets.js"
 export * from "./factory-snippets/index.js"
 export * from "./picker-wiring.js"
 export * from "./surround-fill.js"
+
+export * from "./character-motion-diagnostics.js"

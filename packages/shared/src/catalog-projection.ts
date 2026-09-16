@@ -1,3 +1,4 @@
+import type { CharacterMotionMetadata } from "./character-motion-metadata.js"
 /**
  * Tag-free, policy-free wire shape for the `GET /v1/catalogs` projection — the
  * server-driven, pack-composed catalog view thin clients render their own
@@ -21,6 +22,8 @@ export interface ProjectedCatalogOption {
    */
   term?: string
   icon?: string
+  /** Authored Character Motion prerequisites and sequence state. Missing means unknown. */
+  motion?: CharacterMotionMetadata
 }
 
 export interface ProjectedCatalogDimension {

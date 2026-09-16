@@ -42,7 +42,7 @@ One row per node **type**. Generative model wrappers are not rows — a type tha
 | `camera-format` | Camera / Film Stock | parameter | Pick a camera or film format from 31 entries (35mm-film, IMAX, super-8, polaroid, vhs, ...) | `in`:any, `picker-json`:picker-json | `out`:look | NO |
 | `camera-motion` | Camera Motion | parameter | Pick a camera motion from 71 entries across categories (static/pan/tilt/dolly/zoom/track) | `in`:any | `out`:video | NO |
 | `character-fx` | Character FX | parameter | Pick character-driven effects (57 entries, 5 categories — transformation, power, body-mod, face FX, aura) with position/duration/intensity timing | `in`:any | `out`:look | NO |
-| `character-motion` | Character Motion | parameter | Pick what the subject does across the clip (1003 moves, 20 categories), up to 3 in order, with position/pace timing | `target`:identity, `partner`:identity | `out`:video | NO |
+| `character-motion` | Character Motion | parameter | Pick what the subject does across the clip (1054 moves, 20 categories), up to 3 in order, with position/pace timing | `target`:identity, `partner`:identity | `out`:video | NO |
 | `color-look` | Color / Look | parameter | Pick a color-grading look from 41 entries (warm, teal-orange, bleached, vintage, ...) | `in`:any | `out`:look | NO |
 | `composition-effects` | Composition Effects | parameter | Pick a composition effect from 19 entries (none, bursting-through-frame, pixel-disintegration, ...) | `in`:any | `out`:look | NO |
 | `duration` | Duration | parameter | Set a target duration in seconds for connected video or audio generation nodes | `in`:any | `duration`:param | NO |

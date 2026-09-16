@@ -31,8 +31,8 @@ describe("character-motion catalog — shape", () => {
     }
   })
 
-  it("ships 1003 injecting entries across 20 categories", () => {
-    expect(injecting).toHaveLength(1003)
+  it("ships 1054 injecting entries across 20 categories", () => {
+    expect(injecting).toHaveLength(1054)
     expect(CHARACTER_MOTION_CATEGORY_ORDER).toHaveLength(20)
   })
 

@@ -36,14 +36,15 @@ describe("CharacterMotionPicker", () => {
 
     rerender(<CharacterMotionPicker value={[B.id, A.id]} onValueChange={onChange} />)
     const steps = within(screen.getByRole("list", { name: "Motion sequence" })).getAllByRole("listitem")
-    expect(steps.map((s) => s.textContent)).toEqual(["1Walk In From Right", "2Walk In From Left"])
+    expect(steps[0]).toHaveTextContent("Walk in from right")
+    expect(steps[1]).toHaveTextContent("Walk in from left")
   })
 
-  it("at the cap a new pick drops the OLDEST (first-in, first-out)", () => {
+  it("at the cap a new pick preserves the existing sequence", () => {
     const onChange = vi.fn()
     render(<CharacterMotionPicker value={[A.id, B.id, C.id]} onValueChange={onChange} />)
     fireEvent.click(screen.getByRole("checkbox", { name: D.name }))
-    expect(onChange).toHaveBeenLastCalledWith([B.id, C.id, D.id])
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it("search flattens across categories and hides the tabs", () => {
@@ -59,3 +60,19 @@ describe("CharacterMotionPicker", () => {
     expect(screen.getByText(/No moves match/)).toBeInTheDocument()
   })
 })
+
+  it("reorders and removes selections without repicking", () => {
+    const change = vi.fn()
+    render(<CharacterMotionPicker value={[A.id, B.id]} onValueChange={change} />)
+    fireEvent.click(screen.getByRole("button", { name: /Move Walk in from right up/i }))
+    expect(change).toHaveBeenLastCalledWith([B.id, A.id])
+    fireEvent.click(screen.getByRole("button", { name: /Remove Walk in from left/i }))
+    expect(change).toHaveBeenLastCalledWith([B.id])
+  })
+  it("searches former titles and hides deprecated choices unless selected", () => {
+    render(<CharacterMotionPicker value={undefined} onValueChange={() => {}} />)
+    fireEvent.change(screen.getByLabelText("Search character motion"), { target: { value: "High-Fashion Walk" } })
+    expect(screen.getByRole("checkbox", { name: /Walk with rigid arms/i })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Search character motion"), { target: { value: "mount the horse" } })
+    expect(screen.queryByRole("checkbox", { name: /Mount the horse/i })).not.toBeInTheDocument()
+  })

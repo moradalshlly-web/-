@@ -1,3 +1,6 @@
+import type { CharacterMotionMetadata } from "@nodaro/shared"
+export type { CharacterMotionMetadata } from "@nodaro/shared"
+
 /**
  * Types for the Character Motion catalog. The entry arrays live one file per
  * category under this directory; `../character-motion.ts` aggregates them and
@@ -27,7 +30,7 @@ export type CharacterMotionCategory =
   | "stage-performance"
   | "unnatural-horror"
 
-export interface CharacterMotion {
+export interface CharacterMotion extends CharacterMotionMetadata {
   readonly id: string
   readonly label: string
   readonly category: CharacterMotionCategory

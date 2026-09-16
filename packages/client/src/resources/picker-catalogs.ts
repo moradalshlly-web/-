@@ -1,3 +1,4 @@
+import type { CharacterMotionMetadata } from "@nodaro/shared"
 import type { NodaroClient } from "../client.js"
 
 /**
@@ -20,6 +21,8 @@ export interface PickerOption {
    */
   term?: string
   icon?: string
+  /** Authored Character Motion prerequisites and sequence state. Missing means unknown. */
+  motion?: CharacterMotionMetadata
 }
 
 export interface PickerDimension {

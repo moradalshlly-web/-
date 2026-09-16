@@ -30,7 +30,7 @@
 
 import { resolveTerm, type PickerHintMode } from "./term.js"
 import { overlayEntry } from "./catalog-overlay.js"
-export type { CharacterMotion, CharacterMotionCategory } from "./character-motion/types.js"
+export type { CharacterMotion, CharacterMotionCategory, CharacterMotionMetadata } from "./character-motion/types.js"
 import type { CharacterMotion, CharacterMotionCategory } from "./character-motion/types.js"
 import { ENTRANCES_EXITS_MOTIONS } from "./character-motion/entrances-exits.js"
 import { TURNS_LOOKS_MOTIONS } from "./character-motion/turns-looks.js"
@@ -101,7 +101,7 @@ export const CHARACTER_MOTION_CATEGORY_LABELS: Readonly<Record<CharacterMotionCa
 
 /**
  * The catalog: two no-op heads + every category array, in category order.
- * 1003 injecting entries across 20 categories.
+ * Authored injecting entries across 20 categories.
  */
 export const CHARACTER_MOTIONS: ReadonlyArray<CharacterMotion> = [
   // Defaults — both inject nothing (empty promptHint ⇒ empty term).
@@ -266,19 +266,28 @@ export function composeCharacterMotionHintFromConnections(
   const entries = ids.map((id) => ({ id, base: resolveBase(id) })).filter((e) => e.base.length > 0)
   if (entries.length === 0) return ""
 
-  const targetClause  = targetHints.filter((h) => h && h.length > 0).join(" and ")
+  const targets = [...new Set(targetHints.filter((h) => h && h.length > 0))]
+  const targetClause = targets.join(" and ")
   const partnerClause = partnerHints.filter((h) => h && h.length > 0).join(" and ")
   const partnerName   = partnerClause || PARTNER_FALLBACK
 
-  const substituted = entries.map(({ base }) => {
-    const named = mode !== "compact" && targetClause
-      ? base.replace(/\bthe subject\b/g, targetClause)
-      : base
-    return named.replace(/\bthe partner\b/g, partnerName)
+  const substituted = entries.map(({ id, base }) => {
+    // One pass with a callback: names are literal data, never replacement
+    // syntax ($&, $`, $') or a second set of template tokens to reprocess.
+    const substitute = (target: string) => base.replace(/\bthe (subject|partner|counterpart)\b/g, (token, role: string) => {
+      if (role === "subject") return mode !== "compact" && target ? target : token
+      if (role === "partner") return partnerName
+      return partnerClause || getCharacterMotion(id)?.counterpart || "the other participant"
+    })
+    // Each actor receives a grammatical singular clause. Do not invent a
+    // plural choreography or attach a singular verb to a joined name list.
+    return targets.length > 1
+      ? targets.map(target => mode === "compact" ? `${target}: ${substitute(target)}` : substitute(target)).join("; separately, ")
+      : substitute(targetClause)
   })
 
   const joined = substituted.join(", then ")
-  const combinedBase = mode === "compact" && targetClause ? `${targetClause}: ${joined}` : joined
+  const combinedBase = mode === "compact" && targets.length === 1 ? `${targetClause}: ${joined}` : joined
   const parts: string[] = [combinedBase]
   if (timing?.position && timing.position !== "auto") parts.push(POSITION_CLAUSES[timing.position])
   if (timing?.pace     && timing.pace     !== "auto") parts.push(PACE_CLAUSES[timing.pace])

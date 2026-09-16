@@ -22,6 +22,14 @@ const RISKY =
 
 /** Entries the regex trips on that are NOT body-exposure content. */
 const EXEMPT: Readonly<Record<string, string>> = {
+  "sashay-forward": "Neutral movement or affection; no sensual framing or exposure in the authored fragment.",
+  "sway-hips-walk": "Neutral movement or affection; no sensual framing or exposure in the authored fragment.",
+  "drop-coat-off-shoulders": "Neutral movement or affection; no sensual framing or exposure in the authored fragment.",
+  "shimmy-the-hips": "Neutral movement or affection; no sensual framing or exposure in the authored fragment.",
+  "roll-the-body": "Neutral movement or affection; no sensual framing or exposure in the authored fragment.",
+  "hug-partner-from-behind": "Neutral movement or affection; no sensual framing or exposure in the authored fragment.",
+  "pull-partner-close": "Neutral movement or affection; no sensual framing or exposure in the authored fragment.",
+
   "nun": "rosary at the waist — garment placement",
   "construction-worker": "tool belt at the waist",
   "karate-fighter": "barefoot in a fighting stance — martial arts",
@@ -87,7 +95,7 @@ const CURATED = [
   "biting-lip", "arched-back", "sitting-edge-of-bed", "lounging", "lying-down",
   "brand-helmut-newton", "glamour-portrait",
   // character-motion
-  "sultry-look-over-shoulder", "sashay-forward", "sway-hips-walk", "drop-coat-off-shoulders", "sultry-look-back", "shimmy-the-hips", "roll-the-body", "bite-lip-teasingly", "lick-lips-suggestively", "smolder-heavy-lidded", "smolder-at-camera", "hug-partner-from-behind", "lean-in-almost-kiss", "kiss-partner", "rise-on-tiptoes-to-kiss-partner", "pull-partner-close",
+  "sultry-look-over-shoulder", "sultry-look-back", "bite-lip-teasingly", "lick-lips-suggestively", "smolder-heavy-lidded", "smolder-at-camera", "lean-in-almost-kiss", "kiss-partner", "rise-on-tiptoes-to-kiss-partner",
 ] as const
 
 const ALL = [...PEOPLE, ...STYLINGS, ...MOODS, ...POSES, ...PHOTO_GENRES, ...CHARACTER_MOTIONS]

@@ -6,8 +6,8 @@ describe("characterMotionCardTitle", () => {
     expect(characterMotionCardTitle([])).toBe("Auto")
   })
   it("shows one label, two labels, or the first label plus the remaining count", () => {
-    expect(characterMotionCardTitle(["wave-hello"])).toBe("Wave Hello")
-    expect(characterMotionCardTitle(["walk-in-from-left", "wave-hello"])).toBe("Walk In From Left + Wave Hello")
-    expect(characterMotionCardTitle(["walk-in-from-left", "turn-to-camera", "wave-hello"])).toBe("Walk In From Left + 2")
+    expect(characterMotionCardTitle(["wave-hello"])).toBe("Wave hello")
+    expect(characterMotionCardTitle(["walk-in-from-left", "wave-hello"])).toBe("Walk in from left + Wave hello")
+    expect(characterMotionCardTitle(["walk-in-from-left", "turn-to-camera", "wave-hello"])).toBe("Walk in from left + 2")
   })
 })

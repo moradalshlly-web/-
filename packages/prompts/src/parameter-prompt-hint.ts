@@ -102,6 +102,28 @@ function extractCharacterRefMinor(node: HintNodeLike): boolean {
   return REF_DESCRIPTION_FIELDS.some((field) => containsMinorAgeHint(asStr(d[field])))
 }
 
+/** The preview, diagnostics and execution use identical graph bindings. */
+export function getCharacterMotionBindings(node: HintNodeLike, ctx?: HintGraphContext) {
+  const targetNames: string[] = []
+  const partnerNames: string[] = []
+  const targetIds = new Set<string>()
+  const partnerIds = new Set<string>()
+  let subjectMinor = false
+  for (const edge of ctx?.edges ?? []) {
+    if (edge.target !== node.id || (edge.targetHandle !== "target" && edge.targetHandle !== "partner")) continue
+    const src = ctx?.nodes.find(n => n.id === edge.source)
+    if (!src) continue
+    if (edge.targetHandle === "target") targetIds.add(src.id)
+    else partnerIds.add(src.id)
+    if (extractCharacterRefMinor(src)) subjectMinor = true
+    const name = extractCharacterMotionRefName(src)
+    if (!name) continue
+    const names = edge.targetHandle === "target" ? targetNames : partnerNames
+    if (!names.includes(name)) names.push(name)
+  }
+  return { targetNames, partnerNames, subjectMinor, selfPairing: [...targetIds].some(id => partnerIds.has(id)) }
+}
+
 /** Compose `[preText, mainHint, postText]` into a comma-joined string,
  *  honoring the user's free-text fragments around the structured hint.
  *  Helpers like `getStylePromptHint` that already include preText/postText
@@ -261,23 +283,7 @@ function resolveParameterHint(
     if (!ctx) {
       return withCustomText(data, composeCharacterMotionHintFromConnections(motionId, [], [], timing, mode))
     }
-    const targetNames: string[] = []
-    const partnerNames: string[] = []
-    // Minor-age floor: ANY ref wired to target or partner that describes a
-    // minor drops every adultOnly move from the composed sequence.
-    let subjectMinor = false
-    for (const edge of ctx.edges) {
-      if (edge.target !== node.id) continue
-      if (edge.targetHandle !== "target" && edge.targetHandle !== "partner") continue
-      const src = ctx.nodes.find((n) => n.id === edge.source)
-      if (!src) continue
-      // Before the name check: an unnamed ref that describes a minor still floors.
-      if (!subjectMinor && extractCharacterRefMinor(src)) subjectMinor = true
-      const name = extractCharacterMotionRefName(src)
-      if (!name) continue
-      if (edge.targetHandle === "target") targetNames.push(name)
-      else partnerNames.push(name)
-    }
+    const { targetNames, partnerNames, subjectMinor } = getCharacterMotionBindings(node, ctx)
     return withCustomText(
       data,
       composeCharacterMotionHintFromConnections(motionId, targetNames, partnerNames, timing, mode, { subjectMinor }),
