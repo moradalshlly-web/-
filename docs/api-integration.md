@@ -1993,6 +1993,18 @@ editor but are equally suited to external polling clients. `input_data` and
 private pre-watermark remux base are removed recursively for every caller,
 including administrators.
 
+### Video Pro segment estimates
+
+`POST /v1/credits/video-pro-estimate` accepts `provider`, `resolution`, `duration`, `aspectRatio`, `renderMethod`, `anchorMode`, `contextTailSec`, `planOnly`, and the Video Pro segment controls. It reads prices without creating a job or reserving credits.
+
+```json
+{"provider":"gemini-omni-flash","resolution":"720p","duration":12,"renderMethod":"keyframes","segmentMode":"short"}
+```
+
+The response is `{ "data": { "credits": 660, "upperBound": true } }` in an example configuration with a 660-credit reservation. Read the live response for current prices. For Short/Long, `upperBound` identifies the pre-plan reservation limit; settlement follows the actual plan. A plan-only estimate covers the planning fee and returns `upperBound: false`.
+
+`segmentMode` accepts `short`, `long`, or `max` and cannot be combined with numeric `preferredSegmentSec` or explicit `segmentDurations`. Short/Long first assign complete actions to source spans. A plan-only result’s `sourceSegmentDurations` and `planCheckpoint` can be passed back as `sourceSegmentDurations` and `seedPlan` with the same mode and generation settings. See [Generate Video Pro](nodes/ai-video/generate-video-pro.md#how-segmentation-works).
+
 ## 13b. Generate Video Pro run control (Cloud; self-host via the nodaro.ai connection)
 
 The segmented long-video engine ([Generate Video Pro](./nodes/ai-video/generate-video-pro.md)) generates one segment at a time and checkpoints between segments, so a run can be stopped gracefully and continued later:

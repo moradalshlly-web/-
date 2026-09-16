@@ -82,7 +82,7 @@ vi.mock("@/components/editor/workflow-editor/types", () => ({ estimateGenerateVi
 // the heavy handle-limits chain is stubbed.
 vi.mock("@/lib/handle-limits", () => ({ getHandleConnectionLimit: () => null }))
 vi.mock("@/lib/api", () => ({ getJobStatusLean: vi.fn() }))
-vi.mock("@/ee/hooks/use-model-credits", () => ({ useModelCredits: () => 25 }))
+vi.mock("@/ee/hooks/use-model-credits", () => ({ useModelCredits: () => 25, useVideoProCredits: () => ({ data: undefined, isError: false }) }))
 vi.mock("@/hooks/use-result-aspect-ratio", () => ({
   useResultAspectRatio: () => ({ aspectRatio: undefined, onLoadDimensions: vi.fn() }),
 }))

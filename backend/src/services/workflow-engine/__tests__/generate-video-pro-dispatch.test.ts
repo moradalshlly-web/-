@@ -146,6 +146,7 @@ describe("payload-builder: generate-video-pro dispatch", () => {
       aspectRatio: "9:16",
       generateAudio: false,
       noBackgroundMusic: true,
+      segmentMode: "short",
     })
     const result = buildPayload(n, JOB_ID, {}, undefined, { nodes: [n], edges: [], nodeStates: {} })
     expect(result.payload.type).toBe("generate-video-pro")
@@ -156,6 +157,7 @@ describe("payload-builder: generate-video-pro dispatch", () => {
     expect(result.payload.aspectRatio).toBe("9:16")
     expect(result.payload.generateAudio).toBe(false)
     expect(result.payload.noBackgroundMusic).toBe(true)
+    expect(result.payload.segmentMode).toBe("short")
   })
 
   it("defaults provider to seedance-2, resolution to 720p, aspectRatio to adaptive when unset", () => {
@@ -417,12 +419,13 @@ describe("computeGenerateVideoProCreditOverride", () => {
       resolution: "720p",
       duration: 16,
       renderMethod: "keyframes",
+      segmentMode: "long",
     }
 
     const result = await computeGenerateVideoProCreditOverride(payload)
 
     expect(mockComputeGvpPricing).toHaveBeenCalledWith(
-      expect.objectContaining({ renderMethod: "keyframes" }),
+      expect.objectContaining({ renderMethod: "keyframes", segmentMode:"long" }),
     )
     expect(result?.override).toBe(2023)
     expect(payload.proPricing).toEqual(

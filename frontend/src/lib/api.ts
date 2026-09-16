@@ -2966,6 +2966,9 @@ export async function generateVideoPro(body: {
   smartCutFramesNext?: number
   /** Recommended segment length in seconds (4-15) — was shipping untyped
    *  before 2026-08-03 (the runtime const dodged excess-property checks). */
+  /** Natural action packing, or provider-cap packing. */
+  segmentMode?: "short" | "long" | "max"
+  sourceSegmentDurations?: number[]
   preferredSegmentSec?: number
   /** EXPLICIT per-segment durations (scene-aligned split) — ints 4-15 summing
    *  to ceil(duration + 0.3×(n−1)), ≤24; mutually exclusive with
@@ -8866,4 +8869,14 @@ export async function runVideoDirector(params: {
     body: params as unknown as Record<string, unknown>,
     label: "Failed to start video director",
   })
+}
+
+export interface VideoProEstimateInput {
+  provider:string; resolution:string; duration:number; aspectRatio?:string
+  segmentMode?:"short"|"long"|"max"; preferredSegmentSec?:number; segmentDurations?:number[]; sourceSegmentDurations?:number[]
+  renderMethod?:"extend"|"keyframes"; anchorMode?:"upfront"|"progressive"|"none"; contextTailSec?:number; planOnly?:boolean
+}
+export async function estimateVideoProCredits(input:VideoProEstimateInput):Promise<{credits:number;upperBound:boolean}> {
+  const result=await apiJson<{data:{credits:number;upperBound:boolean}}>("/v1/credits/video-pro-estimate",{body:{...input},label:"Failed to estimate video credits"})
+  return result.data
 }

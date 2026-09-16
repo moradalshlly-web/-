@@ -870,6 +870,18 @@ export function QuickConfigSelect({
   // The Select trigger doubles as the popover ANCHOR (not a PopoverTrigger), so
   // Radix treats focus landing on it as "outside" — see onInteractOutside below.
   const anchorRef = useRef<HTMLSpanElement>(null)
+  // The custom editor's open state MUST be counted by the host strip exactly
+  // like the Select's: NodeQuickStrip pins the hover toolbar only while
+  // `openCount > 0`, and choosing "Custom…" closes the Select (count → 0 a
+  // macrotask later). Uncounted, the strip unpinned with the cursor still over
+  // the just-closed menu, unmounted, and took the freshly opened popover with
+  // it — the "shows for a second and hides" report (2026-09-16, verified with a
+  // MutationObserver on staging). Reporting +1 here first keeps the count net
+  // positive across the hand-off; the popover's own close reports the −1.
+  const setCustomOpenCounted = (next: boolean) => {
+    setCustomOpen(next)
+    onOpenChange?.(next)
+  }
   const Icon = control.icon
   const options = resolveOptions(control, data)
   const range = control.customRange
@@ -929,7 +941,7 @@ export function QuickConfigSelect({
   }
   const draft = inRange(effectiveValue) ? Number(effectiveValue) : range?.min ?? 0
   return (
-    <Popover open={customOpen} onOpenChange={setCustomOpen}>
+    <Popover open={customOpen} onOpenChange={setCustomOpenCounted}>
       <PopoverAnchor asChild>
         <span ref={anchorRef} className="inline-flex">
           <Select
@@ -939,7 +951,7 @@ export function QuickConfigSelect({
               // popover (the same pair the config panels' Duration field
               // renders) for any in-range manual value.
               if (v === CUSTOM) {
-                setCustomOpen(true)
+                setCustomOpenCounted(true)
                 return
               }
               writeValue(v)

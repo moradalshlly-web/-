@@ -48,10 +48,10 @@ const durationControl: QuickConfigControl = {
 
 beforeEach(() => updateNodeData.mockClear())
 
-async function openCustom() {
+async function openCustom(onOpenChange?: (open: boolean) => void) {
   render(
     <>
-      <QuickConfigSelect nodeId="n1" control={durationControl} value="8" data={{}} />
+      <QuickConfigSelect nodeId="n1" control={durationControl} value="8" data={{}} onOpenChange={onOpenChange} />
       <div data-testid="elsewhere" style={{ width: 200, height: 200 }} />
     </>,
   )
@@ -84,5 +84,23 @@ describe("QuickConfigSelect Custom… popover", () => {
     fireEvent.mouseUp(outside, { button: 0 })
     fireEvent.click(outside, { button: 0 })
     await waitFor(() => expect(screen.queryByLabelText("Duration (custom value)")).toBeNull())
+  })
+
+  // The host strip pins the hover toolbar only while a counted dropdown is
+  // open. An uncounted editor let the strip unmount (and take the editor with
+  // it) the moment the Select's close landed — so the popover must report its
+  // open (+1, before the Select's deferred −1) and its close (−1) upward.
+  it("reports its open/close to the host strip's counter", async () => {
+    const onOpenChange = vi.fn()
+    await openCustom(onOpenChange)
+    expect(onOpenChange).toHaveBeenCalledWith(true)
+    onOpenChange.mockClear()
+    const outside = screen.getByTestId("elsewhere")
+    fireEvent.pointerDown(outside, { button: 0, pointerType: "mouse" })
+    fireEvent.mouseDown(outside, { button: 0 })
+    fireEvent.mouseUp(outside, { button: 0 })
+    fireEvent.click(outside, { button: 0 })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(onOpenChange).not.toHaveBeenCalledWith(true)
   })
 })

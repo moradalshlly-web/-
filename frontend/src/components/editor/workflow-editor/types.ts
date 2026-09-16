@@ -5,7 +5,7 @@ import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListIt
 // getCachedCredits reads the live React-Query model-cost cache (an `ee/`
 // concern — credits are enterprise-only). Allowlisted in
 // tools/check-ee-imports.mjs (same coupling as ./run-handlers.ts).
-import { getCachedCredits } from "@/ee/hooks/use-model-credits"
+import { getCachedCredits, getCachedVideoProCredits } from "@/ee/hooks/use-model-credits"
 
 /** Sentinel error thrown when a polling callback detects that the active
  *  workflow has changed. Callers should catch this silently (no error toast). */
@@ -302,6 +302,10 @@ function gvpExplicitSplit(requestedSec: number, segmentDurations: number[]): Gvp
  *  same split-selection precedence as the backend: explicit `segmentDurations`
  *  > `preferredSegmentSec` > classic pack-to-cap. */
 export function estimateGenerateVideoProCredits(data: GenerateVideoProNodeData): number {
+  if (data.segmentMode) {
+    const quoted=getCachedVideoProCredits(data)
+    if (quoted!==undefined) return quoted
+  }
   const provider = data.provider || "seedance-2"
   const resolution = data.resolution || "720p"
   const duration = data.duration ?? 8
