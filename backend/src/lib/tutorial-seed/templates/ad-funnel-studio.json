@@ -578,7 +578,8 @@
         "fieldMappings": {},
         "generateAudio": false,
         "negativePrompt": "",
-        "presentationOutput": true
+        "presentationOutput": true,
+        "duration": 8
       },
       "width": 761.7523657112373,
       "height": 684.485705712571,
