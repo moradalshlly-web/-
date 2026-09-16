@@ -1,7 +1,7 @@
 ---
 node_type: generate-video-pro
-generated_at: 2026-09-16T12:05:16.644Z
-generated_from: 5c263d23b
+generated_at: 2026-09-16T15:07:56.677Z
+generated_from: 6c3f11bc1
 ---
 
 # Generate Video Pro
@@ -75,6 +75,19 @@ generated_from: 5c263d23b
   "prompt": "",
   "duration": 8,
   "segmentMode": "max",
+  "renderMethod": "keyframes",
+  "anchorMode": "start-only",
+  "plannerModel": "claude-fable-5",
+  "plannerMode": "auto",
+  "rollingRefs": true,
+  "audioTail": true,
+  "overlapAnchor": true,
+  "overlapAnchorMode": "last-frame",
+  "smartCutMode": "legacy-8x8",
+  "smartCutFramesPrev": 8,
+  "smartCutFramesNext": 8,
+  "injectLook": true,
+  "injectElements": true,
   "aspectRatio": "adaptive",
   "resolution": "720p",
   "generateAudio": true,
@@ -115,6 +128,19 @@ generated_from: 5c263d23b
     "prompt": "",
     "duration": 8,
     "segmentMode": "max",
+    "renderMethod": "keyframes",
+    "anchorMode": "start-only",
+    "plannerModel": "claude-fable-5",
+    "plannerMode": "auto",
+    "rollingRefs": true,
+    "audioTail": true,
+    "overlapAnchor": true,
+    "overlapAnchorMode": "last-frame",
+    "smartCutMode": "legacy-8x8",
+    "smartCutFramesPrev": 8,
+    "smartCutFramesNext": 8,
+    "injectLook": true,
+    "injectElements": true,
     "aspectRatio": "adaptive",
     "resolution": "720p",
     "generateAudio": true,

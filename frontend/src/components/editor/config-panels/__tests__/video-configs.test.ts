@@ -417,3 +417,31 @@ describe("GenerateVideoProConfig — anchor frames", () => {
     }
   })
 })
+
+
+describe("Video Pro continuity control availability", () => {
+  it("keeps best-pair windows for Keyframes but hides Extend-only controls", () => {
+    const { container } = renderGvp({ renderMethod: "keyframes", segmentMode: "short", rollingRefs: true, audioTail: true, overlapAnchor: true, overlapAnchorMode: "last-frame" })
+    for (const id of ["gvp-context-tail", "gvp-rollingRefs", "gvp-audioTail", "gvp-overlap-anchor", "gvp-wordCut"]) {
+      expect(container.querySelector(`#${id}`), id).toBeNull()
+    }
+    for (const id of ["gvp-smart-cut", "gvp-smartCutFramesPrev", "gvp-smartCutFramesNext"]) {
+      expect(container.querySelector(`#${id}`), id).not.toBeNull()
+    }
+    expect(container.textContent).toContain("intentional cuts stay intact")
+  })
+
+  it("offers Extend controls and hides audio context when generation is silent", () => {
+    const { container } = renderGvp({ renderMethod: "extend", segmentMode: "max", generateAudio: false })
+    expect(container.querySelector("#gvp-rollingRefs")).not.toBeNull()
+    expect(container.querySelector("#gvp-overlap-anchor")).not.toBeNull()
+    expect(container.querySelector("#gvp-audioTail")).toBeNull()
+    expect(renderGvp({ renderMethod: "extend", generateAudio: true }).container.querySelector("#gvp-audioTail")).not.toBeNull()
+  })
+
+  it("normalizes a stored pre-roll choice when switching to Keyframes", () => {
+    const { onUpdate } = renderGvp({ renderMethod: "keyframes", smartCutMode: "preroll-keep-prev" })
+    expect(selectRegistry.get("gvp-smart-cut")?.value).toBe("legacy-8x8")
+    expect(onUpdate).toHaveBeenCalledWith({ smartCutMode: "legacy-8x8" })
+  })
+})

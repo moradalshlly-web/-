@@ -3987,6 +3987,7 @@ export const he: ChromeDict = {
   "vidcfg.splitHybridMax": "היברידי מקס — היברידי פלוס, ללא דחיסה, שומר כל פרט ניתוח (ניסיוני)",
   "vidcfg.overlapKeyframe": "פריים מפתח אחרון — שחזור החפיפה, ואז המשך",
   "vidcfg.overlapLastFrame": "פריים אחרון — המשך מהסוף ממש",
+  "vidcfg.smartCutContinuousKeyframes": "מתאים רק חיבורים בין חלקים של אותו שוט; חיתוכים מכוונים נשמרים. אם לא נמצאה התאמה קרובה, לא נחתכים פריימים. התאמה מוצלחת עשויה לקצר מעט את החיבור.",
   "vidcfg.smartCut": "חיתוך חכם (ניסיוני)",
   "vidcfg.cutBestPair": "הזוג הטוב ביותר — התאמת PSNR לגבול (ברירת מחדל)",
   "vidcfg.cutPrerollKeepNext": "פרה-רול שמור-הבא — הסתרת התפר בחפיפה",

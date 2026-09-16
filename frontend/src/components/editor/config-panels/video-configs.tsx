@@ -3983,6 +3983,11 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
   // Mirrors the render-method select's own resolution (a provider that cannot
   // extend is always on keyframes, whatever the stored value says).
   const keyframesActive = !canExtend || data.renderMethod === "keyframes"
+  const naturalSegments = data.segmentMode === "short" || data.segmentMode === "long"
+  const bestPairAvailable = keyframesActive || !naturalSegments
+  const audioTailAvailable = !keyframesActive && data.generateAudio !== false
+    && (VIDEO_REF_LIMITS_BY_PROVIDER[currentProvider]?.audio ?? 0) > 0
+    && !sources.some(source => source.targetHandle === "audioReferences")
   // A reference-driven run has no closing-frame lane, so the engine REJECTS a
   // wired end frame under it ("endFrameUrl cannot ride anchorMode \"none\"") —
   // a 400 on every run. Drop the choice while an end frame is connected rather
@@ -4030,10 +4035,10 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
   // never shows a mode the run won't actually use.
   const keyframeAnchored = data.overlapAnchor === true && (data.overlapAnchorMode ?? "keyframe") === "keyframe"
   useEffect(() => {
-    if (keyframeAnchored && (data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next")) {
+    if ((keyframeAnchored || keyframesActive) && (data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next")) {
       onUpdate({ smartCutMode: "legacy-8x8" })
     }
-  }, [keyframeAnchored]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [keyframeAnchored, keyframesActive]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fail-safe (CLAUDE.md pitfall 5 pattern): hiding the option only protects a
   // node configured AFTER the end frame was wired. One already set to
@@ -4279,13 +4284,14 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         <p className="text-[11px] text-muted-foreground">
           {t("vidcfg.plannerStyleHint")}
         </p>
-        {(data.plannerMode === "hybrid-plus" || data.plannerMode === "hybrid-max") && !data.rollingRefs && (
+        {(data.plannerMode === "hybrid-plus" || data.plannerMode === "hybrid-max") && !keyframesActive && !data.rollingRefs && (
           <p className="text-[11px] font-medium text-amber-500">
             {t("vidcfg.hybridNeedsRollingRefs", { mode: data.plannerMode === "hybrid-max" ? t("vidcfg.hybridMaxName") : t("vidcfg.hybridPlusName") })}
           </p>
         )}
       </div>
 
+      {!keyframesActive && (<>
       {/* Context tail — continuation-reference length per join (A/B lever:
           longer = more boundary-motion context for slow moves/tempo, small
           per-join surcharge at the ref rate). */}
@@ -4313,6 +4319,8 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         )}
       </div>
 
+      </>)}
+
       {/* AUTO-CAST — analysis-supplied per-slot frames as identity refs. */}
       <div className="flex items-center gap-2 px-1">
         <input
@@ -4327,6 +4335,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </label>
       </div>
 
+      {!keyframesActive && (<>
       {/* ROLLING REFS — continuity v4: re-anchor returning entities with
           their last-seen moment (memory clip/frame refs, role-assigned). */}
       <div className="flex items-center gap-2 px-1">
@@ -4342,6 +4351,9 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </label>
       </div>
 
+      </>)}
+
+      {!keyframesActive && !naturalSegments && (<>
       {/* WORD CUT — boundaries respect the soundtrack: +1s overshoot per
           segment, lossless end-trim at the nearest inter-word gap so tails
           never end mid-sung-word. */}
@@ -4357,6 +4369,8 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           {t("vidcfg.cleanWordCut")}
         </label>
       </div>
+
+      </>)}
 
       {/* SHOT TIMESTAMPS — A/B lever: inject segment-local time ranges into
           the beats for the condense/hybrid planner styles (they are
@@ -4401,6 +4415,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
       </div>
       )}
 
+      {audioTailAvailable && (<>
       {/* AUDIO TAIL — A/B lever: ~8s of the soundtrack-so-far rides every
           continuation as an audio reference (more music context than the
           2-5s video tail; guards sound drift). */}
@@ -4417,6 +4432,9 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </label>
       </div>
 
+      </>)}
+
+      {!keyframesActive && !naturalSegments && (<>
       {/* OVERLAP ANCHOR — continuity A/B: anchor each continuation on the
           previous segment's last KEYFRAME (re-enact warm-up) or its very
           LAST frame; the stitch handles either behavior (mode probe). */}
@@ -4442,6 +4460,9 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </p>
       </div>
 
+      </>)}
+
+      {bestPairAvailable && (<>
       {/* SMART CUT — last-frame-overlap stitch A/B: the model can begin a
           continuation up to ~24 frames early and re-enact the previous tail;
           the pre-roll modes detect that replay and cut cleanly. Legacy = the
@@ -4449,7 +4470,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="gvp-smart-cut">{t("vidcfg.smartCut")}</Label>
         <Select
-          value={data.smartCutMode ?? "legacy-8x8"}
+          value={keyframesActive ? "legacy-8x8" : data.smartCutMode ?? "legacy-8x8"}
           onValueChange={(v) => onUpdate({ smartCutMode: v as "legacy-8x8" | "preroll-keep-prev" | "preroll-keep-next" })}
         >
           <SelectTrigger id="gvp-smart-cut" className="h-9 text-sm">
@@ -4457,12 +4478,14 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="legacy-8x8">{t("vidcfg.cutBestPair")}</SelectItem>
-            <SelectItem value="preroll-keep-next" disabled={keyframeAnchored}>{t("vidcfg.cutPrerollKeepNext")}</SelectItem>
-            <SelectItem value="preroll-keep-prev" disabled={keyframeAnchored}>{t("vidcfg.cutPrerollKeepPrev")}</SelectItem>
+            <SelectItem value="preroll-keep-next" disabled={keyframeAnchored || keyframesActive}>{t("vidcfg.cutPrerollKeepNext")}</SelectItem>
+            <SelectItem value="preroll-keep-prev" disabled={keyframeAnchored || keyframesActive}>{t("vidcfg.cutPrerollKeepPrev")}</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[11px] text-muted-foreground">
-          {keyframeAnchored
+          {keyframesActive
+            ? t("vidcfg.smartCutContinuousKeyframes")
+            : keyframeAnchored
             ? t("vidcfg.smartCutKeyframeNote")
             : t("vidcfg.smartCutLastFrameNote")}
         </p>
@@ -4472,7 +4495,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           looks for the boundary twin. Only the best-pair mode uses them (the
           pre-roll modes run their own diagonal search), so they're hidden
           under a pre-roll selection. Blank = the engine's 8/8 default. */}
-      {(data.smartCutMode ?? "legacy-8x8") === "legacy-8x8" && (
+      {(keyframesActive || (data.smartCutMode ?? "legacy-8x8") === "legacy-8x8") && (
         <div className="flex flex-col gap-1.5">
           <Label>{t("vidcfg.bestPairSearchWindow")}</Label>
           <div className="flex items-center gap-2">
@@ -4516,7 +4539,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
       )}
 
       {/* SMART-CUT AUDIO — only meaningful under a pre-roll mode. */}
-      {(data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next") && (
+      {!keyframesActive && (data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next") && (
         <div className="flex items-center gap-2 px-1">
           <input
             type="checkbox"
@@ -4530,6 +4553,8 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           </label>
         </div>
       )}
+
+      </>)}
 
       {/* PLAN ONLY — cheap plan iteration without video generation. */}
       <div className="flex items-center gap-2 px-1">
