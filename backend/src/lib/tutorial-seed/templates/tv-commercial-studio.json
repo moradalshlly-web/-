@@ -1,8 +1,8 @@
 {
   "slug": "tv-commercial-studio",
   "name": "TV Commercial Studio",
-  "description": "A product photo, a talent photo and a one-line brief in; a finished 12-second TV spot out — three chained shots on one story (problem, product, resolution), keyframes that keep the talent and the product consistent, a soundtrack written from the story, and an end card with your tagline.",
-  "markdownDescription": "## TV Commercial Studio\n\nA product photo, a talent photo and a one-line brief become a finished 12-second TV spot — three shots, one story, a soundtrack, an end card with your tagline. The talent and the product stay consistent from frame to frame because every clip is pinned to two keyframes.\n\n1. **Product + Talent + Brief** — the packshot, the person on screen, and what the spot is about.\n2. **Story** — a creative director writes three acts: a problem, the product in use, a happy resolution; plus the setting, the tagline and the music.\n3. **Three shots** — one writer per act: the opening frame and the four seconds of motion that flow into the next shot.\n4. **Four keyframes** — each shot's opening frame, plus the end card (product hero, tagline).\n5. **Three clips** — each starts on its own keyframe and lands exactly on the next one. No jumps between shots.\n6. **Cut · Soundtrack · Spot** — the clips joined, a Suno instrumental written from the story, both merged into the finished commercial.",
+  "description": "A product photo, a talent photo and a one-line brief in; a finished 12-second TV spot out — one continuous take over four numbered keyframes and a second-by-second script, the talent and the product consistent throughout, a soundtrack written from the story, and an end card with your tagline.",
+  "markdownDescription": "## TV Commercial Studio\n\nA product photo, a talent photo and a one-line brief become a finished 12-second TV spot — one continuous take over four numbered keyframes, one story, a soundtrack, an end card with your tagline.\n\n1. **Product + Talent + Brief** — the packshot, the person on screen, and what the spot is about.\n2. **Story** — three acts (problem, product in use, resolution), the setting, the props, the tagline, the music.\n3. **Three shots** — one writer per act: the objects in the opening frame, the frame itself, the motion into the next shot.\n4. **Keyframes 1–4** — each shot's opening frame plus the end card, rendered with the talent and the product as references.\n5. **Timeline script** — one prompt: which keyframe each second starts from, what happens, where it arrives.\n6. **The spot** — one video node takes all four keyframes as numbered references and renders the 12 seconds in one take; Suno writes the soundtrack, trimmed and merged under it.",
   "category": "video-ads",
   "outputTypes": [
     "video",
@@ -17,14 +17,13 @@
     "product"
   ],
   "complexity": "advanced",
-  "estimatedCredits": 638,
+  "estimatedCredits": 2020,
   "nodeTypesUsed": [
     "upload-image",
     "text-prompt",
     "llm-chat",
     "generate-image",
     "generate-video",
-    "combine-videos",
     "suno-generate",
     "trim-audio",
     "merge-video-audio",
@@ -33,10 +32,10 @@
   "providersUsed": [
     "claude-sonnet-4.6",
     "gpt-image-2",
-    "wan-3",
+    "seedance-2-5",
     "suno"
   ],
-  "previewMediaUrl": "https://cdn.nodaro.ai/images/53167d80-d43f-434a-afbf-9b3bb335e054.png",
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/b0a755bd-0174-43b0-9902-7826b57319bc.png",
   "previewMediaType": "image",
   "tutorialCategorySlug": "workflows",
   "tutorialSortOrder": 35,
@@ -50,7 +49,7 @@
       },
       "data": {
         "bold": false,
-        "text": "A product photo, a talent photo and a one-line brief go in; a finished 12-second TV spot comes out — three shots, one story, a soundtrack, an end card with your tagline.\n\n1. Product + Talent + Brief — the packshot, the person on screen, and what the spot is about.\n2. Story — a creative director writes it in three acts: a problem, the product in use, a happy resolution; plus the setting, the tagline and the music.\n3. Three shots — one writer per act; each writes the opening frame and the four seconds of motion that flow into the next shot.\n4. Four keyframes — the opening frame of each shot, plus the end card: product hero, tagline.\n5. Three clips — each pinned to two keyframes: it starts on its own frame and lands exactly on the next one. No jumps between shots.\n6. The cut, the soundtrack, the spot — the three clips joined, an instrumental track written from the story and trimmed to twelve seconds, both merged into the finished commercial.",
+        "text": "A product photo, a talent photo and a one-line brief go in; a finished 12-second TV spot comes out — one continuous take over four keyframes, one story, a soundtrack, an end card with your tagline.\n\n1. Product + Talent + Brief — the packshot, the person on screen, and what the spot is about.\n2. Story — a creative director writes it in three acts: a problem, the product in use, a happy resolution; plus the setting, the props, the tagline and the music.\n3. Three shots — one writer per act; each lists the objects in its opening frame, describes that frame, and the four seconds of motion into the next.\n4. Four keyframes — the opening frame of each shot, plus the end card: product hero, tagline. Numbered Keyframe 1–4.\n5. Timeline script — a director writes one prompt: which keyframe each second starts from, what happens, and where it arrives.\n6. The spot — ONE video node receives all four keyframes as numbered references and the script, and renders the whole 12 seconds in one take; the soundtrack is laid under it.",
         "color": "#26221a",
         "label": "How it works",
         "title": "Tv commercial studio — how it works",
@@ -134,12 +133,12 @@
       },
       "data": {
         "bold": false,
-        "text": "Three acts of four seconds each — problem, product in use, resolution — plus the setting, how the talent looks, the tagline and the music. Edit any line by hand and rerun the shots that follow.",
+        "text": "Three acts of four seconds each — problem, product in use, resolution — plus the setting, how the talent looks, the props and what happens to each, the tagline and the music. Edit any line by hand and rerun the shots that follow.",
         "color": "#26221a",
         "label": "Step 2",
         "title": "2 · Story",
         "width": 480,
-        "height": 350,
+        "height": 390,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -155,12 +154,12 @@
       },
       "data": {
         "bold": false,
-        "text": "One writer per act. Each writes the opening frame of its shot and the motion that carries it into the next shot's opening frame — so the three clips chain into one continuous spot.",
+        "text": "One writer per act. Each lists the objects in its opening frame (count and state — one knife, an uncut tomato), describes the frame, and writes the motion into the next shot's frame. The object list is what keeps the pictures honest.",
         "color": "#26221a",
         "label": "Step 3",
         "title": "3 · Three shots",
         "width": 480,
-        "height": 350,
+        "height": 430,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -176,52 +175,10 @@
       },
       "data": {
         "bold": false,
-        "text": "The opening frame of each shot, rendered with the talent and the product as references, plus the end card: the product large and sharp, the talent soft behind, the tagline. Rerun one frame alone for another take.",
+        "text": "The opening frame of each shot, rendered with the talent and the product as references, plus the end card: the product large and sharp, the talent soft behind, the tagline. These four images are the whole visual plan — rerun one alone for another take.",
         "color": "#26221a",
         "label": "Step 4",
-        "title": "4 · Keyframes",
-        "width": 600,
-        "height": 350,
-        "italic": false,
-        "fontSize": "xl",
-        "alignment": "left",
-        "textColor": "#ffffff"
-      }
-    },
-    {
-      "id": "note-clips",
-      "type": "sticky-note",
-      "position": {
-        "x": 3820,
-        "y": 970
-      },
-      "data": {
-        "bold": false,
-        "text": "Each clip is pinned to two keyframes — it starts on its own frame and ends exactly on the next shot's frame — so cuts land perfectly. Four seconds each, no audio yet.",
-        "color": "#26221a",
-        "label": "Step 5",
-        "title": "5 · Three clips",
-        "width": 600,
-        "height": 310,
-        "italic": false,
-        "fontSize": "xl",
-        "alignment": "left",
-        "textColor": "#ffffff"
-      }
-    },
-    {
-      "id": "note-assembly",
-      "type": "sticky-note",
-      "position": {
-        "x": 4660,
-        "y": 970
-      },
-      "data": {
-        "bold": false,
-        "text": "Combine joins the three clips in order. Suno writes an instrumental from the story's Music line; Trim cuts it to the spot's twelve seconds; Merge lays it under the cut — the finished commercial. Change the music line and rerun the last three nodes.",
-        "color": "#26221a",
-        "label": "Step 6",
-        "title": "6 · Cut · soundtrack · spot",
+        "title": "4 · Keyframes 1–4",
         "width": 600,
         "height": 390,
         "italic": false,
@@ -293,7 +250,7 @@
       "type": "llm-chat",
       "position": {
         "x": 1540,
-        "y": 1440
+        "y": 1480
       },
       "data": {
         "label": "Story",
@@ -314,16 +271,16 @@
       "type": "llm-chat",
       "position": {
         "x": 2260,
-        "y": 1480
+        "y": 1520
       },
       "data": {
         "label": "Shot 1",
         "llmModel": "claude-sonnet-4.6",
-        "maxTokens": 500,
+        "maxTokens": 600,
         "userInput": "Story: {Story || a three-act commercial: a problem, the product in use, a happy resolution.} Of the reference images, the person is the talent and the object on a plain background is the product. Write this shot.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You are the director of a 12-second commercial told in three continuous shots of four seconds. You get the story and the two reference photos. Write SHOT 1 — Act 1, the problem. It opens on its own frame and flows into the opening frame of Shot 2, where the talent reaches for the product.\nAnswer in exactly this shape, plain English, nothing else:\nObjects: <a short list of every object in the opening frame with its count and state — for example: one dull kitchen knife in her hand; one whole uncut tomato on the board; nothing else on the counter. Say exactly one of each thing that appears and never two of the same kind (never two knives, two plates, two of the product); if the product is not in this frame, say so; anything replaced by the product in an earlier act is out of frame entirely — do not list it as set aside; if food was cut in an earlier shot, say what state it is in now.>\nFrame: <one paragraph of 60 to 90 words describing the single opening frame of this shot as a photograph, consistent with the Objects list: where the talent is and what they are doing, where the product is if it appears, the setting and the light from the story, the camera angle and distance. The talent looks exactly as the story's Talent line says; the product looks exactly as in its photo.>\nMotion: <one paragraph of 60 to 90 words describing what happens during the four seconds, from this frame to the next shot's opening frame: the talent's action, the product's movement, the camera's one simple move. Account for every object that is visible at the start or at the end — where it is, whether it stays put, and if a hand puts it down or picks it up, say so — so nothing appears or vanishes on its own; when the product first enters, she brings it in from out of frame in her hand — never from a block, rack or drawer that would have to appear. Natural, continuous, no cuts, no new people.>\nNo other headings, no lists, no commentary.",
+        "systemPrompt": "You are the director of a 12-second commercial told in three continuous shots of four seconds. You get the story and the two reference photos. Write SHOT 1 — Act 1, the problem. It opens on its own frame and flows into the opening frame of Shot 2, where the talent holds the product.\nAnswer in exactly this shape, plain English, nothing else:\nObjects: <a short list of every object in the opening frame with its count and state — for example: one dull kitchen knife in her hand; one whole uncut tomato on the board; nothing else on the counter. Say exactly one of each thing that appears and never two of the same kind (never two knives, two plates, two of the product); if the product is not in this frame, say so; anything replaced by the product in an earlier act is out of frame entirely — do not list it as set aside; if food was cut in an earlier shot, say what state it is in now.>\nFrame: <one paragraph of 60 to 90 words describing the single opening frame of this shot as a photograph, consistent with the Objects list: where the talent is and what they are doing, where the product is if it appears, the setting and the light from the story, the camera angle and distance. The talent looks exactly as the story's Talent line says; the product looks exactly as in its photo.>\nMotion: <one paragraph of 60 to 90 words describing what happens during the four seconds, from this frame to the next shot's opening frame: the talent's action, the product's movement, the camera's one simple move. Account for every object that is visible at the start or at the end — where it is, whether it stays put, and if a hand puts it down or picks it up, say so — so nothing appears or vanishes on its own; when the product first enters, she brings it in from out of frame in her hand — never from a block, rack or drawer that would have to appear. Natural, continuous, no cuts, no new people.>\nNo other headings, no lists, no commentary.",
         "fieldMappings": {}
       },
       "width": 480,
@@ -335,12 +292,12 @@
       "type": "llm-chat",
       "position": {
         "x": 2260,
-        "y": 1938
+        "y": 1978
       },
       "data": {
         "label": "Shot 2",
         "llmModel": "claude-sonnet-4.6",
-        "maxTokens": 500,
+        "maxTokens": 600,
         "userInput": "Story: {Story || a three-act commercial: a problem, the product in use, a happy resolution.} Of the reference images, the person is the talent and the object on a plain background is the product. Write this shot.",
         "templateId": "custom",
         "temperature": 0.3,
@@ -356,12 +313,12 @@
       "type": "llm-chat",
       "position": {
         "x": 2260,
-        "y": 2396
+        "y": 2436
       },
       "data": {
         "label": "Shot 3",
         "llmModel": "claude-sonnet-4.6",
-        "maxTokens": 500,
+        "maxTokens": 600,
         "userInput": "Story: {Story || a three-act commercial: a problem, the product in use, a happy resolution.} Of the reference images, the person is the talent and the object on a plain background is the product. Write this shot.",
         "templateId": "custom",
         "temperature": 0.3,
@@ -377,12 +334,12 @@
       "type": "generate-image",
       "position": {
         "x": 2980,
-        "y": 1480
+        "y": 1520
       },
       "data": {
         "label": "Keyframe 1",
         "style": "",
-        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 1 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
+        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 1 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down out of frame, reaches to the right and brings back the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "16:9",
@@ -399,12 +356,12 @@
       "type": "generate-image",
       "position": {
         "x": 2980,
-        "y": 1938
+        "y": 1978
       },
       "data": {
         "label": "Keyframe 2",
         "style": "",
-        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 2 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
+        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 2 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down out of frame, reaches to the right and brings back the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "16:9",
@@ -421,12 +378,12 @@
       "type": "generate-image",
       "position": {
         "x": 2980,
-        "y": 2396
+        "y": 2436
       },
       "data": {
         "label": "Keyframe 3",
         "style": "",
-        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 3 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
+        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 3 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down out of frame, reaches to the right and brings back the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "16:9",
@@ -443,10 +400,10 @@
       "type": "generate-image",
       "position": {
         "x": 2980,
-        "y": 2854
+        "y": 2894
       },
       "data": {
-        "label": "End card",
+        "label": "Keyframe 4 · End card",
         "style": "",
         "prompt": "Cinematic 16:9 film still, the final frame of a television commercial: the product from its photo stands large and razor-sharp in the foreground, filling much of the frame, exactly as it is; behind it, soft and out of focus, the talent from their photo in the story's setting, mid-way through the happy action of Act 3. The story: {Story || a three-act commercial that ends on the product.} Render the story's Tagline once, exactly as written, in clean elegant type in the lower third — and no other text. Photorealistic, warm, no logos beyond what is on the product, no watermark.",
         "provider": "gpt-image-2",
@@ -461,106 +418,11 @@
       "className": "rf-resized"
     },
     {
-      "id": "clip-1",
-      "type": "generate-video",
-      "position": {
-        "x": 3820,
-        "y": 1480
-      },
-      "data": {
-        "label": "Clip 1",
-        "prompt": "{Shot 1 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural human motion, hands and objects moving together; every object that is in either frame stays in the scene and moves only as described — nothing appears, vanishes or duplicates; if the product must enter, it enters from out of frame in her hand and nothing else comes with it — no knife block, no rack, no drawer, no other tools; one simple camera move; no cuts, no new people, no text, no morphing.",
-        "duration": 4,
-        "provider": "wan-3",
-        "resolution": "720p",
-        "aspectRatio": "16:9",
-        "fieldMappings": {},
-        "generateAudio": false,
-        "negativePrompt": "",
-        "presentationOutput": false
-      },
-      "width": 600,
-      "height": 338,
-      "className": "rf-resized"
-    },
-    {
-      "id": "clip-2",
-      "type": "generate-video",
-      "position": {
-        "x": 3820,
-        "y": 1938
-      },
-      "data": {
-        "label": "Clip 2",
-        "prompt": "{Shot 2 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural human motion, hands and objects moving together; every object that is in either frame stays in the scene and moves only as described — nothing appears, vanishes or duplicates; if the product must enter, it enters from out of frame in her hand and nothing else comes with it — no knife block, no rack, no drawer, no other tools; one simple camera move; no cuts, no new people, no text, no morphing.",
-        "duration": 4,
-        "provider": "wan-3",
-        "resolution": "720p",
-        "aspectRatio": "16:9",
-        "fieldMappings": {},
-        "generateAudio": false,
-        "negativePrompt": "",
-        "presentationOutput": false
-      },
-      "width": 600,
-      "height": 338,
-      "className": "rf-resized"
-    },
-    {
-      "id": "clip-3",
-      "type": "generate-video",
-      "position": {
-        "x": 3820,
-        "y": 2396
-      },
-      "data": {
-        "label": "Clip 3",
-        "prompt": "{Shot 3 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural human motion, hands and objects moving together; every object that is in either frame stays in the scene and moves only as described — nothing appears, vanishes or duplicates; if the product must enter, it enters from out of frame in her hand and nothing else comes with it — no knife block, no rack, no drawer, no other tools; one simple camera move; no cuts, no new people, no text, no morphing.",
-        "duration": 4,
-        "provider": "wan-3",
-        "resolution": "720p",
-        "aspectRatio": "16:9",
-        "fieldMappings": {},
-        "generateAudio": false,
-        "negativePrompt": "",
-        "presentationOutput": false
-      },
-      "width": 600,
-      "height": 338,
-      "className": "rf-resized"
-    },
-    {
-      "id": "cut",
-      "type": "combine-videos",
-      "position": {
-        "x": 4660,
-        "y": 1480
-      },
-      "data": {
-        "label": "The cut",
-        "audioMode": "remove",
-        "clipOrder": [
-          "clip-1",
-          "clip-2",
-          "clip-3"
-        ],
-        "transition": "cut",
-        "fieldMappings": {},
-        "trimEndFrames": 0,
-        "trimStartFrames": 0,
-        "presentationOutput": false,
-        "transitionDuration": 0.5
-      },
-      "width": 600,
-      "height": 338,
-      "className": "rf-resized"
-    },
-    {
       "id": "music",
       "type": "suno-generate",
       "position": {
         "x": 4660,
-        "y": 1938
+        "y": 1520
       },
       "data": {
         "label": "Soundtrack",
@@ -584,7 +446,7 @@
       "type": "merge-video-audio",
       "position": {
         "x": 4660,
-        "y": 2658
+        "y": 2240
       },
       "data": {
         "label": "TV spot",
@@ -607,7 +469,7 @@
       "type": "trim-audio",
       "position": {
         "x": 4660,
-        "y": 2298
+        "y": 1880
       },
       "data": {
         "label": "Trim to 12 s",
@@ -619,6 +481,98 @@
       },
       "width": 480,
       "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-timeline",
+      "type": "sticky-note",
+      "position": {
+        "x": 3820,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "A director turns the story and the three shots into one prompt for the video model: \"0-4s: opens on @Image 1 … arriving at @Image 2. 4-8s: … 8-12s: … holds on @Image 4.\" Every second knows which keyframe it belongs to. Edit it by hand to re-time the spot.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Timeline script",
+        "width": 600,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-spot",
+      "type": "sticky-note",
+      "position": {
+        "x": 4660,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "One video node, all four keyframes wired in as references in order — @Image 1 to @Image 4 — and the script as its prompt. Seedance 2.5 renders the 12 seconds as one continuous take, so there is no seam to hide. Then Suno writes the soundtrack, Trim cuts it to 12 seconds, and Merge lays it under the take.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · The spot",
+        "width": 600,
+        "height": 430,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "timeline",
+      "type": "llm-chat",
+      "position": {
+        "x": 3820,
+        "y": 1520
+      },
+      "data": {
+        "label": "Timeline script",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Story: {Story || a three-act commercial.} Shot 1: {Shot 1 || the problem.} Shot 2: {Shot 2 || the product in use.} Shot 3: {Shot 3 || the resolution.} Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the single prompt for a video model that generates one continuous 12-second commercial from FOUR reference images attached in this order: @Image 1 is the opening frame of Shot 1, @Image 2 the opening frame of Shot 2, @Image 3 the opening frame of Shot 3, and @Image 4 the end card. You get the story and the three shots (each with Objects, Frame and Motion). Write ONE prompt of 150 to 220 words in this order, plain prose, no headings:\nFirst one sentence that defines the person once — \"the woman from @Image 1\" (use the story's Talent line for her look) — and the product once, by what it is, as it appears in @Image 2.\nThen three gap-free timed intervals, exactly: \"0-4s: …\" \"4-8s: …\" \"8-12s: …\". Each interval opens by naming the image it starts from (\"opens on the scene of @Image 1\"), states the action from that shot's Motion in physical, quantified detail, names one camera move, and says which image it arrives at (\"arriving at the framing of @Image 2\"). The 8-12s interval ends with: \"At the 11-second mark the picture settles and holds on @Image 4 exactly, the product large and sharp in front, the tagline readable, until the end.\"\nThen the constraints, as one sentence: every object stays as in the images and moves only as described — nothing appears, vanishes or duplicates, never two of the same thing, the product enters only in her hand from out of frame; no cuts, no new people; keep it subtitle-free, do not generate any text except what is already in @Image 4, do not generate a watermark or a logo; HD, natural colors, stable picture.\nOutput only the prompt.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "take",
+      "type": "generate-video",
+      "position": {
+        "x": 3820,
+        "y": 1940
+      },
+      "data": {
+        "label": "The take",
+        "prompt": "{Timeline script || 0-4s: opens on the scene of @Image 1, the woman struggles with the old tool, the camera pushes in slowly, arriving at the framing of @Image 2. 4-8s: opens on @Image 2, she uses the product in one clean motion, the camera holds, arriving at @Image 3. 8-12s: opens on @Image 3, she finishes and admires the result; at the 11-second mark the picture settles and holds on @Image 4 exactly until the end. Nothing appears, vanishes or duplicates; keep it subtitle-free; no watermark, no logo; HD, natural colors, stable picture.}",
+        "duration": 12,
+        "provider": "seedance-2-5",
+        "resolution": "720p",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "generateAudio": true,
+        "negativePrompt": "",
+        "presentationOutput": false,
+        "referenceImageOrder": [
+          "frame-1",
+          "frame-2",
+          "frame-3",
+          "frame-4"
+        ]
+      },
+      "width": 600,
+      "height": 338,
       "className": "rf-resized"
     }
   ],
@@ -687,34 +641,6 @@
       "targetHandle": "references"
     },
     {
-      "id": "e-shot-clip-1",
-      "source": "shot-1",
-      "target": "clip-1",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-frame-clip-1-start",
-      "source": "frame-1",
-      "target": "clip-1",
-      "sourceHandle": "image",
-      "targetHandle": "startFrame"
-    },
-    {
-      "id": "e-frame-clip-1-end",
-      "source": "frame-2",
-      "target": "clip-1",
-      "sourceHandle": "image",
-      "targetHandle": "endFrame"
-    },
-    {
-      "id": "e-clip-cut-1",
-      "source": "clip-1",
-      "target": "cut",
-      "sourceHandle": "video",
-      "targetHandle": "in"
-    },
-    {
       "id": "e-story-shot-2",
       "source": "story",
       "target": "shot-2",
@@ -755,34 +681,6 @@
       "target": "frame-2",
       "sourceHandle": "image",
       "targetHandle": "references"
-    },
-    {
-      "id": "e-shot-clip-2",
-      "source": "shot-2",
-      "target": "clip-2",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-frame-clip-2-start",
-      "source": "frame-2",
-      "target": "clip-2",
-      "sourceHandle": "image",
-      "targetHandle": "startFrame"
-    },
-    {
-      "id": "e-frame-clip-2-end",
-      "source": "frame-3",
-      "target": "clip-2",
-      "sourceHandle": "image",
-      "targetHandle": "endFrame"
-    },
-    {
-      "id": "e-clip-cut-2",
-      "source": "clip-2",
-      "target": "cut",
-      "sourceHandle": "video",
-      "targetHandle": "in"
     },
     {
       "id": "e-story-shot-3",
@@ -827,34 +725,6 @@
       "targetHandle": "references"
     },
     {
-      "id": "e-shot-clip-3",
-      "source": "shot-3",
-      "target": "clip-3",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-frame-clip-3-start",
-      "source": "frame-3",
-      "target": "clip-3",
-      "sourceHandle": "image",
-      "targetHandle": "startFrame"
-    },
-    {
-      "id": "e-frame-clip-3-end",
-      "source": "frame-4",
-      "target": "clip-3",
-      "sourceHandle": "image",
-      "targetHandle": "endFrame"
-    },
-    {
-      "id": "e-clip-cut-3",
-      "source": "clip-3",
-      "target": "cut",
-      "sourceHandle": "video",
-      "targetHandle": "in"
-    },
-    {
       "id": "e-story-endcard",
       "source": "story",
       "target": "frame-4",
@@ -883,13 +753,6 @@
       "targetHandle": "prompt"
     },
     {
-      "id": "e-cut-spot",
-      "source": "cut",
-      "target": "spot",
-      "sourceHandle": "video",
-      "targetHandle": "in"
-    },
-    {
       "id": "e-music-trim",
       "source": "music",
       "target": "trim",
@@ -902,13 +765,83 @@
       "target": "spot",
       "sourceHandle": "audio",
       "targetHandle": "in"
+    },
+    {
+      "id": "e-story-timeline",
+      "source": "story",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-shot-timeline-1",
+      "source": "shot-1",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-shot-timeline-2",
+      "source": "shot-2",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-shot-timeline-3",
+      "source": "shot-3",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-frame-1-take",
+      "source": "frame-1",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-frame-2-take",
+      "source": "frame-2",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-frame-3-take",
+      "source": "frame-3",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-frame-4-take",
+      "source": "frame-4",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-timeline-take",
+      "source": "timeline",
+      "target": "take",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-take-spot",
+      "source": "take",
+      "target": "spot",
+      "sourceHandle": "video",
+      "targetHandle": "in"
     }
   ],
   "settings": {
     "viewport": {
       "x": 80,
       "y": 60,
-      "zoom": 0.251
+      "zoom": 0.248
     },
     "flowPromptTemplates": {},
     "characterDefinitions": [],
