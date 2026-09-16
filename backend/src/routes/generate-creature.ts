@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify"
 import { z } from "zod"
+import { expectedUpdatedAtSchema } from "../lib/optimistic-token-schema.js"
 import { safeUrlSchema } from "../lib/url-validator.js"
 import { insertJob } from "../lib/insert-job.js"
 import { supabase } from "../lib/supabase.js"
@@ -50,7 +51,7 @@ const generateCreatureBody = z.object({
   attachName: z.string().max(100).optional(),
   // Optimistic-concurrency guard for the single-candidate auto-attach path:
   // if set, worker bails on attach when `creatures.updated_at` has drifted.
-  expectedUpdatedAt: z.string().datetime().optional(),
+  expectedUpdatedAt: expectedUpdatedAtSchema,
   // Optional explicit aspect override ("W:H") for the main creature image.
   // Permissive — `resolveEntityAspect` validates the format and falls through
   // to the default when absent/malformed. Explicit wins over the default.
