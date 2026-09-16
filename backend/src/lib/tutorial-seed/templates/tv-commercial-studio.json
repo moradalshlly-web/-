@@ -17,7 +17,7 @@
     "product"
   ],
   "complexity": "advanced",
-  "estimatedCredits": 2020,
+  "estimatedCredits": 2022,
   "nodeTypesUsed": [
     "upload-image",
     "text-prompt",
@@ -422,7 +422,7 @@
       "type": "suno-generate",
       "position": {
         "x": 4660,
-        "y": 1520
+        "y": 1880
       },
       "data": {
         "label": "Soundtrack",
@@ -430,7 +430,7 @@
         "style": "",
         "title": "",
         "lyrics": "",
-        "prompt": "Instrumental soundtrack for a 12-second television commercial, no vocals, following the Music line of this story: {Story || warm, light, upbeat, acoustic.} A clear beginning, a lift in the middle and a satisfying end at twelve seconds.",
+        "prompt": "Instrumental soundtrack for a 12-second television commercial, no vocals: {Score brief || warm, light, upbeat, acoustic.} A clear beginning, a lift in the middle and a satisfying end at twelve seconds.",
         "customMode": false,
         "instrumental": true,
         "fieldMappings": {},
@@ -446,7 +446,7 @@
       "type": "merge-video-audio",
       "position": {
         "x": 4660,
-        "y": 2240
+        "y": 2600
       },
       "data": {
         "label": "TV spot",
@@ -469,7 +469,7 @@
       "type": "trim-audio",
       "position": {
         "x": 4660,
-        "y": 1880
+        "y": 2240
       },
       "data": {
         "label": "Trim to 12 s",
@@ -513,7 +513,7 @@
       },
       "data": {
         "bold": false,
-        "text": "One video node, all four keyframes wired in as references in order — @Image 1 to @Image 4 — and the script as its prompt. Seedance 2.5 renders the 12 seconds as one continuous take, so there is no seam to hide. Then Suno writes the soundtrack, Trim cuts it to 12 seconds, and Merge lays it under the take.",
+        "text": "One video node, all four keyframes wired in as references in order — @Image 1 to @Image 4 — and the script as its prompt. Seedance 2.5 renders the 12 seconds as one continuous take, so there is no seam to hide. Then a one-sentence score brief goes to Suno, Trim cuts the track to 12 seconds, and Merge lays it under the take.",
         "color": "#26221a",
         "label": "Step 6",
         "title": "6 · The spot",
@@ -573,6 +573,27 @@
       },
       "width": 600,
       "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "score",
+      "type": "llm-chat",
+      "position": {
+        "x": 4660,
+        "y": 1520
+      },
+      "data": {
+        "label": "Score brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 120,
+        "userInput": "Story: {Story || a three-act commercial.} Write the score brief.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You brief a composer. From the story, write ONE sentence of at most 40 words describing the instrumental soundtrack for the commercial: genre, mood, tempo and instruments, following the story's Music line and its arc. Output only the sentence — no title, no quotes, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
       "className": "rf-resized"
     }
   ],
@@ -746,13 +767,6 @@
       "targetHandle": "references"
     },
     {
-      "id": "e-story-music",
-      "source": "story",
-      "target": "music",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
       "id": "e-music-trim",
       "source": "music",
       "target": "trim",
@@ -835,6 +849,20 @@
       "target": "spot",
       "sourceHandle": "video",
       "targetHandle": "in"
+    },
+    {
+      "id": "e-story-score",
+      "source": "story",
+      "target": "score",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-score-music",
+      "source": "score",
+      "target": "music",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
     }
   ],
   "settings": {
