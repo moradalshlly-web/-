@@ -1,0 +1,913 @@
+{
+  "slug": "ad-funnel-studio",
+  "name": "Ad Funnel Studio",
+  "description": "A product photo and a campaign brief in, a five-frame campaign out — hero, problem, solution, proof, call to action — one look, one series, with the product exactly as photographed; the CTA frame also comes out as an 8-second entrance video.",
+  "markdownDescription": "## Ad Funnel Studio\n\nA product photo and a campaign brief become a five-frame campaign — hero, problem, solution, proof, call to action — one look, one series, ready to run as a sequence. The product stays exactly as photographed, and the last frame also comes out as a video: the ad building itself piece by piece.\n\n1. **Product photo** — a clean packshot. The hero of every frame.\n2. **Campaign brief** — who you are, who you sell to, the problem, the proof you can stand behind, the offer.\n3. **Moodboard** — optional. One picture of your brand world.\n4. **Campaign strategy** — an AI strategist writes the insight, the promise, the tone, the look, and one line per frame.\n5. **Five frames** — one writer per frame, each feeding its own ad, all in the strategy's look. Edit a brief by hand and rerun just its ad.\n6. **The CTA in motion** — the call-to-action frame becomes an 8-second entrance clip: empty background, then every element arrives. Wire any other frame into Ad Motion Studio for the same.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image",
+    "video"
+  ],
+  "tags": [
+    "static-ads",
+    "funnel",
+    "campaign",
+    "direct-response",
+    "product",
+    "video-ads"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 256,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/b0904d16-22f3-4895-ab19-2de3f530d2c1.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 26,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A product photo and a campaign brief go in; a five-frame campaign comes out — hero, problem, solution, proof, call to action — one look, one series, ready to run as a sequence. The last frame also comes out as a video: the ad building itself piece by piece.\n\n1. Product photo — a clean packshot. The hero of every frame.\n2. Campaign brief — who you are, who you sell to, the problem, the proof you can stand behind, the offer.\n3. Moodboard — optional. One picture of your brand world.\n4. Campaign strategy — an AI strategist writes the insight, the promise, the tone, the look, and one line per frame.\n5. Five frames — one writer per frame, each feeding its own ad, all in the strategy's look.\n6. The CTA in motion — the call-to-action frame becomes an 8-second entrance clip: empty background, then every element arrives. To animate any other frame, open Ad Motion Studio.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Ad funnel studio — how it works",
+        "width": 1180,
+        "height": 770,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. Every frame gets it as a reference, so the shape, the materials, the markings and the colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1650
+      },
+      "data": {
+        "bold": false,
+        "text": "In plain words: the business and the product, who it is for, the problem it solves, the proof you can stand behind (a study, reviews, a certification — quoted the way you can defend it), the offer, and the tone. The strategist and the writers use only what is here.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Campaign brief",
+        "width": 640,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-mood",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2160
+      },
+      "data": {
+        "bold": false,
+        "text": "Optional. One picture of your brand world — textures, colours, type. The strategist reads the look from it next to the brief. Delete the node if the brief says it all.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Moodboard",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-strategy",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI strategist turns the brief, the packshot and the moodboard into one strategy: the customer insight, the promise, the tone, the look every frame follows, and one line per frame — hero, problem, solution, proof, CTA. Edit a line by hand and rerun the frames that quote it.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Campaign strategy",
+        "width": 480,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-frames",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "One writer per frame, each holding its role in the funnel: hero stops the scroll, problem names the frustration, solution shows the fix, proof brings the evidence from the brief, CTA makes the offer. Each writes a headline, a small line, a button and the look, inside the strategy. Read a brief, edit it by hand, then rerun just its ad.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Five frames",
+        "width": 560,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ads",
+      "type": "sticky-note",
+      "position": {
+        "x": 3060,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "One series, five frames, the same look. Each ad gets the packshot as its reference and its frame's brief, and renders the copy exactly as written. Rerun one ad alone for a new take on the same brief.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Five ads",
+        "width": 600,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-motion",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 6130
+      },
+      "data": {
+        "bold": false,
+        "text": "The call-to-action frame becomes a video the same way Ad Motion Studio does it: an AI lists everything on the ad; the same ad is recreated with every element removed — the empty first frame; a motion director writes which element arrives when, from where and how; and Seedance builds the ad from the empty background to the finished frame in 8 seconds, pinned to both. Rerun the four nodes after changing the CTA ad. Want the hero or the proof frame in motion too? Wire that ad into Ad Motion Studio.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · The cta in motion",
+        "width": 2540,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 930
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/a7e4de89-ef5f-4d7f-85a9-77bd5a29e6d9.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/a7e4de89-ef5f-4d7f-85a9-77bd5a29e6d9.png",
+        "assetId": "a7e4de89-ef5f-4d7f-85a9-77bd5a29e6d9",
+        "filename": "headphones-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/a7e4de89-ef5f-4d7f-85a9-77bd5a29e6d9.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1650
+      },
+      "data": {
+        "text": "Business: ARDEN — a small audio house. Product: ARDEN Solace — wireless over-ear headphones with active noise cancelling, deep burgundy leather cushions, brushed brass details and a 40-hour battery. Customer: 30 to 50, commuters and open-plan office workers who want quiet and are tired of tech that looks like gym equipment. Problem it solves: the office and the train never go quiet, and most noise-cancelling headphones are plastic and loud-looking. Proof we can stand behind: in our own lab the noise cancelling removes up to 40 dB of low-frequency noise; in our two-week trial 9 of 10 testers said they focused better. Offer: a leather travel case free with every launch order. Tone: calm, confident, a little wry.",
+        "label": "Campaign brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "moodboard",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 2160
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/033eed7d-058d-45fc-acc7-f71a5050358c.png",
+        "label": "Moodboard",
+        "r2Url": "https://cdn.nodaro.ai/images/033eed7d-058d-45fc-acc7-f71a5050358c.png",
+        "assetId": "033eed7d-058d-45fc-acc7-f71a5050358c",
+        "filename": "brand-moodboard-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/033eed7d-058d-45fc-acc7-f71a5050358c.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "strategy",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1530
+      },
+      "data": {
+        "label": "Campaign strategy",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Campaign brief: {Campaign brief || a premium consumer product for a design-minded audience.} The reference images are the product photo and, if present, the brand moodboard. Write the strategy.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a direct-response strategist for consumer brands. From the campaign brief, the product photo and the moodboard if there is one, write the campaign strategy in exactly this shape, plain English, nothing else:\nInsight: <one sentence — the customer truth the campaign stands on>\nPromise: <one sentence — what the product does for them>\nTone: <a few words>\nLook: <one paragraph of 50 to 80 words: background colours and finish, typography feel, how the product is shown, light, mood — one look every frame follows>\nHero: <one sentence — what the attention frame says>\nProblem: <one sentence — the frustration the customer knows>\nSolution: <one sentence — how the product fixes it, with the one ingredient or mechanism from the brief>\nProof: <one sentence — the evidence the brief gives, quoted faithfully; if the brief gives none, write: none>\nCTA: <one sentence — the offer and the action from the brief>\nUse only facts the brief states; never invent studies, numbers or ingredients. No other headings, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-hero",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 1530
+      },
+      "data": {
+        "label": "Frame 1 · Hero",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per frame.} Campaign brief: {Campaign brief || a premium consumer product.} The reference image is the product. Write this frame.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a direct-response creative director. You get the campaign strategy, the campaign brief and the product photo. Write the HERO frame — stop the scroll: the product large and beautiful and the promise in one line of a five-frame campaign (hero, problem, solution, proof, call to action) — this frame only, in the strategy's look, so the five frames read as one series.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background colour and finish from the strategy's Look, where the product sits and how big, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the brief and the strategy; never invent studies, numbers or ingredients. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-problem",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2450
+      },
+      "data": {
+        "label": "Frame 2 · Problem",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per frame.} Campaign brief: {Campaign brief || a premium consumer product.} The reference image is the product. Write this frame.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a direct-response creative director. You get the campaign strategy, the campaign brief and the product photo. Write the PROBLEM frame — name the frustration the customer knows, in their words, the product present but not yet the answer of a five-frame campaign (hero, problem, solution, proof, call to action) — this frame only, in the strategy's look, so the five frames read as one series.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background colour and finish from the strategy's Look, where the product sits and how big, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the brief and the strategy; never invent studies, numbers or ingredients. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-solution",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 3370
+      },
+      "data": {
+        "label": "Frame 3 · Solution",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per frame.} Campaign brief: {Campaign brief || a premium consumer product.} The reference image is the product. Write this frame.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a direct-response creative director. You get the campaign strategy, the campaign brief and the product photo. Write the SOLUTION frame — how the product fixes it, naming the one ingredient or mechanism from the brief of a five-frame campaign (hero, problem, solution, proof, call to action) — this frame only, in the strategy's look, so the five frames read as one series.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background colour and finish from the strategy's Look, where the product sits and how big, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the brief and the strategy; never invent studies, numbers or ingredients. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-proof",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 4290
+      },
+      "data": {
+        "label": "Frame 4 · Proof",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per frame.} Campaign brief: {Campaign brief || a premium consumer product.} The reference image is the product. Write this frame.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a direct-response creative director. You get the campaign strategy, the campaign brief and the product photo. Write the PROOF frame — the evidence the brief gives (a study, a review, a certification), quoted faithfully and attributed the way the brief attributes it; if the strategy says none, use a plain factual claim from the brief instead of a five-frame campaign (hero, problem, solution, proof, call to action) — this frame only, in the strategy's look, so the five frames read as one series.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background colour and finish from the strategy's Look, where the product sits and how big, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the brief and the strategy; never invent studies, numbers or ingredients. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-cta",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 5210
+      },
+      "data": {
+        "label": "Frame 5 · CTA",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per frame.} Campaign brief: {Campaign brief || a premium consumer product.} The reference image is the product. Write this frame.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a direct-response creative director. You get the campaign strategy, the campaign brief and the product photo. Write the CALL-TO-ACTION frame — the offer and the action from the brief, the button doing the work of a five-frame campaign (hero, problem, solution, proof, call to action) — this frame only, in the strategy's look, so the five frames read as one series.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background colour and finish from the strategy's Look, where the product sits and how big, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the brief and the strategy; never invent studies, numbers or ingredients. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-hero",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 1530
+      },
+      "data": {
+        "label": "Ad · Hero",
+        "style": "",
+        "prompt": "Finished portrait 3:4 digital ad for a social feed, one frame of a five-frame series, built from this brief: {Frame 1 · Hero || Headline: \"Silence, tailored.\" Small line: \"Noise cancelling that removes the room, not the music.\" Button: \"Hear it\" Look: a deep charcoal background with a soft matte finish, the headphones large in the centre under one warm rim light, a brass serif headline across the top, the small line and the button at the bottom, quiet and cinematic.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless it is none) exactly as written in the brief — same words, same spelling — and no other text. Background colour, finish and typography from the brief's Look. Crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 494.7726750741192,
+      "height": 915.6969000988256,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-problem",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2450
+      },
+      "data": {
+        "label": "Ad · Problem",
+        "style": "",
+        "prompt": "Finished portrait 3:4 digital ad for a social feed, one frame of a five-frame series, built from this brief: {Frame 2 · Problem || Headline: \"Silence, tailored.\" Small line: \"Noise cancelling that removes the room, not the music.\" Button: \"Hear it\" Look: a deep charcoal background with a soft matte finish, the headphones large in the centre under one warm rim light, a brass serif headline across the top, the small line and the button at the bottom, quiet and cinematic.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless it is none) exactly as written in the brief — same words, same spelling — and no other text. Background colour, finish and typography from the brief's Look. Crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 494.7726750741192,
+      "height": 915.6969000988256,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-solution",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 3370
+      },
+      "data": {
+        "label": "Ad · Solution",
+        "style": "",
+        "prompt": "Finished portrait 3:4 digital ad for a social feed, one frame of a five-frame series, built from this brief: {Frame 3 · Solution || Headline: \"Silence, tailored.\" Small line: \"Noise cancelling that removes the room, not the music.\" Button: \"Hear it\" Look: a deep charcoal background with a soft matte finish, the headphones large in the centre under one warm rim light, a brass serif headline across the top, the small line and the button at the bottom, quiet and cinematic.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless it is none) exactly as written in the brief — same words, same spelling — and no other text. Background colour, finish and typography from the brief's Look. Crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 494.7726750741192,
+      "height": 915.6969000988256,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-proof",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 4290
+      },
+      "data": {
+        "label": "Ad · Proof",
+        "style": "",
+        "prompt": "Finished portrait 3:4 digital ad for a social feed, one frame of a five-frame series, built from this brief: {Frame 4 · Proof || Headline: \"Silence, tailored.\" Small line: \"Noise cancelling that removes the room, not the music.\" Button: \"Hear it\" Look: a deep charcoal background with a soft matte finish, the headphones large in the centre under one warm rim light, a brass serif headline across the top, the small line and the button at the bottom, quiet and cinematic.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless it is none) exactly as written in the brief — same words, same spelling — and no other text. Background colour, finish and typography from the brief's Look. Crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 494.7726750741192,
+      "height": 915.6969000988256,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-cta",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 5210
+      },
+      "data": {
+        "label": "Ad · CTA",
+        "style": "",
+        "prompt": "Finished portrait 3:4 digital ad for a social feed, one frame of a five-frame series, built from this brief: {Frame 5 · CTA || Headline: \"Silence, tailored.\" Small line: \"Noise cancelling that removes the room, not the music.\" Button: \"Hear it\" Look: a deep charcoal background with a soft matte finish, the headphones large in the centre under one warm rim light, a brass serif headline across the top, the small line and the button at the bottom, quiet and cinematic.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless it is none) exactly as written in the brief — same words, same spelling — and no other text. Background colour, finish and typography from the brief's Look. Crisp typography, generous margins, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 494.7726750741192,
+      "height": 915.6969000988256,
+      "className": "rf-resized"
+    },
+    {
+      "id": "breakdown",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 6470
+      },
+      "data": {
+        "label": "Ad breakdown",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Describe the advertisement in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You describe finished advertisements for an image editor and a motion designer. Look at the reference image and write ONE paragraph of plain English, 80 to 130 words, in this order: first the background alone (its colours, gradient, light, texture, and where the light comes from); then every element that sits on it, back to front, one short sentence each, naming what it is, where it sits and its colours, and quoting any text on it word for word in double quotes; finish with one sentence that begins with the words Remove everything except the background and lists the elements to remove. Only what is visible. No opinions, no bullet points, no headings, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clean-bg",
+      "type": "generate-image",
+      "position": {
+        "x": 2980,
+        "y": 6470
+      },
+      "data": {
+        "label": "Clean background",
+        "style": "",
+        "prompt": "Recreate the reference advertisement exactly — same size, same framing, same background colours, gradient, light and texture — but with every element removed, leaving only the empty background: no text, no headline, no logo, no product, no badge, no button, no decorative object, and no shadow or reflection of anything removed. Fill every gap so the background reads as one continuous, untouched surface with the same light. What is on the ad: {Ad breakdown || the background and every element on it.} Output only the empty background with nothing on it.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 494.7726750741192,
+      "height": 915.6969000988256,
+      "className": "rf-resized"
+    },
+    {
+      "id": "entrance-director",
+      "type": "llm-chat",
+      "position": {
+        "x": 3820,
+        "y": 6470
+      },
+      "data": {
+        "label": "Entrance director",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 600,
+        "userInput": "The elements on the ad, back to front: {Ad breakdown || see the finished ad.} Of the two reference images, the one with nothing on it is the first frame (the empty background) and the complete advertisement is the last frame. Write the entrance.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a senior motion designer writing the prompt for a video model that is given a first frame and a last frame. The first frame is the empty background of an advertisement; the last frame is the finished advertisement. Write ONE paragraph of 110 to 160 words that builds the finished ad on the empty background piece by piece over 8 seconds: a touch of light first, then the product fading in where it stands with its shadow, then the supporting graphics, then the headline, then the smaller text, then the button, then a final settling micro-motion. The last second holds perfectly still on the finished advertisement with every element exactly in its final place. Name each element by what it is and quote its exact text. For each one say how it arrives, how it eases, and roughly when it settles, so the whole sequence fills the 8 seconds with staggered motion rather than everything at once. Every element arrives in its own final place — fading in, wiping in, or sliding no more than a finger's width — and nothing ever enters from beyond the edge of the frame or crosses the frame, so no element is ever seen twice. The product never rises from below the frame and never slides in from a side: it fades in where it stands, shadow and reflection with it. Text and logos arrive by sliding, wiping or fading in — never by scaling up from nothing, which smears the letters. Keep the camera almost still — at most one slow, subtle push. Do not crossfade, do not redraw or reinterpret anything, and never change any text, logo or product. Plain English, present tense, no headings, no lists, no timestamps in brackets, no quotation marks around the paragraph. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "entrance",
+      "type": "generate-video",
+      "position": {
+        "x": 4540,
+        "y": 6470
+      },
+      "data": {
+        "label": "CTA · Entrance",
+        "prompt": "{Entrance director || The elements of the advertisement arrive one by one on the empty background — the product first, then the graphics, the headline, the smaller text and the button — each easing into its final place while the camera stays almost still, ending exactly on the finished advertisement.} Crisp, stable motion-graphics animation; every element appears once, in its final place, and nothing enters from beyond the edges of the frame; text, logo and product stay exactly as designed; no duplicates, no morphing, no flicker, no extra objects, no camera shake, no scene change.",
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "presentationOutput": true,
+        "duration": 8
+      },
+      "width": 761.7523657112373,
+      "height": 684.485705712571,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-brief-strategy",
+      "source": "brief",
+      "target": "strategy",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-strategy",
+      "source": "product",
+      "target": "strategy",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-mood-strategy",
+      "source": "moodboard",
+      "target": "strategy",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-frame-hero",
+      "source": "strategy",
+      "target": "frame-hero",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-frame-hero",
+      "source": "brief",
+      "target": "frame-hero",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-hero",
+      "source": "product",
+      "target": "frame-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-ad-hero",
+      "source": "frame-hero",
+      "target": "ad-hero",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-hero",
+      "source": "product",
+      "target": "ad-hero",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-frame-problem",
+      "source": "strategy",
+      "target": "frame-problem",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-frame-problem",
+      "source": "brief",
+      "target": "frame-problem",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-problem",
+      "source": "product",
+      "target": "frame-problem",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-ad-problem",
+      "source": "frame-problem",
+      "target": "ad-problem",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-problem",
+      "source": "product",
+      "target": "ad-problem",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-frame-solution",
+      "source": "strategy",
+      "target": "frame-solution",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-frame-solution",
+      "source": "brief",
+      "target": "frame-solution",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-solution",
+      "source": "product",
+      "target": "frame-solution",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-ad-solution",
+      "source": "frame-solution",
+      "target": "ad-solution",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-solution",
+      "source": "product",
+      "target": "ad-solution",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-frame-proof",
+      "source": "strategy",
+      "target": "frame-proof",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-frame-proof",
+      "source": "brief",
+      "target": "frame-proof",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-proof",
+      "source": "product",
+      "target": "frame-proof",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-ad-proof",
+      "source": "frame-proof",
+      "target": "ad-proof",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-proof",
+      "source": "product",
+      "target": "ad-proof",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-frame-cta",
+      "source": "strategy",
+      "target": "frame-cta",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-frame-cta",
+      "source": "brief",
+      "target": "frame-cta",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-cta",
+      "source": "product",
+      "target": "frame-cta",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-ad-cta",
+      "source": "frame-cta",
+      "target": "ad-cta",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-cta",
+      "source": "product",
+      "target": "ad-cta",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-cta-breakdown",
+      "source": "ad-cta",
+      "target": "breakdown",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-cta-clean",
+      "source": "ad-cta",
+      "target": "clean-bg",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-breakdown-clean",
+      "source": "breakdown",
+      "target": "clean-bg",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-cta-director",
+      "source": "ad-cta",
+      "target": "entrance-director",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clean-director",
+      "source": "clean-bg",
+      "target": "entrance-director",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-breakdown-director",
+      "source": "breakdown",
+      "target": "entrance-director",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-clean-entrance-start",
+      "source": "clean-bg",
+      "target": "entrance",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-cta-entrance-end",
+      "source": "ad-cta",
+      "target": "entrance",
+      "sourceHandle": "image",
+      "targetHandle": "endFrame"
+    },
+    {
+      "id": "e-director-entrance",
+      "source": "entrance-director",
+      "target": "entrance",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.108
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "brief": {
+          "title": "Campaign brief",
+          "description": "Business, customer, problem, proof, offer, tone — in plain words."
+        },
+        "ad-cta": {
+          "title": "Frame 5 · CTA",
+          "description": "The offer and the action."
+        },
+        "ad-hero": {
+          "title": "Frame 1 · Hero",
+          "description": "Stops the scroll: the product and the promise."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean packshot. It appears exactly as it is in every frame."
+        },
+        "ad-proof": {
+          "title": "Frame 4 · Proof",
+          "description": "The evidence from your brief."
+        },
+        "entrance": {
+          "title": "CTA in motion",
+          "description": "The call-to-action frame building itself in 8 seconds."
+        },
+        "moodboard": {
+          "title": "Moodboard",
+          "description": "Optional. One picture of your brand world."
+        },
+        "ad-problem": {
+          "title": "Frame 2 · Problem",
+          "description": "Names the frustration the customer knows."
+        },
+        "ad-solution": {
+          "title": "Frame 3 · Solution",
+          "description": "How the product fixes it."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "brief",
+        "moodboard"
+      ],
+      "outputOrder": [
+        "ad-hero",
+        "ad-problem",
+        "ad-solution",
+        "ad-proof",
+        "ad-cta",
+        "entrance"
+      ]
+    }
+  }
+}

@@ -22,7 +22,7 @@ The distinguishing feature from other parameter pickers: when a character/face/o
 
 All four enum fields default to `auto`, which contributes no prompt text.
 
-Position, Duration and Intensity are catalogs, not free values: the `character-fx` picker catalog exposes them as `dimensions` beside its `options` (`GET /v1/picker-catalogs/character-fx`, `client.pickerCatalogs.get("character-fx")`, the MCP `get_picker_catalog` tool, or `CHARACTER_FX_POSITIONS` / `CHARACTER_FX_DURATIONS` / `CHARACTER_FX_INTENSITIES` from `@nodaro/prompts`), each row carrying the exact clause it injects — so an id-only client can offer the three controls without writing prompt text. The ids match the [Transition](./transition.md) node's, the wording deliberately does not (an effect *manifests* and *persists*; a transition *occurs* and *spans*). See [Parameter Picker Catalogs](../../picker-catalogs.md#single-dimension-pickers-with-secondary-parameters-transition-character-fx).
+Position, Duration and Intensity are catalogs, not free values: the `character-fx` picker catalog exposes them as `dimensions` beside its `options` (`GET /v1/picker-catalogs/character-fx`, `client.pickerCatalogs.get("character-fx")`, the MCP `get_picker_catalog` tool, or `CHARACTER_FX_POSITIONS` / `CHARACTER_FX_DURATIONS` / `CHARACTER_FX_INTENSITIES` from `@nodaro/prompts`), each row carrying the exact clause it injects — so an id-only client can offer the three controls without writing prompt text. The ids match the [Transition](./transition.md) node's, the wording deliberately does not (an effect *manifests* and *persists*; a transition *occurs* and *spans*). See [Parameter Picker Catalogs](../../picker-catalogs.md#single-dimension-pickers-with-secondary-parameters-transition-character-fx-character-motion).
 
 ## Catalog (57 entries across 5 categories)
 
@@ -106,6 +106,7 @@ Some effects (gas-form, liquid-metal, X-ray) are temporally complex and degrade 
 
 - **Character FX** — the SUBJECT does/becomes X: "the subject transforms into a werewolf", "the subject breathes fire".
 - **Action FX** — environmental events: "an earthquake hits the scene", "lightning strikes the building".
+- **Character Motion** — ordinary movement the subject performs over time: walks in, turns, waves, dances. If nothing supernatural happens, use [Character Motion](./character-motion.md).
 
 When in doubt: if the effect requires a character as the focal point, use Character FX. If it would make sense in an empty room, use Action FX. Both can be wired in parallel into the same consumer.
 
@@ -114,3 +115,4 @@ When in doubt: if the effect requires a character as the focal point, use Charac
 - [Transition](./transition.md) — for visual transitions between frames or shots (different from effects on a subject).
 - [Character](../assets/character.md) — the ref source for `target` handle.
 - [Camera Motion](./camera-motion.md) — pairs well with Character FX for choreography.
+- [Character Motion](./character-motion.md) — ordinary movement over time (walks, turns, gestures, dance) with no supernatural change.

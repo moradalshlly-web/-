@@ -26,6 +26,9 @@ interface VideoResultOverlayProps {
   onSettings?: () => void
   isSettingsOpen?: boolean
   onEdit?: () => void
+  /** Square the bottom corners — for the inline-prompt layout where the
+   *  result sits flush on top of the prompt editor (card chrome below). */
+  squareBottom?: boolean
 }
 
 function VideoResultOverlayComponent({
@@ -42,6 +45,7 @@ function VideoResultOverlayComponent({
   onSettings,
   isSettingsOpen,
   onEdit,
+  squareBottom = false,
 }: VideoResultOverlayProps) {
   const t = useT()
   const videoElRef = useRef<HTMLVideoElement | null>(null)
@@ -51,7 +55,7 @@ function VideoResultOverlayComponent({
   useSeamlessVideoLoop(videoElRef, videoAutoplay)
   return (
     <div
-      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: 12, overflow: 'hidden', zIndex: 10 }}
+      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: squareBottom ? '12px 12px 0 0' : 12, overflow: 'hidden', zIndex: 10 }}
       className="group/video"
     >
       <video

@@ -1,5 +1,7 @@
 "use client"
 
+import { CharacterMotionDiagnostics } from "./character-motion-diagnostics"
+
 import { useT, tx } from "@/lib/i18n"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -64,6 +66,7 @@ import type {
   TransitionDuration,
   TransitionIntensity,
   CharacterFxData,
+  CharacterMotionData,
 } from "@/types/nodes"
 import { CameraMotionPicker, useCuratedEntries } from "@/lib/picker-ui"
 import { FramingPicker } from "@/lib/picker-ui"
@@ -77,7 +80,7 @@ import { StylePicker } from "@/lib/picker-ui"
 import { SettingPicker } from "@/lib/picker-ui"
 import { LoopSubjectPicker } from "@/lib/picker-ui"
 import { PersonPicker } from "@/lib/picker-ui"
-import { MOODS as BASE_MOODS, POSES as BASE_POSES, buildFramingHints, getLensPromptHint, getCameraFormatPromptHint, buildLightingHints, getColorLookPromptHint, buildAtmosphereHints, buildActionFxHints, getStylePromptHint, getSettingPromptHint, getLoopSubjectPromptHint, buildMoodHints, buildPoseHints, buildStylingHints, buildTemporalHints, buildMaterialHints, getPhotoGenrePromptHint, getBackdropPromptHint, buildHeldPropHints, buildPhotographerHints, buildAestheticHints, getEraPromptHint, buildExposureHints, getRenderQualityPromptHint, getCompositionEffectPromptHint, buildPostProcessHints, buildPersonHints, TRANSITION_POSITIONS, TRANSITION_DURATIONS, TRANSITION_INTENSITIES, CHARACTER_FX_POSITIONS, CHARACTER_FX_DURATIONS, CHARACTER_FX_INTENSITIES } from "@nodaro/prompts"
+import { MOODS as BASE_MOODS, POSES as BASE_POSES, buildFramingHints, getLensPromptHint, getCameraFormatPromptHint, buildLightingHints, getColorLookPromptHint, buildAtmosphereHints, buildActionFxHints, getStylePromptHint, getSettingPromptHint, getLoopSubjectPromptHint, buildMoodHints, buildPoseHints, buildStylingHints, buildTemporalHints, buildMaterialHints, getPhotoGenrePromptHint, getBackdropPromptHint, buildHeldPropHints, buildPhotographerHints, buildAestheticHints, getEraPromptHint, buildExposureHints, getRenderQualityPromptHint, getCompositionEffectPromptHint, buildPostProcessHints, buildPersonHints, TRANSITION_POSITIONS, TRANSITION_DURATIONS, TRANSITION_INTENSITIES, CHARACTER_FX_POSITIONS, CHARACTER_FX_DURATIONS, CHARACTER_FX_INTENSITIES, CHARACTER_MOTION_POSITIONS, CHARACTER_MOTION_PACES, CHARACTER_MOTION_MAX_PICKS } from "@nodaro/prompts"
 import { getAnimal, getVehicle, getWeapon, getFurniture } from "@nodaro/shared"
 import { MoodEmoji } from "@/lib/picker-ui"
 import { DimensionTileGrid } from "@/lib/picker-ui"
@@ -98,11 +101,12 @@ import { CompositionEffectsPicker } from "@/lib/picker-ui"
 import { PostProcessEffectsPicker } from "@/lib/picker-ui"
 import { TransitionPicker } from "@/lib/picker-ui"
 import { CharacterFxPicker } from "@/lib/picker-ui"
+import { CharacterMotionPicker } from "@/lib/picker-ui"
 import { PhotographerPicker } from "@/lib/picker-ui"
 import { AestheticPicker } from "@/lib/picker-ui"
 import { EraPicker } from "@/lib/picker-ui"
 import { PromptInjectionPreview } from "./prompt-injection-preview"
-import { composeCameraMotionHintForNode, composeTransitionHintForNode, composeCharacterFxHintForNode } from "@/lib/cinematography-hints"
+import { composeCameraMotionHintForNode, composeTransitionHintForNode, composeCharacterFxHintForNode, composeCharacterMotionHintForNode } from "@/lib/cinematography-hints"
 import { usePickerDir } from "@/lib/locale-store"
 import { LocaleHeader } from "./locale-header"
 import { CustomTextRows } from "./custom-text-rows"
@@ -1326,11 +1330,12 @@ export function PostProcessEffectsConfig({ data, onUpdate }: ConfigProps<PostPro
 // and spans the clip; an effect manifests and persists), and each panel must
 // render — and tooltip — its own node's rows.
 type TimingKey = Parameters<typeof tx>[0]
-/** Option LABELS are shared by both families (same ids); descriptions differ. */
+/** Option LABELS are shared by every timing family (same ids); descriptions differ. */
 const TIMING_LABEL_KEYS: Record<string, TimingKey> = {
   auto: "paramcfg.timingAuto", start: "paramcfg.timingStart", middle: "paramcfg.timingMiddle", end: "paramcfg.timingEnd", full: "paramcfg.timingFull",
   instant: "paramcfg.timingInstant", short: "paramcfg.timingShort", medium: "paramcfg.timingMedium", long: "paramcfg.timingLong",
   subtle: "paramcfg.timingSubtle", natural: "paramcfg.timingNatural", dynamic: "paramcfg.timingDynamic", crazy: "paramcfg.timingCrazy",
+  "slow-motion": "paramcfg.timingSlowMotion", slow: "paramcfg.timingSlow", fast: "paramcfg.timingFast", explosive: "paramcfg.timingExplosive",
 }
 const INTENSITY_DESC_KEYS: Record<string, TimingKey> = {
   subtle: "paramcfg.intSubtleDesc", natural: "paramcfg.intNaturalDesc", dynamic: "paramcfg.intDynamicDesc", crazy: "paramcfg.intCrazyDesc",
@@ -1344,6 +1349,13 @@ const CHARACTER_FX_DESC_KEYS: Record<string, Record<string, TimingKey>> = {
   position: { auto: "paramcfg.fxPosAutoDesc", start: "paramcfg.fxPosStartDesc", middle: "paramcfg.fxPosMiddleDesc", end: "paramcfg.fxPosEndDesc", full: "paramcfg.fxPosFullDesc" },
   duration: { auto: "paramcfg.fxDurAutoDesc", instant: "paramcfg.fxDurInstantDesc", short: "paramcfg.fxDurShortDesc", medium: "paramcfg.fxDurMediumDesc", long: "paramcfg.fxDurLongDesc" },
   intensity: { auto: "paramcfg.fxIntAutoDesc", ...INTENSITY_DESC_KEYS },
+}
+const CHARACTER_MOTION_DESC_KEYS: Record<string, Record<string, TimingKey>> = {
+  position: { auto: "paramcfg.mtPosAutoDesc", start: "paramcfg.mtPosStartDesc", middle: "paramcfg.mtPosMiddleDesc", end: "paramcfg.mtPosEndDesc", full: "paramcfg.mtPosFullDesc" },
+  pace: {
+    auto: "paramcfg.mtPaceAutoDesc", "slow-motion": "paramcfg.mtPaceSlowMotionDesc", slow: "paramcfg.mtPaceSlowDesc",
+    natural: "paramcfg.mtPaceNaturalDesc", fast: "paramcfg.mtPaceFastDesc", explosive: "paramcfg.mtPaceExplosiveDesc",
+  },
 }
 /** The option row's copy for the locale; an id the maps do not know falls back to the table's English. */
 function timingOptionCopy(descKeys: Record<string, TimingKey>, opt: { id: string; label: string; description: string }) {
@@ -1365,6 +1377,13 @@ function CHARACTER_FX_TIMING_SELECTS() {
   { key: "position",  label: tx("paramcfg.position"),  options: CHARACTER_FX_POSITIONS, descKeys: CHARACTER_FX_DESC_KEYS.position },
   { key: "duration",  label: tx("field.duration"),  options: CHARACTER_FX_DURATIONS, descKeys: CHARACTER_FX_DESC_KEYS.duration },
   { key: "intensity", label: tx("paramcfg.intensity"), options: CHARACTER_FX_INTENSITIES, descKeys: CHARACTER_FX_DESC_KEYS.intensity },
+] as const
+}
+
+function CHARACTER_MOTION_TIMING_SELECTS() {
+  return [
+  { key: "position", label: tx("paramcfg.position"), options: CHARACTER_MOTION_POSITIONS, descKeys: CHARACTER_MOTION_DESC_KEYS.position },
+  { key: "pace",     label: tx("paramcfg.pace"),     options: CHARACTER_MOTION_PACES,     descKeys: CHARACTER_MOTION_DESC_KEYS.pace },
 ] as const
 }
 
@@ -1459,6 +1478,55 @@ export function CharacterFxConfig({ data, onUpdate }: ConfigProps<CharacterFxDat
                   <SelectItem key={opt.id} value={opt.id} title={copy.description}>
                     {copy.label}
                   </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function CharacterMotionConfig({ data, onUpdate }: ConfigProps<CharacterMotionData>) {
+  const t = useT()
+  const dir = usePickerDir()
+  const composed = composeCharacterMotionHintForNode(data)
+
+  return (
+    <div className="flex flex-col gap-3" dir={dir}>
+      <LocaleHeader />
+      <PromptInjectionPreview hints={[data.preText, composed, data.postText]} />
+      <CharacterMotionDiagnostics data={data} />
+      <CustomTextRows
+        idPrefix="character-motion"
+        preText={data.preText}
+        postText={data.postText}
+        prePlaceholder={t("paramcfg.eGAfterALongPause")}
+        postPlaceholder={t("paramcfg.eGStillHoldingTheCup")}
+        onChange={onUpdate}
+      />
+      <Label>{t("paramcfg.characterMotionPickUpTo3")}</Label>
+      <CharacterMotionPicker
+        value={data.characterMotion}
+        onValueChange={(v) => onUpdate({ characterMotion: v as string | string[] | undefined })}
+        maxSelected={CHARACTER_MOTION_MAX_PICKS}
+      />
+
+      <div className="grid grid-cols-2 gap-2">
+        {CHARACTER_MOTION_TIMING_SELECTS().map(({ key, label: labelText, options, descKeys }) => (
+          <div key={key} className="flex flex-col gap-1">
+            <Label className="text-[10px] uppercase">{labelText}</Label>
+            <Select value={(data[key] as string) ?? "auto"} onValueChange={(v) => onUpdate({ [key]: v })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {options.map((opt) => {
+                  const copy = timingOptionCopy(descKeys, opt)
+                  return (
+                    <SelectItem key={opt.id} value={opt.id} title={copy.description}>
+                      {copy.label}
+                    </SelectItem>
                   )
                 })}
               </SelectContent>

@@ -296,7 +296,7 @@ export const NODE_FAMILIES: readonly NodeFamily[] = [
     id: "cc-motion-time",
     label: "Motion & Time",
     tab: "controls",
-    types: ["camera-motion", "temporal"],
+    types: ["camera-motion", "temporal", "character-motion"],
   },
   {
     id: "cc-effects",

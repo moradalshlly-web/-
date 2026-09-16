@@ -29,6 +29,7 @@ import { ACTION_FX } from "./action-fx.js"
 import { LOOP_SUBJECTS } from "./loop-subject.js"
 import { TRANSITIONS } from "./transitions.js"
 import { CHARACTER_FX } from "./character-fx.js"
+import { CHARACTER_MOTIONS } from "./character-motion.js"
 import { POSES } from "./pose.js"
 import { MATERIALS } from "./materials.js"
 import { HELD_PROPS } from "./held-prop.js"
@@ -183,6 +184,7 @@ export const PICKER_ANALYZER_REGISTRY = {
   "loop-subject": { kind: "flat", toolName: "emit_loop_subject", field: "loopSubject", label: "Loop Subject", entries: LOOP_SUBJECTS as ReadonlyArray<AnalyzerEntry> },
   transition: { kind: "flat", toolName: "emit_transition", field: "transition", label: "Transition", entries: TRANSITIONS as ReadonlyArray<AnalyzerEntry> },
   "character-fx": { kind: "flat", toolName: "emit_character_fx", field: "characterFx", label: "Character FX", entries: CHARACTER_FX as ReadonlyArray<AnalyzerEntry> },
+  "character-motion": { kind: "flat", toolName: "emit_character_motion", field: "characterMotion", label: "Character Motion", entries: CHARACTER_MOTIONS as ReadonlyArray<AnalyzerEntry> },
   pose: { kind: "flat", toolName: "emit_pose", field: "pose", label: "Pose", entries: POSES as ReadonlyArray<AnalyzerEntry> },
   material: { kind: "flat", toolName: "emit_material", field: "material", label: "Material", entries: MATERIALS as ReadonlyArray<AnalyzerEntry> },
   "held-prop": { kind: "flat", toolName: "emit_held_prop", field: "heldProp", label: "Held Prop", entries: HELD_PROPS as ReadonlyArray<AnalyzerEntry> },
@@ -301,18 +303,20 @@ export type PickerType = keyof typeof PICKER_ANALYZER_REGISTRY
 export const PICKER_TYPES = Object.keys(PICKER_ANALYZER_REGISTRY) as PickerType[]
 
 /**
- * Family grouping for BATCHED analysis. A single call across all 38 catalogs
- * carries a ~211k-char legend (~53k tokens — measured 2026-08-09, the
+ * Family grouping for BATCHED analysis. A single call across the first 38
+ * catalogs carried a ~211k-char legend (~53k tokens — measured 2026-08-09, the
  * measure-first probe from the text-to-picker spec), which is slow, costly,
  * and dilutes per-section accuracy. The text-to-picker route fans out one
- * structured call per family (6-15k tokens each) and merges. Mirrors the
- * build-brief's §5 UI grouping so Cine can reuse the same partition.
+ * structured call per family (6-15k tokens each) and merges. The character
+ * family is the exception: Character Motion's 1005-id legend alone is ~82k
+ * chars (~46k input tokens measured 2026-09-15), making it the heaviest call.
+ * Mirrors the build-brief's §5 UI grouping so Cine can reuse the same partition.
  */
 export const PICKER_ANALYZER_FAMILIES: Readonly<Record<string, ReadonlyArray<PickerType>>> = {
   scene: ["setting", "atmosphere", "backdrop", "era", "temporal"],
   look: ["style", "color-look", "mood", "aesthetic", "photographer", "photo-genre", "render-quality", "composition-effects", "post-process-effects"],
   camera: ["framing", "camera-motion", "lens", "camera-format", "lighting", "exposure-settings"],
-  character: ["person", "styling", "pose", "character-fx"],
+  character: ["person", "styling", "pose", "character-fx", "character-motion"],
   elements: ["animal", "vehicle", "weapon", "furniture", "held-prop", "material", "action-fx", "loop-subject", "transition"],
   audio: ["music-genre", "music-mood", "instrumentation", "voice-character", "voice-delivery"],
 }

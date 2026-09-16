@@ -4,10 +4,14 @@ import {
   SCENE3D_REMEDY_AUTO_APPLIED_CODE,
   SCENE3D_REVIEW_REFUSED_CODE,
   SCENE3D_REVIEW_UNAVAILABLE_CODE,
+  SCENE3D_REVIEW_UNAVAILABLE_REASONS,
+  isScene3DReviewUnavailableReason,
   scene3DReviewNote,
   scene3DReviewVerdictOf,
   type Scene3DAuthoringDelivery,
   type Scene3DAuthoringValidation,
+  type Scene3DReviewUnavailable,
+  type Scene3DReviewUnavailableReason,
   type Scene3DReviewVerdict,
 } from "../scene3d-delivery-notes.js"
 import { isPro3DRenderJobOutput, pro3DRenderJobOutputSchema, pro3DRenderReviewVerdictSchema } from "../pro-3d-render.js"
@@ -122,6 +126,22 @@ describe("scene3DReviewVerdictOf", () => {
   it("still refuses a verdict it has never heard of, on either arm", () => {
     expect(scene3DReviewVerdictOf({ metadata: { review: { verdict: "unreachable", objections: [] } } })).toBeUndefined()
   })
+
+  /**
+   * Round 10ag: a review the provider ANSWERED, unusably on every asking, is the same unreviewed
+   * delivery with `reason: "unusable"`. The reader used to hard-code `"provider"`, so every SDK
+   * consumer that went through it lost the one field that makes "did not reach its provider"
+   * untrue — and then printed that sentence.
+   */
+  it("keeps the unusable reason, and reads a reason it does not know as provider", () => {
+    expect(scene3DReviewVerdictOf({
+      metadata: { review: { verdict: "unavailable", reason: "unusable", attempts: 2, objections: [] } },
+    })).toEqual({ verdict: "unavailable", reason: "unusable", attempts: 2, objections: [] })
+    for (const reason of ["weather", "", 7, null, undefined, { cause: "unusable" }]) {
+      expect(scene3DReviewVerdictOf({ metadata: { review: { verdict: "unavailable", reason, attempts: 2, objections: [] } } }))
+        .toEqual({ verdict: "unavailable", reason: "provider", attempts: 2, objections: [] })
+    }
+  })
 })
 
 /**
@@ -145,6 +165,34 @@ describe("scene3DReviewNote", () => {
       objections: [{ category: "motion", what: "No crossing.", frames: [] }],
     })
     expect(partial).toContain("not the whole verdict")
+  })
+
+  /**
+   * Pinned WORD FOR WORD, both arms, against the sentence the engine's own leading
+   * `SCENE_REVIEW_UNAVAILABLE` warning carries (`sceneReviewUnavailableSentence`, delivered lane).
+   * A banner that paraphrases the warning printed right under it describes one run two ways.
+   */
+  it("says the review returned no usable verdict when the provider answered, in the engine's words", () => {
+    expect(scene3DReviewNote({ verdict: "unavailable", reason: "unusable", attempts: 2, objections: [] }))
+      .toBe("The scene built and every mandatory assertion passed, but the visual review returned no "
+        + "usable verdict in 2 attempts; it was delivered unreviewed.")
+    expect(scene3DReviewNote({ verdict: "unavailable", reason: "provider", attempts: 2, objections: [] }))
+      .toBe("The scene built and every mandatory assertion passed, but the visual review did not reach "
+        + "its provider in 2 attempts; it was delivered unreviewed.")
+    const unusable = scene3DReviewNote({
+      verdict: "unavailable", reason: "unusable", attempts: 1,
+      objections: [{ category: "motion", what: "No crossing.", frames: [] }],
+    })
+    expect(unusable).toContain("returned no usable verdict in one attempt")
+    expect(unusable).toContain("not the whole verdict")
+    expect(unusable).not.toMatch(/reach its provider|refus/i)
+  })
+
+  /** Totality over the one list: a reason added to it must get its own sentence, not inherit one. */
+  it("gives every known reason a distinct sentence", () => {
+    const notes = SCENE3D_REVIEW_UNAVAILABLE_REASONS.map((reason) =>
+      scene3DReviewNote({ verdict: "unavailable", reason, attempts: 2, objections: [] }))
+    expect(new Set(notes).size).toBe(SCENE3D_REVIEW_UNAVAILABLE_REASONS.length)
   })
 
   it("reports a refusal as a refusal, including one that named nothing actionable", () => {
@@ -181,6 +229,41 @@ describe("pro3DRenderReviewVerdictSchema", () => {
     const bare = pro3DRenderReviewVerdictSchema.safeParse({ verdict: "unavailable", objections: [] })
     expect(bare.success).toBe(true)
     expect(bare.success && bare.data).toMatchObject({ reason: "provider", attempts: 1 })
+  })
+
+  /** Round 10ag's wire value. It used to parse — and be rewritten to `"provider"` on the way. */
+  it("keeps reason unusable rather than rewriting it to provider", () => {
+    const parsed = pro3DRenderReviewVerdictSchema.safeParse({
+      verdict: "unavailable", reason: "unusable", attempts: 2, objections: [],
+    })
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data).toMatchObject({ verdict: "unavailable", reason: "unusable", attempts: 2 })
+  })
+
+  it("still falls back to provider for a reason it does not know, rather than refusing the verdict", () => {
+    for (const reason of ["weather", "", 7, null, ["unusable"]]) {
+      const parsed = pro3DRenderReviewVerdictSchema.safeParse({ verdict: "unavailable", reason, attempts: 2, objections: [] })
+      expect(parsed.success).toBe(true)
+      expect(parsed.success && parsed.data).toMatchObject({ reason: "provider", attempts: 2 })
+    }
+  })
+
+  /**
+   * The guard that keeps ONE list: every reason the package declares survives the schema AND the
+   * hand reader unchanged, and the type the SDK exports is exactly that list. A reason added to the
+   * list but not to a reader — the drift this round fixed — fails here.
+   */
+  it("round-trips every declared reason through both readers, and types the reason as that list", () => {
+    for (const reason of SCENE3D_REVIEW_UNAVAILABLE_REASONS) {
+      const review = { verdict: "unavailable", reason, attempts: 2, objections: [] }
+      const parsed = pro3DRenderReviewVerdictSchema.safeParse(review)
+      expect(parsed.success && parsed.data).toMatchObject({ reason })
+      expect(scene3DReviewVerdictOf({ metadata: { review } })).toMatchObject({ reason })
+      expect(isScene3DReviewUnavailableReason(reason)).toBe(true)
+    }
+    expect(isScene3DReviewUnavailableReason("weather")).toBe(false)
+    expectTypeOf<Scene3DReviewUnavailable["reason"]>().toEqualTypeOf<Scene3DReviewUnavailableReason>()
+    expectTypeOf<Scene3DReviewUnavailableReason>().toEqualTypeOf<"provider" | "unusable">()
   })
 })
 
@@ -219,6 +302,14 @@ describe("isPro3DRenderJobOutput with a review nobody could perform", () => {
     expect(isPro3DRenderJobOutput(completed({
       verdict: "unavailable", reason: "provider", attempts: 2, objections: [],
     }))).toBe(true)
+  })
+
+  it("accepts the delivered result of a scene whose review answered unusably, and keeps the reason", () => {
+    const parsed = pro3DRenderJobOutputSchema.safeParse(completed({
+      verdict: "unavailable", reason: "unusable", attempts: 2, objections: [],
+    }))
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.metadata.review).toMatchObject({ verdict: "unavailable", reason: "unusable" })
   })
 
   it("still accepts the refused verdict it always did, and the clean result with no review", () => {

@@ -105,7 +105,7 @@ export function addNote(receipt, note) {
  */
 /**
  * Record that a run DELIVERED a scene the visual reviewer did not approve —
- * because it refused the scene, or because it never answered at all.
+ * because it refused the scene, or because it gave no usable verdict at all.
  *
  * Deliberately a flag beside the verdict rather than a new receipt status or a
  * failing assertion. Either delivery is a real, paid, usable result — the video

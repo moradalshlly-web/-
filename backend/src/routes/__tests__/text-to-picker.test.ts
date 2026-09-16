@@ -8,7 +8,7 @@ describe("batchTargetPickers", () => {
     expect(batchTargetPickers(targets)).toEqual([targets])
   })
 
-  it("the full default (all 38) fans out per family, covering every requested picker exactly once", () => {
+  it("the full default (all 39) fans out per family, covering every requested picker exactly once", () => {
     const batches = batchTargetPickers([...PICKER_TYPES])
     expect(batches.length).toBe(Object.keys(PICKER_ANALYZER_FAMILIES).length)
     const flat = batches.flat()

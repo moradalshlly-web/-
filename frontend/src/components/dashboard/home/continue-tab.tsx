@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { FlagshipApps } from "@/components/dashboard/flagship-apps"
+import { ImportJsonButton } from "@/components/dashboard/home/import-json-button"
 import { MyWorkflowsView } from "@/components/dashboard/my-workflows-view"
 import { ProjectsGridView } from "@/components/dashboard/projects-grid-view"
 import { StudioWorkflowsView } from "@/components/dashboard/studio-workflows-view"
@@ -127,7 +128,19 @@ export function ContinueTab({
       )}
 
       <section className={showApps ? "mt-6" : undefined}>
-        <SectionTitle title={t("home.section.jumpBackIn")} trailing={showApps ? undefined : <ThemeSwitch />} />
+        {/* Import JSON rides in the heading row, not the controls row below it:
+            it makes a workflow, and the controls under it filter the ones that
+            already exist. The theme switch joins it here only when the apps
+            band above is hidden and has not already taken it. */}
+        <SectionTitle
+          title={t("home.section.jumpBackIn")}
+          trailing={
+            <div className="flex items-center gap-4">
+              {!showApps && <ThemeSwitch />}
+              <ImportJsonButton />
+            </div>
+          }
+        />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <SegmentedControl
             label={t("home.section.jumpBackIn")}

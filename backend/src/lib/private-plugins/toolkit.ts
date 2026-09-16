@@ -83,6 +83,7 @@ import { buildJobInputData } from "../job-input-data.js"
 import { formatZodError } from "../zod-error.js"
 import { insertWithIdempotencyKey } from "../idempotent-insert.js"
 import { billingPairColumns } from "../insert-job.js"
+import { jobSourceColumns } from "../job-source.js"
 import { throwIfJobCancelled } from "../job-cancellation.js"
 import { hasCredits, hasOrganizations } from "../config.js"
 import { appBaseUrl } from "../deployment-urls.js"
@@ -115,6 +116,7 @@ import { promises as fs } from "node:fs"
 import type { ZodType } from "zod"
 import type { PluginEntityRead, PluginEntityTable, PluginInternalRequestOptions, PluginOwnedJobRow } from "./types.js"
 import type { PluginToolkit, PluginLlmRequest, PluginLlmMultimodalRequest, PluginVideoGenOptions, PluginVideoGenResult, PluginImageGenOptions, PluginImageGenResult, PluginMusicGenOptions, PluginMusicGenResult, PipelineSnapshot } from "./types.js"
+import { applyFrameFitAndDelivery } from "../video-frame-dispatch.js"
 
 /**
  * Assembles the real `PluginToolkit` dependency-injection surface handed to
@@ -179,6 +181,8 @@ function toProviderOptions(options: PluginVideoGenOptions | undefined, aspectRat
     referenceImageUrls: options?.referenceImageUrls,
     referenceVideoUrls: options?.referenceVideoUrls,
     referenceAudioUrls: options?.referenceAudioUrls,
+    frameFit: options?.frameFit,
+    frameDelivery: options?.frameDelivery,
     ...(aspectRatio !== undefined ? { aspectRatio } : {}),
   }
 }
@@ -211,17 +215,27 @@ async function pluginImageToVideo(
   aspectRatio: string,
   options?: PluginVideoGenOptions,
 ): Promise<PluginVideoGenResult> {
-  const result = await new KieVideoProvider().imageToVideo(
+  // Frames are shaped here too: this path calls the KIE provider DIRECTLY, so
+  // the router's fit/delivery step never runs for a plugin render (gvp, recast,
+  // studio). Same call, same defaults — see lib/video-frame-dispatch.ts.
+  const shaped = await applyFrameFitAndDelivery({
+    model,
     imageUrl,
+    endFrameUrl: options?.endFrameUrl,
     prompt,
+    options: toProviderOptions(options, aspectRatio),
+  })
+  const result = await new KieVideoProvider().imageToVideo(
+    shaped.imageUrl,
+    shaped.prompt,
     model,
     durationSec,
     // The FINAL segment of a generate-video-pro run may carry the user's
     // closing frame (plugin contract PluginVideoGenOptions.endFrameUrl) —
     // positional here, where the Seedance-2 input resolver turns it into the
     // closing-frame reference hint. Undefined for every other segment.
-    options?.endFrameUrl,
-    toProviderOptions(options, aspectRatio),
+    shaped.endFrameUrl,
+    shaped.options,
     toReconcileOpts(options),
   )
   return { url: result.url, taskId: result.kieTaskId }
@@ -1344,15 +1358,25 @@ export function buildToolkit(): PluginToolkit {
       safeFetchBytes,
       // Mirrors `insertWithIdempotencyKey` (`lib/idempotent-insert.ts:33`),
       // narrowed to the "jobs" table + the one column the contract needs.
-      insertJobWithIdempotencyKey: async (data, idempotencyKey, billingContext) => {
-        // P14: the payer pair is spread AFTER the plugin's row — the ONE
+      insertJobWithIdempotencyKey: async (data, idempotencyKey, billingContext, req) => {
+        // The calling surface goes UNDER the plugin's row (caller wins, as in
+        // `insertJob`); the P14 payer pair is spread AFTER it — the ONE
         // exception to caller-wins, same as withJobProvenance.
         const { row, created } = await insertWithIdempotencyKey<{ id: string }>(
           "jobs",
-          { ...data, ...billingPairColumns(billingContext) },
+          { ...(req ? jobSourceColumns(req) : {}), ...data, ...billingPairColumns(billingContext) },
           idempotencyKey,
         )
         return { id: row.id, created }
+      },
+      computeVoiceChangerProPricing: async (args) => {
+        if (!hasCredits()) {
+          throw new Error("computeVoiceChangerProPricing requires a Cloud-edition build")
+        }
+        const { computeVoiceChangerProPricing: computePricing } = await import(
+          "../../ee/billing/voice-changer-pro-credits.js"
+        )
+        return computePricing(args)
       },
       // Dynamic import keeps the core/ee boundary: this file (core) may not
       // statically import `ee/` (tools/check-ee-imports.mjs). Gated on

@@ -632,6 +632,142 @@
       "expected": "Mira transforms into a werewolf — fur sprouts across the skin, fangs and claws extend, the snout elongates, eyes glow yellow, body re-shapes with visible muscle and bone movement, clothing tears"
     },
     {
+      "key": "character-motion/id:auto",
+      "note": "single-dim catalog id",
+      "node": {
+        "id": "n1",
+        "type": "character-motion",
+        "data": {
+          "characterMotion": "auto"
+        }
+      },
+      "ctx": null,
+      "expected": ""
+    },
+    {
+      "key": "character-motion/id:let-the-jaw-drop",
+      "note": "single-dim catalog id",
+      "node": {
+        "id": "n1",
+        "type": "character-motion",
+        "data": {
+          "characterMotion": "let-the-jaw-drop"
+        }
+      },
+      "ctx": null,
+      "expected": "the subject lets the jaw fall open under its own weight until the mouth hangs wide and slack, the lips loose and the tongue still, holding it open while the rest of the face stays blank"
+    },
+    {
+      "key": "character-motion/id:sprint-start",
+      "note": "single-dim catalog id",
+      "node": {
+        "id": "n1",
+        "type": "character-motion",
+        "data": {
+          "characterMotion": "sprint-start"
+        }
+      },
+      "ctx": null,
+      "expected": "the subject crouches in starting blocks with fingertips on the line, raises the pelvis into the set position, then drives forward off the front foot in a low lean and accelerates into full stride"
+    },
+    {
+      "key": "character-motion/multi-pick",
+      "note": "array of 2 ids on \"characterMotion\"",
+      "node": {
+        "id": "n1",
+        "type": "character-motion",
+        "data": {
+          "characterMotion": [
+            "walk-in-from-left",
+            "walk-in-from-right"
+          ]
+        }
+      },
+      "ctx": null,
+      "expected": "the subject walks into frame from the left edge at an even stride, weight rolling heel to toe, crosses toward center and stops facing forward, then the subject walks into frame from the right edge at an even stride, weight rolling heel to toe, crosses toward center and stops facing forward"
+    },
+    {
+      "key": "character-motion/pre-post",
+      "note": "preText + postText wrap the base fragment",
+      "node": {
+        "id": "n1",
+        "type": "character-motion",
+        "data": {
+          "characterMotion": "walk-in-from-left",
+          "preText": "shot on location",
+          "postText": "no text overlays"
+        }
+      },
+      "ctx": null,
+      "expected": "shot on location, the subject walks into frame from the left edge at an even stride, weight rolling heel to toe, crosses toward center and stops facing forward, no text overlays"
+    },
+    {
+      "key": "character-motion/sequence-timing",
+      "note": "character-motion: three ordered picks + position + pace, no ctx",
+      "node": {
+        "id": "n1",
+        "type": "character-motion",
+        "data": {
+          "characterMotion": [
+            "walk-in-from-left",
+            "turn-to-camera",
+            "wave-hello"
+          ],
+          "position": "middle",
+          "pace": "slow"
+        }
+      },
+      "ctx": null,
+      "expected": "the subject walks into frame from the left edge at an even stride, weight rolling heel to toe, crosses toward center and stops facing forward, then the subject turns from back-to-camera around to face front, stepping the feet through the rotation, shoulders squaring to the camera and weight settling evenly on both feet, then the subject lifts one hand to shoulder height, palm forward, and waves it side to side in a friendly greeting before letting the arm drop back to the side, the movement begins midway through the clip, performed slowly and deliberately, each phase of the movement given its full time"
+    },
+    {
+      "key": "character-motion/with-ctx",
+      "note": "character-motion substituting upstream names for 'the subject' and 'the partner'",
+      "node": {
+        "id": "n1",
+        "type": "character-motion",
+        "data": {
+          "characterMotion": [
+            "walk-in-from-left",
+            "hug-partner"
+          ]
+        }
+      },
+      "ctx": {
+        "nodes": [
+          {
+            "id": "c1",
+            "type": "character-ref",
+            "data": {
+              "characterName": "Mira"
+            }
+          },
+          {
+            "id": "c2",
+            "type": "character-ref",
+            "data": {
+              "characterName": "Theo"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "c1",
+            "target": "n1",
+            "sourceHandle": "output",
+            "targetHandle": "target"
+          },
+          {
+            "source": "c2",
+            "target": "n1",
+            "sourceHandle": "output",
+            "targetHandle": "partner"
+          }
+        ]
+      },
+      "expected": "Mira walks into frame from the left edge at an even stride, weight rolling heel to toe, crosses toward center and stops facing forward, then Mira steps toward Theo, opens both arms and wraps them around Theo's back in a firm hug, holds the hug, and loosens the arms to step back"
+    },
+    {
       "key": "color-look/id:lifestyle-warm-magazine",
       "note": "single-dim catalog id",
       "node": {

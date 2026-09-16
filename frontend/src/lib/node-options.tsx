@@ -41,6 +41,7 @@ import {
   FastForward,
   FileText,
   Film,
+  Footprints,
   ImagePlay,
   GalleryHorizontalEnd,
   Frame,
@@ -335,6 +336,14 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
     category: "Pickers",
     group: "cc-motion-time",
     keywords: ["camera", "shot", "movement", "orbit", "pan", "tilt", "dolly", "crane", "zoom"],
+  },
+  {
+    type: "character-motion",
+    label: "Character Motion",
+    icon: <Footprints className="h-4 w-4" />,
+    category: "Pickers",
+    group: "cc-motion-time",
+    keywords: ["character", "motion", "movement", "move", "walk", "run", "turn", "dance", "runway", "catwalk", "duck", "dodge", "fight", "shoot", "gun", "sword", "jump", "gesture", "wave", "nod", "enter", "exit", "perform", "choreography", "action", "sequence"],
   },
   {
     type: "transition",

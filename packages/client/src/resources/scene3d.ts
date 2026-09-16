@@ -163,8 +163,9 @@ export class Scene3DResource {
    * completed result whose `metadata.review` is present passed every mandatory
    * assertion but did NOT get the visual reviewer's approval: `verdict:
    * "refused"` means it objected, each objection also a `SCENE_REVIEW_REFUSED`
-   * warning; `verdict: "unavailable"` means the review never reached its
-   * provider in `attempts` asks, so nobody judged the scene and
+   * warning; `verdict: "unavailable"` means the review produced no usable
+   * verdict in `attempts` asks (`reason: "provider"` — never reached its
+   * provider; `"unusable"` — it answered, unusably), so nobody judged the scene and
    * `SCENE_REVIEW_UNAVAILABLE` leads the warnings. Re-render that same
    * `scenePlan` later with {@link render}, or with a `{kind:'scene'}` source;
    * that costs no authoring.

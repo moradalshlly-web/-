@@ -24,6 +24,7 @@ import { resolveNodeInputs } from "./input-resolver.js"
 import { normalizeLegacyNodeTypes } from "./normalize-node-types.js"
 import { extractSourceNodeOutput, getPrimaryOutput } from "./output-extractor.js"
 import { executeNode } from "./node-executor.js"
+import { labelRefHintContext } from "./label-ref-hint-context.js"
 import type {
   SimpleNode,
   SimpleEdge,
@@ -220,7 +221,8 @@ export async function executeSubWorkflow(
       // main orchestrator: pre-complete them so they never reach executeNode
       // (which would create a stale jobs row → buildPayload throw "Unknown node
       // type" → fail the whole sub-workflow), while still exposing their hint.
-      const hint = getParameterPromptHint(subNode)
+      // Graph-composed pickers get the SUB-graph (labelRefHintContext).
+      const hint = getParameterPromptHint(subNode, labelRefHintContext(subNode, subNodes, subEdges))
       nodeStates[subNode.id] = {
         status: "completed",
         output: hint ? { text: hint } : {},

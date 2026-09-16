@@ -33,7 +33,7 @@ describe("catalog guard placement", () => {
     const src = read("workers/orchestrator-worker.ts")
     const merge = src.indexOf("applyInputOverridesToNodes(nodes, inputOverrides)")
     const guard = src.indexOf("findForeignCatalogIds(nodes)")
-    const preComplete = src.indexOf("getParameterPromptHint(node)")
+    const preComplete = src.indexOf("getParameterPromptHint(node, ")
     expect(merge, "override merge present").toBeGreaterThan(-1)
     expect(guard, "guard present").toBeGreaterThan(-1)
     expect(preComplete, "pre-completion present").toBeGreaterThan(-1)

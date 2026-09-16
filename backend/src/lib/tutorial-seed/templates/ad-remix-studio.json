@@ -1,0 +1,474 @@
+{
+  "slug": "ad-remix-studio",
+  "name": "Ad Remix Studio",
+  "description": "A photo of an ad you liked in the street in, three finished ads for your brand out — square, story and banner — in that ad's look with your product as the hero, each composed for its shape. Its words, brand and product never appear in yours.",
+  "markdownDescription": "## Ad Remix Studio\n\nA photo of an ad you liked in the street becomes three finished ads for your brand — square, story and banner — in that ad's look, with your product as the hero. Its words, its brand and its product never appear in yours.\n\n1. **Street ad photo** — the poster, billboard or subway ad that caught your eye.\n2. **Product photo** — a clean packshot. The hero of every format.\n3. **Brand notes** — name, tone of voice, what to say. Colours only if the ad must stay on-brand.\n4. **Ad formula** — an AI writes down what to carry over: colour, typography, layout, how the product is shown, the headline's pattern.\n5. **Ad prompt** — an AI creative director remixes it for your product: a new headline in the same pattern, a small line, a button, the look.\n6. **Three formats** — square, story, banner. Same look, your product, each composed for its shape.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "remix",
+    "inspiration",
+    "product",
+    "formats"
+  ],
+  "complexity": "beginner",
+  "estimatedCredits": 49,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/c599f555-2dc4-46bd-87df-65b7e91eb328.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 21,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A photo of an ad you liked in the street goes in, with your product and a few brand notes; three finished ads for your brand come out — square, story and banner — in that ad's look, with your product as the hero. Its words, its brand and its product never appear in yours.\n\n1. Street ad photo — the poster, billboard or subway ad that caught your eye.\n2. Product photo — a clean packshot. It is the hero of every format.\n3. Brand notes — name, tone of voice, what to say. Plain words.\n4. Ad formula — an AI writes down what to carry over: colour, typography, layout, how the product is shown, the headline's pattern.\n5. Ad prompt — an AI creative director remixes it for your product: a new headline in the same pattern, a small line, a button, the look.\n6. Three formats — square, story, banner. Same look, your product, each composed for its shape.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Ad remix studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-street",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "A photo of any ad that caught your eye: a poster, a billboard, a subway panel. Its look is what you borrow — the colour, the typography, the way the product is shown, the attitude of the headline. The three formats get this photo as their look reference; its words, its brand and its product never appear in yours.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Street ad photo",
+        "width": 640,
+        "height": 430,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1770
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. It is the one thing that stays exactly as it is: every format gets it as a reference, so the product, its label and its colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Product photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2490
+      },
+      "data": {
+        "bold": false,
+        "text": "Who you are, in plain words: brand name, tone of voice, the one thing to say. Mention colours only if the ad must stay on-brand — otherwise the look of the street ad carries over. The headline is written in this voice.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Brand notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-engine",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Ad formula: an AI describes what to carry over from the street ad — background colour and finish, typography, where everything sits, how the product is shown, the headline's pattern and attitude — without its words or its brand. Ad prompt: an AI creative director remixes it for your product and brand: a new headline in the same pattern, a small line, a button and the look. Read both, edit either by hand, then rerun the formats.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Ad formula + Ad prompt",
+        "width": 560,
+        "height": 600,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-formats",
+      "type": "sticky-note",
+      "position": {
+        "x": 2340,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Each format gets two references — the street ad for the look, your packshot for the product — and the same brief, and adds its own composition line, so the headline, the product and the space around them are arranged for that shape. Rerun one format alone for a new take on it.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Three formats",
+        "width": 2040,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "street-ad",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/6ae815a1-0ee5-4b7c-b3b2-2676e8d218f3.png",
+        "label": "Street ad photo",
+        "r2Url": "https://cdn.nodaro.ai/images/6ae815a1-0ee5-4b7c-b3b2-2676e8d218f3.png",
+        "assetId": "6ae815a1-0ee5-4b7c-b3b2-2676e8d218f3",
+        "filename": "subway-poster-sparkling-water-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/6ae815a1-0ee5-4b7c-b3b2-2676e8d218f3.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1770
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/2dedf4e3-682d-4b7d-a4a5-de46c83ade38.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/2dedf4e3-682d-4b7d-a4a5-de46c83ade38.png",
+        "assetId": "2dedf4e3-682d-4b7d-a4a5-de46c83ade38",
+        "filename": "energy-bar-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/2dedf4e3-682d-4b7d-a4a5-de46c83ade38.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2490
+      },
+      "data": {
+        "text": "TRAILBAR — oat and almond energy bar, six ingredients, no added sugar. Tone: dry humour, confident, short sentences.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "formula",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1530
+      },
+      "data": {
+        "label": "Ad formula",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the formula of the ad in the reference photo.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative strategist who decodes advertising for a remix. Look at the reference photo of a street, billboard or transit ad and describe, in ONE paragraph of 90 to 130 words, plain English, present tense, exactly what to carry over into a new ad for a different product: the background colour and its finish (flat, gradient, textured); the typography of the headline and of the small line — weight, width, case, colour; where each element sits and how big it is (headline, product, small line, badge or button); how the product is shown (angle, scale, lighting, droplets, shadows, props); the kind of hook and the headline's pattern as a fill-in-the-blank that keeps its attitude, for example: something ordinary is a judgement; and the mood. Describe the look and the pattern, never the specifics: do not quote the headline itself, do not name the brand or the product, do not describe the logo. No headings, no lists. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-prompt",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1950
+      },
+      "data": {
+        "label": "Ad prompt",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "The formula: {Ad formula || a flat single-colour background, the product large and tilted in the centre, a huge condensed headline above it, a short punchline below.} Brand notes: {Brand notes || a confident brand with a dry sense of humour.} The reference image is the product. Write the remix.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are the creative director of a brand and an expert at briefing an image generator. You get a formula describing the look and the headline pattern of an ad that caught the client's eye, the client's brand notes, and a photo of the client's product. Remix that ad for this product: keep its look — the same background colour and finish, the same typography style, the same placement, scale and angle of the product, the same mood — unless the brand notes insist on other colours; and write a new headline that follows the original headline's pattern and attitude but is about this product, in the brand's voice. Answer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words, in the same pattern as the original>\"\nSmall line: \"<one short supporting line, at most ten words, playing the same role as the original's small line>\"\nButton: \"<one or two words>\"\nLook: <one paragraph of 60 to 90 words: background colour and finish, typography, where the headline, the product, the small line and the button sit and how big they are, how the product is shown, light and mood — all carried over from the formula. The product from the packshot is the hero and stays exactly as it is.>\nNever use the original ad's brand name or its exact headline. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-square",
+      "type": "generate-image",
+      "position": {
+        "x": 2340,
+        "y": 1190
+      },
+      "data": {
+        "label": "Square · 1:1",
+        "style": "",
+        "prompt": "Finished square 1:1 digital ad for a social feed. Two reference images: the photo of a poster in a street or station is the LOOK — take its layout, background colour and finish, typography style, product placement, angle and scale, lighting and mood; the packshot on a plain background is the PRODUCT — it must appear exactly as it is, with its own wrapper, label and colours, in the place and at the angle the poster gives its product. The brief: {Ad prompt || Headline: \"Boring snacks are a choice.\" Small line: \"Six ingredients. Nothing hiding.\" Button: \"Grab one\" Look: a flat bright single-colour background, the product large and slightly tilted in the centre, a huge condensed black headline across the top, the small line at the bottom, the button under it.} Render the headline, the small line and the button text exactly as written in the brief — same words, same spelling, same capitalisation — and no other text: never the poster's own words, brand name or logo. Composition for a square: headline across the top, product filling the centre, the small line and the button along the bottom, margins on every side. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-story",
+      "type": "generate-image",
+      "position": {
+        "x": 3080,
+        "y": 1190
+      },
+      "data": {
+        "label": "Story · 9:16",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen. Two reference images: the photo of a poster in a street or station is the LOOK — take its layout, background colour and finish, typography style, product placement, angle and scale, lighting and mood; the packshot on a plain background is the PRODUCT — it must appear exactly as it is, with its own wrapper, label and colours, in the place and at the angle the poster gives its product. The brief: {Ad prompt || Headline: \"Boring snacks are a choice.\" Small line: \"Six ingredients. Nothing hiding.\" Button: \"Grab one\" Look: a flat bright single-colour background, the product large and slightly tilted in the centre, a huge condensed black headline across the top, the small line at the bottom, the button under it.} Render the headline, the small line and the button text exactly as written in the brief — same words, same spelling, same capitalisation — and no other text: never the poster's own words, brand name or logo. Composition for a tall frame: headline in the top quarter, product tall in the middle with room around it, the small line and the button in the bottom sixth, everything clear of the very top and bottom edges. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-banner",
+      "type": "generate-image",
+      "position": {
+        "x": 3780,
+        "y": 1190
+      },
+      "data": {
+        "label": "Banner · 16:9",
+        "style": "",
+        "prompt": "Finished wide 16:9 banner ad for a display placement. Two reference images: the photo of a poster in a street or station is the LOOK — take its layout, background colour and finish, typography style, product placement, angle and scale, lighting and mood; the packshot on a plain background is the PRODUCT — it must appear exactly as it is, with its own wrapper, label and colours, in the place and at the angle the poster gives its product. The brief: {Ad prompt || Headline: \"Boring snacks are a choice.\" Small line: \"Six ingredients. Nothing hiding.\" Button: \"Grab one\" Look: a flat bright single-colour background, the product large and slightly tilted in the centre, a huge condensed black headline across the top, the small line at the bottom, the button under it.} Render the headline, the small line and the button text exactly as written in the brief — same words, same spelling, same capitalisation — and no other text: never the poster's own words, brand name or logo. Composition for a wide frame: product on one side, the headline with the small line and the button stacked on the other side, one clean horizontal layout with breathing room. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-street-formula",
+      "source": "street-ad",
+      "target": "formula",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-formula-prompt",
+      "source": "formula",
+      "target": "ad-prompt",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-prompt",
+      "source": "brand",
+      "target": "ad-prompt",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-prompt",
+      "source": "product",
+      "target": "ad-prompt",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prompt-ad-square",
+      "source": "ad-prompt",
+      "target": "ad-square",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-square",
+      "source": "product",
+      "target": "ad-square",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prompt-ad-story",
+      "source": "ad-prompt",
+      "target": "ad-story",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-story",
+      "source": "product",
+      "target": "ad-story",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-prompt-ad-banner",
+      "source": "ad-prompt",
+      "target": "ad-banner",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-banner",
+      "source": "product",
+      "target": "ad-banner",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-street-ad-square",
+      "source": "street-ad",
+      "target": "ad-square",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-street-ad-story",
+      "source": "street-ad",
+      "target": "ad-story",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-street-ad-banner",
+      "source": "street-ad",
+      "target": "ad-banner",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.286
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "brand": {
+          "title": "Brand notes",
+          "description": "Name, tone of voice, the one thing to say. Colours only if the ad must stay on-brand."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean packshot. It appears exactly as it is in every format."
+        },
+        "ad-story": {
+          "title": "Story",
+          "description": "9:16 for vertical placements — composed for a phone screen."
+        },
+        "ad-banner": {
+          "title": "Banner",
+          "description": "16:9 for wide placements — product on one side, headline on the other."
+        },
+        "ad-prompt": {
+          "title": "The ad, in words",
+          "description": "The paragraph the three formats were made from — edit it and rerun for a different take."
+        },
+        "ad-square": {
+          "title": "Square",
+          "description": "1:1 for the feed — headline on top, product in the centre."
+        },
+        "street-ad": {
+          "title": "Street ad photo",
+          "description": "A photo of the ad that caught your eye. Its look carries over; its words, brand and product never do."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "street-ad",
+        "product",
+        "brand"
+      ],
+      "outputOrder": [
+        "ad-square",
+        "ad-story",
+        "ad-banner",
+        "ad-prompt"
+      ]
+    }
+  }
+}

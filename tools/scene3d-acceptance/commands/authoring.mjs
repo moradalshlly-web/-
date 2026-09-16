@@ -92,8 +92,8 @@ export async function main(ctx) {
   ctx.save()
 
   // The critic's veto is advisory once the repair budget is spent, so a scene it
-  // refused still arrives `completed` with a real MP4 — and so does one its provider
-  // never answered about, which is delivered unreviewed rather than thrown away.
+  // refused still arrives `completed` with a real MP4 — and so does one whose review
+  // gave no usable verdict, which is delivered unreviewed rather than thrown away.
   // Both ARE deliveries and the assertion holds, but neither is a clean acceptance:
   // `completed-advisory` is reported as its own outcome so a ledger never reads them
   // as the same run, and the detail says WHICH so it never reads them as each other.

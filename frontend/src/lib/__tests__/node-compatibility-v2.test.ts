@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest"
-import { getCompatibleNodes, resolveTargetHandle, TYPED_HANDLE_IDS, type NodeOption } from "../node-compatibility"
+import { getCompatibleNodes, resolveTargetHandle, TYPED_HANDLE_IDS, type CompatibleNodes, type NodeOption } from "../node-compatibility"
 import { TARGET_HANDLE_ACCEPTS } from "../target-handle-registry"
 import type { SceneNodeType } from "@/types/nodes"
+import { IDENTITY_TYPES } from "../generate-image-handles"
 
 const opt = (type: string): NodeOption => ({
   type: type as SceneNodeType,
@@ -138,6 +139,13 @@ describe("getCompatibleNodes — typed-handle branches (camera-motion, transitio
     expect(direct).toEqual(new Set(["character", "face", "object", "location"]))
     expect(out.compatible).toEqual([])
   })
+
+  it.each(["target", "partner"])("character-motion's %s shows identity refs only", (handle) => {
+    const pool = [opt("character"), opt("face"), opt("object"), opt("location"), opt("mood"), opt("upload-image"), opt("text-prompt")]
+    const out = getCompatibleNodes(handle, "target", pool, "character-motion")
+    expect(new Set(out.direct.map((o) => o.type))).toEqual(new Set(["character", "face", "object", "location"]))
+    expect(out.compatible).toEqual([])
+  })
 })
 
 // TYPED_HANDLE_IDS is the single source of truth — exported from
@@ -218,5 +226,96 @@ describe("TYPED_HANDLE_IDS contract", () => {
       for (const e of entries) registryHandles.add(e.handleId)
     }
     expect(new Set(TYPED_HANDLE_IDS)).toEqual(registryHandles)
+  })
+})
+
+// Edge-drop from an identity ref pip (characterRef / faceRef / objectRef /
+// creatureRef / locationRef) onto empty canvas. HANDLE_COMPATIBILITY maps those
+// handles to themselves only, so the generic path offered just the nodes with an
+// `in` input (Character FX through its phantom `in`) and never Character Motion,
+// whose only inputs are `target` / `partner`. Nodes whose TARGET_HANDLE_ACCEPTS
+// entries accept the identity type are direct matches, wired to that handle; the
+// generic `in` tier is kept so the offered set only grows.
+describe("getCompatibleNodes / resolveTargetHandle — identity ref source drags", () => {
+  const pool = [
+    "character", "face", "object", "creature", "location",
+    "character-fx", "character-motion", "reference-sheet", "preview", "face-swap",
+    "generate-image", "generate-video", "motion-transfer", "image-to-image", "lip-sync",
+    "upload-image", "text-prompt", "combine-videos", "mood",
+  ].map(opt)
+  const offered = (r: CompatibleNodes) => new Set<string>([...r.direct, ...r.compatible].map((o) => o.type))
+
+  // Every identity type's ref output. Pinned against IDENTITY_TYPES so a new
+  // identity type fails here until its ref handle is listed.
+  const REF_HANDLES: ReadonlyArray<readonly [string, string]> = [
+    ["character", "characterRef"],
+    ["face", "faceRef"],
+    ["object", "objectRef"],
+    ["creature", "creatureRef"],
+    ["location", "locationRef"],
+  ]
+
+  it("covers every identity type", () => {
+    expect(new Set(REF_HANDLES.map(([t]) => t))).toEqual(new Set(IDENTITY_TYPES))
+  })
+
+  it("a characterRef drag offers character-motion as a direct match, wired to `target`", () => {
+    const r = getCompatibleNodes("characterRef", "source", pool, "character")
+    expect(r.directTypes.has("character-motion" as SceneNodeType)).toBe(true)
+    expect(resolveTargetHandle("character-motion", "characterRef", "source")).toBe("target")
+  })
+
+  it.each(REF_HANDLES)("a %s drag (%s) offers character-motion, wired to `target`", (type, handle) => {
+    const r = getCompatibleNodes(handle, "source", pool, type)
+    expect(r.directTypes.has("character-motion" as SceneNodeType)).toBe(true)
+    expect(resolveTargetHandle("character-motion", handle, "source")).toBe("target")
+  })
+
+  it.each(REF_HANDLES)("a %s drag (%s) still offers Character FX, wired to its rendered `target`", (type, handle) => {
+    const r = getCompatibleNodes(handle, "source", pool, type)
+    expect(offered(r).has("character-fx")).toBe(true)
+    expect(resolveTargetHandle("character-fx", handle, "source")).toBe("target")
+  })
+
+  it.each(REF_HANDLES)("a %s drag (%s) offers every registry-accepting node, wired to an accepting handle", (type, handle) => {
+    const r = getCompatibleNodes(handle, "source", pool, type)
+    for (const option of pool) {
+      const accepting = (TARGET_HANDLE_ACCEPTS[option.type] ?? []).filter((e) => e.accepts(type)).map((e) => e.handleId)
+      if (accepting.length === 0) continue
+      expect(r.directTypes.has(option.type), option.type).toBe(true)
+      expect(accepting, option.type).toContain(resolveTargetHandle(option.type, handle, "source"))
+    }
+  })
+
+  // Snapshot taken before the change: what these drags offered then must all
+  // still be offered.
+  it("drops nothing that was offered before", () => {
+    const BEFORE_WITHOUT_FACE_SWAP = [
+      "character", "face", "object", "creature", "location", "character-fx",
+      "reference-sheet", "preview", "upload-image", "text-prompt", "combine-videos", "mood",
+    ]
+    for (const [type, handle] of REF_HANDLES) {
+      const before = type === "face" ? [...BEFORE_WITHOUT_FACE_SWAP, "face-swap"] : BEFORE_WITHOUT_FACE_SWAP
+      const now = offered(getCompatibleNodes(handle, "source", pool, type))
+      for (const t of before) expect(now.has(t), `${handle} → ${t}`).toBe(true)
+    }
+  })
+
+  // Snapshot taken before the change, over the same pool: an `image` drag (from a
+  // plain image producer, and from a Character's own `image` pip, which is not an
+  // identity ref) is byte-identical — tiers, order and resolved handles.
+  it.each([["upload-image"], ["character"]])("an `image` drag from %s is unchanged", (sourceType) => {
+    const r = getCompatibleNodes("image", "source", pool, sourceType)
+    expect(r.direct.map((o) => o.type)).toEqual(["face-swap", "generate-video", "motion-transfer", "lip-sync"])
+    expect(r.compatible.map((o) => o.type)).toEqual([
+      "character", "face", "object", "creature", "location", "character-fx",
+      "reference-sheet", "preview", "upload-image", "text-prompt", "combine-videos", "mood",
+    ])
+    const handles = Object.fromEntries([...r.direct, ...r.compatible].map((o) => [o.type, resolveTargetHandle(o.type, "image", "source")]))
+    expect(handles).toEqual({
+      "face-swap": "face", "generate-video": "startFrame", "motion-transfer": "image", "lip-sync": "image",
+      character: "in", face: "in", object: "in", creature: "in", location: "in", "character-fx": "in",
+      "reference-sheet": "in", preview: "in", "upload-image": "in", "text-prompt": "in", "combine-videos": "in", mood: "in",
+    })
   })
 })

@@ -38,6 +38,8 @@ import { composeCameraMotionHintFromConnections } from "./camera-motions.js"
 import { joinHintFragments } from "./hint-join.js"
 import { composeTransitionHintFromConnections, type TransitionDuration, type TransitionIntensity, type TransitionPosition, type TransitionTiming } from "./transitions.js"
 import { composeCharacterFxHintFromConnections, type CharacterFxDuration, type CharacterFxIntensity, type CharacterFxPosition, type CharacterFxTiming } from "./character-fx.js"
+import { composeCharacterMotionHintFromConnections, type CharacterMotionPace, type CharacterMotionPosition, type CharacterMotionTiming } from "./character-motion.js"
+import { containsMinorAgeHint, isMinorAge } from "./age-floor.js"
 import { buildMaterialHints } from "./materials.js"
 import { curatedAnimalPromptHint, curatedAnimalTerm, curatedVehicleText, curatedWeaponText, curatedFurnitureText } from "./shared-catalog-overlay.js"
 import { getPhotoGenrePromptHint, getPhotoGenreTerm } from "./photo-genre.js"
@@ -71,6 +73,55 @@ function extractCharacterRefName(node: HintNodeLike): string | undefined {
     if (typeof v === "string" && v.trim().length > 0) return v.trim()
   }
   return undefined
+}
+
+/** Character Motion's name read: the shared character / face / object / location
+ *  read, then a creature's `creatureName`. Local to Character Motion so the
+ *  Character FX prompt, which shares `extractCharacterRefName`, stays unchanged. */
+function extractCharacterMotionRefName(node: HintNodeLike): string | undefined {
+  const name = extractCharacterRefName(node)
+  if (name) return name
+  const creatureName = asStr(((node.data ?? {}) as Record<string, unknown>).creatureName).trim()
+  return creatureName.length > 0 ? creatureName : undefined
+}
+
+/** Free-text fields a character / face / object / location ref node describes its subject in.
+ *  A creature ref uses the same `description` / `canonicalDescription` names. */
+const REF_DESCRIPTION_FIELDS = ["description", "seedPrompt", "canonicalDescription"] as const
+
+/** True when a character / face / object / location ref node describes a minor:
+ *  its structured `person` age (the primary signal) or an age phrase in its
+ *  free-text description. Feeds the Character Motion floor (adult-only moves
+ *  dropped) — errs toward flooring, never toward letting an adult-only move through. */
+function extractCharacterRefMinor(node: HintNodeLike): boolean {
+  const d = (node.data ?? {}) as Record<string, unknown>
+  const person = d.person
+  if (person && typeof person === "object" && !Array.isArray(person) && isMinorAge(person as Parameters<typeof isMinorAge>[0])) {
+    return true
+  }
+  return REF_DESCRIPTION_FIELDS.some((field) => containsMinorAgeHint(asStr(d[field])))
+}
+
+/** The preview, diagnostics and execution use identical graph bindings. */
+export function getCharacterMotionBindings(node: HintNodeLike, ctx?: HintGraphContext) {
+  const targetNames: string[] = []
+  const partnerNames: string[] = []
+  const targetIds = new Set<string>()
+  const partnerIds = new Set<string>()
+  let subjectMinor = false
+  for (const edge of ctx?.edges ?? []) {
+    if (edge.target !== node.id || (edge.targetHandle !== "target" && edge.targetHandle !== "partner")) continue
+    const src = ctx?.nodes.find(n => n.id === edge.source)
+    if (!src) continue
+    if (edge.targetHandle === "target") targetIds.add(src.id)
+    else partnerIds.add(src.id)
+    if (extractCharacterRefMinor(src)) subjectMinor = true
+    const name = extractCharacterMotionRefName(src)
+    if (!name) continue
+    const names = edge.targetHandle === "target" ? targetNames : partnerNames
+    if (!names.includes(name)) names.push(name)
+  }
+  return { targetNames, partnerNames, subjectMinor, selfPairing: [...targetIds].some(id => partnerIds.has(id)) }
 }
 
 /** Compose `[preText, mainHint, postText]` into a comma-joined string,
@@ -217,6 +268,26 @@ function resolveParameterHint(
       if (name) targetNames.push(name)
     }
     return withCustomText(data, composeCharacterFxHintFromConnections(effectId, targetNames, timing, mode))
+  }
+
+  if (node.type === "character-motion") {
+    const raw = data.characterMotion
+    const motionId: string | string[] | undefined =
+      Array.isArray(raw)
+        ? raw.filter((s): s is string => typeof s === "string" && s.length > 0)
+        : (asStr(raw) || undefined)
+    const timing: CharacterMotionTiming = {
+      position: asStr(data.position) as CharacterMotionPosition | undefined,
+      pace:     asStr(data.pace)     as CharacterMotionPace     | undefined,
+    }
+    if (!ctx) {
+      return withCustomText(data, composeCharacterMotionHintFromConnections(motionId, [], [], timing, mode))
+    }
+    const { targetNames, partnerNames, subjectMinor } = getCharacterMotionBindings(node, ctx)
+    return withCustomText(
+      data,
+      composeCharacterMotionHintFromConnections(motionId, targetNames, partnerNames, timing, mode, { subjectMinor }),
+    )
   }
 
   const base = resolveBaseHint(node.type, data, mode)

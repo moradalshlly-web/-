@@ -41,6 +41,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify"
 import type { ZodError, ZodType } from "zod"
 import type { AudioFxPreset, PresetSettings, SurroundDirection } from "@nodaro/shared"
 import type { PluginScene3DEngine, PluginStageToolkit } from "./scene3d-contract.js"
+import type { FrameFit, FrameDelivery } from "@nodaro/shared"
 export type * from "./scene3d-contract.js"
 
 // ============================================================================
@@ -131,6 +132,15 @@ export interface PluginVideoGenOptions {
    *  param (Seedance-2 resolver builds the closing-frame hint). Sent by the
    *  gvp plugin for the FINAL segment only. */
   endFrameUrl?: string
+  /** Start/end FRAME handling — additive-optional (2026-09-16). Absent means
+   *  the platform defaults, which is what every plugin gets today: the frame is
+   *  resized to the model's measured output canvas and delivered as a frame
+   *  (or, on the Seedance 2.0 family, as a bound reference). A plugin only
+   *  needs these to OPT OUT — e.g. an engine that has already sized its own
+   *  anchors passes `frameFit: "original"`. Mirror in the plugins repo's
+   *  contract.ts before a plugin can send them. */
+  frameFit?: FrameFit
+  frameDelivery?: FrameDelivery
   /** Invoked with the provider task id as soon as it exists. The pro engine
    * checkpoints it; jobs.provider_task_id is NEVER written (spec §6 linchpin). */
   onTaskCreated?: (taskId: string) => void | Promise<void>
@@ -1232,12 +1242,31 @@ export interface PluginSafeFetchInit {
 }
 
 /**
+ * Mirrors the return shape of `computeVoiceChangerProPricing`
+ * (`ee/billing/voice-changer-pro-credits.ts`). BASE (pre-markup) credits:
+ * the per-minute speech-to-speech unit and the per-1K Re-speak unit are read
+ * from `model_pricing` (static seed as fallback), each slot priced as
+ * `max(floor, ceil(unit × stemSec / 60))` / `max(floor, ceil(chars/1000) × per1K)`.
+ */
+export interface VoiceChangerProPricing {
+  unitPerMinute: number
+  respeakPer1K: number
+  floor: number
+  stsCredits: number[]
+  respeakCredits: number[]
+  reserveBase: number
+}
+
+/**
  * Mirrors the return shape of `computeGenerateVideoProPricing`
  * (`ee/billing/generate-video-pro-credits.ts`) — the pro split/pricing
  * formula's single source of truth, shared by the route's credit-guard
  * `computeCredits` and the node-executor override path.
  */
 export interface GenerateVideoProPricing {
+  sourceSegmentDurations?: number[]
+  /** Upper-bound reservation awaiting action-aligned planning. */
+  segmentPlanning?: { mode: "short" | "long"; durationSec: number; minSeg: number; maxSeg: number; lossSec: number; capSec: number }
   mode: "single" | "multi"
   clampedDurationSec: number
   segmentCount: number
@@ -1360,7 +1389,27 @@ export interface PluginHttpToolkit {
     data: Record<string, unknown> & { user_id: string },
     idempotencyKey: string | null | undefined,
     billingContext?: PluginBillingContext,
+    /** The originating request. When given, the toolkit stamps the calling
+     *  surface (`source` / `source_detail`, `lib/job-source.ts`) UNDER the
+     *  plugin's row — caller-supplied columns still win — so plugin jobs stop
+     *  rendering as "—" in /admin/jobs. Additive-optional (no contract bump):
+     *  an older plugin omits it and its rows stay unstamped as before. */
+    req?: FastifyRequest,
   ): Promise<{ id: string; created: boolean }>
+  /**
+   * Mirrors `computeVoiceChangerProPricing`
+   * (`ee/billing/voice-changer-pro-credits.ts`) — see `VoiceChangerProPricing`.
+   * Same dynamic-import gate as `computeGenerateVideoProPricing` below.
+   * Additive-optional (no contract bump): `?.`-guard it and fall back to the
+   * plugin's own constants when the host predates it.
+   */
+  computeVoiceChangerProPricing?(args: {
+    /** Stem seconds per speech-to-speech slot (prorated per second, rounded up
+     *  to the next credit); null/0 = unknown → one minute. */
+    stsSlotSeconds: ReadonlyArray<number | null | undefined>
+    /** Re-spoken chars per v3 slot; null/0 = unknown → one 1K bucket. */
+    respeakChars: ReadonlyArray<number | null | undefined>
+  }): Promise<VoiceChangerProPricing>
   /**
    * Mirrors `computeGenerateVideoProPricing`
    * (`ee/billing/generate-video-pro-credits.ts`) — see `GenerateVideoProPricing`.
@@ -1370,6 +1419,8 @@ export interface PluginHttpToolkit {
    * `applyStaticCreditCosts`/`applyPipelinePrompts`).
    */
   computeGenerateVideoProPricing(args: {
+    sourceSegmentDurations?: number[]
+    segmentMode?: "short" | "long" | "max"
     provider: string
     resolution: string
     durationSec: number

@@ -7,8 +7,9 @@ import { useTemplateDetail } from "@/hooks/queries/use-template-marketplace-quer
 import { useT } from "@/lib/i18n"
 import { useAppDir } from "@/lib/locale-store"
 import { ReadOnlyCanvas } from "./read-only-canvas"
-import { hiddenNoteCount, templateCreatorName } from "./template-facts"
+import { templateCreatorName } from "./template-facts"
 import { TemplateCover } from "./template-marketplace-card"
+import { TemplateResultsRail } from "./template-results-rail"
 import { useCloneTemplate } from "./use-clone-template"
 
 const PILL = "flex items-center gap-2 rounded-[10px] border border-[var(--home-line)] bg-[var(--home-panel)]"
@@ -52,7 +53,6 @@ export function TemplateCanvasPreview({ slug, open, fallback, onBack }: Template
   const { data: detail, isLoading, isError } = useTemplateDetail(slug)
   // A template that is gone must not keep painting from the stale card.
   const summary = detail ?? (isError ? null : fallback)
-  const hiddenNotes = detail ? hiddenNoteCount(detail.snapshotNodes) : 0
   const { clone, isCloning } = useCloneTemplate()
   const startClone = () => summary && clone({ slug: summary.slug, name: summary.name })
 
@@ -88,7 +88,10 @@ export function TemplateCanvasPreview({ slug, open, fallback, onBack }: Template
             <span className="truncate">{summary?.name ?? t("templates.backToTemplates")}</span>
           </button>
           <div className={`${PILL} pointer-events-auto gap-3 py-1.5 pe-1.5 ps-3.5 text-[13px] text-[var(--home-fg-2)]`}>
-            <span className="whitespace-nowrap">{t("templates.readOnly")}</span>
+            <span className="whitespace-nowrap">
+              {t("templates.readOnly")}
+              <span className="text-[var(--home-muted)]"> · {t("templates.inspector.hint")}</span>
+            </span>
             <button
               type="button"
               onClick={startClone}
@@ -100,10 +103,12 @@ export function TemplateCanvasPreview({ slug, open, fallback, onBack }: Template
           </div>
         </div>
 
-        {hiddenNotes > 0 && (
-          <p className={`${PILL} pointer-events-none absolute bottom-[18px] start-[18px] z-10 px-3 py-1.5 text-[11px] text-[var(--home-muted)]`}>
-            {t("templates.stickyHidden", { n: hiddenNotes })}
-          </p>
+        {/* The results, playable with sound — the canvas behind is inert by design. */}
+        {detail && (
+          <TemplateResultsRail
+            snapshotNodes={detail.snapshotNodes}
+            className="absolute bottom-[18px] start-[18px] z-10 max-w-[min(760px,calc(100%-400px))] @max-[900px]:hidden"
+          />
         )}
 
         {/* Clone panel */}

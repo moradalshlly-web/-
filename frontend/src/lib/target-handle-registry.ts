@@ -325,6 +325,9 @@ const BASE_TARGET_HANDLE_ACCEPTS: Record<string, ReadonlyArray<TargetHandleEntry
   "character-fx": [
     { handleId: "target", label: "Target subject", accepts: ACCEPTS_CHARACTER_REF },
   ],
+  "character-motion": [ // identity refs (creatures included): target names "the subject", partner names "the partner"
+    { handleId: "target", label: "Target subject", accepts: ACCEPTS_CHARACTER_REF },
+    { handleId: "partner", label: "Partner", accepts: ACCEPTS_CHARACTER_REF }],
 
   // Reference Sheet takes ONE entity ref on its `in` handle (character / object /
   // location). The executor walks this edge to the upstream entity's (kind, DB id)

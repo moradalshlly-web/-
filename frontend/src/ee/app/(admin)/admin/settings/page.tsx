@@ -83,6 +83,8 @@ export default function AdminSettingsPage() {
   const [notifyDigestHour, setNotifyDigestHour] = useState(8)
   const [notifyMilestonesEnabled, setNotifyMilestonesEnabled] = useState(true)
   const [notifyEverySignupEnabled, setNotifyEverySignupEnabled] = useState(false)
+  const [notifyWelcomeOfferEnabled, setNotifyWelcomeOfferEnabled] = useState(false)
+  const [notifyCreditsDigestEnabled, setNotifyCreditsDigestEnabled] = useState(true)
   const [notifySlackWebhookUrl, setNotifySlackWebhookUrl] = useState("")
   const [adminMessagesDailyLimit, setAdminMessagesDailyLimit] = useState(50)
   // What the input shows while it is being edited. Kept as a string so the
@@ -118,6 +120,8 @@ export default function AdminSettingsPage() {
       setNotifyDigestHour(settings.notify_digest_hour ?? 8)
       setNotifyMilestonesEnabled(settings.notify_milestones_enabled ?? true)
       setNotifyEverySignupEnabled(settings.notify_every_signup_enabled ?? false)
+      setNotifyWelcomeOfferEnabled(settings.notify_welcome_offer_enabled ?? false)
+      setNotifyCreditsDigestEnabled(settings.notify_credits_digest_enabled ?? true)
       setNotifySlackWebhookUrl(settings.notify_slack_webhook_url ?? "")
       setAdminMessagesDailyLimit(settings.admin_messages_daily_limit ?? 50)
       setAdminMessagesLimitDraft(String(settings.admin_messages_daily_limit ?? 50))
@@ -192,6 +196,8 @@ export default function AdminSettingsPage() {
     if (notifyDigestHour !== (settings?.notify_digest_hour ?? 8)) updates.push({ key: "notify_digest_hour", value: notifyDigestHour })
     if (notifyMilestonesEnabled !== (settings?.notify_milestones_enabled ?? true)) updates.push({ key: "notify_milestones_enabled", value: notifyMilestonesEnabled })
     if (notifyEverySignupEnabled !== (settings?.notify_every_signup_enabled ?? false)) updates.push({ key: "notify_every_signup_enabled", value: notifyEverySignupEnabled })
+    if (notifyWelcomeOfferEnabled !== (settings?.notify_welcome_offer_enabled ?? false)) updates.push({ key: "notify_welcome_offer_enabled", value: notifyWelcomeOfferEnabled })
+    if (notifyCreditsDigestEnabled !== (settings?.notify_credits_digest_enabled ?? true)) updates.push({ key: "notify_credits_digest_enabled", value: notifyCreditsDigestEnabled })
     // The webhook may legitimately be cleared to "" (turns notifications off), so
     // unlike consent_text this pushes even an empty value when it changed.
     if (notifySlackWebhookUrl.trim() !== (settings?.notify_slack_webhook_url ?? "")) updates.push({ key: "notify_slack_webhook_url", value: notifySlackWebhookUrl.trim() })
@@ -241,6 +247,8 @@ export default function AdminSettingsPage() {
     notifyDigestHour !== (settings.notify_digest_hour ?? 8) ||
     notifyMilestonesEnabled !== (settings.notify_milestones_enabled ?? true) ||
     notifyEverySignupEnabled !== (settings.notify_every_signup_enabled ?? false) ||
+    notifyWelcomeOfferEnabled !== (settings.notify_welcome_offer_enabled ?? false) ||
+    notifyCreditsDigestEnabled !== (settings.notify_credits_digest_enabled ?? true) ||
     notifySlackWebhookUrl.trim() !== (settings.notify_slack_webhook_url ?? "") ||
     adminMessagesDailyLimit !== (settings.admin_messages_daily_limit ?? 50)
   )
@@ -749,12 +757,36 @@ export default function AdminSettingsPage() {
 
           <div className="mt-4 flex items-center justify-between">
             <div className="pr-4">
+              <Label htmlFor="notify-welcome-offer">Welcome offer &amp; mailing list</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                A line when someone accepts the welcome credits (and how long after dismissing, if they came back),
+                dismisses the popup, declines, or unsubscribes. Also checks Loops once a day for unsubscribes made
+                from the email link and mirrors them here. Off by default.
+              </p>
+            </div>
+            <Switch id="notify-welcome-offer" checked={notifyWelcomeOfferEnabled} onCheckedChange={setNotifyWelcomeOfferEnabled} />
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="pr-4">
               <Label htmlFor="notify-digest">Daily digest</Label>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Once a day: yesterday&apos;s signups plus running totals. Silent on days with zero signups.
               </p>
             </div>
             <Switch id="notify-digest" checked={notifyDigestEnabled} onCheckedChange={setNotifyDigestEnabled} />
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="pr-4">
+              <Label htmlFor="notify-credits-digest">Daily credits digest</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Once a day, at the digest hour: yesterday&apos;s charged credits per user with what those runs cost
+                us in USD, the totals, and the KIE.ai balance movement (burned, topped up, balance). Sends on
+                zero-credit days too.
+              </p>
+            </div>
+            <Switch id="notify-credits-digest" checked={notifyCreditsDigestEnabled} onCheckedChange={setNotifyCreditsDigestEnabled} />
           </div>
 
           <div className="mt-4 max-w-xs space-y-1.5">
@@ -767,7 +799,7 @@ export default function AdminSettingsPage() {
               value={notifyDigestHour}
               onChange={(e) => setNotifyDigestHour(Math.max(0, Math.min(23, Number(e.target.value) || 0)))}
             />
-            <p className="text-xs text-muted-foreground">Hour of day, 0–23, Israel time (Asia/Jerusalem).</p>
+            <p className="text-xs text-muted-foreground">Hour of day, 0–23, Israel time (Asia/Jerusalem). Shared by both digests.</p>
           </div>
         </div>
 

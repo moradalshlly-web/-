@@ -1,0 +1,802 @@
+{
+  "slug": "eyewear-campaign-studio",
+  "name": "Eyewear Campaign Studio",
+  "description": "One packshot of your frames in, four campaign ads out — a portrait, a product hero, a lifestyle moment and a typographic poster — coherent as one campaign, distinct in expression, with the frames and your wordmark exactly as supplied.",
+  "markdownDescription": "## Eyewear Campaign Studio\n\nOne packshot of your frames becomes four campaign ads — a portrait, a product hero, a lifestyle moment and a typographic poster — coherent as one campaign, distinct in expression. The frames and your wordmark stay exactly as supplied.\n\n1. **Packshot** — the frames on a plain background. The hero of every ad.\n2. **Wordmark** — your logo on white. Placed, never redrawn.\n3. **Reference ad** — optional. The strategist reads your visual language from it.\n4. **Product notes + Brand notes** — name, colourway, material, price; positioning and tone.\n5. **Campaign direction** — an AI strategist writes the visual language in one paragraph. All four concepts follow it.\n6. **Four concepts, four ads** — one writer per direction, each feeding its own ad. Edit a concept by hand and rerun its ad.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "eyewear",
+    "fashion",
+    "campaign",
+    "product"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 70,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/c270082b-4078-41f6-94ca-05d1026322e2.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 25,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One packshot of your frames goes in, with your wordmark and a few notes; four campaign ads come out — a portrait, a product hero, a lifestyle moment and a typographic poster — coherent as one campaign, distinct in expression. The frames and the logo stay exactly as supplied.\n\n1. Packshot — the frames on a plain background. The hero of every ad.\n2. Wordmark — your logo on white. It is placed, never redrawn.\n3. Reference ad — optional. An existing ad of yours; the strategist reads your visual language from it.\n4. Product notes + Brand notes — name, colourway, material, price; positioning and tone.\n5. Campaign direction — an AI strategist writes the visual language in one paragraph. All four concepts follow it.\n6. Four concepts, four ads — one writer per direction, each feeding its own ad. Edit a concept by hand and rerun its ad; copy a pair for a fifth direction.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Eyewear campaign studio — how it works",
+        "width": 1180,
+        "height": 730,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-packshot",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "The frames on a plain background, temples open, three-quarter angle if you have it. Every ad gets it as a reference, so shape, colour, acetate and hinges come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Packshot",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-wordmark",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1610
+      },
+      "data": {
+        "bold": false,
+        "text": "Your logo or wordmark on a white background. Every ad gets it as a second reference and places it small — it is never redrawn or reinterpreted.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Wordmark",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-reference",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2180
+      },
+      "data": {
+        "bold": false,
+        "text": "Optional. One existing ad of your brand, or a look you admire. Only the strategist reads it — for crop, light, casting, surfaces and copy weight. It never reaches the image generator. Delete the node if you have none.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Reference ad",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 3100
+      },
+      "data": {
+        "bold": false,
+        "text": "The product name, colourway, material and price, in plain words. The writers use only what is here — no invented collection names, prices or claims.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Product notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 3490
+      },
+      "data": {
+        "bold": false,
+        "text": "Positioning and tone: luxury, premium or direct-to-consumer; quiet or loud; how much copy you like. One or two lines.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Brand notes",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-direction",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI strategist turns the packshot, the reference ad and your notes into one paragraph of visual language: how you crop, how you light, who you cast, which surfaces and places you favour, how much copy, which colours, what mood. All four concepts quote it, so the set reads as one campaign.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Campaign direction",
+        "width": 480,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-concepts",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "One writer per direction: a portrait, a product hero, a lifestyle environment, a bold typographic poster. Each writes a headline (or none), a small line with the product name, and the look — inside the campaign direction. Read a brief, edit it by hand, then rerun just its ad. Copy a writer and an ad for a fifth direction.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · Four concepts",
+        "width": 560,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ads",
+      "type": "sticky-note",
+      "position": {
+        "x": 3060,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "Square for the feed. Each ad gets the packshot and the wordmark as references and its concept as the brief, and renders the copy exactly as written. Rerun one ad alone for a new take on the same brief.",
+        "color": "#26221a",
+        "label": "Step 8",
+        "title": "8 · Four ads",
+        "width": 600,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "packshot",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 890
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/a3d2e3a7-bdce-45da-bbe7-19242a0f693f.png",
+        "label": "Packshot",
+        "r2Url": "https://cdn.nodaro.ai/images/a3d2e3a7-bdce-45da-bbe7-19242a0f693f.png",
+        "assetId": "a3d2e3a7-bdce-45da-bbe7-19242a0f693f",
+        "filename": "tortoiseshell-round-frames-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/a3d2e3a7-bdce-45da-bbe7-19242a0f693f.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "wordmark",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1610
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/6c899ffc-cc7d-4942-a68e-9cccd506ed31.png",
+        "label": "Wordmark",
+        "r2Url": "https://cdn.nodaro.ai/images/6c899ffc-cc7d-4942-a68e-9cccd506ed31.png",
+        "assetId": "6c899ffc-cc7d-4942-a68e-9cccd506ed31",
+        "filename": "eyewear-wordmark-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/6c899ffc-cc7d-4942-a68e-9cccd506ed31.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "reference",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 2180
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/dfa2120c-fb8f-4dce-a58e-581d6592302e.png",
+        "label": "Reference ad",
+        "r2Url": "https://cdn.nodaro.ai/images/dfa2120c-fb8f-4dce-a58e-581d6592302e.png",
+        "assetId": "dfa2120c-fb8f-4dce-a58e-581d6592302e",
+        "filename": "eyewear-reference-ad-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/dfa2120c-fb8f-4dce-a58e-581d6592302e.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "product-notes",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 3100
+      },
+      "data": {
+        "text": "MARLOW Ellis — round acetate frames in dark tortoiseshell with gold-tone hinges and slim gold temple tips, hand-polished. Size 49-21-145. €189.",
+        "label": "Product notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 3490
+      },
+      "data": {
+        "text": "MARLOW — premium independent eyewear. Tone: quiet confidence, editorial, warm. Little copy.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "direction",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1490
+      },
+      "data": {
+        "label": "Campaign direction",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 450,
+        "userInput": "Product notes: {Product notes || premium acetate frames.} Brand notes: {Brand notes || a premium independent eyewear brand, quiet and editorial.} The reference images are the packshot and, if present, an existing ad of the brand. Write the campaign direction.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an ad creative strategist specialised in eyewear and optical fashion. From the packshot, the reference ad if there is one, the product notes and the brand notes, write the campaign direction in ONE paragraph of 70 to 110 words, plain English, present tense: how this brand crops (tight or wide), how it lights (hard sun, soft window, studio), who it casts and how they carry themselves, which surfaces and places it favours, how much copy it uses and where, the colour palette, and the mood. Describe the visual language so four different ads can follow it and still read as one campaign. Do not describe the frames themselves and do not write ad copy. No headings, no lists. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "concept-a",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 1490
+      },
+      "data": {
+        "label": "Concept A · Portrait",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign direction: {Campaign direction || tight editorial crops, warm natural light, calm confident people, little copy.} Product notes: {Product notes || premium acetate frames.} Brand notes: {Brand notes || a premium independent eyewear brand.} The reference image is the packshot. Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an ad creative strategist specialised in eyewear. You get the campaign direction, the product notes, the brand notes and the packshot. Write ONE ad concept in this creative direction: PORTRAIT — a model wearing the frames, a tight editorial crop from the nose up or the shoulders up, the eyes and the frames in sharp focus, the face carrying the mood.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words, or the single word none>\"\nSmall line: \"<the product name and one detail from the product notes, at most ten words>\"\nLook: <one paragraph of 60 to 90 words: the subject (a person wearing the frames, or the frames alone), crop and camera distance, light, background or surface, colour palette, where the copy and the logo sit, and the mood — all inside the campaign direction. The frames must read exactly as the packshot: shape, colour, acetate, hinges. The logo appears small, exactly as the wordmark.>\nUse only facts from the product notes; never invent a collection name, a price or a claim. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "concept-b",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2210
+      },
+      "data": {
+        "label": "Concept B · Product hero",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign direction: {Campaign direction || tight editorial crops, warm natural light, calm confident people, little copy.} Product notes: {Product notes || premium acetate frames.} Brand notes: {Brand notes || a premium independent eyewear brand.} The reference image is the packshot. Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an ad creative strategist specialised in eyewear. You get the campaign direction, the product notes, the brand notes and the packshot. Write ONE ad concept in this creative direction: PRODUCT HERO — the frames alone, resting or standing on a surface, macro detail of the acetate, the hinges and the lens reflections, no people.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words, or the single word none>\"\nSmall line: \"<the product name and one detail from the product notes, at most ten words>\"\nLook: <one paragraph of 60 to 90 words: the subject (a person wearing the frames, or the frames alone), crop and camera distance, light, background or surface, colour palette, where the copy and the logo sit, and the mood — all inside the campaign direction. The frames must read exactly as the packshot: shape, colour, acetate, hinges. The logo appears small, exactly as the wordmark.>\nUse only facts from the product notes; never invent a collection name, a price or a claim. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "concept-c",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2930
+      },
+      "data": {
+        "label": "Concept C · Environment",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign direction: {Campaign direction || tight editorial crops, warm natural light, calm confident people, little copy.} Product notes: {Product notes || premium acetate frames.} Brand notes: {Brand notes || a premium independent eyewear brand.} The reference image is the packshot. Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an ad creative strategist specialised in eyewear. You get the campaign direction, the product notes, the brand notes and the packshot. Write ONE ad concept in this creative direction: ENVIRONMENT — a lifestyle moment in a real, visible place: the frames on a cafe table beside a cup, on a car dashboard by the window, on an open book on a bookshelf, or worn by the model at a beach or a terrace with the place clearly in frame. The crop widens for this concept so the setting is part of the story; the campaign direction still sets the light, the palette, the casting and the mood. Never a plain-wall portrait, and the headline must speak about the place or the moment, not repeat a portrait line.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words, or the single word none>\"\nSmall line: \"<the product name and one detail from the product notes, at most ten words>\"\nLook: <one paragraph of 60 to 90 words: the subject (a person wearing the frames, or the frames alone), crop and camera distance, light, background or surface, colour palette, where the copy and the logo sit, and the mood — all inside the campaign direction. The frames must read exactly as the packshot: shape, colour, acetate, hinges. The logo appears small, exactly as the wordmark.>\nUse only facts from the product notes; never invent a collection name, a price or a claim. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "concept-d",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 3650
+      },
+      "data": {
+        "label": "Concept D · Bold copy",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign direction: {Campaign direction || tight editorial crops, warm natural light, calm confident people, little copy.} Product notes: {Product notes || premium acetate frames.} Brand notes: {Brand notes || a premium independent eyewear brand.} The reference image is the packshot. Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an ad creative strategist specialised in eyewear. You get the campaign direction, the product notes, the brand notes and the packshot. Write ONE ad concept in this creative direction: BOLD COPY — typography-led: one big headline and the frames on one flat colour, minimal, poster-like, the copy doing half the work.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words, or the single word none>\"\nSmall line: \"<the product name and one detail from the product notes, at most ten words>\"\nLook: <one paragraph of 60 to 90 words: the subject (a person wearing the frames, or the frames alone), crop and camera distance, light, background or surface, colour palette, where the copy and the logo sit, and the mood — all inside the campaign direction. The frames must read exactly as the packshot: shape, colour, acetate, hinges. The logo appears small, exactly as the wordmark.>\nUse only facts from the product notes; never invent a collection name, a price or a claim. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-a",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 1490
+      },
+      "data": {
+        "label": "Ad A",
+        "style": "",
+        "prompt": "Finished square 1:1 eyewear campaign ad for a social feed. Two reference images: the eyewear packshot is the PRODUCT — the frames must appear exactly as it, the same shape, colour, acetate pattern, hinges and temple tips; the wordmark on white is the LOGO — place it small and exactly as it is, in a corner or under the headline, never redrawn. The brief: {Concept A · Portrait || Headline: \"none\" Small line: \"Round acetate frames in dark tortoiseshell.\" Look: the frames alone on a warm stone surface in soft window light, a tight crop, the logo small in a corner, a calm premium mood.} Render the headline (unless it is none) and the small line exactly as written in the brief — same words, same spelling — and no other text. Photorealistic premium eyewear advertising photography, crisp, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-b",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2210
+      },
+      "data": {
+        "label": "Ad B",
+        "style": "",
+        "prompt": "Finished square 1:1 eyewear campaign ad for a social feed. Two reference images: the eyewear packshot is the PRODUCT — the frames must appear exactly as it, the same shape, colour, acetate pattern, hinges and temple tips; the wordmark on white is the LOGO — place it small and exactly as it is, in a corner or under the headline, never redrawn. The brief: {Concept B · Product hero || Headline: \"none\" Small line: \"Round acetate frames in dark tortoiseshell.\" Look: the frames alone on a warm stone surface in soft window light, a tight crop, the logo small in a corner, a calm premium mood.} Render the headline (unless it is none) and the small line exactly as written in the brief — same words, same spelling — and no other text. Photorealistic premium eyewear advertising photography, crisp, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-c",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2930
+      },
+      "data": {
+        "label": "Ad C",
+        "style": "",
+        "prompt": "Finished square 1:1 eyewear campaign ad for a social feed. Two reference images: the eyewear packshot is the PRODUCT — the frames must appear exactly as it, the same shape, colour, acetate pattern, hinges and temple tips; the wordmark on white is the LOGO — place it small and exactly as it is, in a corner or under the headline, never redrawn. The brief: {Concept C · Environment || Headline: \"none\" Small line: \"Round acetate frames in dark tortoiseshell.\" Look: the frames alone on a warm stone surface in soft window light, a tight crop, the logo small in a corner, a calm premium mood.} Render the headline (unless it is none) and the small line exactly as written in the brief — same words, same spelling — and no other text. Photorealistic premium eyewear advertising photography, crisp, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-d",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 3650
+      },
+      "data": {
+        "label": "Ad D",
+        "style": "",
+        "prompt": "Finished square 1:1 eyewear campaign ad for a social feed. Two reference images: the eyewear packshot is the PRODUCT — the frames must appear exactly as it, the same shape, colour, acetate pattern, hinges and temple tips; the wordmark on white is the LOGO — place it small and exactly as it is, in a corner or under the headline, never redrawn. The brief: {Concept D · Bold copy || Headline: \"none\" Small line: \"Round acetate frames in dark tortoiseshell.\" Look: the frames alone on a warm stone surface in soft window light, a tight crop, the logo small in a corner, a calm premium mood.} Render the headline (unless it is none) and the small line exactly as written in the brief — same words, same spelling — and no other text. Photorealistic premium eyewear advertising photography, crisp, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-packshot-direction",
+      "source": "packshot",
+      "target": "direction",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-reference-direction",
+      "source": "reference",
+      "target": "direction",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-direction",
+      "source": "product-notes",
+      "target": "direction",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-direction",
+      "source": "brand",
+      "target": "direction",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-direction-concept-a",
+      "source": "direction",
+      "target": "concept-a",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-concept-a",
+      "source": "product-notes",
+      "target": "concept-a",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-concept-a",
+      "source": "brand",
+      "target": "concept-a",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-packshot-concept-a",
+      "source": "packshot",
+      "target": "concept-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-ad-a",
+      "source": "concept-a",
+      "target": "ad-a",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-packshot-ad-a",
+      "source": "packshot",
+      "target": "ad-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-wordmark-ad-a",
+      "source": "wordmark",
+      "target": "ad-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-direction-concept-b",
+      "source": "direction",
+      "target": "concept-b",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-concept-b",
+      "source": "product-notes",
+      "target": "concept-b",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-concept-b",
+      "source": "brand",
+      "target": "concept-b",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-packshot-concept-b",
+      "source": "packshot",
+      "target": "concept-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-ad-b",
+      "source": "concept-b",
+      "target": "ad-b",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-packshot-ad-b",
+      "source": "packshot",
+      "target": "ad-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-wordmark-ad-b",
+      "source": "wordmark",
+      "target": "ad-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-direction-concept-c",
+      "source": "direction",
+      "target": "concept-c",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-concept-c",
+      "source": "product-notes",
+      "target": "concept-c",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-concept-c",
+      "source": "brand",
+      "target": "concept-c",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-packshot-concept-c",
+      "source": "packshot",
+      "target": "concept-c",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-ad-c",
+      "source": "concept-c",
+      "target": "ad-c",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-packshot-ad-c",
+      "source": "packshot",
+      "target": "ad-c",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-wordmark-ad-c",
+      "source": "wordmark",
+      "target": "ad-c",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-direction-concept-d",
+      "source": "direction",
+      "target": "concept-d",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-concept-d",
+      "source": "product-notes",
+      "target": "concept-d",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-concept-d",
+      "source": "brand",
+      "target": "concept-d",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-packshot-concept-d",
+      "source": "packshot",
+      "target": "concept-d",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-ad-d",
+      "source": "concept-d",
+      "target": "ad-d",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-packshot-ad-d",
+      "source": "packshot",
+      "target": "ad-d",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-wordmark-ad-d",
+      "source": "wordmark",
+      "target": "ad-d",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.188
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "ad-a": {
+          "title": "Portrait",
+          "description": "A model wearing the frames, tight editorial crop."
+        },
+        "ad-b": {
+          "title": "Product hero",
+          "description": "The frames alone — acetate, hinges and reflections up close."
+        },
+        "ad-c": {
+          "title": "Environment",
+          "description": "A lifestyle moment in natural light, the frames still the hero."
+        },
+        "ad-d": {
+          "title": "Bold copy",
+          "description": "One big headline and the frames on a flat colour."
+        },
+        "brand": {
+          "title": "Brand notes",
+          "description": "Positioning and tone in a line or two."
+        },
+        "packshot": {
+          "title": "Packshot",
+          "description": "The frames on a plain background. They appear exactly as they are in every ad."
+        },
+        "wordmark": {
+          "title": "Wordmark",
+          "description": "Your logo on white. Placed small in every ad, never redrawn."
+        },
+        "reference": {
+          "title": "Reference ad",
+          "description": "Optional. An existing ad of yours — the strategist reads your visual language from it."
+        },
+        "product-notes": {
+          "title": "Product notes",
+          "description": "Name, colourway, material, price. Nothing is invented beyond this."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "packshot",
+        "wordmark",
+        "reference",
+        "product-notes",
+        "brand"
+      ],
+      "outputOrder": [
+        "ad-a",
+        "ad-b",
+        "ad-c",
+        "ad-d"
+      ]
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import type { CharacterMotionMetadata } from "./character-motion/types.js"
 /**
  * Public, discoverable registry of the parameter-picker catalogs.
  *
@@ -67,6 +68,13 @@ import {
   CHARACTER_FX_DURATIONS,
   CHARACTER_FX_INTENSITIES,
 } from "./character-fx.js"
+import {
+  CHARACTER_MOTIONS,
+  CHARACTER_MOTION_CATEGORY_LABELS,
+  CHARACTER_MOTION_CATEGORY_ORDER,
+  CHARACTER_MOTION_POSITIONS,
+  CHARACTER_MOTION_PACES,
+} from "./character-motion.js"
 import { POSES, POSE_CATEGORY_LABELS, POSE_CATEGORY_ORDER } from "./pose.js"
 import { MATERIALS, MATERIAL_CATEGORY_LABELS, MATERIAL_CATEGORY_ORDER } from "./materials.js"
 import { ANIMALS, ANIMAL_SUBCATEGORY_LABELS, ANIMAL_SUBCATEGORY_ORDER, getAnimalPromptHint } from "@nodaro/shared"
@@ -91,6 +99,9 @@ import { setComposedCatalogResolver } from "./catalog-overlay.js"
 import { deriveTerm, resolveTerm } from "./term.js"
 
 export interface PickerOption {
+  /** Character Motion only: authored prerequisites, state and search metadata. */
+  readonly motion?: CharacterMotionMetadata
+
   readonly id: string
   readonly label: string
   readonly description?: string
@@ -588,6 +599,26 @@ const SINGLE_CATALOGS: readonly PickerCatalog[] = [
       ["intensity", CHARACTER_FX_INTENSITIES],
     ]),
   },
+  {
+    nodeType: "character-motion",
+    label: "Character Motion",
+    catalogId: "character-motion",
+    kind: "single",
+    valueField: "characterMotion",
+    defaultValue: "auto",
+    categoryOrder: CHARACTER_MOTION_CATEGORY_ORDER,
+    categoryLabels: CHARACTER_MOTION_CATEGORY_LABELS,
+    options: toOptions(CHARACTER_MOTIONS, "category").map((option, index) => {
+      const { id: _id, label: _label, category: _category, description: _description, promptHint: _hint, term: _term, adultOnly: _adult, twoPerson: _duo, ...motion } = CHARACTER_MOTIONS[index]!
+      return { ...option, motion }
+    }),
+    // Position + Pace, this node's own wording (a movement begins / plays out;
+    // an effect manifests; a transition occurs) — never the sibling rows.
+    dimensions: perFieldDims([
+      ["position", CHARACTER_MOTION_POSITIONS],
+      ["pace", CHARACTER_MOTION_PACES],
+    ]),
+  },
 
   // -------- "Subject / Object" family --------
   {
@@ -915,8 +946,9 @@ function projectOption(o: PickerOption, detail: PickerCatalogDetail): ProjectedP
         promptHint: o.promptHint,
         term: o.term,
         icon: o.icon,
+        ...(o.motion ? { motion: o.motion } : {}),
       }
-    : { id: o.id, label: o.label, category: o.category, term: o.term, icon: o.icon }
+    : { id: o.id, label: o.label, category: o.category, term: o.term, icon: o.icon, ...(o.motion ? { motion: o.motion } : {}) }
 }
 
 /** Project a catalog to the wire shape: compact by default, optional category/field filter. */

@@ -103,6 +103,11 @@ vi.mock("node:fs", async (importOriginal) => {
 vi.mock("@/ee/billing/edit-video-pro-credits.js", () => ({
   computeEditVideoProPricing: mockComputeEditVideoProPricing,
 }))
+// Same shim for the Voice Changer Pro pricing member.
+const mockComputeVoiceChangerProPricing = vi.fn()
+vi.mock("@/ee/billing/voice-changer-pro-credits.js", () => ({
+  computeVoiceChangerProPricing: mockComputeVoiceChangerProPricing,
+}))
 
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
@@ -283,6 +288,32 @@ describe("toolkit.ts — edit-video-pro members", () => {
       const result = await tk.http.computeEditVideoProPricing(args)
 
       expect(mockComputeEditVideoProPricing).toHaveBeenCalledWith(args)
+      expect(result).toBe(pricingResult)
+    })
+  })
+
+  describe("http.computeVoiceChangerProPricing (additive-optional)", () => {
+    it("throws outside Cloud (hasCredits false); dynamic-imports the ee helper when cloud", async () => {
+      mockHasCreditsRef.value = false
+      const args = { stsSlotSeconds: [26.76, null], respeakChars: [1500] }
+
+      await expect(tk.http.computeVoiceChangerProPricing!(args)).rejects.toThrow(/Cloud-edition/)
+      expect(mockComputeVoiceChangerProPricing).not.toHaveBeenCalled()
+
+      mockHasCreditsRef.value = true
+      const pricingResult = {
+        unitPerMinute: 40,
+        respeakPer1K: 30,
+        floor: 4,
+        stsCredits: [18, 40],
+        respeakCredits: [60],
+        reserveBase: 118,
+      }
+      mockComputeVoiceChangerProPricing.mockResolvedValueOnce(pricingResult)
+
+      const result = await tk.http.computeVoiceChangerProPricing!(args)
+
+      expect(mockComputeVoiceChangerProPricing).toHaveBeenCalledWith(args)
       expect(result).toBe(pricingResult)
     })
   })

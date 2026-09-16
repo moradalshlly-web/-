@@ -18,7 +18,7 @@ import { PICKER_CATALOGS, getPickerCatalog, listPickerCatalogs } from "@nodaro/s
 
 | Export | Description |
 |--------|-------------|
-| `PICKER_CATALOGS` | `readonly PickerCatalog[]` — every picker (27 single + 11 multi). |
+| `PICKER_CATALOGS` | `readonly PickerCatalog[]` — every picker (28 single + 11 multi). |
 | `getPickerCatalog(nodeTypeOrCatalogId)` | One catalog by `nodeType` (e.g. `"mood"`) or `catalogId`. |
 | `listPickerCatalogs()` | All of them. |
 
@@ -89,9 +89,11 @@ const prompt = ["a portrait of a woman", clause].filter(Boolean).join(", ")
 const { jobIds } = await client.nodes.run("generate-image", { prompt })
 ```
 
-### Single-dimension pickers with secondary parameters (Transition, Character FX)
+<a id="single-dimension-pickers-with-secondary-parameters-transition-character-fx"></a>
 
-Two single pickers carry extra parameter fields beside the main choice: **Transition** and **Character FX** each have `position`, `duration` and `intensity` dropdowns next to their picker. Those are catalogs too — the same `{ id, label, description, promptHint, term }` rows as everything else, each led by a no-op `auto` — and the catalog exposes them as `dimensions` **in addition to** `options`. Render the picker from `options` and the three dropdowns from `dimensions`; a client that only sends ids never has to write the timing clause itself.
+### Single-dimension pickers with secondary parameters (Transition, Character FX, Character Motion)
+
+Three single pickers carry extra parameter fields beside the main choice: **Transition** and **Character FX** each have `position`, `duration` and `intensity` dropdowns, and **Character Motion** has `position` and `pace`. Those are catalogs too — the same `{ id, label, description, promptHint, term }` rows as everything else, each led by a no-op `auto` — and the catalog exposes them as `dimensions` **in addition to** `options`. Render the picker from `options` and the dropdowns from `dimensions`; a client that only sends ids never has to write the timing clause itself.
 
 ```ts
 const fx = getPickerCatalog("character-fx")!
@@ -101,9 +103,10 @@ fx.dimensions     // [{ field: "position", … }, { field: "duration", … }, { 
 // Each dimension's rows are also exported directly:
 //   TRANSITION_POSITIONS / TRANSITION_DURATIONS / TRANSITION_INTENSITIES
 //   CHARACTER_FX_POSITIONS / CHARACTER_FX_DURATIONS / CHARACTER_FX_INTENSITIES
+//   CHARACTER_MOTION_POSITIONS / CHARACTER_MOTION_PACES
 ```
 
-The two nodes share the same ids (`start` / `middle` / `end` / `full`, `instant` / `short` / `medium` / `long`, `subtle` / `natural` / `dynamic` / `crazy`) but **not** the same wording — a transition *occurs* and *spans* the clip, an effect *manifests* and *persists* — so always read the rows from the node's own catalog.
+Transition and Character FX share the same ids (`start` / `middle` / `end` / `full`, `instant` / `short` / `medium` / `long`, `subtle` / `natural` / `dynamic` / `crazy`) but **not** the same wording — a transition *occurs* and *spans* the clip, an effect *manifests* and *persists* — so always read the rows from the node's own catalog. Character Motion shares the position ids and adds pace ids (`slow-motion` / `slow` / `natural` / `fast` / `explosive`) with its own wording — a movement *begins* and *plays out*.
 
 ## Multi-dimension pickers (e.g. Framing)
 
@@ -198,3 +201,7 @@ Picker `icon`/thumbnails are **not** shipped — the editor's previews are bespo
 | `PICKER_CATALOGS` / `getPickerCatalog` / `listPickerCatalogs` | The registry. |
 
 See also: [SDK Quickstart](./sdk-quickstart.md) · [SDK Reference](./sdk-reference.md) · [Embed App Guide](./embed-app-guide.md)
+
+### Character Motion metadata
+
+Character Motion catalog options include optional `motion` metadata at both compact and full detail. It carries authored `requires`, `startPose`/`endPose`, `endVisibility`, `handsAfter`, `needsFreeHands`, `kind`, `fixedPace`, `counterpart`, search `aliases`, and `deprecated`/`replacementId`. Missing fields mean unknown. Preserve retired IDs when loading saved workflows; hide them from new choices. See [Character Motion](nodes/parameters/character-motion.md) for composition, naming, review and advisory-diagnostic behavior. `client.pickerCatalogs.get("character-motion")` exposes this as `PickerOption.motion`; the structural type is `CharacterMotionMetadata` from `@nodaro/shared`.

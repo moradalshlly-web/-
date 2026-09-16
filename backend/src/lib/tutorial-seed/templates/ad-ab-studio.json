@@ -1,0 +1,615 @@
+{
+  "slug": "ad-ab-studio",
+  "name": "Ad A/B Studio",
+  "description": "An ad you liked in, four finished ads for your brand out: two creative directions — a faithful take and a bold take — each as a square and a story, built on that ad's formula with your product as the hero, ready for an A/B test.",
+  "markdownDescription": "## Ad A/B Studio\n\nAn ad you liked becomes four finished ads for your brand — two creative directions, each as a square and a story — ready for an A/B test. Take A stays faithful to the ad's look; Take B pushes the same formula one step further. The original's words, brand and product never appear in yours.\n\n1. **Inspiration ad** — the poster, billboard or subway ad that caught your eye.\n2. **Product photo** — a clean packshot. The hero of every ad.\n3. **Brand notes + Creative brief** — who you are, and what this ad must say or offer.\n4. **Ad formula** — an AI writes down what to carry over: colour, typography, layout, how the product is shown, the headline's pattern.\n5. **Take A and Take B** — two AI creative directors, one faithful and one bold, each with a headline in the same pattern, a small line, a button and the look.\n6. **Four ads** — square and story for each take. Test them against each other; rerun one take alone for a new version.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "a-b-test",
+    "variants",
+    "inspiration",
+    "product"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 66,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/db2fd524-898b-4ea9-b792-a74239e9a437.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 23,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "An ad you liked goes in, with your product, a few brand notes and a one-line brief; two creative directions come out, each as a square and a story — four finished ads ready for an A/B test. Take A stays faithful to the ad's look; Take B pushes the same formula one step further.\n\n1. Inspiration ad — the poster, billboard or subway ad that caught your eye.\n2. Product photo — a clean packshot. The hero of every ad.\n3. Brand notes + Creative brief — who you are, and what this ad must say or offer.\n4. Ad formula — an AI writes down what to carry over: colour, typography, layout, how the product is shown, the headline's pattern.\n5. Take A and Take B — two AI creative directors: one faithful, one bold. Each writes a headline in the same pattern, a small line, a button and the look.\n6. Four ads — square and story for each take. Test them against each other; rerun one take alone for a new version of it.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Ad a/B studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-inspiration",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "A photo of any ad that caught your eye: a poster, a billboard, a subway panel. Its look is what you borrow — the colour, the typography, the way the product is shown, the attitude of the headline. Its words, its brand and its product never appear in yours.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Inspiration ad",
+        "width": 640,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1770
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. It is the one thing that stays exactly as it is: every ad gets it as a reference, so the product, its label and its colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Product photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2490
+      },
+      "data": {
+        "bold": false,
+        "text": "Who you are, in plain words: brand name, tone of voice. Mention colours only if the ad must stay on-brand — otherwise the look of the inspiration carries over. Both headlines are written in this voice.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Brand notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2920
+      },
+      "data": {
+        "bold": false,
+        "text": "One line on what this ad must say or offer: the launch, the discount, the claim. It lands in the small line or the button of both takes. Leave it empty for a pure image ad.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Creative brief",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-engine",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Ad formula: an AI describes what to carry over from the inspiration — background colour and finish, typography, where everything sits, how the product is shown, the headline's pattern — without its words or its brand. Take A keeps that look and writes a headline in the same pattern. Take B inverts the colour scheme, pushes the product and finds a sharper angle on the same pattern. Read both, edit either by hand, then rerun its two ads.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Ad formula + Two takes",
+        "width": 560,
+        "height": 600,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ads",
+      "type": "sticky-note",
+      "position": {
+        "x": 3060,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Each take comes out as a square for the feed and a story for vertical placements. Every ad gets two references — the inspiration for the look, your packshot for the product — and its take's brief, and adds its own composition line for the shape. Run Take A against Take B with your audience; rerun one ad alone for a new version of it.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Four ads",
+        "width": 1300,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "inspiration",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/44b20640-f6f2-4c4e-9f29-3b108b228d94.png",
+        "label": "Inspiration ad",
+        "r2Url": "https://cdn.nodaro.ai/images/44b20640-f6f2-4c4e-9f29-3b108b228d94.png",
+        "assetId": "44b20640-f6f2-4c4e-9f29-3b108b228d94",
+        "filename": "bus-shelter-poster-running-shoe-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/44b20640-f6f2-4c4e-9f29-3b108b228d94.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1770
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/8e8f25ce-3839-4f75-b718-d82261a95b08.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/8e8f25ce-3839-4f75-b718-d82261a95b08.png",
+        "assetId": "8e8f25ce-3839-4f75-b718-d82261a95b08",
+        "filename": "perfume-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/8e8f25ce-3839-4f75-b718-d82261a95b08.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2490
+      },
+      "data": {
+        "text": "LUMA — an eau de parfum of amber and cedar. Tone: calm, precise, a little witty.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2920
+      },
+      "data": {
+        "text": "Launch offer: 20% off the first bottle.",
+        "label": "Creative brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "formula",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1570
+      },
+      "data": {
+        "label": "Ad formula",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the formula of the ad in the reference photo.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative strategist who decodes advertising for a remix. Look at the reference photo of a street, billboard or transit ad and describe, in ONE paragraph of 90 to 130 words, plain English, present tense, exactly what to carry over into a new ad for a different product: the background colour and its finish (flat, gradient, textured); the typography of the headline and of the small line — weight, width, case, colour; where each element sits and how big it is (headline, product, small line, badge or button); how the product is shown (angle, scale, lighting, shadows, props); the kind of hook and the headline's pattern as a fill-in-the-blank that keeps its attitude, for example: something ordinary is a judgement; and the mood. Describe the look and the pattern, never the specifics: do not quote the headline itself, do not name the brand or the product, do not describe the logo. No headings, no lists. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "take-a",
+      "type": "llm-chat",
+      "position": {
+        "x": 2340,
+        "y": 1570
+      },
+      "data": {
+        "label": "Take A · Faithful",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "The formula: {Ad formula || a flat single-colour background, the product large and tilted in the centre, a huge condensed headline above it, a short punchline below.} Brand notes: {Brand notes || a confident brand with a dry sense of humour.} Creative brief: {Creative brief || say what the product does, no offer.} The reference image is the product. Write Take A.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are the creative director of a brand and an expert at briefing an image generator. You get a formula describing the look and the headline pattern of an ad that caught the client's eye, the client's brand notes, a creative brief (what the ad must say or offer), and a photo of the client's product. This is TAKE A, the faithful take: remix that ad for this product keeping its look intact — the same background colour and finish, the same typography style, the same placement, scale and angle of the product, the same mood — and write a new headline that follows the original headline's pattern and attitude but is about this product, in the brand's voice.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words, in the same pattern as the original>\"\nSmall line: \"<one short supporting line, at most ten words — carry the offer or message from the creative brief if there is one>\"\nButton: \"<one or two words>\"\nLook: <one paragraph of 60 to 90 words: background colour and finish, typography, where the headline, the product, the small line and the button sit and how big they are, how the product is shown, light and mood. The product from the packshot is the hero and stays exactly as it is.>\nNever use the original ad's brand name or its exact headline. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "take-b",
+      "type": "llm-chat",
+      "position": {
+        "x": 2340,
+        "y": 2686
+      },
+      "data": {
+        "label": "Take B · Bold",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "The formula: {Ad formula || a flat single-colour background, the product large and tilted in the centre, a huge condensed headline above it, a short punchline below.} Brand notes: {Brand notes || a confident brand with a dry sense of humour.} Creative brief: {Creative brief || say what the product does, no offer.} The reference image is the product. Write Take B.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are the creative director of a brand and an expert at briefing an image generator. You get a formula describing the look and the headline pattern of an ad that caught the client's eye, the client's brand notes, a creative brief (what the ad must say or offer), and a photo of the client's product. This is TAKE B, the bold take: the same formula pushed one clear step further, so it reads as a real alternative for an A/B test, not a copy of Take A. Invert the colour scheme (a light original goes dark, or the dominant and accent colours swap), keep the same typography family and placement logic, make the product larger or crop it more dramatically, and write a headline in the same pattern but from a sharper, different angle — still on-brand, still legible, still in the brand's voice.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most six words, in the same pattern as the original>\"\nSmall line: \"<one short supporting line, at most ten words — carry the offer or message from the creative brief if there is one>\"\nButton: \"<one or two words>\"\nLook: <one paragraph of 60 to 90 words: background colour and finish, typography, where the headline, the product, the small line and the button sit and how big they are, how the product is shown, light and mood. The product from the packshot is the hero and stays exactly as it is.>\nNever use the original ad's brand name or its exact headline. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "square-a",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 1570
+      },
+      "data": {
+        "label": "Square A",
+        "style": "",
+        "prompt": "Finished square 1:1 digital ad for a social feed. Two reference images: the photo of a poster in a street or station is the LOOK — take its layout, background colour and finish, typography style, product placement, angle and scale, lighting and mood; the packshot on a plain background is the PRODUCT — it must appear exactly as it is, with its own bottle, label and colours, in the place and at the angle the poster gives its product. The brief: {Take A · Faithful || Headline: \"Smelling ordinary is a choice.\" Small line: \"Amber and cedar. 20% off your first bottle.\" Button: \"Try it\" Look: a flat bright single-colour background, the product large and slightly tilted in the centre, a huge condensed white headline across the top, the small line at the bottom, the button under it.} Render the headline, the small line and the button text exactly as written in the brief — same words, same spelling, same capitalisation — and no other text: never the poster's own words, brand name or logo. Composition for a square: headline across the top, product filling the centre, the small line and the button along the bottom, margins on every side. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story-a",
+      "type": "generate-image",
+      "position": {
+        "x": 3800,
+        "y": 1570
+      },
+      "data": {
+        "label": "Story A",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen. Two reference images: the photo of a poster in a street or station is the LOOK — take its layout, background colour and finish, typography style, product placement, angle and scale, lighting and mood; the packshot on a plain background is the PRODUCT — it must appear exactly as it is, with its own bottle, label and colours, in the place and at the angle the poster gives its product. The brief: {Take A · Faithful || Headline: \"Smelling ordinary is a choice.\" Small line: \"Amber and cedar. 20% off your first bottle.\" Button: \"Try it\" Look: a flat bright single-colour background, the product large and slightly tilted in the centre, a huge condensed white headline across the top, the small line at the bottom, the button under it.} Render the headline, the small line and the button text exactly as written in the brief — same words, same spelling, same capitalisation — and no other text: never the poster's own words, brand name or logo. Composition for a tall frame: headline in the top quarter, product tall in the middle with room around it, the small line and the button in the bottom sixth, everything clear of the very top and bottom edges. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "square-b",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2686
+      },
+      "data": {
+        "label": "Square B",
+        "style": "",
+        "prompt": "Finished square 1:1 digital ad for a social feed. Two reference images: the photo of a poster in a street or station guides the typography, the placement logic and the mood; the packshot on a plain background is the PRODUCT — it must appear exactly as it is, with its own bottle, label and colours. Where the brief's Look departs from the poster (a darker or inverted colour scheme, a bigger or cropped product), the brief wins. The brief: {Take B · Bold || Headline: \"Forgettable is a decision.\" Small line: \"Amber and cedar. 20% off your first bottle.\" Button: \"Try it\" Look: a deep dark background with the accent colour on the type, the product very large and cropped at the edge, a huge condensed headline across the top, the small line at the bottom, the button under it.} Render the headline, the small line and the button text exactly as written in the brief — same words, same spelling, same capitalisation — and no other text: never the poster's own words, brand name or logo. Composition for a square: headline across the top, product filling the centre, the small line and the button along the bottom, margins on every side. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story-b",
+      "type": "generate-image",
+      "position": {
+        "x": 3800,
+        "y": 2686
+      },
+      "data": {
+        "label": "Story B",
+        "style": "",
+        "prompt": "Finished vertical 9:16 story ad for a phone screen. Two reference images: the photo of a poster in a street or station guides the typography, the placement logic and the mood; the packshot on a plain background is the PRODUCT — it must appear exactly as it is, with its own bottle, label and colours. Where the brief's Look departs from the poster (a darker or inverted colour scheme, a bigger or cropped product), the brief wins. The brief: {Take B · Bold || Headline: \"Forgettable is a decision.\" Small line: \"Amber and cedar. 20% off your first bottle.\" Button: \"Try it\" Look: a deep dark background with the accent colour on the type, the product very large and cropped at the edge, a huge condensed headline across the top, the small line at the bottom, the button under it.} Render the headline, the small line and the button text exactly as written in the brief — same words, same spelling, same capitalisation — and no other text: never the poster's own words, brand name or logo. Composition for a tall frame: headline in the top quarter, product tall in the middle with room around it, the small line and the button in the bottom sixth, everything clear of the very top and bottom edges. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-inspiration-formula",
+      "source": "inspiration",
+      "target": "formula",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-formula-take-a",
+      "source": "formula",
+      "target": "take-a",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-take-a",
+      "source": "brand",
+      "target": "take-a",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-take-a",
+      "source": "brief",
+      "target": "take-a",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-take-a",
+      "source": "product",
+      "target": "take-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-take-a-square",
+      "source": "take-a",
+      "target": "square-a",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-inspiration-square-a",
+      "source": "inspiration",
+      "target": "square-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-square-a",
+      "source": "product",
+      "target": "square-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-take-a-story",
+      "source": "take-a",
+      "target": "story-a",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-inspiration-story-a",
+      "source": "inspiration",
+      "target": "story-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-story-a",
+      "source": "product",
+      "target": "story-a",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-formula-take-b",
+      "source": "formula",
+      "target": "take-b",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-take-b",
+      "source": "brand",
+      "target": "take-b",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-take-b",
+      "source": "brief",
+      "target": "take-b",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-take-b",
+      "source": "product",
+      "target": "take-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-take-b-square",
+      "source": "take-b",
+      "target": "square-b",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-inspiration-square-b",
+      "source": "inspiration",
+      "target": "square-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-square-b",
+      "source": "product",
+      "target": "square-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-take-b-story",
+      "source": "take-b",
+      "target": "story-b",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-inspiration-story-b",
+      "source": "inspiration",
+      "target": "story-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-story-b",
+      "source": "product",
+      "target": "story-b",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.217
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "brand": {
+          "title": "Brand notes",
+          "description": "Name and tone of voice. Colours only if the ad must stay on-brand."
+        },
+        "brief": {
+          "title": "Creative brief",
+          "description": "One line on what the ad must say or offer. Lands in the small line or the button."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean packshot. It appears exactly as it is in every ad."
+        },
+        "story-a": {
+          "title": "Story · Take A",
+          "description": "The faithful take, 9:16 for vertical placements."
+        },
+        "story-b": {
+          "title": "Story · Take B",
+          "description": "The bold take, 9:16 for vertical placements."
+        },
+        "square-a": {
+          "title": "Square · Take A",
+          "description": "The faithful take, 1:1 for the feed."
+        },
+        "square-b": {
+          "title": "Square · Take B",
+          "description": "The bold take, 1:1 for the feed."
+        },
+        "inspiration": {
+          "title": "Inspiration ad",
+          "description": "A photo of the ad that caught your eye. Its look carries over; its words, brand and product never do."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "inspiration",
+        "product",
+        "brand",
+        "brief"
+      ],
+      "outputOrder": [
+        "square-a",
+        "story-a",
+        "square-b",
+        "story-b"
+      ]
+    }
+  }
+}

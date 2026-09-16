@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useMemo, useRef, Suspense } from "react"
 import { lazyWithRetry as lazy } from "@/lib/lazy-with-retry"
+import { useDismissableLayerSurface } from "@radix-ui/react-dismissable-layer"
 import { buildRangeLabel as buildRangeLabelShared, isCollectInEdge, type SelectorMode } from "@nodaro/shared"
 import {
   ReactFlow,
@@ -584,6 +585,16 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
   const copilotTurnActive = useCopilotUiStore((s) => s.turnActive)
   const zoom = useStore((s) => s.transform[2])
   const lastMousePositionRef = useRef({ x: 0, y: 0 })
+  // Radix Popover (1.1.23+) defers its outside-click dismissal to the follow-up
+  // `click` and treats a `mousedown` that never bubbled back to the document
+  // as an interaction something else intercepted, so it does NOT dismiss.
+  // React Flow's d3-zoom calls stopImmediatePropagation on the pane's
+  // mousedown, which made every non-modal popover on the canvas (model
+  // picker, quick-strip popovers, handle popovers) survive a click on the
+  // pane; Escape still closed them. Registering the canvas as a dismissable
+  // SURFACE tells Radix that events inside it count as outside interactions
+  // even when a handler stops them. Guarded by canvas-dismissable-surface.test.tsx.
+  const dismissableSurfaceRef = useDismissableLayerSurface()
   const arrowGuideClearRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const mobileContextValue = useMemo(() => ({ isMobile }), [isMobile])
   const zoomContextValue = useMemo(() => ({ zoom }), [zoom])
@@ -2895,7 +2906,7 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
 
       <MobileCanvasContext.Provider value={mobileContextValue}>
       <CanvasZoomContext.Provider value={zoomContextValue}>
-      <div className="relative w-full h-full" onDragOver={handleDragOver} onDrop={handleDrop} onMouseMove={(e) => { lastMousePositionRef.current = { x: e.clientX, y: e.clientY } }}>
+      <div ref={dismissableSurfaceRef} className="relative w-full h-full" onDragOver={handleDragOver} onDrop={handleDrop} onMouseMove={(e) => { lastMousePositionRef.current = { x: e.clientX, y: e.clientY } }}>
         {isReadOnly && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 rounded-full border border-[#ff0073]/40 bg-background/90 px-4 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur pointer-events-none">
             Studio workflow — view only. Open in Studio to edit, or Clone &amp; Remix.

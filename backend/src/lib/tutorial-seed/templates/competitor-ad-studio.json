@@ -1,0 +1,436 @@
+{
+  "slug": "competitor-ad-studio",
+  "name": "Competitor Ad Studio",
+  "description": "A rival's winning ad, your packshot and your brand notes in; your own ad out — the same trick, layout and copy pattern, your product exactly as photographed, your facts, your colours — as a square feed post and a 9:16 story, with the rival's structure explained in five editable lines.",
+  "markdownDescription": "## Competitor Ad Studio\n\nA rival's winning ad, your packshot and your brand notes become your own ad — the same trick, layout and copy pattern, your product, your facts, your colours — as a feed post and a story. The rival's ad is read for structure only; none of its words, logo or brand carry over.\n\n1. **Rival's ad** — the ad that made you jealous.\n2. **Your packshot + Brand notes** — your product exactly as it is, and only the facts you can stand behind.\n3. **Ad anatomy** — an AI analyst explains what makes the rival's ad work: the trick, the layout, the copy pattern, the colour logic. Brand-free, editable.\n4. **Your brief** — a creative director applies that structure to your product: headline, small line, button and look. Edit it by hand and rerun.\n5. **Your ad + Your story** — square for the feed, vertical for stories.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "competitor",
+    "remake",
+    "structure",
+    "feed",
+    "stories"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 34,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/690d1b02-5807-4139-9c59-1d497daadb96.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 33,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A rival's winning ad, your packshot and your brand notes go in; your own ad comes out — the same trick, layout and copy pattern, your product, your facts, your colours — as a feed post and a story.\n\n1. Rival's ad — the ad that made you jealous. It is read for structure only; none of its words, logo or brand carry over.\n2. Your packshot + Brand notes — your product exactly as it is, and only the facts you can stand behind.\n3. Ad anatomy — an AI analyst explains what makes the rival's ad work: the trick, the layout, the copy pattern, the colour logic. Brand-free, editable.\n4. Your brief — a creative director applies that structure to your product: headline, small line, button and look.\n5. Your ad + Your story — square for the feed, vertical for stories.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Competitor ad studio — how it works",
+        "width": 1180,
+        "height": 650,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-rival",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "One ad you want to answer. It is read for structure only — the trick, the layout, the copy pattern — and nothing from it carries over: no words, no logo, no brand.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Rival's ad",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1530
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean photo of your product on a plain background. It replaces the rival's product entirely and comes through exactly as it is.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Your packshot",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2250
+      },
+      "data": {
+        "bold": false,
+        "text": "Your brand name, what the product is and does, the claims you can stand behind, your colours and tone. Only what is here gets used; nothing is invented.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Brand notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-anatomy",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "What makes the rival's ad work, in five lines: the trick, the layout, the copy pattern, the colour logic, why it works. Never names the brand. Edit it by hand to steer your version.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Ad anatomy",
+        "width": 480,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-writer",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "The same structure applied to your product and your facts: a headline in the rival's copy pattern, a small line, a button and the look in your colours. Edit it and rerun the ad and the story.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Your brief",
+        "width": 480,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-outputs",
+      "type": "sticky-note",
+      "position": {
+        "x": 2980,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "The square ad follows the rival's composition with your product exactly as photographed and your words exactly as written; the story re-frames it for a phone. Rerun either alone for another take.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Your ad + Your story",
+        "width": 1180,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "rival",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 810
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/79dda178-078e-4f8c-876b-b3e410955552.png",
+        "label": "Rival's ad",
+        "r2Url": "https://cdn.nodaro.ai/images/79dda178-078e-4f8c-876b-b3e410955552.png",
+        "assetId": "79dda178-078e-4f8c-876b-b3e410955552",
+        "filename": "rival-ad-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/79dda178-078e-4f8c-876b-b3e410955552.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1530
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/03d52ce7-8b1c-4076-a574-f390fe486b61.png",
+        "label": "Your packshot",
+        "r2Url": "https://cdn.nodaro.ai/images/03d52ce7-8b1c-4076-a574-f390fe486b61.png",
+        "assetId": "03d52ce7-8b1c-4076-a574-f390fe486b61",
+        "filename": "e-bike-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/03d52ce7-8b1c-4076-a574-f390fe486b61.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2250
+      },
+      "data": {
+        "text": "Brand: VELA — city bikes with a battery you cannot see. Product: VELA E1 — a matte forest-green electric bike with a hidden battery, a tan leather saddle, brass details and a brass headlamp; 60 km on one charge; charges in 3 hours. Audience: city commuters who want a beautiful bike, not a gadget. Colours: forest green, cream, brass. Tone: calm, confident, a little dry.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "anatomy",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1280
+      },
+      "data": {
+        "label": "Ad anatomy",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Explain the reference advertisement.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an advertising analyst. Look at the reference advertisement and explain what makes it work, in exactly this shape, plain English, nothing else:\nTrick: <one sentence — the single idea the ad is built on: the visual device, the joke, the comparison, the promise>\nLayout: <one paragraph of 50 to 80 words: where the product sits and how big, where the headline, the small line and the button sit, the background and how the eye moves through it>\nCopy pattern: <one sentence — the shape of the headline and how the small line supports it, without quoting the brand>\nColour logic: <one sentence — how colour is used: one bold field, contrast, an accent>\nWhy it works: <one sentence>\nNever name or guess the brand, the product line or the company; describe the product only by what it is. No other headings, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 1280
+      },
+      "data": {
+        "label": "Your ad brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Anatomy of the rival's ad: {Ad anatomy || a bold single-idea product ad.} Brand notes: {Brand notes || a premium consumer product.} The reference image is the client's product. Write the client's brief.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director. You get the anatomy of a rival's winning ad, your client's brand notes and your client's product photo. Write the brief for your client's own ad that uses the same trick, layout, copy pattern and colour logic — the structure, never the words, never the rival's colours if the notes give the client's own — with the client's product as the hero and only the client's facts. Answer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words, in the rival's copy pattern, about the client's product>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 70 to 100 words: the same layout and trick applied to the client's product, the client's colours, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot stays exactly as it is.>\nUse only facts from the brand notes; never invent claims, numbers or prices; never mention the rival. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad",
+      "type": "generate-image",
+      "position": {
+        "x": 2980,
+        "y": 1280
+      },
+      "data": {
+        "label": "Your ad",
+        "style": "",
+        "prompt": "Finished square 1:1 advertisement built from this brief: {Your ad brief || Headline: \"Skip the traffic. Keep the view.\" Small line: \"Sixty kilometres on one charge.\" Button: \"Book a ride\" Look: a deep forest-green field, the bike floating diagonally above a fine cream line-drawn city map, a white condensed headline across the top, the button at the bottom, clean and punchy.} Of the two reference images, the finished advertisement is the structure to follow — the same composition, the same placement of product, headline, small line and button, the same visual trick — and the product alone on a plain background is the product: it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp, and it replaces the product in the finished advertisement entirely. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text; nothing from the reference advertisement's words, logos or brand carries over. Colours from the brief. Crisp typography, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "story",
+      "type": "generate-image",
+      "position": {
+        "x": 3820,
+        "y": 1280
+      },
+      "data": {
+        "label": "Your story",
+        "style": "",
+        "prompt": "Recreate the reference advertisement as a vertical 9:16 story for a phone screen: the same product exactly as it is, the same headline, small line and button word for word, the same colours, light and trick — the scene extended above and below to fill the taller frame, the product large in the middle, the copy in the upper and lower thirds, clear of the top and bottom edges where the phone's interface sits. The brief it was built from: {Your ad brief || Headline: \"Skip the traffic. Keep the view.\" Small line: \"Sixty kilometres on one charge.\" Button: \"Book a ride\" Look: a deep forest-green field, the bike floating diagonally above a fine cream line-drawn city map, a white condensed headline across the top, the button at the bottom, clean and punchy.} Nothing added, no other text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-rival-anatomy",
+      "source": "rival",
+      "target": "anatomy",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-anatomy-writer",
+      "source": "anatomy",
+      "target": "writer",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer",
+      "source": "brand",
+      "target": "writer",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer",
+      "source": "product",
+      "target": "writer",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad",
+      "source": "writer",
+      "target": "ad",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-rival-ad",
+      "source": "rival",
+      "target": "ad",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-ad",
+      "source": "product",
+      "target": "ad",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-ad-story",
+      "source": "ad",
+      "target": "story",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-story",
+      "source": "writer",
+      "target": "story",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.314
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "ad": {
+          "title": "Your ad",
+          "description": "The same trick and layout, your product, your words."
+        },
+        "brand": {
+          "title": "Brand notes",
+          "description": "Your facts, colours and tone — in plain words."
+        },
+        "rival": {
+          "title": "Rival's ad",
+          "description": "The ad to answer. Read for structure only."
+        },
+        "story": {
+          "title": "Your story",
+          "description": "The same ad as a 9:16 story."
+        },
+        "product": {
+          "title": "Your packshot",
+          "description": "Your product on a plain background. It appears exactly as it is."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "rival",
+        "product",
+        "brand"
+      ],
+      "outputOrder": [
+        "ad",
+        "story"
+      ]
+    }
+  }
+}

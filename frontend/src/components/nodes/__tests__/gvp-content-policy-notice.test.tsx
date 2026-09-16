@@ -104,6 +104,7 @@ vi.mock("@/hooks/use-workflow-store", () => ({
 }))
 
 vi.mock("@/ee/hooks/use-model-credits", () => ({
+  useVideoProCredits: () => ({ data: undefined, isError: false }),
   useModelCredits: () => 25,
 }))
 

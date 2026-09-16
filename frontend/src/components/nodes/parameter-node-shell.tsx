@@ -72,10 +72,11 @@ export function ParameterNodeShell({ id, label, icon, handleId, selected, childr
     useShallow((s) => {
       const n = s.nodes.find((nn) => nn.id === id)
       let downstream = false
-      // Only camera-motion / transition compose their prompt preview from
-      // connected start/end states; for every other picker type the incoming
+      // Only camera-motion / transition (connected start/end states) and
+      // character-motion (wired target / partner names) compose their prompt
+      // preview from incoming edges; for every other picker type the incoming
       // fingerprint is irrelevant, so skip the upstream walk entirely.
-      const composes = n?.type === "camera-motion" || n?.type === "transition"
+      const composes = n?.type === "camera-motion" || n?.type === "transition" || n?.type === "character-motion"
       let fp = ""
       for (const e of s.edges) {
         if (e.source === id) downstream = true

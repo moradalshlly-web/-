@@ -1,7 +1,7 @@
 "use client"
 
 import { tx } from "@/lib/i18n"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { LucideIcon } from "lucide-react"
 import { Sparkles, Languages, Image as ImageIcon, LayoutGrid, Palette, Ratio, Maximize2, Clock, Wand2, Hash, Music2, Mic, Volume2, Gauge, Layers } from "lucide-react"
 import {
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
+import { ClampedNumberInput } from "@/components/ui/clamped-number-input"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import {
   MODIFY_IMAGE_MODELS,
@@ -867,6 +867,21 @@ export function QuickConfigSelect({
 }) {
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData)
   const [customOpen, setCustomOpen] = useState(false)
+  // The Select trigger doubles as the popover ANCHOR (not a PopoverTrigger), so
+  // Radix treats focus landing on it as "outside" — see onInteractOutside below.
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  // The custom editor's open state MUST be counted by the host strip exactly
+  // like the Select's: NodeQuickStrip pins the hover toolbar only while
+  // `openCount > 0`, and choosing "Custom…" closes the Select (count → 0 a
+  // macrotask later). Uncounted, the strip unpinned with the cursor still over
+  // the just-closed menu, unmounted, and took the freshly opened popover with
+  // it — the "shows for a second and hides" report (2026-09-16, verified with a
+  // MutationObserver on staging). Reporting +1 here first keeps the count net
+  // positive across the hand-off; the popover's own close reports the −1.
+  const setCustomOpenCounted = (next: boolean) => {
+    setCustomOpen(next)
+    onOpenChange?.(next)
+  }
   const Icon = control.icon
   const options = resolveOptions(control, data)
   const range = control.customRange
@@ -926,9 +941,9 @@ export function QuickConfigSelect({
   }
   const draft = inRange(effectiveValue) ? Number(effectiveValue) : range?.min ?? 0
   return (
-    <Popover open={customOpen} onOpenChange={setCustomOpen}>
+    <Popover open={customOpen} onOpenChange={setCustomOpenCounted}>
       <PopoverAnchor asChild>
-        <span className="inline-flex">
+        <span ref={anchorRef} className="inline-flex">
           <Select
             value={current ? effectiveValue : undefined}
             onValueChange={(v) => {
@@ -936,7 +951,7 @@ export function QuickConfigSelect({
               // popover (the same pair the config panels' Duration field
               // renders) for any in-range manual value.
               if (v === CUSTOM) {
-                setCustomOpen(true)
+                setCustomOpenCounted(true)
                 return
               }
               writeValue(v)
@@ -977,6 +992,17 @@ export function QuickConfigSelect({
           sideOffset={6}
           className="node-menu-surface w-56 p-3"
           onOpenAutoFocus={(e) => e.preventDefault()}
+          // Choosing "Custom…" closes the Select, which returns focus to its
+          // trigger. That trigger lives inside PopoverAnchor, not PopoverTrigger,
+          // so Radix's non-modal popover reads the focus-in as an OUTSIDE
+          // interaction and dismissed the editor one frame after it opened
+          // ("shows for a second and hides"). Anchor-internal interactions are
+          // never "outside"; everything else (pane click, other controls) still
+          // dismisses.
+          onInteractOutside={(e) => {
+            const target = e.target as Node | null
+            if (target && anchorRef.current?.contains(target)) e.preventDefault()
+          }}
         >
           <div className="flex flex-col gap-2">
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -994,17 +1020,15 @@ export function QuickConfigSelect({
                 className="flex-1 h-1.5 rounded-lg cursor-pointer accent-[#ff0073]"
                 aria-label={`${control.ariaLabel} (custom)`}
               />
-              <Input
-                type="number"
+              {/* Commits on blur / Enter — clamping per keystroke made "12"
+                  untypeable (the "1" snapped to the 4s floor first). */}
+              <ClampedNumberInput
                 min={range.min}
                 max={range.max}
                 step={range.step ?? 1}
                 value={draft}
-                onChange={(e) => {
-                  if (e.target.value === "") return
-                  const parsed = Number(e.target.value)
-                  if (Number.isNaN(parsed)) return
-                  writeValue(String(Math.min(range.max, Math.max(range.min, Math.round(parsed)))))
+                onCommit={(n) => {
+                  if (n !== undefined) writeValue(String(n))
                 }}
                 className="w-16 h-7 text-xs shrink-0"
                 aria-label={`${control.ariaLabel} (custom value)`}

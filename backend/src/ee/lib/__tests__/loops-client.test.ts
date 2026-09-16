@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 vi.mock("@/lib/config.js", () => ({ config: { LOOPS_API_KEY: "" } }))
 
-import { updateContact, isLoopsConfigured, sendTransactional } from "../loops-client.js"
+import { updateContact, isLoopsConfigured, sendTransactional, findContact } from "../loops-client.js"
 import { config } from "../../../lib/config.js"
 
 function setKey(key: string) {
@@ -51,6 +51,52 @@ describe("loops-client", () => {
     const r = await updateContact("a@b.com", {})
     expect(r.ok).toBe(false)
     expect(r.error).toContain("network down")
+  })
+})
+
+describe("findContact", () => {
+  it("is not-ok without a key and never calls out", async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    const r = await findContact("a@b.com")
+    expect(r.ok).toBe(false)
+    expect(r.contact).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("GETs by email and reads the subscribed flag", async () => {
+    setKey("test-key")
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ id: "c1", email: "a@b.com", subscribed: false }],
+      text: async () => "",
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const r = await findContact("a+tag@b.com")
+    expect(r.ok).toBe(true)
+    expect(r.contact).toEqual({ email: "a@b.com", subscribed: false })
+    const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit & { headers: Record<string, string> }]
+    expect(url).toBe("https://app.loops.so/api/v1/contacts/find?email=a%2Btag%40b.com")
+    expect(opts.method).toBe("GET")
+    expect(opts.headers.Authorization).toBe("Bearer test-key")
+  })
+
+  it("answers ok with a null contact when Loops has none", async () => {
+    setKey("test-key")
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [], text: async () => "" }))
+    const r = await findContact("a@b.com")
+    expect(r).toMatchObject({ ok: true, contact: null })
+  })
+
+  it("is not-ok on an HTTP error, an unexpected body, and a rejected fetch — never 'unsubscribed'", async () => {
+    setKey("test-key")
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" }))
+    expect(await findContact("a@b.com")).toMatchObject({ ok: false, status: 500, contact: null })
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ nope: true }), text: async () => "" }))
+    expect(await findContact("a@b.com")).toMatchObject({ ok: false, contact: null })
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")))
+    expect(await findContact("a@b.com")).toMatchObject({ ok: false, contact: null })
   })
 })
 

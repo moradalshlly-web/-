@@ -369,6 +369,7 @@ export const INPUT_FIELD_MAP: Record<string, InputFieldSchema> = {
   "post-process-effects": { key: "postProcess", type: "select" },
   "action-fx": { key: "actionFx", type: "select" },
   "character-fx": { key: "characterFx", type: "select" },
+  "character-motion": { key: "characterMotion", type: "select" },
   "transition": { key: "transition", type: "select" },
   "loop-subject": { key: "loopSubject", type: "select" },
   // --- Multi-dimension pickers: representative (first) field. Overriding only

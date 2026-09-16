@@ -1,0 +1,982 @@
+{
+  "slug": "camera-angle-studio",
+  "name": "Camera Angle Studio",
+  "description": "One photo of a model, six camera angles (fisheye, bird's eye, low angle, Dutch angle, macro, worm's eye), two ways — straight from a tile, and through an AI director who reads the photo and decides what each angle should show — one row above the other to compare.",
+  "markdownDescription": "## Camera Angle Studio\n\nOne photo of a model, six camera angles, two ways of asking for them — one row above the other, so you can compare.\n\n1. **Reference photo** — any clear photo of a person. The face, the clothes and the place stay; only the camera moves.\n2. **Six angle tiles** — fisheye, bird's eye, low angle, Dutch angle, macro, worm's eye. One tile per angle, no writing.\n3. **Row 1, from the tile** — each tile goes straight into an image. Fast, cheap, good for most jobs.\n4. **Row 2, with a director** — the same tile goes to an AI director who reads the photo and decides what the angle should reveal, then writes the prompt. Worth it when the angle has to say something.\n5. Same photo, same six angles, two answers each. Pick the way that fits the job; delete the row you do not need.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "camera-angle",
+    "reshoot",
+    "framing",
+    "lens",
+    "model"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 180,
+  "nodeTypesUsed": [
+    "upload-image",
+    "lens",
+    "framing",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/bc7b0680-34a4-4f70-8682-3c29bcab11bb.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 14,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One photo of a model, six camera angles, two ways of asking for them — one row above the other, so you can compare.\n\n1. Reference photo — any clear photo of a person. The face, the clothes and the place stay; only the camera moves.\n2. Six angle tiles — fisheye, bird's eye, low angle, Dutch angle, macro, worm's eye. One tile per angle, no writing.\n3. Row 1, from the tile — each tile goes straight into an image. Fast, cheap, good for most jobs.\n4. Row 2, with a director — the same tile goes to an AI director who reads the photo and decides what the angle should reveal, then writes the prompt. Slower, one AI call more, worth it when the angle has to say something.\n5. Same photo, same six angles, two answers each. Pick the way that fits the job; delete the row you do not need.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Camera angle studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ref",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "One clear photo of a person: the face visible, the clothes readable, the place recognisable. Every image below gets it as a reference and keeps all three. Replace it with your own photo, or with a model card from Model Creator Studio — this one is.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Reference photo",
+        "width": 640,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-tiles",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Top row: one picker per angle — a Lens tile for the fisheye, a Framing tile for the rest. Each tile goes straight into the image under it with no prompt writing: the tile already carries the photographer's words for that angle. Swap a tile for any other angle or shot size and rerun that column alone.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Six angles from tiles",
+        "width": 4300,
+        "height": 140,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-director",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 2250
+      },
+      "data": {
+        "bold": false,
+        "text": "The same tiles again, but each first goes to an AI director who looks at the photo and decides what the angle should show — the eyes in the fisheye, the shoes in the worm's eye, the fabric in the macro — and writes where the camera stands in plain physical words. Its paragraph becomes the prompt of the image under it. Open a director to read what it decided; compare its image with the tile-only image above.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · The same six angles with a director",
+        "width": 4300,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "ref",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/157c1389-511d-4947-a5af-07c425d7a7ee.png",
+        "label": "Reference photo",
+        "r2Url": "https://cdn.nodaro.ai/images/157c1389-511d-4947-a5af-07c425d7a7ee.png",
+        "filename": "model-card-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/157c1389-511d-4947-a5af-07c425d7a7ee.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-fisheye",
+      "type": "lens",
+      "position": {
+        "x": 1540,
+        "y": 1110
+      },
+      "data": {
+        "lens": "fisheye",
+        "label": "Fisheye",
+        "hintMode": "compact",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "tile-fisheye",
+      "type": "generate-image",
+      "position": {
+        "x": 1540,
+        "y": 1330
+      },
+      "data": {
+        "label": "Tile · Fisheye",
+        "style": "",
+        "prompt": "The model from the reference photo photographed again from a new camera position: {Fisheye || a different camera angle}. Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "dir-fisheye",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 2550
+      },
+      "data": {
+        "label": "Director · Fisheye",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Camera angle: {Fisheye || a different camera angle}. Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are a fashion photography director. You get one photo of a model and one camera angle. Look at the photo first: the clothes, the pose, the most striking element (a collar, a shoe, the hair, the eyes), the surroundings, the direction and warmth of the light. Then decide what THIS angle should show — a real photographer does not just tilt the camera, they choose what the angle reveals. Write ONE paragraph of three to five sentences that is the complete image prompt: exactly where the camera stands and where it points, in plain physical words (at floor level thirty centimetres from the shoes, tilted up along the body); what becomes big and what recedes; how the surroundings frame the person from there; the light and the colours matching the photo. Always say the model from the reference photo. No lens jargon, no composition rules, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-fisheye",
+      "type": "generate-image",
+      "position": {
+        "x": 1540,
+        "y": 2850
+      },
+      "data": {
+        "label": "Director · Fisheye · image",
+        "style": "",
+        "prompt": "{Director · Fisheye || The model from the reference photo from a new camera angle.} Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-birds-eye",
+      "type": "framing",
+      "position": {
+        "x": 2280,
+        "y": 1110
+      },
+      "data": {
+        "angle": "birds-eye",
+        "label": "Bird's eye",
+        "hintMode": "compact",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "tile-birds-eye",
+      "type": "generate-image",
+      "position": {
+        "x": 2280,
+        "y": 1330
+      },
+      "data": {
+        "label": "Tile · Bird's eye",
+        "style": "",
+        "prompt": "The model from the reference photo photographed again from a new camera position: {Bird's eye || a different camera angle}. Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "dir-birds-eye",
+      "type": "llm-chat",
+      "position": {
+        "x": 2280,
+        "y": 2550
+      },
+      "data": {
+        "label": "Director · Bird's eye",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Camera angle: {Bird's eye || a different camera angle}. Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are a fashion photography director. You get one photo of a model and one camera angle. Look at the photo first: the clothes, the pose, the most striking element (a collar, a shoe, the hair, the eyes), the surroundings, the direction and warmth of the light. Then decide what THIS angle should show — a real photographer does not just tilt the camera, they choose what the angle reveals. Write ONE paragraph of three to five sentences that is the complete image prompt: exactly where the camera stands and where it points, in plain physical words (at floor level thirty centimetres from the shoes, tilted up along the body); what becomes big and what recedes; how the surroundings frame the person from there; the light and the colours matching the photo. Always say the model from the reference photo. No lens jargon, no composition rules, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-birds-eye",
+      "type": "generate-image",
+      "position": {
+        "x": 2280,
+        "y": 2850
+      },
+      "data": {
+        "label": "Director · Bird's eye · image",
+        "style": "",
+        "prompt": "{Director · Bird's eye || The model from the reference photo from a new camera angle.} Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-low-angle",
+      "type": "framing",
+      "position": {
+        "x": 3020,
+        "y": 1110
+      },
+      "data": {
+        "angle": "low-angle",
+        "label": "Low angle",
+        "hintMode": "compact",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "tile-low-angle",
+      "type": "generate-image",
+      "position": {
+        "x": 3020,
+        "y": 1330
+      },
+      "data": {
+        "label": "Tile · Low angle",
+        "style": "",
+        "prompt": "The model from the reference photo photographed again from a new camera position: {Low angle || a different camera angle}. Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "dir-low-angle",
+      "type": "llm-chat",
+      "position": {
+        "x": 3020,
+        "y": 2550
+      },
+      "data": {
+        "label": "Director · Low angle",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Camera angle: {Low angle || a different camera angle}. Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are a fashion photography director. You get one photo of a model and one camera angle. Look at the photo first: the clothes, the pose, the most striking element (a collar, a shoe, the hair, the eyes), the surroundings, the direction and warmth of the light. Then decide what THIS angle should show — a real photographer does not just tilt the camera, they choose what the angle reveals. Write ONE paragraph of three to five sentences that is the complete image prompt: exactly where the camera stands and where it points, in plain physical words (at floor level thirty centimetres from the shoes, tilted up along the body); what becomes big and what recedes; how the surroundings frame the person from there; the light and the colours matching the photo. Always say the model from the reference photo. No lens jargon, no composition rules, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-low-angle",
+      "type": "generate-image",
+      "position": {
+        "x": 3020,
+        "y": 2850
+      },
+      "data": {
+        "label": "Director · Low angle · image",
+        "style": "",
+        "prompt": "{Director · Low angle || The model from the reference photo from a new camera angle.} Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-dutch",
+      "type": "framing",
+      "position": {
+        "x": 3760,
+        "y": 1110
+      },
+      "data": {
+        "angle": "dutch-angle",
+        "label": "Dutch angle",
+        "hintMode": "compact",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "tile-dutch",
+      "type": "generate-image",
+      "position": {
+        "x": 3760,
+        "y": 1330
+      },
+      "data": {
+        "label": "Tile · Dutch angle",
+        "style": "",
+        "prompt": "The model from the reference photo photographed again from a new camera position: {Dutch angle || a different camera angle}. Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "dir-dutch",
+      "type": "llm-chat",
+      "position": {
+        "x": 3760,
+        "y": 2550
+      },
+      "data": {
+        "label": "Director · Dutch angle",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Camera angle: {Dutch angle || a different camera angle}. Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are a fashion photography director. You get one photo of a model and one camera angle. Look at the photo first: the clothes, the pose, the most striking element (a collar, a shoe, the hair, the eyes), the surroundings, the direction and warmth of the light. Then decide what THIS angle should show — a real photographer does not just tilt the camera, they choose what the angle reveals. Write ONE paragraph of three to five sentences that is the complete image prompt: exactly where the camera stands and where it points, in plain physical words (at floor level thirty centimetres from the shoes, tilted up along the body); what becomes big and what recedes; how the surroundings frame the person from there; the light and the colours matching the photo. Always say the model from the reference photo. No lens jargon, no composition rules, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-dutch",
+      "type": "generate-image",
+      "position": {
+        "x": 3760,
+        "y": 2850
+      },
+      "data": {
+        "label": "Director · Dutch angle · image",
+        "style": "",
+        "prompt": "{Director · Dutch angle || The model from the reference photo from a new camera angle.} Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-macro",
+      "type": "framing",
+      "position": {
+        "x": 4500,
+        "y": 1110
+      },
+      "data": {
+        "label": "Macro",
+        "hintMode": "compact",
+        "shotSize": "macro",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "tile-macro",
+      "type": "generate-image",
+      "position": {
+        "x": 4500,
+        "y": 1330
+      },
+      "data": {
+        "label": "Tile · Macro",
+        "style": "",
+        "prompt": "The model from the reference photo photographed again from a new camera position: {Macro || a different camera angle}. Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "dir-macro",
+      "type": "llm-chat",
+      "position": {
+        "x": 4500,
+        "y": 2550
+      },
+      "data": {
+        "label": "Director · Macro",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Camera angle: {Macro || a different camera angle}. Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are a fashion photography director. You get one photo of a model and one camera angle. Look at the photo first: the clothes, the pose, the most striking element (a collar, a shoe, the hair, the eyes), the surroundings, the direction and warmth of the light. Then decide what THIS angle should show — a real photographer does not just tilt the camera, they choose what the angle reveals. Write ONE paragraph of three to five sentences that is the complete image prompt: exactly where the camera stands and where it points, in plain physical words (at floor level thirty centimetres from the shoes, tilted up along the body); what becomes big and what recedes; how the surroundings frame the person from there; the light and the colours matching the photo. Always say the model from the reference photo. No lens jargon, no composition rules, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-macro",
+      "type": "generate-image",
+      "position": {
+        "x": 4500,
+        "y": 2850
+      },
+      "data": {
+        "label": "Director · Macro · image",
+        "style": "",
+        "prompt": "{Director · Macro || The model from the reference photo from a new camera angle.} Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "pick-worms-eye",
+      "type": "framing",
+      "position": {
+        "x": 5240,
+        "y": 1110
+      },
+      "data": {
+        "angle": "worms-eye-angle",
+        "label": "Worm's eye",
+        "hintMode": "compact",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "tile-worms-eye",
+      "type": "generate-image",
+      "position": {
+        "x": 5240,
+        "y": 1330
+      },
+      "data": {
+        "label": "Tile · Worm's eye",
+        "style": "",
+        "prompt": "The model from the reference photo photographed again from a new camera position: {Worm's eye || a different camera angle}. Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "dir-worms-eye",
+      "type": "llm-chat",
+      "position": {
+        "x": 5240,
+        "y": 2550
+      },
+      "data": {
+        "label": "Director · Worm's eye",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Camera angle: {Worm's eye || a different camera angle}. Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.4,
+        "systemPrompt": "You are a fashion photography director. You get one photo of a model and one camera angle. Look at the photo first: the clothes, the pose, the most striking element (a collar, a shoe, the hair, the eyes), the surroundings, the direction and warmth of the light. Then decide what THIS angle should show — a real photographer does not just tilt the camera, they choose what the angle reveals. Write ONE paragraph of three to five sentences that is the complete image prompt: exactly where the camera stands and where it points, in plain physical words (at floor level thirty centimetres from the shoes, tilted up along the body); what becomes big and what recedes; how the surroundings frame the person from there; the light and the colours matching the photo. Always say the model from the reference photo. No lens jargon, no composition rules, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-worms-eye",
+      "type": "generate-image",
+      "position": {
+        "x": 5240,
+        "y": 2850
+      },
+      "data": {
+        "label": "Director · Worm's eye · image",
+        "style": "",
+        "prompt": "{Director · Worm's eye || The model from the reference photo from a new camera angle.} Keep the person, the clothes and the place exactly as in the reference photo — same face, same hair, same outfit, same background and light; only the camera changes. Photorealistic, natural colours matching the photo, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-ref-tile-fisheye",
+      "source": "ref",
+      "target": "tile-fisheye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-tile-fisheye",
+      "source": "pick-fisheye",
+      "target": "tile-fisheye",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-dir-fisheye",
+      "source": "ref",
+      "target": "dir-fisheye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-dir-fisheye",
+      "source": "pick-fisheye",
+      "target": "dir-fisheye",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-shot-fisheye",
+      "source": "ref",
+      "target": "shot-fisheye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-dir-shot-fisheye",
+      "source": "dir-fisheye",
+      "target": "shot-fisheye",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-tile-birds-eye",
+      "source": "ref",
+      "target": "tile-birds-eye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-tile-birds-eye",
+      "source": "pick-birds-eye",
+      "target": "tile-birds-eye",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-dir-birds-eye",
+      "source": "ref",
+      "target": "dir-birds-eye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-dir-birds-eye",
+      "source": "pick-birds-eye",
+      "target": "dir-birds-eye",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-shot-birds-eye",
+      "source": "ref",
+      "target": "shot-birds-eye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-dir-shot-birds-eye",
+      "source": "dir-birds-eye",
+      "target": "shot-birds-eye",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-tile-low-angle",
+      "source": "ref",
+      "target": "tile-low-angle",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-tile-low-angle",
+      "source": "pick-low-angle",
+      "target": "tile-low-angle",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-dir-low-angle",
+      "source": "ref",
+      "target": "dir-low-angle",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-dir-low-angle",
+      "source": "pick-low-angle",
+      "target": "dir-low-angle",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-shot-low-angle",
+      "source": "ref",
+      "target": "shot-low-angle",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-dir-shot-low-angle",
+      "source": "dir-low-angle",
+      "target": "shot-low-angle",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-tile-dutch",
+      "source": "ref",
+      "target": "tile-dutch",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-tile-dutch",
+      "source": "pick-dutch",
+      "target": "tile-dutch",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-dir-dutch",
+      "source": "ref",
+      "target": "dir-dutch",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-dir-dutch",
+      "source": "pick-dutch",
+      "target": "dir-dutch",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-shot-dutch",
+      "source": "ref",
+      "target": "shot-dutch",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-dir-shot-dutch",
+      "source": "dir-dutch",
+      "target": "shot-dutch",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-tile-macro",
+      "source": "ref",
+      "target": "tile-macro",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-tile-macro",
+      "source": "pick-macro",
+      "target": "tile-macro",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-dir-macro",
+      "source": "ref",
+      "target": "dir-macro",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-dir-macro",
+      "source": "pick-macro",
+      "target": "dir-macro",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-shot-macro",
+      "source": "ref",
+      "target": "shot-macro",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-dir-shot-macro",
+      "source": "dir-macro",
+      "target": "shot-macro",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-tile-worms-eye",
+      "source": "ref",
+      "target": "tile-worms-eye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-tile-worms-eye",
+      "source": "pick-worms-eye",
+      "target": "tile-worms-eye",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-dir-worms-eye",
+      "source": "ref",
+      "target": "dir-worms-eye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-pick-dir-worms-eye",
+      "source": "pick-worms-eye",
+      "target": "dir-worms-eye",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ref-shot-worms-eye",
+      "source": "ref",
+      "target": "shot-worms-eye",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-dir-shot-worms-eye",
+      "source": "dir-worms-eye",
+      "target": "shot-worms-eye",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.219
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "ref": {
+          "title": "Your photo",
+          "description": "One clear photo of a person. Face, clothes and place stay; only the camera moves."
+        },
+        "pick-dutch": {
+          "title": "Dutch angle",
+          "description": "The angle tile. Swap it for any other angle."
+        },
+        "pick-macro": {
+          "title": "Macro",
+          "description": "The angle tile. Swap it for any other angle."
+        },
+        "shot-dutch": {
+          "title": "Dutch angle · with a director",
+          "description": "An AI director decided what this angle should show."
+        },
+        "shot-macro": {
+          "title": "Macro · with a director",
+          "description": "An AI director decided what this angle should show."
+        },
+        "tile-dutch": {
+          "title": "Dutch angle · from the tile",
+          "description": "Straight from the tile, no prompt writing."
+        },
+        "tile-macro": {
+          "title": "Macro · from the tile",
+          "description": "Straight from the tile, no prompt writing."
+        },
+        "pick-fisheye": {
+          "title": "Fisheye",
+          "description": "The angle tile. Swap it for any other angle."
+        },
+        "shot-fisheye": {
+          "title": "Fisheye · with a director",
+          "description": "An AI director decided what this angle should show."
+        },
+        "tile-fisheye": {
+          "title": "Fisheye · from the tile",
+          "description": "Straight from the tile, no prompt writing."
+        },
+        "pick-birds-eye": {
+          "title": "Bird's eye",
+          "description": "The angle tile. Swap it for any other angle."
+        },
+        "pick-low-angle": {
+          "title": "Low angle",
+          "description": "The angle tile. Swap it for any other angle."
+        },
+        "pick-worms-eye": {
+          "title": "Worm's eye",
+          "description": "The angle tile. Swap it for any other angle."
+        },
+        "shot-birds-eye": {
+          "title": "Bird's eye · with a director",
+          "description": "An AI director decided what this angle should show."
+        },
+        "shot-low-angle": {
+          "title": "Low angle · with a director",
+          "description": "An AI director decided what this angle should show."
+        },
+        "shot-worms-eye": {
+          "title": "Worm's eye · with a director",
+          "description": "An AI director decided what this angle should show."
+        },
+        "tile-birds-eye": {
+          "title": "Bird's eye · from the tile",
+          "description": "Straight from the tile, no prompt writing."
+        },
+        "tile-low-angle": {
+          "title": "Low angle · from the tile",
+          "description": "Straight from the tile, no prompt writing."
+        },
+        "tile-worms-eye": {
+          "title": "Worm's eye · from the tile",
+          "description": "Straight from the tile, no prompt writing."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "ref",
+        "pick-fisheye",
+        "pick-birds-eye",
+        "pick-low-angle",
+        "pick-dutch",
+        "pick-macro",
+        "pick-worms-eye"
+      ],
+      "outputOrder": [
+        "tile-fisheye",
+        "tile-birds-eye",
+        "tile-low-angle",
+        "tile-dutch",
+        "tile-macro",
+        "tile-worms-eye",
+        "shot-fisheye",
+        "shot-birds-eye",
+        "shot-low-angle",
+        "shot-dutch",
+        "shot-macro",
+        "shot-worms-eye"
+      ]
+    }
+  }
+}

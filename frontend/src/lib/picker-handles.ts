@@ -90,6 +90,7 @@ const REGISTRY: Record<string, PickerOutputEntry> = {
   // ─── Motion family ──────────────────────────────────────────────────
   "camera-motion":         { family: "motion", label: "Camera motion" },
   "transition":            { family: "motion", label: "Transition" },
+  "character-motion":      { family: "motion", label: "Character motion" },
 
   // ─── Audio family ───────────────────────────────────────────────────
   "music-genre":           { family: "audio", label: "Music genre" },
@@ -205,6 +206,7 @@ const PICKER_DEFAULT_SOURCE_HANDLE: Record<string, string> = {
   "character-fx": "out",
   "camera-motion": "out",
   "transition": "out",
+  "character-motion": "out",
   "music-genre": "out",
   "music-mood": "out",
   "instrumentation": "out",

@@ -1,0 +1,731 @@
+{
+  "slug": "model-creator-studio",
+  "name": "Model Creator Studio",
+  "description": "Two models built from tiles alone — every Person and Styling dimension set — each as an identity sheet: a full-body card on grey plus a three-quarter, a portrait and a profile. Two rows side by side show what every tile does.",
+  "markdownDescription": "## Model Creator Studio\n\nTwo models, built from tiles alone — no photo, no text prompt — each as a full identity sheet: a full-body card on grey, then a three-quarter, a portrait and a profile. Two rows side by side show what every tile does.\n\n1. **Light** — the studio light from tiles, shared by both rows.\n2. **Model A** — a Person picker with every dimension set (identity, body, face, hair, skin, eyes, features) and a Styling picker (makeup, hair cut, outfit, fabric).\n3. **Model B** — the same two pickers with other choices. Compare the tiles, compare the pictures.\n4. **Each row** — the pickers feed a model card; the card and the pickers feed three fixed framings, so the face never drifts.\n5. Wire a model card into any other template as the model reference — it is the anchor every shot is measured against.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "model",
+    "person",
+    "reference",
+    "identity",
+    "e-commerce"
+  ],
+  "complexity": "beginner",
+  "estimatedCredits": 110,
+  "nodeTypesUsed": [
+    "person",
+    "styling",
+    "lighting",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/a8670135-c35f-448c-8eb2-eb8b2e6f7984.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 13,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "Two models, built from tiles alone — no photo, no text prompt — each as a full identity sheet: a full-body card on grey, then a three-quarter, a portrait and a profile. Put the two rows side by side to see what every tile does.\n\n1. Light — the studio light from tiles, shared by both rows.\n2. Model A — a Person picker with every dimension set (identity, body, face, hair, skin, eyes, features) and a Styling picker (makeup, hair cut, outfit, fabric).\n3. Model B — the same two pickers with other choices. Compare the tiles, compare the pictures.\n4. Each row: the pickers feed a model card; the card and the pickers feed three fixed framings, so the face never drifts.\n5. Wire a model card into any other template as the model reference — it is the anchor every shot is measured against.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Model creator studio — how it works",
+        "width": 1180,
+        "height": 650,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-light",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Studio light from tiles, shared by both rows. Soft high-key three-quarter light shows the face and the skin honestly — the right light for a reference sheet.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Light",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-a",
+      "type": "sticky-note",
+      "position": {
+        "x": 1237,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Read the row left to right. Person: every dimension is set from tiles — type, age, heritage, frame, waist, hips, face shape, jaw, cheekbones, eyes, nose, lips, hair, brows, skin, features. Styling: makeup, hair cut and treatment, hair state, outfit, top, fabric. Both feed the model card, a full-body reference on grey; the card and the pickers then feed three fixed framings. Open a picker to see the tiles; change one and rerun the row to watch the picture follow.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Model a — tiles → Card → Three framings",
+        "width": 3900,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-b",
+      "type": "sticky-note",
+      "position": {
+        "x": 1237,
+        "y": 2030
+      },
+      "data": {
+        "bold": false,
+        "text": "A second person from the same two pickers: another type, a broad frame, a strong jaw, tan sun-kissed skin, stubble, dimples, a Hawaiian island aesthetic, silver jewellery, a t-shirt and shorts. The row is identical to Model A's — only the tiles differ. This is the whole idea: the model is a set of choices, not a photo you have to find.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Model b — the same pickers, Other choices",
+        "width": 3900,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 700,
+        "y": 810
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "high-key",
+        "lightingDirection": "three-quarter",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "model-a",
+      "type": "person",
+      "position": {
+        "x": 1237,
+        "y": 1110
+      },
+      "data": {
+        "age": "age-late-20s",
+        "bust": "bust-average",
+        "hips": "hips-balanced",
+        "nose": "nose-straight",
+        "type": "beautiful-woman",
+        "frame": "frame-average",
+        "label": "Model A",
+        "waist": "waist-defined",
+        "jawline": "jaw-soft",
+        "noseTip": "nose-tip-refined",
+        "bodyMass": "mass-average",
+        "eyeColor": "eyes-blue",
+        "eyeShape": "eye-almond",
+        "eyeState": "eye-state-staring-camera",
+        "eyebrows": "brows-natural",
+        "hairBase": "base-long-wavy",
+        "hintMode": "compact",
+        "lipShape": "lips-natural",
+        "lipState": "lip-state-bare",
+        "skinTone": "skin-fair",
+        "ethnicity": "european-any",
+        "faceShape": "face-oval",
+        "hairColor": "hair-dark-brown",
+        "cheekbones": "cheekbones-high-defined",
+        "eyeSetBrow": "eyeset-average",
+        "eyeSpacing": "eye-spacing-average",
+        "eyelidType": "eyelid-standard",
+        "silhouette": "silhouette-hourglass",
+        "canthalTilt": "canthal-neutral",
+        "lipFullness": "lips-medium",
+        "skinTexture": "texture-smooth",
+        "facialFullness": "facial-fullness-average",
+        "presentationInput": true,
+        "distinctiveFeature": "feature-collarbone-visible"
+      }
+    },
+    {
+      "id": "styling-a",
+      "type": "styling",
+      "position": {
+        "x": 1684,
+        "y": 1110
+      },
+      "data": {
+        "top": "top-tank",
+        "label": "Styling A",
+        "fabric": "fabric-cotton",
+        "makeup": "makeup-natural",
+        "outfit": "outfit-athleisure",
+        "hairCut": "cut-curtain-bangs",
+        "hintMode": "compact",
+        "hairState": "hair-tousled",
+        "hairTreatment": "treatment-balayage",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "model-b",
+      "type": "person",
+      "position": {
+        "x": 1237,
+        "y": 2330
+      },
+      "data": {
+        "age": "age-late-20s",
+        "nose": "nose-straight",
+        "type": "handsome-man",
+        "frame": "frame-broad",
+        "label": "Model B",
+        "jawline": "jaw-strong",
+        "noseTip": "nose-tip-natural",
+        "bodyMass": "mass-average",
+        "eyeColor": "eyes-blue",
+        "eyeShape": "eye-almond",
+        "eyeState": "eye-state-staring-camera",
+        "eyebrows": "brows-thick",
+        "hairBase": "base-short-wavy",
+        "hintMode": "compact",
+        "lipShape": "lips-natural",
+        "lipState": "lip-state-parted",
+        "skinTone": "skin-tan",
+        "ethnicity": "european-any",
+        "faceShape": "face-oval",
+        "hairColor": "hair-dark-brown",
+        "cheekbones": "cheekbones-high-defined",
+        "eyeSetBrow": "eyeset-average",
+        "eyeSpacing": "eye-spacing-average",
+        "eyelidType": "eyelid-standard",
+        "facialHair": "face-stubble",
+        "silhouette": "silhouette-inverted",
+        "canthalTilt": "canthal-neutral",
+        "lipFullness": "lips-medium",
+        "skinTexture": "texture-sun-kissed",
+        "facialFullness": "facial-fullness-lean",
+        "presentationInput": true,
+        "regionalAesthetic": "hawaii-island",
+        "distinctiveFeature": "feature-dimples"
+      }
+    },
+    {
+      "id": "styling-b",
+      "type": "styling",
+      "position": {
+        "x": 1684,
+        "y": 2330
+      },
+      "data": {
+        "top": "top-tshirt",
+        "label": "Styling B",
+        "bottom": "bottom-shorts",
+        "fabric": "fabric-cotton",
+        "hairCut": "cut-short",
+        "jewelry": "jewelry-silver",
+        "hintMode": "compact",
+        "hairState": "hair-tousled",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "card-a",
+      "type": "generate-image",
+      "position": {
+        "x": 2131,
+        "y": 1110
+      },
+      "data": {
+        "label": "Model card A",
+        "style": "",
+        "prompt": "Full-body model reference photograph, head to toe, of {Model A || a woman} — {Styling A || wearing simple neutral basics} — standing straight with relaxed shoulders, weight even on both feet, arms resting naturally at the sides, looking directly into the camera with a calm neutral expression, on a plain light-grey seamless studio background. {Lighting || soft even diffused studio light}, minimal shadows, natural skin texture, no props, no text. 85 mm look, high-resolution e-commerce reference photography.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "a-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2871,
+        "y": 1110
+      },
+      "data": {
+        "label": "Model A · Three-quarter",
+        "style": "",
+        "prompt": "Framed from mid-thigh up, body turned a quarter away from the camera, face to the lens, calm neutral expression, arms relaxed. The same person as in the model card A reference photo — identical face, hair, skin and build: {Model A || a woman} — {Styling A || wearing simple neutral basics} — on the same plain light-grey seamless studio background, {Lighting || soft even diffused studio light}, minimal shadows, natural skin texture, no props, no text. High-resolution e-commerce reference photography.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "a-2",
+      "type": "generate-image",
+      "position": {
+        "x": 3611,
+        "y": 1110
+      },
+      "data": {
+        "label": "Model A · Portrait",
+        "style": "",
+        "prompt": "Head-and-shoulders portrait, 85 mm look, shallow depth of field, eyes sharp, looking straight into the lens, calm neutral expression. The same person as in the model card A reference photo — identical face, hair, skin and build: {Model A || a woman} — {Styling A || wearing simple neutral basics} — on the same plain light-grey seamless studio background, {Lighting || soft even diffused studio light}, minimal shadows, natural skin texture, no props, no text. High-resolution e-commerce reference photography.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "a-3",
+      "type": "generate-image",
+      "position": {
+        "x": 4351,
+        "y": 1110
+      },
+      "data": {
+        "label": "Model A · Profile",
+        "style": "",
+        "prompt": "Clean side profile from the shoulders up, the face turned exactly ninety degrees to the camera, eyes ahead, calm neutral expression, the jawline and the nose clearly readable. The same person as in the model card A reference photo — identical face, hair, skin and build: {Model A || a woman} — {Styling A || wearing simple neutral basics} — on the same plain light-grey seamless studio background, {Lighting || soft even diffused studio light}, minimal shadows, natural skin texture, no props, no text. High-resolution e-commerce reference photography.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "card-b",
+      "type": "generate-image",
+      "position": {
+        "x": 2131,
+        "y": 2330
+      },
+      "data": {
+        "label": "Model card B",
+        "style": "",
+        "prompt": "Full-body model reference photograph, head to toe, of {Model B || a man} — {Styling B || wearing simple neutral basics} — standing straight with relaxed shoulders, weight even on both feet, arms resting naturally at the sides, looking directly into the camera with a calm neutral expression, on a plain light-grey seamless studio background. {Lighting || soft even diffused studio light}, minimal shadows, natural skin texture, no props, no text. 85 mm look, high-resolution e-commerce reference photography.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "b-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2871,
+        "y": 2330
+      },
+      "data": {
+        "label": "Model B · Three-quarter",
+        "style": "",
+        "prompt": "Framed from mid-thigh up, body turned a quarter away from the camera, face to the lens, calm neutral expression, arms relaxed. The same person as in the model card B reference photo — identical face, hair, skin and build: {Model B || a man} — {Styling B || wearing simple neutral basics} — on the same plain light-grey seamless studio background, {Lighting || soft even diffused studio light}, minimal shadows, natural skin texture, no props, no text. High-resolution e-commerce reference photography.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "b-2",
+      "type": "generate-image",
+      "position": {
+        "x": 3611,
+        "y": 2330
+      },
+      "data": {
+        "label": "Model B · Portrait",
+        "style": "",
+        "prompt": "Head-and-shoulders portrait, 85 mm look, shallow depth of field, eyes sharp, looking straight into the lens, calm neutral expression. The same person as in the model card B reference photo — identical face, hair, skin and build: {Model B || a man} — {Styling B || wearing simple neutral basics} — on the same plain light-grey seamless studio background, {Lighting || soft even diffused studio light}, minimal shadows, natural skin texture, no props, no text. High-resolution e-commerce reference photography.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "b-3",
+      "type": "generate-image",
+      "position": {
+        "x": 4351,
+        "y": 2330
+      },
+      "data": {
+        "label": "Model B · Profile",
+        "style": "",
+        "prompt": "Clean side profile from the shoulders up, the face turned exactly ninety degrees to the camera, eyes ahead, calm neutral expression, the jawline and the nose clearly readable. The same person as in the model card B reference photo — identical face, hair, skin and build: {Model B || a man} — {Styling B || wearing simple neutral basics} — on the same plain light-grey seamless studio background, {Lighting || soft even diffused studio light}, minimal shadows, natural skin texture, no props, no text. High-resolution e-commerce reference photography.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-person-card-a",
+      "source": "model-a",
+      "target": "card-a",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-card-a",
+      "source": "styling-a",
+      "target": "card-a",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-card-a",
+      "source": "lighting",
+      "target": "card-a",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-a-1",
+      "source": "card-a",
+      "target": "a-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-person-a-1",
+      "source": "model-a",
+      "target": "a-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-a-1",
+      "source": "styling-a",
+      "target": "a-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-a-1",
+      "source": "lighting",
+      "target": "a-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-a-2",
+      "source": "card-a",
+      "target": "a-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-person-a-2",
+      "source": "model-a",
+      "target": "a-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-a-2",
+      "source": "styling-a",
+      "target": "a-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-a-2",
+      "source": "lighting",
+      "target": "a-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-a-3",
+      "source": "card-a",
+      "target": "a-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-person-a-3",
+      "source": "model-a",
+      "target": "a-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-a-3",
+      "source": "styling-a",
+      "target": "a-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-a-3",
+      "source": "lighting",
+      "target": "a-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-person-card-b",
+      "source": "model-b",
+      "target": "card-b",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-card-b",
+      "source": "styling-b",
+      "target": "card-b",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-card-b",
+      "source": "lighting",
+      "target": "card-b",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-b-1",
+      "source": "card-b",
+      "target": "b-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-person-b-1",
+      "source": "model-b",
+      "target": "b-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-b-1",
+      "source": "styling-b",
+      "target": "b-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-b-1",
+      "source": "lighting",
+      "target": "b-1",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-b-2",
+      "source": "card-b",
+      "target": "b-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-person-b-2",
+      "source": "model-b",
+      "target": "b-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-b-2",
+      "source": "styling-b",
+      "target": "b-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-b-2",
+      "source": "lighting",
+      "target": "b-2",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-b-3",
+      "source": "card-b",
+      "target": "b-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-person-b-3",
+      "source": "model-b",
+      "target": "b-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-b-3",
+      "source": "styling-b",
+      "target": "b-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-b-3",
+      "source": "lighting",
+      "target": "b-3",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.256
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "a-1": {
+          "title": "A · Three-quarter",
+          "description": "Mid-thigh up, a quarter turn."
+        },
+        "a-2": {
+          "title": "A · Portrait",
+          "description": "Head and shoulders, eyes to camera."
+        },
+        "a-3": {
+          "title": "A · Profile",
+          "description": "Clean side profile."
+        },
+        "b-1": {
+          "title": "B · Three-quarter",
+          "description": "Mid-thigh up, a quarter turn."
+        },
+        "b-2": {
+          "title": "B · Portrait",
+          "description": "Head and shoulders, eyes to camera."
+        },
+        "b-3": {
+          "title": "B · Profile",
+          "description": "Clean side profile."
+        },
+        "card-a": {
+          "title": "Model card A",
+          "description": "Full body on grey — the anchor."
+        },
+        "card-b": {
+          "title": "Model card B",
+          "description": "Full body on grey — the anchor."
+        },
+        "model-a": {
+          "title": "Model A",
+          "description": "Every dimension from tiles: identity, body, face, hair, skin, eyes, features."
+        },
+        "model-b": {
+          "title": "Model B",
+          "description": "The same picker, other choices."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Shared by both rows. High-key three-quarter is the reference-sheet default."
+        },
+        "styling-a": {
+          "title": "Styling A",
+          "description": "Makeup, hair cut and treatment, outfit, fabric."
+        },
+        "styling-b": {
+          "title": "Styling B",
+          "description": "The same picker, other choices."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "model-a",
+        "styling-a",
+        "model-b",
+        "styling-b",
+        "lighting"
+      ],
+      "outputOrder": [
+        "card-a",
+        "a-1",
+        "a-2",
+        "a-3",
+        "card-b",
+        "b-1",
+        "b-2",
+        "b-3"
+      ]
+    }
+  }
+}

@@ -47,6 +47,7 @@ export const LOOK_PICKER_TYPES: ReadonlyArray<string> = [
   "temporal",
   "transition",
   "character-fx",
+  "character-motion",
 ]
 
 /** Pickers that go on the Elements handle. Aligned with registry's

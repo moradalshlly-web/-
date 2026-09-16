@@ -212,7 +212,7 @@ Visual style, mood, color, atmosphere, and aesthetic pickers. Wire into an AI im
 
 ### Picker nodes — Camera family
 
-Lens, format, motion, transitions, and character-driven effects.
+Lens, format, motion, transitions, character-driven effects, and character movement.
 
 | Node | Description | When to Use |
 |------|-------------|-------------|
@@ -221,6 +221,7 @@ Lens, format, motion, transitions, and character-driven effects.
 | [Camera / Film Stock](./parameters/camera-format.md) | Pick from 31 camera/film formats (35mm, IMAX, super-8, polaroid, VHS, ...) | Specify recording medium |
 | [Transition](./parameters/transition.md) | Pick a cinematic transition (76-entry catalog, 8 categories, multi-pick + timing fields) | Inject transition effects into AI-generated video clips (cross-dissolve, time-shift, morph, portal, glitch, etc.) |
 | [Character FX](./parameters/character-fx.md) | Apply a character-driven effect (57 entries, 5 categories) with target ref name substitution | Animate transformations, fantastical powers, body modifications, or subject-bound auras on a named character |
+| [Character Motion](./parameters/character-motion.md) | Pick what the subject does across the clip (1054 moves, 20 categories), up to 3 in order, with target and partner name substitution | Choreograph entrances, gestures, dance, stunts, and two-person moves for a named character |
 
 ### Picker nodes — Subject / Object family
 

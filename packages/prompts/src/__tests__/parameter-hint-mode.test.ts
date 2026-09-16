@@ -194,6 +194,33 @@ describe("hint mode: compact preserves everything but the base fragment", () => 
     expect(compact).toContain("with extreme exaggerated energy, wild flourishes, and dramatic distortion")
   })
 
+  it("character-motion timing clauses are emitted identically in compact mode", () => {
+    const move = firstInjectingId("character-motion")
+    const data = { characterMotion: move, position: "full", pace: "explosive" }
+    const compact = getParameterPromptHint({ id: "n1", type: "character-motion", data: { ...data, hintMode: "compact" } })
+    expect(compact).toContain("the movement plays out across the entire clip")
+    expect(compact).toContain("performed with an explosive burst of energy, snapping from stillness into full-speed motion")
+  })
+
+  it("character-motion names target and partner in both modes", () => {
+    const ctx: HintGraphContext = {
+      nodes: [
+        { id: "c1", type: "character-ref", data: { characterName: "Mira" } },
+        { id: "c2", type: "character-ref", data: { characterName: "Theo" } },
+      ],
+      edges: [
+        { source: "c1", target: "n1", targetHandle: "target" },
+        { source: "c2", target: "n1", targetHandle: "partner" },
+      ],
+    }
+    const node: HintNodeLike = { id: "n1", type: "character-motion", data: { characterMotion: "hug-partner" } }
+    for (const out of [getParameterPromptHint(node, ctx), getParameterPromptHint(withMode(node, "compact"), ctx)]) {
+      expect(out).toContain("Mira")
+      expect(out).toContain("Theo")
+      expect(out).not.toMatch(/\bthe (subject|partner)\b/)
+    }
+  })
+
   it("the wired character is NAMED in both modes", () => {
     // Regression: compact mode used to run the full mode's substitution — a
     // regex replace of "the subject" — over a `term` that never contains those
@@ -282,6 +309,7 @@ describe("hint mode: compact preserves everything but the base fragment", () => 
     for (const [type, field] of [
       ["transition", "transition"],
       ["character-fx", "characterFx"],
+      ["character-motion", "characterMotion"],
       ["camera-motion", "cameraMotion"],
     ] as const) {
       expect(getParameterPromptHint({ id: "n1", type, data: { [field]: "auto", hintMode: "compact" } })).toBe("")

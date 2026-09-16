@@ -27,8 +27,9 @@ import { commitReservedCreditsForJob, refundReservedCreditsForJob } from "../lib
  * identifier: identical LLM call shape (text is strictly cheaper than
  * image+text), so no new pricing surface. Revisit if the economics diverge.
  *
- * Batching: `targetPickers` defaults to ALL 38 analyzable pickers, whose
- * combined legend measures ~53k tokens — too heavy for one accurate call.
+ * Batching: `targetPickers` defaults to ALL 39 analyzable pickers, whose
+ * combined legend measures ~53k tokens plus ~46k for Character Motion's
+ * 1005-id enum — too heavy for one accurate call.
  * Above FAMILY_BATCH_THRESHOLD pickers, the analysis fans out per
  * PICKER_ANALYZER_FAMILIES (scene/look/camera/character/elements/audio, each
  * 6-15k tokens), runs the calls concurrently, and merges pickerJson + gaps.

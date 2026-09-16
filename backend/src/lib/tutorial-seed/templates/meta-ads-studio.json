@@ -1,0 +1,944 @@
+{
+  "slug": "meta-ads-studio",
+  "name": "Meta Ads Studio",
+  "description": "A product photo, brand notes and a campaign brief in; five square feed ads out — bold claim, us vs them, testimonial, features, offer — one look, one campaign, with the product exactly as photographed; the bold-claim ad also comes out as a 4-second text-pop clip.",
+  "markdownDescription": "## Meta Ads Studio\n\nA product photo, your brand notes and a campaign brief become five feed ads — one per format that performs on paid social — in one look, plus the bold-claim ad as a 4-second text-pop clip. The product stays exactly as photographed; every word comes from your notes.\n\n1. **Product photo** — a clean packshot. The hero of every ad.\n2. **Brand notes + Campaign brief** — what is true about the product; who you are reaching and what they should do.\n3. **Campaign strategy** — an AI strategist writes the audience, the insight, the promise, the look, and one line per format.\n4. **Five formats** — bold claim, us vs them, testimonial, features, offer — one writer each, each feeding its own ad. Edit a brief by hand and rerun just its ad.\n5. **Five ads** — square, one look, the words exactly as written.\n6. **The claim in motion** — the bold-claim ad becomes a 4-second clip: empty background, then the product and the words pop into place.",
+  "category": "static-ads",
+  "outputTypes": [
+    "image",
+    "video"
+  ],
+  "tags": [
+    "static-ads",
+    "meta",
+    "facebook",
+    "instagram",
+    "paid-social",
+    "campaign",
+    "video-ads"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 176,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/12c067f3-19e2-46b9-be0a-f1810153a15d.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 29,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A product photo, your brand notes and a campaign brief go in; five feed ads come out — one per format that performs on paid social — in one look, plus the bold-claim ad as a 4-second text-pop clip.\n\n1. Product photo — a clean packshot. The hero of every ad.\n2. Brand notes + Campaign brief — what the product is and what is true about it; who you are reaching and what you want them to do.\n3. Campaign strategy — an AI strategist writes the audience, the insight, the promise, the look, and one line per format.\n4. Five formats — bold claim, us vs them, testimonial, features, offer — one writer each, each feeding its own ad.\n5. Five ads — square, one look, the words exactly as written. Rerun one alone for another take.\n6. The claim in motion — the bold-claim ad becomes a 4-second clip: empty background, then the product and the words pop into place.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Meta ads studio — how it works",
+        "width": 1180,
+        "height": 730,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. Every ad gets it as a reference, so the shape, the materials, the markings and the colours come through unchanged.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product photo",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1610
+      },
+      "data": {
+        "bold": false,
+        "text": "The brand name, what the product is, three benefits, what the customer uses today, a real quote if you have one, a trust fact. Only what is here gets used — nothing is invented.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Brand notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2040
+      },
+      "data": {
+        "bold": false,
+        "text": "Who exactly you are reaching and the moment they are in, what you want them to do, the offer if there is one, and the tone. The strategist builds the campaign on this.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Campaign brief",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-strategy",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "One plan for the five ads: audience, insight, promise, tone, the look every ad follows, and one line per format — claim, versus, testimonial, features, offer. Edit a line by hand and rerun the ads that quote it.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Campaign strategy",
+        "width": 480,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-formats",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "One writer per format, each holding its role: bold claim, us vs them (the alternative shown generically, never a named brand), testimonial (a first name and a role, never a real person), features, offer. Each writes a headline, a small line, a button and the look. Read a brief, edit it, rerun just its ad.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Five formats",
+        "width": 560,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ads",
+      "type": "sticky-note",
+      "position": {
+        "x": 3060,
+        "y": 890
+      },
+      "data": {
+        "bold": false,
+        "text": "Square feed ads in one look, the product exactly as photographed, the copy exactly as written. Rerun one ad alone for a new take on the same brief.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Five ads",
+        "width": 600,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-motion",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 5090
+      },
+      "data": {
+        "bold": false,
+        "text": "The bold-claim ad becomes a clip: an AI lists everything on the ad; the same ad is recreated with every element removed — the empty first frame; a motion director writes what pops in when; and Seedance builds the ad from the empty background to the finished frame in 4 seconds, pinned to both. Rerun the four nodes after changing the claim ad. Want another format in motion? Wire that ad into Ad Motion Studio.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · The claim in motion",
+        "width": 2540,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 890
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/3707e405-8056-4b84-bb7c-135eb894156c.png",
+        "label": "Product photo",
+        "r2Url": "https://cdn.nodaro.ai/images/3707e405-8056-4b84-bb7c-135eb894156c.png",
+        "assetId": "3707e405-8056-4b84-bb7c-135eb894156c",
+        "filename": "smart-ring-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/3707e405-8056-4b84-bb7c-135eb894156c.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1610
+      },
+      "data": {
+        "text": "Brand: ORBIT — a wearable-tech company. Product: ORBIT One — a titanium smart ring that tracks sleep, heart rate, temperature and daily readiness; 7-day battery; waterproof to 100 m; no screen, no subscription. What people use today: a bulky wrist tracker they take off to sleep. A real quote from our early users: \"I stopped wearing my watch to bed and finally learned how I actually sleep.\" — Maya, product designer. Trust: medical-grade titanium; two-year warranty.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2040
+      },
+      "data": {
+        "text": "Reach 30 to 45 year olds who work hard, sleep badly and already own a fitness watch they hate wearing at night. Goal: first purchase from the website. Offer: free sizing kit and free shipping this month. Tone: calm, precise, a little dry.",
+        "label": "Campaign brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "strategy",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1400
+      },
+      "data": {
+        "label": "Campaign strategy",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 800,
+        "userInput": "Brand notes: {Brand notes || a premium consumer product.} Campaign brief: {Campaign brief || reach a design-minded audience on social feeds.} The reference image is the product. Write the strategy.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a paid-social strategist for consumer brands. From the brand notes, the campaign brief and the product photo, write the campaign strategy in exactly this shape, plain English, nothing else:\nAudience: <one sentence — who exactly, and the moment they are in>\nInsight: <one sentence — the truth about them the campaign stands on>\nPromise: <one sentence — what the product does for them>\nTone: <a few words>\nLook: <one paragraph of 50 to 80 words: background colours and finish, typography feel, how the product is shown, light, mood — one look every ad follows, built to stop a thumb in a feed>\nClaim: <one sentence — the boldest true claim from the notes>\nVersus: <one sentence — what the audience uses today and why the product beats it, using only facts from the notes>\nTestimonial: <one sentence — the kind of person quoted and what they would credibly say; if the notes give a real quote, use it word for word>\nFeatures: <the three benefits from the notes, as three labels of at most four words each, separated by semicolons>\nOffer: <one sentence — the offer and the action from the brief; if the brief gives none, write: none>\nUse only facts the notes and the brief state; never invent studies, numbers, quotes or offers. No other headings, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-claim",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 1490
+      },
+      "data": {
+        "label": "Bold claim brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per ad.} Brand notes: {Brand notes || a premium consumer product.} Campaign brief: {Campaign brief || reach a design-minded audience.} The reference image is the product. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a paid-social creative director. You get the campaign strategy, the brand notes, the campaign brief and the product photo. Write the BOLD CLAIM ad — the product large and the strategy's Claim as the headline, nothing else competing — this ad only, square, in the strategy's look, so the five ads read as one campaign.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background from the strategy's Look, where the product sits and how big, what else is in the frame, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the notes, the brief and the strategy; never invent studies, numbers, quotes or offers. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-versus",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2210
+      },
+      "data": {
+        "label": "Us vs them brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per ad.} Brand notes: {Brand notes || a premium consumer product.} Campaign brief: {Campaign brief || reach a design-minded audience.} The reference image is the product. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a paid-social creative director. You get the campaign strategy, the brand notes, the campaign brief and the product photo. Write the US-VS-THEM ad — a split composition: the product on one side, the alternative from the strategy's Versus on the other, shown generically and never as a named brand, with a short label on each side; the headline names the difference — this ad only, square, in the strategy's look, so the five ads read as one campaign.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background from the strategy's Look, where the product sits and how big, what else is in the frame, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the notes, the brief and the strategy; never invent studies, numbers, quotes or offers. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-testimonial",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2930
+      },
+      "data": {
+        "label": "Testimonial brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per ad.} Brand notes: {Brand notes || a premium consumer product.} Campaign brief: {Campaign brief || reach a design-minded audience.} The reference image is the product. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a paid-social creative director. You get the campaign strategy, the brand notes, the campaign brief and the product photo. Write the TESTIMONIAL ad — the strategy's Testimonial as the headline in quotation marks, attributed in the small line to a first name and a role (never a real public person), the product smaller and secondary — this ad only, square, in the strategy's look, so the five ads read as one campaign.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background from the strategy's Look, where the product sits and how big, what else is in the frame, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the notes, the brief and the strategy; never invent studies, numbers, quotes or offers. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-features",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 3650
+      },
+      "data": {
+        "label": "Features brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per ad.} Brand notes: {Brand notes || a premium consumer product.} Campaign brief: {Campaign brief || reach a design-minded audience.} The reference image is the product. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a paid-social creative director. You get the campaign strategy, the brand notes, the campaign brief and the product photo. Write the FEATURES ad — the product large with the three feature labels from the strategy pointing at it, the headline short — this ad only, square, in the strategy's look, so the five ads read as one campaign.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background from the strategy's Look, where the product sits and how big, what else is in the frame, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the notes, the brief and the strategy; never invent studies, numbers, quotes or offers. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "writer-offer",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 4370
+      },
+      "data": {
+        "label": "Offer brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Campaign strategy: {Campaign strategy || a calm, premium look; the product large; one line per ad.} Brand notes: {Brand notes || a premium consumer product.} Campaign brief: {Campaign brief || reach a design-minded audience.} The reference image is the product. Write this ad.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a paid-social creative director. You get the campaign strategy, the brand notes, the campaign brief and the product photo. Write the OFFER ad — the strategy's Offer as the headline and the button doing the work; if the offer is none, a direct call to action instead — this ad only, square, in the strategy's look, so the five ads read as one campaign.\nAnswer in exactly this shape, plain English, nothing else:\nHeadline: \"<at most seven words>\"\nSmall line: \"<one supporting line, at most twelve words, or the single word none>\"\nButton: \"<one or two words, or the single word none>\"\nLook: <one paragraph of 60 to 90 words: the background from the strategy's Look, where the product sits and how big, what else is in the frame, where the headline, the small line and the button sit, the typography, the light and the mood. The product from the packshot is the hero and stays exactly as it is.>\nUse only facts from the notes, the brief and the strategy; never invent studies, numbers, quotes or offers. No other headings, no lists, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-claim",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 1490
+      },
+      "data": {
+        "label": "Ad · Bold claim",
+        "style": "",
+        "prompt": "Finished square 1:1 social-feed ad, one of a five-ad campaign, built from this brief: {Bold claim brief || Headline: \"Know your night.\" Small line: \"Sleep, readiness and recovery from one titanium ring.\" Button: \"Learn more\" Look: a deep graphite background with a soft cool gradient, the ring large and centred under one cool key light, a white sans-serif headline across the top, the small line and the button at the bottom, quiet and precise.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text. Background, finish and typography from the brief's Look. Crisp typography, thumb-stopping, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-versus",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2210
+      },
+      "data": {
+        "label": "Ad · Us vs them",
+        "style": "",
+        "prompt": "Finished square 1:1 social-feed ad, one of a five-ad campaign, built from this brief: {Us vs them brief || Headline: \"Know your night.\" Small line: \"Sleep, readiness and recovery from one titanium ring.\" Button: \"Learn more\" Look: a deep graphite background with a soft cool gradient, the ring large and centred under one cool key light, a white sans-serif headline across the top, the small line and the button at the bottom, quiet and precise.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text. Background, finish and typography from the brief's Look. Crisp typography, thumb-stopping, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-testimonial",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 2930
+      },
+      "data": {
+        "label": "Ad · Testimonial",
+        "style": "",
+        "prompt": "Finished square 1:1 social-feed ad, one of a five-ad campaign, built from this brief: {Testimonial brief || Headline: \"Know your night.\" Small line: \"Sleep, readiness and recovery from one titanium ring.\" Button: \"Learn more\" Look: a deep graphite background with a soft cool gradient, the ring large and centred under one cool key light, a white sans-serif headline across the top, the small line and the button at the bottom, quiet and precise.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text. Background, finish and typography from the brief's Look. Crisp typography, thumb-stopping, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-features",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 3650
+      },
+      "data": {
+        "label": "Ad · Features",
+        "style": "",
+        "prompt": "Finished square 1:1 social-feed ad, one of a five-ad campaign, built from this brief: {Features brief || Headline: \"Know your night.\" Small line: \"Sleep, readiness and recovery from one titanium ring.\" Button: \"Learn more\" Look: a deep graphite background with a soft cool gradient, the ring large and centred under one cool key light, a white sans-serif headline across the top, the small line and the button at the bottom, quiet and precise.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text. Background, finish and typography from the brief's Look. Crisp typography, thumb-stopping, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ad-offer",
+      "type": "generate-image",
+      "position": {
+        "x": 3060,
+        "y": 4370
+      },
+      "data": {
+        "label": "Ad · Offer",
+        "style": "",
+        "prompt": "Finished square 1:1 social-feed ad, one of a five-ad campaign, built from this brief: {Offer brief || Headline: \"Know your night.\" Small line: \"Sleep, readiness and recovery from one titanium ring.\" Button: \"Learn more\" Look: a deep graphite background with a soft cool gradient, the ring large and centred under one cool key light, a white sans-serif headline across the top, the small line and the button at the bottom, quiet and precise.} The reference image is the product — it must appear exactly as it is, with its own shape, materials, markings and colours, large and sharp. Render the headline, the small line and the button text (unless one is none) exactly as written in the brief — same words, same spelling — and no other text. Background, finish and typography from the brief's Look. Crisp typography, thumb-stopping, legible on a phone, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "breakdown",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 5430
+      },
+      "data": {
+        "label": "Ad breakdown",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Describe the advertisement in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You describe finished advertisements for an image editor and a motion designer. Look at the reference image and write ONE paragraph of plain English, 80 to 130 words, in this order: first the background alone (its colours, gradient, light, texture, and where the light comes from); then every element that sits on it, back to front, one short sentence each, naming what it is, where it sits and its colours, and quoting any text on it word for word in double quotes; finish with one sentence that begins with the words Remove everything except the background and lists the elements to remove. Only what is visible. No opinions, no bullet points, no headings, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clean-bg",
+      "type": "generate-image",
+      "position": {
+        "x": 2980,
+        "y": 5430
+      },
+      "data": {
+        "label": "Clean background",
+        "style": "",
+        "prompt": "Recreate the reference advertisement exactly — same size, same framing, same background colours, gradient, light and texture — but with every element removed, leaving only the empty background: no text, no headline, no logo, no product, no badge, no button, no decorative object, and no shadow or reflection of anything removed. Fill every gap so the background reads as one continuous, untouched surface with the same light. What is on the ad: {Ad breakdown || the background and every element on it.} Output only the empty background with nothing on it.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "director",
+      "type": "llm-chat",
+      "position": {
+        "x": 3820,
+        "y": 5430
+      },
+      "data": {
+        "label": "Motion director",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 600,
+        "userInput": "The elements on the ad, back to front: {Ad breakdown || see the finished ad.} Of the two reference images, the one with nothing on it is the first frame (the empty background) and the complete advertisement is the last frame. Write the entrance.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a senior motion designer writing the prompt for a video model that is given a first frame and a last frame. The first frame is the empty background of an advertisement; the last frame is the finished advertisement. Write ONE paragraph of 90 to 130 words that builds the finished ad on the empty background over 4 seconds, fast and punchy like a feed ad: the product fades in where it stands in the first second, then the headline pops in word by word or line by line with a quick snap and settle, then the smaller text and the button, and the last half second holds perfectly still on the finished advertisement with every element exactly in its final place. Name each element by what it is and quote its exact text. Every element arrives in its own final place — fading in, wiping in, or sliding no more than a finger's width — and nothing ever enters from beyond the edge of the frame, so no element is ever seen twice. Text arrives by popping, sliding, wiping or fading in — never by scaling up from nothing, which smears the letters. The camera stays still. Do not crossfade, do not redraw or reinterpret anything, and never change any text, logo or product. Plain English, present tense, no headings, no lists, no timestamps in brackets, no quotation marks around the paragraph. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clip",
+      "type": "generate-video",
+      "position": {
+        "x": 4540,
+        "y": 5430
+      },
+      "data": {
+        "label": "Claim · Text pop",
+        "prompt": "{Motion director || The elements of the advertisement pop into place on the empty background — the product first, then the headline line by line, then the smaller text and the button — each snapping into its final place while the camera stays still, ending exactly on the finished advertisement.} Crisp, stable motion-graphics animation; every element appears once, in its final place, and nothing enters from beyond the edges of the frame; text, logo and product stay exactly as designed; no duplicates, no morphing, no flicker, no extra objects, no camera shake, no scene change.",
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "presentationOutput": true,
+        "duration": 4
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-brand-strategy",
+      "source": "brand",
+      "target": "strategy",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-strategy",
+      "source": "brief",
+      "target": "strategy",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-strategy",
+      "source": "product",
+      "target": "strategy",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-writer-claim",
+      "source": "strategy",
+      "target": "writer-claim",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-claim",
+      "source": "brand",
+      "target": "writer-claim",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-claim",
+      "source": "brief",
+      "target": "writer-claim",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-claim",
+      "source": "product",
+      "target": "writer-claim",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-claim",
+      "source": "writer-claim",
+      "target": "ad-claim",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-claim",
+      "source": "product",
+      "target": "ad-claim",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-writer-versus",
+      "source": "strategy",
+      "target": "writer-versus",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-versus",
+      "source": "brand",
+      "target": "writer-versus",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-versus",
+      "source": "brief",
+      "target": "writer-versus",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-versus",
+      "source": "product",
+      "target": "writer-versus",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-versus",
+      "source": "writer-versus",
+      "target": "ad-versus",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-versus",
+      "source": "product",
+      "target": "ad-versus",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-writer-testimonial",
+      "source": "strategy",
+      "target": "writer-testimonial",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-testimonial",
+      "source": "brand",
+      "target": "writer-testimonial",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-testimonial",
+      "source": "brief",
+      "target": "writer-testimonial",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-testimonial",
+      "source": "product",
+      "target": "writer-testimonial",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-testimonial",
+      "source": "writer-testimonial",
+      "target": "ad-testimonial",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-testimonial",
+      "source": "product",
+      "target": "ad-testimonial",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-writer-features",
+      "source": "strategy",
+      "target": "writer-features",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-features",
+      "source": "brand",
+      "target": "writer-features",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-features",
+      "source": "brief",
+      "target": "writer-features",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-features",
+      "source": "product",
+      "target": "writer-features",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-features",
+      "source": "writer-features",
+      "target": "ad-features",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-features",
+      "source": "product",
+      "target": "ad-features",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-strategy-writer-offer",
+      "source": "strategy",
+      "target": "writer-offer",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-writer-offer",
+      "source": "brand",
+      "target": "writer-offer",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-writer-offer",
+      "source": "brief",
+      "target": "writer-offer",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-writer-offer",
+      "source": "product",
+      "target": "writer-offer",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-writer-ad-offer",
+      "source": "writer-offer",
+      "target": "ad-offer",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-ad-offer",
+      "source": "product",
+      "target": "ad-offer",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-claim-breakdown",
+      "source": "ad-claim",
+      "target": "breakdown",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-claim-clean",
+      "source": "ad-claim",
+      "target": "clean-bg",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-breakdown-clean",
+      "source": "breakdown",
+      "target": "clean-bg",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-claim-director",
+      "source": "ad-claim",
+      "target": "director",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clean-director",
+      "source": "clean-bg",
+      "target": "director",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-breakdown-director",
+      "source": "breakdown",
+      "target": "director",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-clean-clip-start",
+      "source": "clean-bg",
+      "target": "clip",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-claim-clip-end",
+      "source": "ad-claim",
+      "target": "clip",
+      "sourceHandle": "image",
+      "targetHandle": "endFrame"
+    },
+    {
+      "id": "e-director-clip",
+      "source": "director",
+      "target": "clip",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.133
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "clip": {
+          "title": "Claim in motion",
+          "description": "The bold-claim ad popping into place in 4 seconds."
+        },
+        "brand": {
+          "title": "Brand notes",
+          "description": "Product facts, benefits, a real quote, a trust fact — in plain words."
+        },
+        "brief": {
+          "title": "Campaign brief",
+          "description": "Who you are reaching, what they should do, the offer, the tone."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean packshot. It appears exactly as it is in every ad."
+        },
+        "ad-claim": {
+          "title": "Bold claim",
+          "description": "The product and your boldest true claim."
+        },
+        "ad-offer": {
+          "title": "Offer",
+          "description": "The offer and the action."
+        },
+        "ad-versus": {
+          "title": "Us vs them",
+          "description": "The product against what they use today."
+        },
+        "ad-features": {
+          "title": "Features",
+          "description": "Three benefits, labelled on the product."
+        },
+        "ad-testimonial": {
+          "title": "Testimonial",
+          "description": "A credible quote, the product secondary."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "brand",
+        "brief"
+      ],
+      "outputOrder": [
+        "ad-claim",
+        "ad-versus",
+        "ad-testimonial",
+        "ad-features",
+        "ad-offer",
+        "clip"
+      ]
+    }
+  }
+}

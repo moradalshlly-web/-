@@ -14,6 +14,7 @@ import { useAppDir } from "@/lib/locale-store"
 import { cn } from "@/lib/utils"
 import { ReadMoreText } from "./read-more-text"
 import { ReadOnlyCanvas } from "./read-only-canvas"
+import { TemplateResultsRail } from "./template-results-rail"
 import { flowSteps, modelChipLabels, relatedTemplates, templateBadge, templateCreatorName } from "./template-facts"
 import { TemplateBadgePill, TemplateCover, TemplateMeta } from "./template-marketplace-card"
 
@@ -166,6 +167,7 @@ export function TemplateDetailModal({
             />
           )}
         </div>
+        {detail && <TemplateResultsRail snapshotNodes={detail.snapshotNodes} className="mx-4 mt-3" />}
 
         {/* Title, description, the one action, and a line of facts */}
         <div className="px-7 pt-5">

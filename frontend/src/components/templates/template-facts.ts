@@ -84,13 +84,6 @@ export function flowSteps(snapshotNodes: readonly unknown[]): FlowStep[] {
   }, [])
 }
 
-/** How many sticky notes the read-only canvas leaves out — said plainly next to it. */
-export function hiddenNoteCount(snapshotNodes: readonly unknown[]): number {
-  return snapshotNodes.filter(
-    (node) => typeof node === "object" && node !== null && (node as { type?: unknown }).type === "sticky-note",
-  ).length
-}
-
 /** "More like this": the same list minus the template itself, capped. */
 export function relatedTemplates<T extends { readonly id: string }>(list: readonly T[], selfId: string, max: number): T[] {
   return list.filter((template) => template.id !== selfId).slice(0, max)

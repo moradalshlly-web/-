@@ -14,7 +14,45 @@ vi.mock("../../supabase.js", () => ({
 }))
 
 import { supabase } from "../../supabase.js"
-import { makeOnTaskCreated, markProviderCallStart } from "../persistence.js"
+import { makeOnTaskCreated, markProviderCallStart, refreshPreTaskSentinel } from "../persistence.js"
+
+describe("refreshPreTaskSentinel — the heartbeat's CAS", () => {
+  /** update().eq().eq().eq(), awaited at the last `.eq`. */
+  function casChain(result: { data: unknown; error: { message: string } | null } = { data: null, error: null }) {
+    const eqCalls: Array<[string, unknown]> = []
+    const chain = {
+      update: vi.fn(() => chain),
+      eq: vi.fn((column: string, value: unknown) => { eqCalls.push([column, value]); return chain }),
+      then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+        Promise.resolve(result).then(resolve, reject),
+    }
+    ;(supabase.from as ReturnType<typeof vi.fn>).mockReturnValueOnce(chain)
+    return { chain, eqCalls }
+  }
+
+  it("moves only provider_call_started_at, and only on a processing row still under pre-task", async () => {
+    const { chain, eqCalls } = casChain()
+    await refreshPreTaskSentinel("job-live")
+
+    expect(supabase.from).toHaveBeenCalledWith("jobs")
+    const [patch] = chain.update.mock.calls[0] as unknown as [Record<string, unknown>]
+    // Never provider_kind: writing it would resurrect a cleared sentinel (gvp/evp)
+    // or turn a real async kind back into fail + refund.
+    expect(Object.keys(patch)).toEqual(["provider_call_started_at"])
+    expect(new Date(patch.provider_call_started_at as string).getTime()).toBeGreaterThan(Date.now() - 5000)
+    expect(eqCalls).toEqual([["id", "job-live"], ["provider_kind", "pre-task"], ["status", "processing"]])
+  })
+
+  it("does not throw when the write reports an error (the next beat retries)", async () => {
+    casChain({ data: null, error: { message: "transient" } })
+    await expect(refreshPreTaskSentinel("job-x")).resolves.toBeUndefined()
+  })
+
+  it("does not throw when the client itself throws", async () => {
+    ;(supabase.from as ReturnType<typeof vi.fn>).mockImplementationOnce(() => { throw new Error("network down") })
+    await expect(refreshPreTaskSentinel("job-y")).resolves.toBeUndefined()
+  })
+})
 
 describe("makeOnTaskCreated", () => {
   beforeEach(() => {

@@ -7,7 +7,9 @@ import { hasCredits } from "@/lib/edition"
 import { creditUnits, creditUnitLabel } from "@/lib/credit-units"
 import { lazyWithRetry } from "@/lib/lazy-with-retry"
 import { ImageIcon } from "lucide-react"
+import { VideoProSegmentPicker } from "./video-pro-segment-picker"
 import { Input } from "@/components/ui/input"
+import { ClampedNumberInput } from "@/components/ui/clamped-number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -77,6 +79,7 @@ import { ConnectedMediaList, getSourceThumbnail } from "./connected-media-list"
 import { InjectedReferenceList } from "./injected-reference-list"
 import { SeedanceReferenceTip } from "./seedance-reference-tip"
 import { FramesAndReferencesTip } from "./frames-references-tip"
+import { FrameFitFields, previewFrameDelivery, supportsReferenceDelivery, isFrameFit, isFrameDelivery } from "./frame-fit-fields"
 import { removeMentionToken, makeRemoveWiredSource, appendSuppressedSlug } from "./injected-reference-helpers"
 import { useT, tx } from "@/lib/i18n"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
@@ -430,6 +433,16 @@ function ImageToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
     if (baseDurations && data.duration && !baseDurations.includes(data.duration)) {
       updates.duration = baseDurations[0]
     }
+    // Start/end frame handling — a stale value the select cannot render is
+    // cleared, and delivery is cleared outright on a model with no reference-
+    // image support (the lever does not exist there; the backend collapses it
+    // to frame mode anyway).
+    if (data.frameFit !== undefined && !isFrameFit(data.frameFit)) {
+      updates.frameFit = undefined
+    }
+    if (data.frameDelivery !== undefined && (!isFrameDelivery(data.frameDelivery) || !supportsReferenceDelivery(currentI2VProvider))) {
+      updates.frameDelivery = undefined
+    }
     // Aspect ratio — snap a stale EXPLICIT value (e.g. Seedance's "adaptive" /
     // "21:9" / "4:3" / "3:4") to the new provider's first valid option when it
     // isn't in that provider's set. Reads the same option source the dropdown
@@ -553,15 +566,29 @@ function ImageToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
           refAudioUrls: Array.from({ length: ((data.referenceAudioUrls as readonly unknown[] | undefined) ?? []).length }, (_, i) => `a${i}`),
           limits: modeLimits,
         })
-        const label = s2.mode === "reference"
+        // Frame delivery runs BEFORE this resolver on the backend: when it
+        // resolves to reference (auto on the Seedance 2.0 family, or chosen),
+        // the frames reach the provider as reference images and the sentence
+        // the dispatch step appends is the one that lands in the prompt.
+        const dv = previewFrameDelivery({
+          provider: currentI2VProvider,
+          requested: data.frameDelivery,
+          hasStartFrame: connectedImages.some((img) => img.targetHandle !== "endFrame"),
+          hasEndFrame,
+          userRefCount: connectedRefImages.length,
+          prompt: data.prompt,
+        })
+        const mode = dv.delivery === "reference" ? "reference" : s2.mode
+        const promptSuffix = dv.delivery === "reference" ? dv.promptSuffix : s2.promptSuffix
+        const label = mode === "reference"
           ? t("vidcfg.modeReference")
-          : s2.mode === "first-last-frame" ? t("vidcfg.modeFirstLastFrame") : t("vidcfg.modeFirstFrame")
+          : mode === "first-last-frame" ? t("vidcfg.modeFirstLastFrame") : t("vidcfg.modeFirstFrame")
         return (
           <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/30 p-2">
             <span className="text-[11px] font-medium text-foreground">{t("vidcfg.modeLabel", { label })}</span>
-            {s2.promptSuffix && (
+            {promptSuffix && (
               <span className="text-[10px] leading-snug text-muted-foreground">
-                {t("vidcfg.appendedToPrompt", { suffix: s2.promptSuffix })}
+                {t("vidcfg.appendedToPrompt", { suffix: promptSuffix })}
               </span>
             )}
             {s2.droppedRefImages > 0 && (
@@ -818,6 +845,18 @@ function ImageToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
           {t("vidcfg.providerProducesNSecondVideos", { provider: data.provider || t("vidcfg.thisProvider"), n: allowedDurations[0] })}
         </p>
       )}
+      {/* Start/end frame handling — only while a frame is wired, and not in
+          VEO reference mode, where the wired images are references, not
+          frames. Sits with duration / end frame: the run-shape levers. */}
+      <FrameFitFields
+        provider={currentI2VProvider}
+        resolution={data.resolution}
+        aspectRatio={data.aspectRatio}
+        frameFit={data.frameFit}
+        frameDelivery={data.frameDelivery}
+        hasFrame={connectedImages.length > 0 && !isVeoRefMode}
+        onUpdate={onUpdate}
+      />
       {supportsEndFrame && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">{t("vidcfg.endFrameOptional")}</Label>
@@ -2699,6 +2738,16 @@ function GenerateVideoConfigImpl({ data: rawData, onUpdate: rawOnUpdate, sources
     } else if (data.resolution !== undefined) {
       updates.resolution = undefined
     }
+    // Start/end frame handling — a stale value the select cannot render is
+    // cleared, and delivery is cleared outright on a model with no reference-
+    // image support (the lever does not exist there; the backend collapses it
+    // to frame mode anyway).
+    if (data.frameFit !== undefined && !isFrameFit(data.frameFit)) {
+      updates.frameFit = undefined
+    }
+    if (data.frameDelivery !== undefined && (!isFrameDelivery(data.frameDelivery) || !supportsReferenceDelivery(currentProvider))) {
+      updates.frameDelivery = undefined
+    }
     const baseDurations = VIDEO_DURATION_OPTIONS[currentProvider]?.map((o) => o.value) ?? null
     if (baseDurations && data.duration && !baseDurations.includes(data.duration)) {
       updates.duration = baseDurations[0]
@@ -2918,15 +2967,29 @@ function GenerateVideoConfigImpl({ data: rawData, onUpdate: rawOnUpdate, sources
           refAudioUrls: Array.from({ length: connectedRefAudio.length }, (_, i) => `a${i}`),
           limits: modeLimits,
         })
-        const label = s2.mode === "reference"
+        // Frame delivery runs BEFORE this resolver on the backend: when it
+        // resolves to reference (auto on the Seedance 2.0 family, or chosen),
+        // the frames reach the provider as reference images and the sentence
+        // the dispatch step appends is the one that lands in the prompt.
+        const dv = previewFrameDelivery({
+          provider: currentProvider,
+          requested: data.frameDelivery,
+          hasStartFrame: connectedImages.some((img) => img.targetHandle !== "endFrame"),
+          hasEndFrame,
+          userRefCount: connectedRefImages.length,
+          prompt: data.prompt,
+        })
+        const mode = dv.delivery === "reference" ? "reference" : s2.mode
+        const promptSuffix = dv.delivery === "reference" ? dv.promptSuffix : s2.promptSuffix
+        const label = mode === "reference"
           ? t("vidcfg.modeReference")
-          : s2.mode === "first-last-frame" ? t("vidcfg.modeFirstLastFrame") : t("vidcfg.modeFirstFrame")
+          : mode === "first-last-frame" ? t("vidcfg.modeFirstLastFrame") : t("vidcfg.modeFirstFrame")
         return (
           <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/30 p-2">
             <span className="text-[11px] font-medium text-foreground">{t("vidcfg.modeLabel", { label })}</span>
-            {s2.promptSuffix && (
+            {promptSuffix && (
               <span className="text-[10px] leading-snug text-muted-foreground">
-                {t("vidcfg.appendedToPrompt", { suffix: s2.promptSuffix })}
+                {t("vidcfg.appendedToPrompt", { suffix: promptSuffix })}
               </span>
             )}
             {s2.droppedRefImages > 0 && (
@@ -3217,6 +3280,17 @@ function GenerateVideoConfigImpl({ data: rawData, onUpdate: rawOnUpdate, sources
           {t("vidcfg.providerProducesNSecondVideos", { provider: currentProvider || t("vidcfg.thisProvider"), n: allowedDurations[0] })}
         </p>
       )}
+      {/* Start/end frame handling — twin of the ImageToVideoConfigImpl mount. */}
+      <FrameFitFields
+        provider={currentProvider}
+        resolution={data.resolution}
+        aspectRatio={data.aspectRatio}
+        frameFit={data.frameFit}
+        frameDelivery={data.frameDelivery}
+        hasFrame={connectedImages.length > 0 && !isVeoRefMode}
+        onUpdate={onUpdate}
+        idPrefix="gv-"
+      />
       {supportsEndFrame && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">{t("vidcfg.endFrameOptional")}</Label>
@@ -3909,6 +3983,11 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
   // Mirrors the render-method select's own resolution (a provider that cannot
   // extend is always on keyframes, whatever the stored value says).
   const keyframesActive = !canExtend || data.renderMethod === "keyframes"
+  const naturalSegments = data.segmentMode === "short" || data.segmentMode === "long"
+  const bestPairAvailable = keyframesActive || !naturalSegments
+  const audioTailAvailable = !keyframesActive && data.generateAudio !== false
+    && (VIDEO_REF_LIMITS_BY_PROVIDER[currentProvider]?.audio ?? 0) > 0
+    && !sources.some(source => source.targetHandle === "audioReferences")
   // A reference-driven run has no closing-frame lane, so the engine REJECTS a
   // wired end frame under it ("endFrameUrl cannot ride anchorMode \"none\"") —
   // a 400 on every run. Drop the choice while an end frame is connected rather
@@ -3956,10 +4035,10 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
   // never shows a mode the run won't actually use.
   const keyframeAnchored = data.overlapAnchor === true && (data.overlapAnchorMode ?? "keyframe") === "keyframe"
   useEffect(() => {
-    if (keyframeAnchored && (data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next")) {
+    if ((keyframeAnchored || keyframesActive) && (data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next")) {
       onUpdate({ smartCutMode: "legacy-8x8" })
     }
-  }, [keyframeAnchored]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [keyframeAnchored, keyframesActive]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fail-safe (CLAUDE.md pitfall 5 pattern): hiding the option only protects a
   // node configured AFTER the end frame was wired. One already set to
@@ -4026,16 +4105,16 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
             className="flex-1 h-1.5 rounded-lg cursor-pointer accent-[#ff0073]"
             aria-label={t("field.durationSeconds")}
           />
-          <Input
-            type="number"
+          {/* Commits on blur / Enter. Clamping per keystroke made any two-digit
+              length untypeable: "12" starts as "1", which snapped to 4 before
+              the "2" could land (reported 2026-09-16). */}
+          <ClampedNumberInput
             min={4}
             max={maxDuration}
+            step={1}
             value={duration}
-            onChange={(e) => {
-              if (e.target.value === "") return
-              const parsed = parseInt(e.target.value, 10)
-              if (Number.isNaN(parsed)) return
-              onUpdate({ duration: Math.min(maxDuration, Math.max(4, parsed)) })
+            onCommit={(n) => {
+              if (n !== undefined) onUpdate({ duration: n })
             }}
             className="w-16 h-7 text-xs shrink-0"
           />
@@ -4205,13 +4284,14 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         <p className="text-[11px] text-muted-foreground">
           {t("vidcfg.plannerStyleHint")}
         </p>
-        {(data.plannerMode === "hybrid-plus" || data.plannerMode === "hybrid-max") && !data.rollingRefs && (
+        {(data.plannerMode === "hybrid-plus" || data.plannerMode === "hybrid-max") && !keyframesActive && !data.rollingRefs && (
           <p className="text-[11px] font-medium text-amber-500">
             {t("vidcfg.hybridNeedsRollingRefs", { mode: data.plannerMode === "hybrid-max" ? t("vidcfg.hybridMaxName") : t("vidcfg.hybridPlusName") })}
           </p>
         )}
       </div>
 
+      {!keyframesActive && (<>
       {/* Context tail — continuation-reference length per join (A/B lever:
           longer = more boundary-motion context for slow moves/tempo, small
           per-join surcharge at the ref rate). */}
@@ -4239,6 +4319,8 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         )}
       </div>
 
+      </>)}
+
       {/* AUTO-CAST — analysis-supplied per-slot frames as identity refs. */}
       <div className="flex items-center gap-2 px-1">
         <input
@@ -4253,6 +4335,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </label>
       </div>
 
+      {!keyframesActive && (<>
       {/* ROLLING REFS — continuity v4: re-anchor returning entities with
           their last-seen moment (memory clip/frame refs, role-assigned). */}
       <div className="flex items-center gap-2 px-1">
@@ -4268,6 +4351,9 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </label>
       </div>
 
+      </>)}
+
+      {!keyframesActive && !naturalSegments && (<>
       {/* WORD CUT — boundaries respect the soundtrack: +1s overshoot per
           segment, lossless end-trim at the nearest inter-word gap so tails
           never end mid-sung-word. */}
@@ -4283,6 +4369,8 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           {t("vidcfg.cleanWordCut")}
         </label>
       </div>
+
+      </>)}
 
       {/* SHOT TIMESTAMPS — A/B lever: inject segment-local time ranges into
           the beats for the condense/hybrid planner styles (they are
@@ -4301,36 +4389,33 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </label>
       </div>
 
-      {/* PREFERRED SEGMENT LENGTH — A/B lever: even segments near a
-          recommended point instead of pack-to-cap (~13s = fewer boundaries,
-          longer per-generation vs ~4s = more boundaries, shorter
-          generations). Empty = auto (classic split). Flows into pricing —
-          the reserve is computed on the same split the planner uses. */}
+      <VideoProSegmentPicker
+        value={data.segmentMode ?? (data.preferredSegmentSec !== undefined || data.segmentDurations?.length ? undefined : "max")}
+        onChange={(segmentMode) => onUpdate({segmentMode,preferredSegmentSec:undefined,segmentDurations:undefined,sourceSegmentDurations:undefined})}
+      />
+      {data.preferredSegmentSec !== undefined && (
       <div className="flex items-center gap-2 px-1">
         <label htmlFor="gvp-preferredSegmentSec" className="text-xs shrink-0">
           {t("vidcfg.preferredSegmentLength")}
         </label>
-        <Input
+        <ClampedNumberInput
           id="gvp-preferredSegmentSec"
-          type="number"
           min={4}
           max={15}
           step={1}
+          allowEmpty
           placeholder={t("vidcfg.phAutoLower")}
-          value={data.preferredSegmentSec ?? ""}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v === "") return onUpdate({ preferredSegmentSec: undefined })
-            const n = Math.round(Number(v))
-            if (Number.isFinite(n)) onUpdate({ preferredSegmentSec: Math.min(15, Math.max(4, n)) })
-          }}
+          value={data.preferredSegmentSec}
+          onCommit={(n) => onUpdate({ segmentMode: undefined, preferredSegmentSec: n })}
           className="h-7 w-20 text-xs"
         />
         <span className="text-[11px] text-muted-foreground">
           {t("vidcfg.preferredSegmentHint")}
         </span>
       </div>
+      )}
 
+      {audioTailAvailable && (<>
       {/* AUDIO TAIL — A/B lever: ~8s of the soundtrack-so-far rides every
           continuation as an audio reference (more music context than the
           2-5s video tail; guards sound drift). */}
@@ -4347,6 +4432,9 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </label>
       </div>
 
+      </>)}
+
+      {!keyframesActive && !naturalSegments && (<>
       {/* OVERLAP ANCHOR — continuity A/B: anchor each continuation on the
           previous segment's last KEYFRAME (re-enact warm-up) or its very
           LAST frame; the stitch handles either behavior (mode probe). */}
@@ -4372,6 +4460,9 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         </p>
       </div>
 
+      </>)}
+
+      {bestPairAvailable && (<>
       {/* SMART CUT — last-frame-overlap stitch A/B: the model can begin a
           continuation up to ~24 frames early and re-enact the previous tail;
           the pre-roll modes detect that replay and cut cleanly. Legacy = the
@@ -4379,7 +4470,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="gvp-smart-cut">{t("vidcfg.smartCut")}</Label>
         <Select
-          value={data.smartCutMode ?? "legacy-8x8"}
+          value={keyframesActive ? "legacy-8x8" : data.smartCutMode ?? "legacy-8x8"}
           onValueChange={(v) => onUpdate({ smartCutMode: v as "legacy-8x8" | "preroll-keep-prev" | "preroll-keep-next" })}
         >
           <SelectTrigger id="gvp-smart-cut" className="h-9 text-sm">
@@ -4387,12 +4478,14 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="legacy-8x8">{t("vidcfg.cutBestPair")}</SelectItem>
-            <SelectItem value="preroll-keep-next" disabled={keyframeAnchored}>{t("vidcfg.cutPrerollKeepNext")}</SelectItem>
-            <SelectItem value="preroll-keep-prev" disabled={keyframeAnchored}>{t("vidcfg.cutPrerollKeepPrev")}</SelectItem>
+            <SelectItem value="preroll-keep-next" disabled={keyframeAnchored || keyframesActive}>{t("vidcfg.cutPrerollKeepNext")}</SelectItem>
+            <SelectItem value="preroll-keep-prev" disabled={keyframeAnchored || keyframesActive}>{t("vidcfg.cutPrerollKeepPrev")}</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[11px] text-muted-foreground">
-          {keyframeAnchored
+          {keyframesActive
+            ? t("vidcfg.smartCutContinuousKeyframes")
+            : keyframeAnchored
             ? t("vidcfg.smartCutKeyframeNote")
             : t("vidcfg.smartCutLastFrameNote")}
         </p>
@@ -4402,7 +4495,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           looks for the boundary twin. Only the best-pair mode uses them (the
           pre-roll modes run their own diagonal search), so they're hidden
           under a pre-roll selection. Blank = the engine's 8/8 default. */}
-      {(data.smartCutMode ?? "legacy-8x8") === "legacy-8x8" && (
+      {(keyframesActive || (data.smartCutMode ?? "legacy-8x8") === "legacy-8x8") && (
         <div className="flex flex-col gap-1.5">
           <Label>{t("vidcfg.bestPairSearchWindow")}</Label>
           <div className="flex items-center gap-2">
@@ -4410,17 +4503,15 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
               <Label htmlFor="gvp-smartCutFramesPrev" className="text-[11px] font-normal text-muted-foreground">
                 {t("vidcfg.fromPreviousEnd")}
               </Label>
-              <Input
+              <ClampedNumberInput
                 id="gvp-smartCutFramesPrev"
-                type="number"
                 min={SMART_CUT_WINDOW_MIN}
                 max={SMART_CUT_WINDOW_MAX}
                 step={1}
+                allowEmpty
                 placeholder={String(SMART_CUT_WINDOW_DEFAULT)}
-                value={data.smartCutFramesPrev ?? ""}
-                onChange={(e) =>
-                  onUpdate({ smartCutFramesPrev: e.target.value === "" ? undefined : clampSmartCutWindow(Number(e.target.value)) })
-                }
+                value={data.smartCutFramesPrev}
+                onCommit={(n) => onUpdate({ smartCutFramesPrev: n === undefined ? undefined : clampSmartCutWindow(n) })}
                 className="h-9 text-sm"
               />
             </div>
@@ -4428,17 +4519,15 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
               <Label htmlFor="gvp-smartCutFramesNext" className="text-[11px] font-normal text-muted-foreground">
                 {t("vidcfg.fromNextStart")}
               </Label>
-              <Input
+              <ClampedNumberInput
                 id="gvp-smartCutFramesNext"
-                type="number"
                 min={SMART_CUT_WINDOW_MIN}
                 max={SMART_CUT_WINDOW_MAX}
                 step={1}
+                allowEmpty
                 placeholder={String(SMART_CUT_WINDOW_DEFAULT)}
-                value={data.smartCutFramesNext ?? ""}
-                onChange={(e) =>
-                  onUpdate({ smartCutFramesNext: e.target.value === "" ? undefined : clampSmartCutWindow(Number(e.target.value)) })
-                }
+                value={data.smartCutFramesNext}
+                onCommit={(n) => onUpdate({ smartCutFramesNext: n === undefined ? undefined : clampSmartCutWindow(n) })}
                 className="h-9 text-sm"
               />
             </div>
@@ -4450,7 +4539,7 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
       )}
 
       {/* SMART-CUT AUDIO — only meaningful under a pre-roll mode. */}
-      {(data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next") && (
+      {!keyframesActive && (data.smartCutMode === "preroll-keep-prev" || data.smartCutMode === "preroll-keep-next") && (
         <div className="flex items-center gap-2 px-1">
           <input
             type="checkbox"
@@ -4464,6 +4553,8 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
           </label>
         </div>
       )}
+
+      </>)}
 
       {/* PLAN ONLY — cheap plan iteration without video generation. */}
       <div className="flex items-center gap-2 px-1">

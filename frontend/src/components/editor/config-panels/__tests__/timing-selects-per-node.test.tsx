@@ -13,6 +13,9 @@
  * without which "renders its own catalogs" would be indistinguishable from
  * "renders the transition catalogs".
  *
+ * Character Motion renders only two — Position / Pace — from its own
+ * catalogs (a movement begins and plays out; no Duration, no Intensity).
+ *
  * `@nodaro/prompts` is deliberately NOT mocked (see `mock-real-constants`
  * pattern): the point is that the panel renders the REAL catalog rows.
  */
@@ -25,6 +28,8 @@ import {
   CHARACTER_FX_POSITIONS,
   CHARACTER_FX_DURATIONS,
   CHARACTER_FX_INTENSITIES,
+  CHARACTER_MOTION_POSITIONS,
+  CHARACTER_MOTION_PACES,
 } from "@nodaro/prompts"
 import type { WorkflowNode } from "@/types/nodes"
 
@@ -51,6 +56,7 @@ vi.mock("@/lib/picker-ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/picker-ui")>()),
   TransitionPicker: () => null,
   CharacterFxPicker: () => null,
+  CharacterMotionPicker: () => null,
 }))
 
 // Radix Select renders its items only while open (and not at all in jsdom
@@ -66,7 +72,7 @@ vi.mock("@/components/ui/select", () => ({
   SelectValue: () => <span />,
 }))
 
-import { TransitionConfig, CharacterFxConfig } from "../parameter-configs"
+import { TransitionConfig, CharacterFxConfig, CharacterMotionConfig } from "../parameter-configs"
 import { ParameterPreviewContext } from "../parameter-preview-context"
 
 type TimingRow = { readonly id: string; readonly label: string; readonly description: string }
@@ -78,8 +84,8 @@ const CHARACTER_FX_TIMING: TimingCatalogs = [CHARACTER_FX_POSITIONS, CHARACTER_F
 const FIELDS = ["Position", "Duration", "Intensity"] as const
 
 function renderPanel(
-  Panel: typeof TransitionConfig | typeof CharacterFxConfig,
-  type: "transition" | "character-fx",
+  Panel: React.ComponentType<any>,
+  type: "transition" | "character-fx" | "character-motion",
   data: Record<string, unknown>,
 ) {
   const node = { id: `${type}-1`, type, position: { x: 0, y: 0 }, data } as unknown as WorkflowNode
@@ -97,11 +103,12 @@ function renderPanel(
   )
 }
 
-/** What each of the three dropdowns rendered: `{ value, label, title }` per
- *  option, in Position / Duration / Intensity order. Located by the column
- *  label so the assertion is about the control the user sees, not DOM order. */
-function renderedTiming(): Array<Array<{ value: string; label: string; title: string }>> {
-  return FIELDS.map((field) => {
+/** What each named dropdown rendered: `{ value, label, title }` per option, in
+ *  the order of `fields` (Position / Duration / Intensity by default). Located
+ *  by the column label so the assertion is about the control the user sees,
+ *  not DOM order. */
+function renderedTiming(fields: ReadonlyArray<string> = FIELDS): Array<Array<{ value: string; label: string; title: string }>> {
+  return fields.map((field) => {
     const label = screen
       .getAllByText(field)
       .find((el) => el.tagName === "LABEL")
@@ -156,5 +163,28 @@ describe("timing dropdowns render each node's OWN catalogs", () => {
     for (const column of renderedTiming()) {
       expect(column[0]?.value).toBe("auto")
     }
+  })
+})
+
+describe("Character Motion renders its own two timing catalogs", () => {
+  const MOTION_FIELDS = ["Position", "Pace"] as const
+
+  it("Position and Pace show the character-motion rows with their own tooltips", () => {
+    renderPanel(CharacterMotionConfig, "character-motion", { characterMotion: "wave-hello" })
+    expect(renderedTiming(MOTION_FIELDS)).toEqual(
+      [CHARACTER_MOTION_POSITIONS, CHARACTER_MOTION_PACES].map((rows) =>
+        rows.map((o) => ({ value: o.id, label: o.label, title: o.description })),
+      ),
+    )
+  })
+
+  it("the position tooltips are not the character-fx ones", () => {
+    expect(CHARACTER_MOTION_POSITIONS.map((o) => o.description)).not.toEqual(CHARACTER_FX_POSITIONS.map((o) => o.description))
+  })
+
+  it("renders no Duration or Intensity dropdown", () => {
+    renderPanel(CharacterMotionConfig, "character-motion", { characterMotion: "wave-hello" })
+    expect(screen.queryAllByText("Duration").filter((el) => el.tagName === "LABEL")).toEqual([])
+    expect(screen.queryAllByText("Intensity").filter((el) => el.tagName === "LABEL")).toEqual([])
   })
 })

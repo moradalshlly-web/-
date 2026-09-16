@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest"
 import {
   PARAMETER_NODE_TYPES,
+  VIDEO_ONLY_PARAMETER_NODE_TYPES,
+  EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES,
   getParameterValue,
 } from "../parameter-node-value.js"
 import { setRegisteredPersonPackFields } from "../index.js"
@@ -120,6 +122,51 @@ describe("getParameterValue — character-fx", () => {
   })
   it("character-fx is in PARAMETER_NODE_TYPES set", () => {
     expect(PARAMETER_NODE_TYPES.has("character-fx")).toBe(true)
+  })
+})
+
+describe("getParameterValue — character-motion", () => {
+  it("returns the id for a single string value", () => {
+    expect(getParameterValue({ characterMotion: "wave-hello" }, "character-motion")).toBe("wave-hello")
+  })
+  it("returns the first id of an ordered multi-pick", () => {
+    expect(getParameterValue({ characterMotion: ["walk-in-from-left", "wave-hello"] }, "character-motion")).toBe("walk-in-from-left")
+  })
+  it("returns undefined for empty string / empty array", () => {
+    expect(getParameterValue({ characterMotion: "" }, "character-motion")).toBeUndefined()
+    expect(getParameterValue({ characterMotion: [] }, "character-motion")).toBeUndefined()
+  })
+  it("character-motion is a parameter node", () => {
+    expect(PARAMETER_NODE_TYPES.has("character-motion")).toBe(true)
+  })
+})
+
+describe("VIDEO_ONLY_PARAMETER_NODE_TYPES", () => {
+  it("names exactly the pickers a still image must never receive", () => {
+    expect([...VIDEO_ONLY_PARAMETER_NODE_TYPES].sort()).toEqual(
+      ["camera-motion", "character-fx", "character-motion", "temporal", "transition"],
+    )
+  })
+  it("is a subset of PARAMETER_NODE_TYPES", () => {
+    for (const t of VIDEO_ONLY_PARAMETER_NODE_TYPES) expect(PARAMETER_NODE_TYPES.has(t), t).toBe(true)
+  })
+})
+
+describe("EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES", () => {
+  it("names the pickers whose fragment needs the graph at execution", () => {
+    // Transition and character-fx joined camera-motion and character-motion in
+    // the signed-off "compose from the graph on every path" change: they always
+    // composed in the config-panel preview, on the canvas card and on the
+    // frontend `{Label}` path, and now do so on both cinematography collectors
+    // too. Unwired pickers are byte-identical either way — proved entry-by-entry
+    // in packages/prompts/src/__tests__/graph-composed-unwired-identity.test.ts.
+    expect([...EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES].sort()).toEqual(
+      ["camera-motion", "character-fx", "character-motion", "transition"],
+    )
+  })
+
+  it("every member is a real parameter node type", () => {
+    for (const t of EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES) expect(PARAMETER_NODE_TYPES.has(t), t).toBe(true)
   })
 })
 

@@ -45,6 +45,7 @@ export const PARAMETER_NODE_TYPES: ReadonlySet<string> = new Set([
   "post-process-effects",
   "action-fx",
   "character-fx",
+  "character-motion",
   "transition",
   "loop-subject",
   "scene-count",
@@ -75,6 +76,62 @@ export const HINT_EXEMPT_PARAMETER_TYPES: ReadonlySet<string> = new Set([
   "scene-count",
   "duration",
   "aspect-ratio",
+])
+
+/**
+ * Parameter pickers whose fragment only makes sense in MOTION — a camera move,
+ * a transition, a timeline, a character effect or a character movement. Every
+ * still-image consumer (generate-image, edit-image, image-to-image,
+ * modify-image, location) excludes these on BOTH executors and in the add-node
+ * popup. One set instead of three hand-synced copies: `STILL_IMAGE_EXCLUDE_TYPES`
+ * (frontend cinematography-hints.ts and backend payload-builder.ts) and
+ * `MOTION_ONLY_PICKER_TYPES` (frontend node-compatibility.ts) alias it.
+ */
+export const VIDEO_ONLY_PARAMETER_NODE_TYPES: ReadonlySet<string> = new Set([
+  "camera-motion",
+  "temporal",
+  "transition",
+  "character-fx",
+  "character-motion",
+])
+
+/**
+ * Pickers whose fragment depends on OTHER nodes wired into them — camera
+ * motion's and transition's start / end states, character motion's target and
+ * partner names, character FX's target name — so both executors must pass the
+ * graph to `getParameterPromptHint` for them.
+ *
+ * TRANSITION AND CHARACTER-FX JOINED THIS SET (signed off). They compose from
+ * the graph everywhere a human LOOKS at them — the config panel's injection
+ * preview and the canvas card both run
+ * `getParameterPromptHint(node, { nodes, edges })` — and on the frontend
+ * `{Label}` path (`execution-graph.ts :: extractNodeOutput`), but the two
+ * cinematography collectors that read THIS set dispatched them without the
+ * graph, so a wired `startState` / `target` was promised in the preview and
+ * dropped at execution. Admitting them here closes that gap on BOTH executors
+ * at once.
+ *
+ * THE BOUND, and it is proved rather than asserted: a picker with NOTHING
+ * wired to its own `startState` / `endState` / `target` handles emits
+ * byte-identical text with and without the graph — the composers are simply
+ * called with empty clause arrays either way. So only workflows that actually
+ * wire those handles change at all, and they change to the text their own
+ * preview already shows. The prompts package's
+ * `graph-composed-unwired-identity.test.ts` walks every transition and
+ * character-fx catalog entry in both hint modes, under two unwired graph
+ * shapes, and asserts that equality — with a wired positive control so it
+ * cannot go vacuous.
+ *
+ * ADD A NEW GRAPH-COMPOSED PICKER HERE AND TO
+ * `LABEL_REF_GRAPH_COMPOSED_PARAMETER_TYPES` (backend
+ * `services/workflow-engine/label-ref-hint-context.ts`) when it ships, so its
+ * `{Label}` text and its directly-wired text agree from its first release.
+ */
+export const EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES: ReadonlySet<string> = new Set([
+  "camera-motion",
+  "character-motion",
+  "transition",
+  "character-fx",
 ])
 
 /**
@@ -158,6 +215,8 @@ export function getParameterValue(
       return trim(data.actionFx)
     case "character-fx":
       return trim(data.characterFx)
+    case "character-motion":
+      return trim(data.characterMotion)
     case "transition":
       return trim(data.transition)
     case "style":

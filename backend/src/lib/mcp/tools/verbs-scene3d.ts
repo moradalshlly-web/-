@@ -56,8 +56,9 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
       "after an answer re-shaped one the feedback did not name, each an ASSERTION_RESTORED warning. " +
       "metadata.review means the scene was delivered WITHOUT the visual reviewer's approval - the job " +
       "still completed. Read metadata.review.verdict: \"refused\" is the reviewer objecting, one " +
-      "SCENE_REVIEW_REFUSED warning per objection; \"unavailable\" means its provider never answered in " +
-      "metadata.review.attempts asks, so NOBODY judged the scene - a leading SCENE_REVIEW_UNAVAILABLE " +
+      "SCENE_REVIEW_REFUSED warning per objection; \"unavailable\" means no usable verdict in " +
+      "metadata.review.attempts asks (reason \"provider\": never reached; \"unusable\": answered unusably), " +
+      "so NOBODY judged the scene - a leading SCENE_REVIEW_UNAVAILABLE " +
       "warning, and any objections under it are partial review batches, not the verdict. " +
       "A FAILED advanced job can still carry output_data: sceneRevisionId when it kept the draft it built, " +
       "and validation.sourceRetained when nothing compiled and only the recipe was kept - fetch either " +
@@ -153,8 +154,9 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
         "after an answer re-shaped one the feedback did not name, each an ASSERTION_RESTORED warning. " +
         "metadata.review means the scene was delivered WITHOUT the visual reviewer's approval - the job " +
         "still completed. metadata.review.verdict is \"refused\" (it objected, one SCENE_REVIEW_REFUSED " +
-        "warning per objection) or \"unavailable\" (its provider never answered in metadata.review.attempts " +
-        "asks, so nobody judged the scene; a leading SCENE_REVIEW_UNAVAILABLE warning, and any objections " +
+        "warning per objection) or \"unavailable\" (no usable verdict in metadata.review.attempts asks - reason " +
+        "\"provider\": never reached, \"unusable\": answered unusably - so nobody judged the scene; a leading " +
+        "SCENE_REVIEW_UNAVAILABLE warning, and any objections " +
         "under it are partial batches). " +
         "A job that FAILED with SCENE_QUALITY_FAILED still carries a deliveryId: when it built a scene, " +
         "sceneRevisionId names that draft; when the compiler refused the recipe on every pass, " +

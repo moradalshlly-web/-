@@ -23,6 +23,18 @@ vi.mock("@/ee/notifications/signup-product.js", () => ({
   signupProduct: vi.fn(async () => "app"),
   signupProductsFor: vi.fn(async () => new Map()),
 }))
+// Stream D and the Loops pull have their own suites; here they are inert.
+vi.mock("@/ee/notifications/welcome-offer-notify.js", () => ({
+  pollWelcomeOffer: vi.fn(async () => undefined),
+  welcomeLabelsFor: vi.fn(async () => new Map()),
+  countSubscribed: vi.fn(async () => "0"),
+}))
+vi.mock("@/ee/notifications/loops-unsubscribe-pull.js", () => ({
+  pullLoopsUnsubscribes: vi.fn(async () => null),
+}))
+vi.mock("@/ee/notifications/credits-digest.js", () => ({
+  maybeSendCreditsDigest: vi.fn(async () => undefined),
+}))
 // PUBLIC_URL drives the single-sender guard; default "" = this instance sends.
 vi.mock("@/lib/config.js", () => ({ config: { PUBLIC_URL: "" } }))
 
@@ -32,9 +44,12 @@ import {
   notifyPaidConversion,
   notifyCancellation,
   isStandbySender,
+  runFounderNotifyTick,
+  TICK_LATCH_MAX_MS,
 } from "../founder-notify.js"
 import { getNotifyConfig } from "../notify-config.js"
 import { sendSlack } from "../slack-client.js"
+import { maybeSendCreditsDigest } from "../credits-digest.js"
 import { config } from "../../../lib/config.js"
 
 function setPublicUrl(url: string) {
@@ -46,6 +61,8 @@ const CONFIG_ON = {
   digestHour: 8,
   milestonesEnabled: true,
   everySignupEnabled: false,
+  welcomeOfferEnabled: false,
+  creditsDigestEnabled: true,
   slackWebhookUrl: "https://hooks.slack.com/services/T0/B0/secret",
 }
 
@@ -82,6 +99,61 @@ describe("isStandbySender — single-sender guard (shared DB)", () => {
     await notifyPaidConversion("u1", "free", "pro")
     await notifyCancellation("u1", "pro")
     expect(sendSlack).not.toHaveBeenCalled()
+  })
+})
+
+describe("runFounderNotifyTick — stream wiring", () => {
+  it("drives the credits digest with ITS OWN switch and the shared hour, passing the poster", async () => {
+    vi.mocked(getNotifyConfig).mockResolvedValue({ ...CONFIG_ON, digestEnabled: false, creditsDigestEnabled: false })
+    await runFounderNotifyTick()
+    expect(maybeSendCreditsDigest).toHaveBeenCalledOnce()
+    const [, enabled, hour, poster] = vi.mocked(maybeSendCreditsDigest).mock.calls[0]
+    expect(enabled).toBe(false) // creditsDigestEnabled, not digestEnabled (which is also false here — see next case)
+    expect(hour).toBe(8)
+    expect(typeof poster).toBe("function")
+
+    vi.mocked(getNotifyConfig).mockResolvedValue({ ...CONFIG_ON, digestEnabled: false, creditsDigestEnabled: true })
+    await runFounderNotifyTick()
+    expect(vi.mocked(maybeSendCreditsDigest).mock.calls[1][1]).toBe(true)
+  })
+
+  it("does not overlap itself: a second tick while one is in flight is a no-op", async () => {
+    vi.mocked(getNotifyConfig).mockResolvedValue({ ...CONFIG_ON, digestEnabled: false })
+    let release: () => void = () => undefined
+    vi.mocked(maybeSendCreditsDigest).mockImplementationOnce(
+      () => new Promise<void>((resolve) => {
+        release = resolve
+      }),
+    )
+    const first = runFounderNotifyTick()
+    // Let the first tick walk its earlier streams until it parks on the digest.
+    while (vi.mocked(maybeSendCreditsDigest).mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
+    await runFounderNotifyTick() // overlaps — must return without a second walk
+    release()
+    await first
+    expect(maybeSendCreditsDigest).toHaveBeenCalledOnce()
+
+    await runFounderNotifyTick() // latch released — runs again
+    expect(maybeSendCreditsDigest).toHaveBeenCalledTimes(2)
+  })
+
+  it("a tick parked past the latch age limit does not mute the streams forever", async () => {
+    vi.mocked(getNotifyConfig).mockResolvedValue({ ...CONFIG_ON, digestEnabled: false })
+    const t0 = new Date("2026-09-16T05:00:00.000Z")
+    // First tick hangs on the digest for good (a supabase call that never resolves).
+    vi.mocked(maybeSendCreditsDigest).mockImplementationOnce(() => new Promise<void>(() => undefined))
+    void runFounderNotifyTick(t0)
+    while (vi.mocked(maybeSendCreditsDigest).mock.calls.length === 0) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
+
+    await runFounderNotifyTick(new Date(t0.getTime() + TICK_LATCH_MAX_MS - 1)) // still young — skipped
+    expect(maybeSendCreditsDigest).toHaveBeenCalledOnce()
+
+    await runFounderNotifyTick(new Date(t0.getTime() + TICK_LATCH_MAX_MS)) // stale — bypassed
+    expect(maybeSendCreditsDigest).toHaveBeenCalledTimes(2)
   })
 })
 

@@ -2331,6 +2331,8 @@ function executeNodeCore(
       rollingRefs: gvpData.rollingRefs === true ? true : undefined,
       wordCut: gvpData.wordCut === true ? true : undefined,
       shotTimestamps: gvpData.shotTimestamps === true ? true : undefined,
+      segmentMode: gvpData.segmentMode,
+      sourceSegmentDurations: gvpData.sourceSegmentDurations,
       preferredSegmentSec: typeof gvpData.preferredSegmentSec === "number" ? gvpData.preferredSegmentSec : undefined,
       // EXPLICIT scene-aligned durations — passed VERBATIM (no clamping: the
       // route + pricing validate the same array; a bad one must 400 loudly,
@@ -2823,6 +2825,10 @@ function executeNodeCore(
         nsfwChecker: i2vData.nsfwChecker,
         enableTranslation: i2vData.enableTranslation,
         loopTrim: i2vData.loopTrim,
+        // Start/end frame handling — same two fields the orchestrator sends
+        // (payload-builder), pinned by the dag-parity test.
+        frameFit: i2vData.frameFit,
+        frameDelivery: i2vData.frameDelivery,
         videoTrimStart: i2vData.videoTrimStart,
         videoTrimEnd: i2vData.videoTrimEnd,
         // Identity injection — populated by node-input-resolver when an upstream

@@ -318,6 +318,8 @@ exports[`per-node skill file snapshots > generate-video.md auto-gen blocks match
 - \`videoTrimStart?: number\`
 - \`videoTrimEnd?: number\`
 - \`attachReferenceVideoVariant?: string\`
+- \`frameFit?: FrameFit\`
+- \`frameDelivery?: FrameDelivery\`
 - \`loopTrim?: {
     enabled: boolean
     framesToTest?: number
@@ -736,6 +738,8 @@ exports[`per-node skill file snapshots > image-to-video.md auto-gen blocks match
 - \`videoTrimStart?: number\`
 - \`videoTrimEnd?: number\`
 - \`attachReferenceVideoVariant?: string\`
+- \`frameFit?: FrameFit\`
+- \`frameDelivery?: FrameDelivery\`
 - \`loopTrim?: {
     enabled: boolean
     framesToTest?: number

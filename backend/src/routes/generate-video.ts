@@ -25,6 +25,7 @@ import { directionSchema } from "../lib/direction-schema.js"
 import { subjectSchema } from "../lib/subject-schema.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { backendHybridRoles } from "../lib/reference-format.js"
+import { FRAME_FITS, FRAME_DELIVERIES } from "@nodaro/shared"
 
 // Character-voice orchestration (voiced-video). All optional + additive: absent
 // => today's behaviour. A "voiced" request ALSO requires a dialogue-capable
@@ -117,6 +118,12 @@ export const generateVideoBody = z.object({
   // breaks loop seamlessness. Default true: strip the last 8 frames
   // post-render so the rendered last frame matches the supplied
   // `last_frame_url` exactly. Set false to keep the dissolve.
+  /** Start/end FRAME handling — see lib/video-frame-dispatch.ts. `frameFit`
+   *  reshapes the frame to the model's measured output canvas (default), and
+   *  `frameDelivery` picks frame vs bound-reference delivery (default `auto`,
+   *  which only switches the Seedance 2.0 family). Both are safe to omit. */
+  frameFit: z.enum(FRAME_FITS).optional(),
+  frameDelivery: z.enum(FRAME_DELIVERIES).optional(),
   loopTrim: z.object({
     enabled: z.boolean(),
     framesToTest: z.number().int().min(1).max(64).optional(),
@@ -812,7 +819,7 @@ export async function generateVideoRoutes(app: FastifyInstance) {
       })
     }
 
-    const { audioUrl, prompt: rawPrompt, provider: rawProvider, generateAudio, duration: rawDuration, mode, sound, negativePrompt, motionPrompt, cfgScale, aspectRatio, multiShot, shots, elements, resolution, grokMode, videoSize, seed, cameraFixed, webSearch, nsfwChecker, generationType: rawGenerationType, autoLoopTrim, loopTrim: rawLoopTrim, enableTranslation, videoTrimStart, videoTrimEnd, characterVoices, dialogue } = parsed.data
+    const { audioUrl, prompt: rawPrompt, provider: rawProvider, generateAudio, duration: rawDuration, mode, sound, negativePrompt, motionPrompt, cfgScale, aspectRatio, multiShot, shots, elements, resolution, grokMode, videoSize, seed, cameraFixed, webSearch, nsfwChecker, generationType: rawGenerationType, autoLoopTrim, loopTrim: rawLoopTrim, enableTranslation, videoTrimStart, videoTrimEnd, characterVoices, dialogue, frameFit, frameDelivery } = parsed.data
     // Platform default when the request omits provider/duration — the SAME
     // helper the DAG payload builder uses, so the two paths cannot drift.
     const { provider, duration } = applyDefaultVideoSelection({ provider: rawProvider, duration: rawDuration })
@@ -1199,6 +1206,8 @@ export async function generateVideoRoutes(app: FastifyInstance) {
       nsfwChecker,
       generationType,
       loopTrim,
+      frameFit,
+      frameDelivery,
       enableTranslation,
       videoTrimStart,
       videoTrimEnd,

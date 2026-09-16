@@ -548,6 +548,8 @@ export type { LocationCatalogRef } from "./location-preset-catalog-map.js"
 export {
   PARAMETER_NODE_TYPES,
   HINT_EXEMPT_PARAMETER_TYPES,
+  VIDEO_ONLY_PARAMETER_NODE_TYPES,
+  EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES,
   getParameterValue,
   setRegisteredPersonPackFields,
 } from "./parameter-node-value.js"
@@ -1107,3 +1109,8 @@ export * from "./scene3d-v2-edit.js"
 export { STUDIO_DEPENDENT_FRAMES_CAPABILITY, SequenceExecutionRequiredError, requiresSequenceExecution, assertCanvasExecutionAllowed } from "./sequence-execution"
 export * from "./scene3d-authoring-engine.js"
 export * from "./scene3d-input-assets.js"
+
+// --- Start/end frame fit: measured output canvases + the pure fit math ---
+export * from "./video-output-canvas.js"
+export * from "./video-frame-fit.js"
+export type { CharacterMotionMetadata } from "./character-motion-metadata.js"

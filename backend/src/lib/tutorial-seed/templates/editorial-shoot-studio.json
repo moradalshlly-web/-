@@ -1,0 +1,707 @@
+{
+  "slug": "editorial-shoot-studio",
+  "name": "Editorial Shoot Studio",
+  "description": "One clothing photo in, an outdoor editorial out: a model card on white and four location shots (portrait, walking, wide, detail) of the same model in the same clothing, with an AI creative director keeping every shot in one place and one light.",
+  "markdownDescription": "## Editorial Shoot Studio\n\nOne clothing photo becomes an outdoor editorial: a model card on white, then four location shots of the same model in the same clothing. No photographer, no location, no model booking.\n\n1. **Clothing photo** — a packshot or flat lay on a plain background. The one thing that never changes.\n2. **Model + Styling notes** — pick the look from tiles; say what goes with the clothing.\n3. **Location notes + Moodboard** — where, when and in what weather, in plain words, plus one picture for the mood.\n4. **Clothing notes + Model card** — an AI writes the clothing down once; one full-body photo on white anchors every shot.\n5. **Shoot brief** — an AI creative director writes the world of the shoot in one paragraph. Every shot quotes it, so the four photos read as one day.\n6. **Four shots** — portrait, walking, wide, detail. Same model, same clothing, same place, same light.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image"
+  ],
+  "tags": [
+    "fashion",
+    "editorial",
+    "model",
+    "location",
+    "lookbook"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 110,
+  "nodeTypesUsed": [
+    "upload-image",
+    "person",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/2180efb1-1d66-42e2-ab2d-094e5b05b286.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 9,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One clothing photo becomes an outdoor editorial: a model card on white, then four location shots of the same model in the same clothing. No photographer, no location, no model booking.\n\n1. Clothing photo — a packshot or flat lay on a plain background. The one thing that never changes.\n2. Model + Styling notes — pick the look from tiles; say what goes with the clothing.\n3. Location notes + Moodboard — where, when and in what weather, in plain words, plus one picture for the mood.\n4. Clothing notes + Model card — an AI writes the clothing down once; one full-body photo on white anchors every shot.\n5. Shoot brief — an AI creative director writes the world of the shoot in one paragraph. Every shot quotes it, so the four photos read as one day.\n6. Four shots — portrait, walking, wide, detail. Same model, same clothing, same place, same light.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Editorial shoot studio — how it works",
+        "width": 1180,
+        "height": 770,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-clothing",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "A packshot, a ghost-mannequin shot or a flat lay on a plain background. The model card and every shot get it as a reference, so colour, collar, closure and length stay exactly as they are.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Clothing photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-model",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1850
+      },
+      "data": {
+        "bold": false,
+        "text": "Pick the look from tiles: type, age, hair, skin, eyes. No photo needed. Want a specific person? Wire a model photo or a Character node into the Model card as one more reference.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · The model",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-styling",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2280
+      },
+      "data": {
+        "bold": false,
+        "text": "What goes with the clothing and how it is worn: open or closed, what is underneath, trousers, shoes, hair. Plain words. The model card follows them and the four shots inherit them from the card.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Styling notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-location",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2710
+      },
+      "data": {
+        "bold": false,
+        "text": "Where the shoot happens, the time of day and the weather, in plain words. Change this one text and the whole shoot moves: a rooftop at dusk, a wet city street, a desert road.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Location notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-mood",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 3100
+      },
+      "data": {
+        "bold": false,
+        "text": "One picture that has the mood you want: the palette, the light, the atmosphere. The creative director reads it next to your notes. Optional — delete the node if the notes say it all.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Moodboard",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-card",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "Clothing notes: an AI describes the clothing from the photo in one precise paragraph; the card and every shot quote it. Model card: one full-body photo of the model in the clothing on white — the face and the outfit every shot is measured against.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Clothing notes + Model card",
+        "width": 560,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-director",
+      "type": "sticky-note",
+      "position": {
+        "x": 2380,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI creative director turns your location notes, the moodboard and the clothing into one paragraph: the exact place, the hour, the weather, the light, the palette, the mood. All four shots quote this paragraph, so they read as one continuous day. Edit the paragraph by hand if you like, then rerun the shots.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · Shoot brief",
+        "width": 560,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-shots",
+      "type": "sticky-note",
+      "position": {
+        "x": 3180,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "Each shot gets the model card and the clothing photo as references, the clothing notes and the shoot brief, plus its own fixed framing: a tight portrait, a walking three-quarter, a wide full body with the landscape, a detail of the clothing. Open a shot to change its framing or its pose, then rerun just that node. Rerun the Shoot brief alone to move the whole series somewhere else.",
+        "color": "#26221a",
+        "label": "Step 8",
+        "title": "8 · Four shots",
+        "width": 2820,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "clothing-photo",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 930
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/8ba1a06a-0bc4-4c5f-89ad-4410a0908624.png",
+        "label": "Clothing photo",
+        "r2Url": "https://cdn.nodaro.ai/images/8ba1a06a-0bc4-4c5f-89ad-4410a0908624.png",
+        "filename": "coat-camel-wool-wrap-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/8ba1a06a-0bc4-4c5f-89ad-4410a0908624.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model",
+      "type": "person",
+      "position": {
+        "x": 700,
+        "y": 1850
+      },
+      "data": {
+        "age": "age-20s",
+        "type": "woman",
+        "label": "Model",
+        "eyeColor": "eyes-green",
+        "hairBase": "base-long-straight",
+        "hintMode": "compact",
+        "skinTone": "skin-fair",
+        "hairColor": "hair-copper",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "styling",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2280
+      },
+      "data": {
+        "text": "Worn closed with the belt knotted, over a black fine-knit roll-neck and straight black wool trousers, with black leather ankle boots. Hair down. No bag, no jewellery.",
+        "label": "Styling notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "location",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2710
+      },
+      "data": {
+        "text": "A black-sand beach in Iceland, late morning, overcast. Soft grey light, sea mist, a cold steady wind. Basalt rock stacks standing in the shallows.",
+        "label": "Location notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "moodboard",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 3100
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/be54e870-1358-409c-b25d-a3d0ac49ada3.png",
+        "label": "Moodboard",
+        "r2Url": "https://cdn.nodaro.ai/images/be54e870-1358-409c-b25d-a3d0ac49ada3.png",
+        "filename": "moodboard-black-sand-beach-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/be54e870-1358-409c-b25d-a3d0ac49ada3.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clothing-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1440
+      },
+      "data": {
+        "label": "Clothing notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the clothing in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write clothing descriptions for an image generator. Look at the reference image and describe the clothing in ONE paragraph of 50–70 words, plain declarative English: clothing type, colour, fabric and finish, collar or neckline, closure, pockets, cuffs, length, fit and drape. Only what is visible. No brand names, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "model-card",
+      "type": "generate-image",
+      "position": {
+        "x": 1540,
+        "y": 1800
+      },
+      "data": {
+        "label": "Model card",
+        "style": "",
+        "prompt": "E-commerce studio photograph, full body head to toe, of {Model || a fashion model} standing relaxed and facing the camera on a pure white seamless studio background. The model wears the exact clothing from the clothing reference image, unchanged: {Clothing notes || the clothing in the clothing reference image.} Worn as follows: {Styling notes || as it comes.} Soft diffused studio light, a soft shadow under the shoes, natural skin, calm expression, no props, no text. Sharp and clean.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "director",
+      "type": "llm-chat",
+      "position": {
+        "x": 2380,
+        "y": 1530
+      },
+      "data": {
+        "label": "Shoot brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Location notes: {Location notes || an outdoor location in soft natural light.} The clothing: {Clothing notes || see the clothing.} If there is a moodboard image, take the palette and the atmosphere from it. Write the world of the shoot.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are the creative director of an outdoor fashion editorial. You get the client's location notes, sometimes a moodboard image, and a description of the clothing. Write the world of the shoot in ONE paragraph of 70–100 words, plain declarative English, present tense: the exact place and what stands in it (ground, water, rock, structures, horizon), the time of day, the weather, the direction and quality of the light, the colour palette, and the mood — chosen so the clothing reads well against it. Every photo of the shoot quotes this paragraph, so make it specific and consistent with itself. No shot list, no poses, no camera settings, no headers, no quotation marks. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-1",
+      "type": "generate-image",
+      "position": {
+        "x": 3180,
+        "y": 1230
+      },
+      "data": {
+        "label": "Shot 1 · Portrait",
+        "style": "",
+        "prompt": "Fashion editorial portrait, tight crop from the upper chest to just above the head, camera a touch below eye level. The same model as in the model card reference image — identical face, hair and skin — wearing the exact clothing from the clothing reference image, unchanged and worn exactly as on the model card: {Clothing notes || the clothing in the clothing reference image.} Her face is turned a little off the lens, eyes on something beyond the frame, calm and unposed; the wind moves a few strands of hair; the collar of the clothing fills the lower edge of the frame. The location falls softly out of focus behind her. The place, the light and the weather: {Shoot brief || an outdoor location in soft natural light.} Photorealistic fashion editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-2",
+      "type": "generate-image",
+      "position": {
+        "x": 3920,
+        "y": 1230
+      },
+      "data": {
+        "label": "Shot 2 · Walking",
+        "style": "",
+        "prompt": "Fashion editorial, three-quarter crop from the knees to above the head. The same model as in the model card reference image — identical face, hair and skin — wearing the exact clothing from the clothing reference image, unchanged and worn exactly as on the model card: {Clothing notes || the clothing in the clothing reference image.} She is mid-stride, walking through the location toward the camera at a slight angle and placed off-centre, one hand holding the clothing closed against the wind, the other loose, eyes down the path ahead. The place, the light and the weather: {Shoot brief || an outdoor location in soft natural light.} Photorealistic fashion editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-3",
+      "type": "generate-image",
+      "position": {
+        "x": 4660,
+        "y": 1230
+      },
+      "data": {
+        "label": "Shot 3 · Wide",
+        "style": "",
+        "prompt": "Fashion editorial, wide full-body shot from a low camera near the ground looking slightly up. The same model as in the model card reference image — identical face, hair and skin — wearing the exact clothing from the clothing reference image, unchanged and worn exactly as on the model card: {Clothing notes || the clothing in the clothing reference image.} She stands small and to one side of the frame, back straight, looking away toward the horizon, while the landscape and the sky fill most of the picture. The place, the light and the weather: {Shoot brief || an outdoor location in soft natural light.} Photorealistic fashion editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    },
+    {
+      "id": "shot-4",
+      "type": "generate-image",
+      "position": {
+        "x": 5400,
+        "y": 1230
+      },
+      "data": {
+        "label": "Shot 4 · Detail",
+        "style": "",
+        "prompt": "Fashion editorial detail shot, close crop from the chin to the hips, no face in frame. The same model as in the model card reference image — identical face, hair and skin — wearing the exact clothing from the clothing reference image, unchanged and worn exactly as on the model card: {Clothing notes || the clothing in the clothing reference image.} Her hands rest on the front of the clothing: the closure, the collar, the fabric texture and one cuff are sharp and clearly lit, the location soft behind. The place, the light and the weather: {Shoot brief || an outdoor location in soft natural light.} Photorealistic fashion editorial photograph, natural light only, true colours, a fine film grain, no text, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "3:4",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 800,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-clothing-notes",
+      "source": "clothing-photo",
+      "target": "clothing-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clothing-card",
+      "source": "clothing-photo",
+      "target": "model-card",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-model-card",
+      "source": "model",
+      "target": "model-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-styling-card",
+      "source": "styling",
+      "target": "model-card",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-card",
+      "source": "clothing-notes",
+      "target": "model-card",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-location-director",
+      "source": "location",
+      "target": "director",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-mood-director",
+      "source": "moodboard",
+      "target": "director",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-director",
+      "source": "clothing-notes",
+      "target": "director",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot1",
+      "source": "model-card",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clothing-shot1",
+      "source": "clothing-photo",
+      "target": "shot-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot1",
+      "source": "clothing-notes",
+      "target": "shot-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-shot1",
+      "source": "director",
+      "target": "shot-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot2",
+      "source": "model-card",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clothing-shot2",
+      "source": "clothing-photo",
+      "target": "shot-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot2",
+      "source": "clothing-notes",
+      "target": "shot-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-shot2",
+      "source": "director",
+      "target": "shot-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot3",
+      "source": "model-card",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clothing-shot3",
+      "source": "clothing-photo",
+      "target": "shot-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot3",
+      "source": "clothing-notes",
+      "target": "shot-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-shot3",
+      "source": "director",
+      "target": "shot-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-shot4",
+      "source": "model-card",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clothing-shot4",
+      "source": "clothing-photo",
+      "target": "shot-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-shot4",
+      "source": "clothing-notes",
+      "target": "shot-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brief-shot4",
+      "source": "director",
+      "target": "shot-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.233
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "model": {
+          "title": "The model",
+          "description": "Pick the look from tiles. No photo needed."
+        },
+        "shot-1": {
+          "title": "Portrait",
+          "description": "Tight, eyes off the lens, the location soft behind."
+        },
+        "shot-2": {
+          "title": "Walking",
+          "description": "Mid-stride through the location, three-quarter crop."
+        },
+        "shot-3": {
+          "title": "Wide",
+          "description": "Full body from a low camera, the landscape filling the frame."
+        },
+        "shot-4": {
+          "title": "Detail",
+          "description": "Chin to hips, hands on the closure — the fabric up close."
+        },
+        "styling": {
+          "title": "Styling notes",
+          "description": "What goes with the clothing and how it is worn — underneath, trousers, shoes, hair."
+        },
+        "location": {
+          "title": "Location notes",
+          "description": "Where, when and in what weather. Change this and the whole shoot moves."
+        },
+        "moodboard": {
+          "title": "Moodboard",
+          "description": "Optional. One picture with the palette and the atmosphere you want."
+        },
+        "model-card": {
+          "title": "Model card",
+          "description": "The full-body anchor photo: the model in the clothing on white."
+        },
+        "clothing-photo": {
+          "title": "Your clothing",
+          "description": "A packshot, ghost-mannequin shot or flat lay on a plain background. It appears exactly as it is in every shot."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "clothing-photo",
+        "model",
+        "styling",
+        "location",
+        "moodboard"
+      ],
+      "outputOrder": [
+        "shot-1",
+        "shot-2",
+        "shot-3",
+        "shot-4",
+        "model-card"
+      ]
+    }
+  }
+}

@@ -148,6 +148,6 @@ describe("transition timing catalogs", () => {
     const singlesWithDims = PICKER_CATALOGS.filter(
       (c) => c.kind === "single" && c.dimensions,
     ).map((c) => c.nodeType)
-    expect(singlesWithDims).toEqual(["transition", "character-fx"])
+    expect(singlesWithDims).toEqual(["transition", "character-fx", "character-motion"])
   })
 })

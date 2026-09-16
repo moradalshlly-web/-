@@ -1,6 +1,6 @@
-import { composeCameraMotionHintFromConnections, composeTransitionHintFromConnections, type TransitionTiming, composeCharacterFxHintFromConnections, type CharacterFxTiming, getParameterPromptHint } from "@nodaro/prompts"
-import { extractReferencedLabels, canonicalVarName } from "@nodaro/shared"
-import type { WorkflowNode, WorkflowEdge, TransitionData, CharacterFxData } from "@/types/nodes"
+import { composeCameraMotionHintFromConnections, composeTransitionHintFromConnections, type TransitionTiming, composeCharacterFxHintFromConnections, type CharacterFxTiming, composeCharacterMotionHintFromConnections, type CharacterMotionTiming, getParameterPromptHint } from "@nodaro/prompts"
+import { extractReferencedLabels, canonicalVarName, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES } from "@nodaro/shared"
+import type { WorkflowNode, WorkflowEdge, TransitionData, CharacterFxData, CharacterMotionData } from "@/types/nodes"
 import { collectCharacterElementInjections } from "@/components/editor/workflow-editor/node-input-resolver"
 
 /**
@@ -51,10 +51,11 @@ export function composeCameraMotionHintForNode(
 
 /**
  * Walk a consumer node's `cinematography` target handle and aggregate one
- * prompt-hint string per connected source. Camera-motion sources are composed
- * via their own startState/endState walk (they produce the full structured
- * "beginning with X, ending with Y" sentence); all other parameter nodes
- * dispatch through {@link getNodePromptHint}.
+ * prompt-hint string per connected source. Graph-composed sources
+ * (`EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`: camera-motion's and
+ * transition's startState/endState walk, character-motion's target/partner
+ * names, character-fx's target name) are dispatched WITH the graph; all other
+ * parameter nodes dispatch through {@link getNodePromptHint}.
  *
  * Returns an array of non-empty hint strings — the caller decides how to join
  * and append them onto the user prompt. Used by:
@@ -101,11 +102,28 @@ export function composeCharacterFxHintForNode(
   return composeCharacterFxHintFromConnections(data.characterFx, targetHints, timing)
 }
 
+/**
+ * Compose the Character Motion fragment for the config-panel preview. Names
+ * are passed in when the caller has them; with none, "the subject" stays and an
+ * unwired partner reads "another person" — exactly what execution injects for
+ * an unwired node.
+ */
+export function composeCharacterMotionHintForNode(
+  data: CharacterMotionData,
+  targetHints: ReadonlyArray<string> = [],
+  partnerHints: ReadonlyArray<string> = [],
+): string {
+  const timing: CharacterMotionTiming = { position: data.position, pace: data.pace }
+  return composeCharacterMotionHintFromConnections(data.characterMotion, targetHints, partnerHints, timing)
+}
+
 /** Video-only cinematography dims. Still-image consumers (generate-image,
  *  edit-image, image-to-image, Location entity reference-image gen) pass
  *  these via `options.excludeTypes` to `collectCinematographyHints` so a
- *  stray Motion/Temporal connection doesn't inject incoherent hints. */
-export const STILL_IMAGE_EXCLUDE_TYPES: ReadonlySet<string> = new Set(["camera-motion", "temporal", "transition", "character-fx"])
+ *  stray Motion/Temporal connection doesn't inject incoherent hints.
+ *  The shared set itself — the backend payload builder and the add-node
+ *  popup alias the same object, so the three can never drift. */
+export const STILL_IMAGE_EXCLUDE_TYPES: ReadonlySet<string> = VIDEO_ONLY_PARAMETER_NODE_TYPES
 
 export function collectCinematographyHints(
   consumerNodeId: string,
@@ -148,11 +166,13 @@ export function collectCinematographyHints(
     const srcLabel = canonicalVarName(((srcNode.data as { label?: string } | undefined)?.label) || srcNode.type || srcNode.id)
     if (referenced.has(srcLabel)) continue
 
-    if (srcNode.type === "camera-motion") {
-      // Build via the shared getParameterPromptHint WITH graph context so the
-      // startState/endState walk runs AND the node's preText/postText is applied
-      // (withCustomText). composeCameraMotionHintForNode bypassed custom text, so
-      // it was dropped at execution while the injection preview promised it.
+    if (EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES.has(srcNode.type ?? "")) {
+      // Build via the shared getParameterPromptHint WITH graph context: camera
+      // motion and transition walk their start/end states, character motion
+      // reads its target and partner names, character FX substitutes its
+      // target's name — and preText/postText (withCustomText) is applied.
+      // (composeCameraMotionHintForNode bypassed custom text, so it was dropped
+      // at execution while the injection preview promised it.)
       const composed = getParameterPromptHint(srcNode, { nodes, edges })
       if (composed) hints.push(composed)
       continue

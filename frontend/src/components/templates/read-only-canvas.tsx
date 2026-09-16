@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type MouseEvent, type ReactNode } from "react"
 import {
   Background,
   BackgroundVariant,
@@ -10,6 +10,7 @@ import {
   type Node,
   type NodeProps,
   type NodeTypes,
+  type ReactFlowInstance,
 } from "@xyflow/react"
 import { nodeTypes } from "@/components/nodes"
 import { orderNodesParentFirst } from "@/components/editor/workflow-editor/group-coords"
@@ -17,7 +18,21 @@ import { migrateSnapshot } from "@/components/tutorials/migrate-snapshot"
 import { useRevealDecision } from "@/components/tutorials/use-reveal-decision"
 import type { WorkflowEdge, WorkflowNode } from "@/types/nodes"
 import { cn } from "@/lib/utils"
+import { NodeInspector } from "./node-inspector"
+import { nodeAtPoint, type InspectorNode, type NodeRect } from "./node-inspector-fields"
 import "@xyflow/react/dist/style.css"
+
+/**
+ * The nodes are `pointer-events: none` (globals.css) so the pane pans from
+ * anywhere, so a click never reaches a node — it lands on the pane, and the
+ * node under it is found by geometry from React Flow's measured boxes.
+ */
+function nodeRects(instance: ReactFlowInstance): NodeRect[] {
+  return instance.getNodes().map((n) => {
+    const absolute = instance.getInternalNode(n.id)?.internals.positionAbsolute ?? n.position
+    return { id: n.id, x: absolute.x, y: absolute.y, width: n.measured?.width ?? n.width ?? 0, height: n.measured?.height ?? n.height ?? 0 }
+  })
+}
 
 const COUNT_HIDDEN = { includeHiddenNodes: true }
 
@@ -102,16 +117,32 @@ export function ReadOnlyCanvas({
     // Migrate first: an edge pointing at a handle that has since been renamed
     // is dropped by React Flow without a word.
     const migrated = migrateSnapshot(nodes as WorkflowNode[], edges as WorkflowEdge[])
-    // Sticky notes are poster-sized in the larger templates and would bury
-    // the machine the preview exists to show; the clone still has them, and
-    // the canvas preview says how many were left out.
-    const visible = migrated.nodes.filter((node) => node.type !== "sticky-note")
+    // Every node the template carries, sticky notes included: the notes are
+    // the template's own explanation of itself (the tutorial templates put a
+    // step-by-step note beside every input), and a preview that hid them
+    // showed the machine without its manual.
     return {
-      nodes: orderNodesParentFirst(visible as unknown as Node[]),
+      nodes: orderNodesParentFirst(migrated.nodes as unknown as Node[]),
       edges: migrated.edges as unknown as Edge[],
     }
   }, [nodes, edges])
   const [ready, setReady] = useState(false)
+  // Reading a node in full: a click on the interactive canvas opens the
+  // inspector for the node under it; a click on empty ground closes it.
+  const instanceRef = useRef<ReactFlowInstance | null>(null)
+  const [inspected, setInspected] = useState<InspectorNode | null>(null)
+  const closeInspector = useCallback(() => setInspected(null), [])
+  const onPaneClick = useCallback(
+    (event: MouseEvent) => {
+      const instance = instanceRef.current
+      if (!instance) return
+      const point = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      const id = nodeAtPoint(nodeRects(instance), point)
+      const node = id === null ? null : prepared.nodes.find((n) => n.id === id)
+      setInspected(node ? { id: node.id, type: node.type, data: node.data as Record<string, unknown> } : null)
+    },
+    [prepared.nodes],
+  )
 
   return (
     <div
@@ -124,6 +155,10 @@ export function ReadOnlyCanvas({
             nodes={prepared.nodes}
             edges={prepared.edges}
             nodeTypes={READ_ONLY_NODE_TYPES}
+            onInit={(instance) => {
+              instanceRef.current = instance
+            }}
+            onPaneClick={interactive ? onPaneClick : undefined}
             nodesDraggable={false}
             nodesConnectable={false}
             nodesFocusable={false}
@@ -137,13 +172,18 @@ export function ReadOnlyCanvas({
             // well below React Flow's default 0.5 floor.
             minZoom={0.02}
             proOptions={{ hideAttribution: true }}
-            style={{ background: "transparent" }}
+            // The editor's ground: the canvas colour plus the soft pink and
+            // indigo wash behind the flow. A template is shown the way the
+            // flow looks in the editor, not on a flat page colour (Asaf).
+            className="canvas-ambient"
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--home-line)" />
+            {/* The dots must stay transparent or they would paint over the wash. */}
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--home-line)" className="!bg-transparent" />
             <FitWhenReady empty={prepared.nodes.length === 0} onReady={() => setReady(true)} />
           </ReactFlow>
         </div>
         {children}
+        {interactive && inspected && <NodeInspector node={inspected} onClose={closeInspector} />}
       </ReactFlowProvider>
     </div>
   )

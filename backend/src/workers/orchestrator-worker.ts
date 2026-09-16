@@ -45,6 +45,7 @@ import { normalizeLegacyNodeTypes } from "../services/workflow-engine/normalize-
 import { migrateGenerateImageHandles } from "../lib/generate-image-handle-migration.js"
 import { extractSourceNodeOutput, extractSavedNodeOutput } from "../services/workflow-engine/output-extractor.js"
 import { executeNode, loadCompletedFanOutIterations, type ExecuteNodeResult } from "../services/workflow-engine/node-executor.js"
+import { labelRefHintContext } from "../services/workflow-engine/label-ref-hint-context.js"
 import type {
   WorkflowExecutionJob,
   SimpleNode,
@@ -813,7 +814,9 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
         // (which would fall through to executeWorkerNode → create a stale jobs
         // row → buildPayload throw "Unknown node type"), and (c) still expose
         // their prompt hint as output for {Label} ref resolution downstream.
-        const hint = getParameterPromptHint(node)
+        // Graph-composed pickers (labelRefHintContext) get the run graph, so
+        // that text matches the editor (wired names, minor-age floor).
+        const hint = getParameterPromptHint(node, labelRefHintContext(node, nodes, edges))
         nodeStates[node.id] = {
           status: "completed",
           output: hint ? { text: hint } : {},

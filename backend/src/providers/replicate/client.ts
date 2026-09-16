@@ -97,6 +97,10 @@ const REPLICATE_MODEL_USD_PER_SEC: Record<string, number> = {
   "video-retalking": REPLICATE_GPU_USD_PER_SEC.a100_80gb,
   "incredibly-fast-whisper": REPLICATE_GPU_USD_PER_SEC.l40s,
   whisper: REPLICATE_GPU_USD_PER_SEC.t4,
+  // ryan5453/demucs runs on A100 (replicate.com/ryan5453/demucs). Display-only:
+  // the separate-audio node and the Voice Changer Pro analyze commit the
+  // reserved tier and only RECORD this figure (jobs.provider_cost).
+  demucs: REPLICATE_GPU_USD_PER_SEC.a100_80gb,
 }
 
 /**

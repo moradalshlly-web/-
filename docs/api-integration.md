@@ -1690,14 +1690,15 @@ returns 400 `validation_error`):
 |---|---|---|
 | `detail` | `compact` (default) / `full` | `compact`: `id`, `label`, `category`, `term`, `icon`. `full`: additionally includes each option's `description` and `promptHint` (the prompt fragment it injects). |
 | `category` | string | Single-dim pickers: filter options to one category. |
-| `field` | string | Return only this dimension's field — multi-dim pickers (person / styling / framing), and the secondary parameters of a single-dim picker (transition / character-fx: `position` / `duration` / `intensity`). |
+| `field` | string | Return only this dimension's field — multi-dim pickers (person / styling / framing), and the secondary parameters of a single-dim picker (transition / character-fx: `position` / `duration` / `intensity`; character-motion: `position` / `pace`). |
 
 A single-dim catalog carries `options`; a multi-dim catalog carries
 `dimensions` (one `{ field, label, options }` per field). A single-dim catalog
 with secondary parameter fields beside its main picker — `transition` and
-`character-fx`, whose `position` / `duration` / `intensity` dropdowns are
-catalogs in their own right — carries **both**: `options` for the picker and
-`dimensions` for the three secondary fields. Every option carries a
+`character-fx` (`position` / `duration` / `intensity`) and `character-motion`
+(`position` / `pace`), whose dropdowns are catalogs in their own right —
+carries **both**: `options` for the picker and `dimensions` for the secondary
+fields. Every option carries a
 `term` at **both** detail levels — the short professional phrase to inject into
 a prompt when you want a compact instruction (`"whip pan left"`), where `label`
 is display-only and `promptHint` is the full mechanism sentence. It is `""` for
@@ -1728,7 +1729,7 @@ Query param (a bad value returns 400 `validation_error`):
 |---|---|---|
 | `detail` | `compact` (default) / `full` | `compact`: `id`, `label`, `category`, `term`, `icon`. `full`: additionally includes each option's `description` and `promptHint`. |
 
-Each `ProjectedCatalog` is `{ nodeType, label, catalogId, kind, valueField?, defaultValue?, categoryOrder?, categoryLabels?, detail, options?, fields?, dimensions? }` — single-dim catalogs carry `options`; multi-dim catalogs carry `dimensions` (one `{ field, label, options }` per field); a single-dim catalog with secondary parameter fields (`transition`, `character-fx`: `position` / `duration` / `intensity`) carries both. Each option is `{ id, label, category?, term, icon?, description?, promptHint? }`; `term` rides at **both** detail levels so a thin client can render `label` and inject the compact professional term without a second `detail=full` fetch. The shape is deliberately tag/policy-free.
+Each `ProjectedCatalog` is `{ nodeType, label, catalogId, kind, valueField?, defaultValue?, categoryOrder?, categoryLabels?, detail, options?, fields?, dimensions? }` — single-dim catalogs carry `options`; multi-dim catalogs carry `dimensions` (one `{ field, label, options }` per field); a single-dim catalog with secondary parameter fields (`transition`, `character-fx`: `position` / `duration` / `intensity`; `character-motion`: `position` / `pace`) carries both. Each option is `{ id, label, category?, term, icon?, description?, promptHint? }`; `term` rides at **both** detail levels so a thin client can render `label` and inject the compact professional term without a second `detail=full` fetch. The shape is deliberately tag/policy-free.
 
 ### Text → pickers (AI Fill)
 
@@ -1992,6 +1993,18 @@ editor but are equally suited to external polling clients. `input_data` and
 private pre-watermark remux base are removed recursively for every caller,
 including administrators.
 
+### Video Pro segment estimates
+
+`POST /v1/credits/video-pro-estimate` accepts `provider`, `resolution`, `duration`, `aspectRatio`, `renderMethod`, `anchorMode`, `contextTailSec`, `planOnly`, and the Video Pro segment controls. It reads prices without creating a job or reserving credits.
+
+```json
+{"provider":"gemini-omni-flash","resolution":"720p","duration":12,"renderMethod":"keyframes","segmentMode":"short"}
+```
+
+The response is `{ "data": { "credits": 660, "upperBound": true } }` in an example configuration with a 660-credit reservation. Read the live response for current prices. For Short/Long, `upperBound` identifies the pre-plan reservation limit; settlement follows the actual plan. A plan-only estimate covers the planning fee and returns `upperBound: false`.
+
+`segmentMode` accepts `short`, `long`, or `max` and cannot be combined with numeric `preferredSegmentSec` or explicit `segmentDurations`. Short/Long first assign complete actions to source spans. A plan-only result’s `sourceSegmentDurations` and `planCheckpoint` can be passed back as `sourceSegmentDurations` and `seedPlan` with the same mode and generation settings. See [Generate Video Pro](nodes/ai-video/generate-video-pro.md#how-segmentation-works).
+
 ## 13b. Generate Video Pro run control (Cloud; self-host via the nodaro.ai connection)
 
 The segmented long-video engine ([Generate Video Pro](./nodes/ai-video/generate-video-pro.md)) generates one segment at a time and checkpoints between segments, so a run can be stopped gracefully and continued later:
@@ -2214,6 +2227,34 @@ captured node config; merge it into a node's data when you build a workflow to
 | `GET` | `/v1/node-presets/factory` | `nodeType` (**required**) | The built-in catalog for a node type. |
 
 A custom preset has `{ id, nodeType, name, description?, data, groupId?, tags, sortOrder, createdAt, updatedAt }`. The factory response is `{ data: FactoryPreset[] }`, where each entry has `{ id, name, description?, group?, groupKind?, data }`.
+
+### App settings presets
+
+The same personal library supports app settings under logical namespaces. `recast-render` stores Recast generation settings; it is not an executable node type. Factory entries are read-only and personal entries remain private to their owner across devices.
+
+Its `data` is a strict complete snapshot:
+
+```json
+{
+  "schemaVersion": 1,
+  "provider": "seedance-2-5",
+  "resolution": "480p",
+  "segmentSec": "max",
+  "renderMethod": "extend",
+  "anchorMode": "upfront",
+  "citeStyle": "bare",
+  "promptTiming": true,
+  "textOnly": false,
+  "interactive": true,
+  "anchorGates": false,
+  "musicGates": true,
+  "musicSource": "generated"
+}
+```
+
+`segmentSec` accepts `max`, `scenes-max` (Long), or `scenes` (Short). `resolution` accepts `480p`, `720p`, `1080p`, or `4k`; `renderMethod` accepts `extend` or `keyframes`; `anchorMode` accepts `upfront`, `progressive`, or `none`; `citeStyle` accepts `bare` or `rich`; `musicSource` accepts `generated`, `original`, or `upload`. All switches are booleans. Unknown fields and schema versions are rejected on create, replacement and import. Source media, cast references, prompts, uploaded track URLs, rights attestations and results are excluded. Applying an Original or Upload music choice uses the target project's own media; it never prepares or uploads audio automatically.
+
+First-party authenticated clients can create with `POST /v1/node-presets`, rename or replace data with `PATCH /v1/node-presets/:id`, and delete with `DELETE /v1/node-presets/:id`. Programmatic-token writes remain disabled. PATCH accepts optional `expectedUpdatedAt` in its body; DELETE accepts it as a query parameter. Send the timestamp returned by the library: a concurrent change returns `409 conflict` and requires a refresh. Applying a preset updates settings and refreshes the quote; it does not submit generation. Validate the target model's current capabilities before generating.
 
 A preset may carry `promptPrefix` / `promptSuffix`; the MCP generation verbs wrap
 the caller's prompt with them when `presetId` is passed (see
@@ -2898,15 +2939,20 @@ only blocking findings become objections, and `validation.warnings[]` carries
 one `SCENE_REVIEW_REFUSED` entry per objection, tagged with a `shotId` where the
 cited frames fall inside one shot.
 
-`{ verdict: "unavailable", reason: "provider", attempts, objections[],
-observed? }` — the review never reached its provider. A repair cannot answer an
-outage, so instead of spending one the run asks again after a bounded pause and,
-if it is still unreachable, delivers the assertion-passing scene unreviewed:
-**nobody judged it**. `attempts` is how many times the review was asked.
-`validation.warnings[]` **leads** with one `SCENE_REVIEW_UNAVAILABLE` entry,
-then one `SCENE_REVIEW_REFUSED` per surviving objection — a review is batched,
-so objections on this arm are whichever batches answered before the outage and
-are **not** a verdict on the scene. The unanswered review is unbilled; the
+`{ verdict: "unavailable", reason, attempts, objections[], observed? }` — the
+review produced no usable verdict. `reason` is `"provider"` when it never reached
+its provider and `"unusable"` when the provider answered with nothing usable. A
+repair cannot answer either, so instead of spending one the run asks the review
+once more — after a bounded pause for an unreachable provider, at once for an
+unusable answer, and not at all when the provider broke after it had already
+streamed usage — and, if there is still no usable verdict, delivers the
+assertion-passing scene unreviewed: **nobody judged it**. `attempts` is how many
+times the review was asked. `validation.warnings[]` **leads** with one
+`SCENE_REVIEW_UNAVAILABLE` entry, then one `SCENE_REVIEW_REFUSED` per surviving
+objection — a review is batched, so objections on this arm are whichever batches
+answered usably first and are **not** a verdict on the scene. A retry is never
+billed on top of the asking before it: an asking that reported no usage is
+unbilled, and the second asking of an unusable answer is not charged again. The
 delivery bills as the refused one does.
 
 Three readings that look right and are not: `validation.status` is still
@@ -3016,3 +3062,7 @@ same new revision ID and body when retrying a transport failure. The response is
 409. The request accepts operations, not uploaded geometry or a replacement
 manifest. Saving creates an immutable revision; the caller separately selects
 it in its workflow, checking that the active revision has not changed meanwhile.
+
+### Character Motion metadata
+
+Character Motion catalog options include optional `motion` metadata at both compact and full detail. It carries authored `requires`, `startPose`/`endPose`, `endVisibility`, `handsAfter`, `needsFreeHands`, `kind`, `fixedPace`, `counterpart`, search `aliases`, and `deprecated`/`replacementId`. Missing fields mean unknown. Preserve retired IDs when loading saved workflows; hide them from new choices. See [Character Motion](nodes/parameters/character-motion.md) for composition, naming, review and advisory-diagnostic behavior. `client.pickerCatalogs.get("character-motion")` exposes this as `PickerOption.motion`; the structural type is `CharacterMotionMetadata` from `@nodaro/shared`.

@@ -1,0 +1,670 @@
+{
+  "slug": "jewelry-studio",
+  "name": "Jewelry Studio",
+  "description": "One ring photo in, a jewellery shop's whole page out: three catalogue stills, a looping 360° spin, and a bride wearing it — a hand-with-bouquet still and a slow-motion film. The stone never changes.",
+  "markdownDescription": "## Jewelry Studio\n\nOne photo of a ring, and everything a jewellery shop puts online: three catalogue stills, a looping 360° spin, and a bride wearing it — a still and a short film. The stone never changes, because an AI writes the ring down once and every node quotes it.\n\n1. **Ring photo** — one packshot. Every image and film gets it as the reference.\n2. **Light + Brand style** — the studio light from tiles and one line about your brand's look.\n3. **Ring notes** — an AI describes the ring: stone, cut, colour, setting, metal.\n4. **Row 1, the stills** — on white, on black velvet, and a macro of the stone.\n5. **Row 2, the spin** — the photo is both the first and the last frame, so the ring turns once and the film loops.\n6. **Row 3, the bride** — pick her from tiles; her hand with the ring and a bouquet becomes a still, and the still becomes a slow-motion film.",
+  "category": "product-imagery",
+  "outputTypes": [
+    "image",
+    "video"
+  ],
+  "tags": [
+    "jewelry",
+    "ring",
+    "360-spin",
+    "bride",
+    "catalogue"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 250,
+  "nodeTypesUsed": [
+    "upload-image",
+    "lighting",
+    "text-prompt",
+    "person",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/ce996136-ca28-49e0-966d-dfd8fc1a4c72.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 19,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One photo of a ring, and everything a jewellery shop puts online: three catalogue stills, a looping 360° spin, and a bride wearing it — a still and a short film. The stone never changes, because an AI writes the ring down once and every node quotes it.\n\n1. Ring photo — one packshot. Every image and film gets it as the reference.\n2. Light + Brand style — the studio light from tiles and one line about your brand's look.\n3. Ring notes — an AI describes the ring: stone, cut, colour, setting, metal.\n4. Row 1, the stills — on white, on black velvet, and a macro of the stone.\n5. Row 2, the spin — the photo is both the first and the last frame, so the ring turns once and the film loops.\n6. Row 3, the bride — pick her from tiles, her hand with the ring and a bouquet becomes a still, and the still becomes a slow-motion film.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Jewelry studio — how it works",
+        "width": 1180,
+        "height": 650,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ring",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "One packshot of the ring, front or three-quarter. Every still and film gets it as the reference, so the stone, the setting and the metal are yours. Replace it with any piece — a necklace, earrings, a bracelet.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Ring photo",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-look",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1530
+      },
+      "data": {
+        "bold": false,
+        "text": "Soft studio light from tiles is the jewellery standard. The brand-style line says in plain words how your brand looks — quiet luxury, bold and modern, vintage and warm — and every image follows it.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Light + Brand style",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-bride",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1960
+      },
+      "data": {
+        "bold": false,
+        "text": "The bride comes from tiles — age, hair, skin — no real customer's photo needed. She appears only from the hand: the ring is the hero, she is the story around it.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Bride",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-notes",
+      "type": "sticky-note",
+      "position": {
+        "x": 1597,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI looks at the ring once and writes it down in one precise paragraph — the stone, its cut and colour, the halo, the prongs, the metal. Every still and film quotes it next to the photo, so the same ring appears everywhere.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Ring notes",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-stills",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 810
+      },
+      "data": {
+        "bold": false,
+        "text": "Three catalogue pictures: on white for the shop page, on black velvet for the campaign, and a macro of the stone for the zoom. Each has a fixed framing you can edit. The macro tells the AI in capitals not to draw the whole ring — with one reference photo, that is how you get a close-up.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · The stills",
+        "width": 2080,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-spin",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 1830
+      },
+      "data": {
+        "bold": false,
+        "text": "The ring photo is wired to BOTH the first and the last frame of the film, so the ring turns one full circle and ends where it started — a loop for the product page. Loop trim cuts the seam.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · The spin",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-hand",
+      "type": "sticky-note",
+      "position": {
+        "x": 2397,
+        "y": 2980
+      },
+      "data": {
+        "bold": false,
+        "text": "Left: her hand on the bouquet with the ring in focus, built from the Bride tiles, the ring photo and the ring notes. Right: a slow-motion film that starts from that still — the hand turns, the stone catches a sparkle. Change the bride and rerun the row.",
+        "color": "#26221a",
+        "label": "Step 7",
+        "title": "7 · The bride",
+        "width": 1500,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "ring",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 810
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/522a3195-72dd-4951-840d-34cdee784b87.png",
+        "label": "Ring photo",
+        "r2Url": "https://cdn.nodaro.ai/images/522a3195-72dd-4951-840d-34cdee784b87.png",
+        "filename": "ring-emerald-platinum-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/522a3195-72dd-4951-840d-34cdee784b87.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "position": {
+        "x": 700,
+        "y": 1530
+      },
+      "data": {
+        "label": "Lighting",
+        "hintMode": "compact",
+        "lightingStyle": "soft",
+        "lightingDirection": "three-quarter",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 1057,
+        "y": 1530
+      },
+      "data": {
+        "text": "Quiet luxury: clean, calm and precise, cool neutral tones, nothing busy, the stone always the brightest thing in the picture.",
+        "label": "Brand style",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "bride",
+      "type": "person",
+      "position": {
+        "x": 700,
+        "y": 1960
+      },
+      "data": {
+        "age": "age-late-20s",
+        "type": "woman",
+        "label": "Bride",
+        "hairBase": "base-long-wavy",
+        "hintMode": "compact",
+        "hairColor": "hair-dark-brown",
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "ring-notes",
+      "type": "llm-chat",
+      "position": {
+        "x": 1597,
+        "y": 1280
+      },
+      "data": {
+        "label": "Ring notes",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 400,
+        "userInput": "Describe the ring in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write jewellery descriptions for an image and video generator. Look at the reference image and describe the piece in ONE paragraph of 50–70 words, plain declarative English: the centre stone (cut, colour, size relative to the band), any halo or side stones, the setting and prongs, the metal and its finish, the band's shape. Only what is visible. No brand names, no carat guesses, no opinions, no bullet points, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still-white",
+      "type": "generate-image",
+      "position": {
+        "x": 2397,
+        "y": 1110
+      },
+      "data": {
+        "label": "Still · White",
+        "style": "",
+        "prompt": "Luxury jewellery catalogue photograph on a pure white seamless background: the ring standing upright in three-quarter view, the stone's facets catching the light, the metal polished, a faint soft contact shadow, macro sharpness. The exact ring from the reference photo — the same stone, cut, colour, setting and metal, nothing added and nothing changed: {Ring notes || the ring in the reference photo.} {Lighting || soft studio light}. {Brand style || Quiet luxury: clean, calm and precise.} No props, no hands, no text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still-velvet",
+      "type": "generate-image",
+      "position": {
+        "x": 3137,
+        "y": 1110
+      },
+      "data": {
+        "label": "Still · Black velvet",
+        "style": "",
+        "prompt": "Luxury jewellery photograph on deep black velvet: a single narrow beam of light falls on the stone so it glows against the dark, the metal catches one thin highlight, everything else falls into shadow. The exact ring from the reference photo — the same stone, cut, colour, setting and metal, nothing added and nothing changed: {Ring notes || the ring in the reference photo.} {Lighting || soft studio light}. {Brand style || Quiet luxury: clean, calm and precise.} No text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still-macro",
+      "type": "generate-image",
+      "position": {
+        "x": 3877,
+        "y": 1110
+      },
+      "data": {
+        "label": "Still · Macro",
+        "style": "",
+        "prompt": "EXTREME MACRO CROP ONLY — the reference photo shows the whole ring; do NOT reproduce it whole. The frame is filled by the stone and its setting: the facets, the prongs, the tiny stones of the halo, the band running out of frame, shallow depth of field. The exact ring from the reference photo — the same stone, cut, colour, setting and metal, nothing added and nothing changed: {Ring notes || the ring in the reference photo.} {Lighting || soft studio light}. {Brand style || Quiet luxury: clean, calm and precise.} No text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "spin",
+      "type": "generate-video",
+      "position": {
+        "x": 2397,
+        "y": 2260
+      },
+      "data": {
+        "label": "360° spin",
+        "prompt": "The ring from the photo turns one full slow rotation on its own axis on the same white background, light sliding across the facets of the stone and the polished metal as it turns, the camera fixed, nothing else in frame, and it ends in exactly the starting view. The exact ring from the reference photo — the same stone, cut, colour, setting and metal, nothing added and nothing changed: {Ring notes || the ring in the reference photo.} {Lighting || soft studio light}.",
+        "duration": 8,
+        "loopTrim": {
+          "enabled": true,
+          "quality": "precise",
+          "framesToTest": 48
+        },
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "1:1",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/e00955b5-e6d0-47e8-bdc2-d2c691656f59.mp4",
+        "presentationOutput": true
+      },
+      "width": 640,
+      "height": 640,
+      "className": "rf-resized"
+    },
+    {
+      "id": "bride-card",
+      "type": "generate-image",
+      "position": {
+        "x": 2397,
+        "y": 3320
+      },
+      "data": {
+        "label": "Bride still",
+        "style": "",
+        "prompt": "Bridal photograph, vertical 9:16, photorealistic: a close-up of the bride's hand — the bride is {Bride || a bride} — her hand resting on a bouquet of white peonies and garden roses, a lace sleeve at the wrist, soft window light. On her ring finger the exact ring from the reference photo, sharp and in focus, the hero of the picture: {Ring notes || the ring in the reference photo.} {Brand style || Quiet luxury: clean, calm and precise.} No text.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "hand-film",
+      "type": "generate-video",
+      "position": {
+        "x": 3097,
+        "y": 3320
+      },
+      "data": {
+        "label": "Bride film",
+        "prompt": "Slow-motion bridal film, 8 seconds, vertical, the camera fixed on the hand: the bride's hand from the opening frame stays exactly where it is on the bouquet and turns only a few degrees in the soft window light, so the stone catches a sparkle; the fingers relax slightly, a petal stirs. The ring stays in frame, in focus and the hero of every frame for all 8 seconds, exactly as in the opening frame: {Ring notes || the ring in the opening frame.} No text.",
+        "duration": 8,
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "generatedVideoUrl": "https://cdn.nodaro.ai/videos/a34d2fb6-c52a-4c66-8624-204dc04dcacd.mp4",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-ring-notes",
+      "source": "ring",
+      "target": "ring-notes",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-ring-still-white",
+      "source": "ring",
+      "target": "still-white",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-still-white",
+      "source": "ring-notes",
+      "target": "still-white",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-still-white",
+      "source": "lighting",
+      "target": "still-white",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-still-white",
+      "source": "brand",
+      "target": "still-white",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ring-still-velvet",
+      "source": "ring",
+      "target": "still-velvet",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-still-velvet",
+      "source": "ring-notes",
+      "target": "still-velvet",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-still-velvet",
+      "source": "lighting",
+      "target": "still-velvet",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-still-velvet",
+      "source": "brand",
+      "target": "still-velvet",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ring-still-macro",
+      "source": "ring",
+      "target": "still-macro",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-notes-still-macro",
+      "source": "ring-notes",
+      "target": "still-macro",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-still-macro",
+      "source": "lighting",
+      "target": "still-macro",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-still-macro",
+      "source": "brand",
+      "target": "still-macro",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ring-spin-start",
+      "source": "ring",
+      "target": "spin",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-ring-spin-end",
+      "source": "ring",
+      "target": "spin",
+      "sourceHandle": "image",
+      "targetHandle": "endFrame"
+    },
+    {
+      "id": "e-notes-spin",
+      "source": "ring-notes",
+      "target": "spin",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-light-spin",
+      "source": "lighting",
+      "target": "spin",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ring-bride",
+      "source": "ring",
+      "target": "bride-card",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-bride-card",
+      "source": "bride",
+      "target": "bride-card",
+      "sourceHandle": "out",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-notes-bride",
+      "source": "ring-notes",
+      "target": "bride-card",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-brand-bride",
+      "source": "brand",
+      "target": "bride-card",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-card-film",
+      "source": "bride-card",
+      "target": "hand-film",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-notes-film",
+      "source": "ring-notes",
+      "target": "hand-film",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.185
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "ring": {
+          "title": "Ring photo",
+          "description": "One packshot. Every still and film uses it as the reference."
+        },
+        "spin": {
+          "title": "360° spin",
+          "description": "8 seconds, loops, 1:1."
+        },
+        "brand": {
+          "title": "Brand style",
+          "description": "One line about how your brand looks."
+        },
+        "bride": {
+          "title": "Bride",
+          "description": "Age, hair and skin from tiles. Seen from the hand only."
+        },
+        "lighting": {
+          "title": "Light",
+          "description": "Soft studio light is the jewellery default."
+        },
+        "hand-film": {
+          "title": "Bride film",
+          "description": "8 seconds slow motion from the still. 9:16."
+        },
+        "bride-card": {
+          "title": "Bride still",
+          "description": "Her hand, the bouquet, the ring in focus. 9:16."
+        },
+        "still-macro": {
+          "title": "Still: Macro",
+          "description": "The stone and the setting, 1:1."
+        },
+        "still-white": {
+          "title": "Still: White",
+          "description": "Catalogue shot on white, 1:1."
+        },
+        "still-velvet": {
+          "title": "Still: Black velvet",
+          "description": "Campaign shot on velvet, 1:1."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "ring",
+        "brand",
+        "lighting",
+        "bride"
+      ],
+      "outputOrder": [
+        "still-white",
+        "still-velvet",
+        "still-macro",
+        "spin",
+        "bride-card",
+        "hand-film"
+      ]
+    }
+  }
+}

@@ -596,14 +596,31 @@ describe("QuickConfigSelect customRange (slider + manual input)", () => {
     expect(updateNodeData).toHaveBeenCalledWith("n1", { duration: 46 })
   })
 
-  it("the popover number input clamps to the range before writing", () => {
+  // Commit-on-blur: the input must NOT write (or clamp) per keystroke — with a
+  // 4s floor that turned the "1" of "12" into "4" before the "2" could land,
+  // making every two-digit length untypeable (2026-09-16).
+  it("the popover number input keeps the draft while typing and clamps on blur", () => {
     const { getByLabelText } = render(
       <QuickConfigSelect nodeId="n1" control={durationControl} value="8" data={{}} />,
     )
-    fireEvent.change(getByLabelText("Duration (custom value)"), { target: { value: "500" } })
-    expect(updateNodeData).toHaveBeenCalledWith("n1", { duration: 120 })
-    fireEvent.change(getByLabelText("Duration (custom value)"), { target: { value: "1" } })
-    expect(updateNodeData).toHaveBeenCalledWith("n1", { duration: 4 })
+    const input = getByLabelText("Duration (custom value)") as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: "1" } })
+    expect(updateNodeData).not.toHaveBeenCalled()
+    expect(input.value).toBe("1")
+    fireEvent.change(input, { target: { value: "12" } })
+    expect(updateNodeData).not.toHaveBeenCalled()
+    fireEvent.blur(input)
+    expect(updateNodeData).toHaveBeenCalledWith("n1", { duration: 12 })
+
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: "500" } })
+    fireEvent.blur(input)
+    expect(updateNodeData).toHaveBeenLastCalledWith("n1", { duration: 120 })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: "1" } })
+    fireEvent.blur(input)
+    expect(updateNodeData).toHaveBeenLastCalledWith("n1", { duration: 4 })
   })
 
   it("controls WITHOUT customRange render no Custom… item and no popover editor", () => {

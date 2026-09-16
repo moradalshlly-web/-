@@ -1,7 +1,7 @@
 ---
 node_type: generate-video-pro
-generated_at: 2026-08-29T19:02:38.504Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-16T15:07:56.677Z
+generated_from: 6c3f11bc1
 ---
 
 # Generate Video Pro
@@ -38,6 +38,8 @@ generated_from: 7dbf4818b
 - `rollingRefs?: boolean`
 - `wordCut?: boolean`
 - `shotTimestamps?: boolean`
+- `segmentMode?: "short" | "long" | "max"`
+- `sourceSegmentDurations?: number[]`
 - `preferredSegmentSec?: number`
 - `segmentDurations?: number[]`
 - `audioTail?: boolean`
@@ -72,6 +74,20 @@ generated_from: 7dbf4818b
   "provider": "seedance-2",
   "prompt": "",
   "duration": 8,
+  "segmentMode": "max",
+  "renderMethod": "keyframes",
+  "anchorMode": "start-only",
+  "plannerModel": "claude-fable-5",
+  "plannerMode": "auto",
+  "rollingRefs": true,
+  "audioTail": true,
+  "overlapAnchor": true,
+  "overlapAnchorMode": "last-frame",
+  "smartCutMode": "legacy-8x8",
+  "smartCutFramesPrev": 8,
+  "smartCutFramesNext": 8,
+  "injectLook": true,
+  "injectElements": true,
   "aspectRatio": "adaptive",
   "resolution": "720p",
   "generateAudio": true,
@@ -111,6 +127,20 @@ generated_from: 7dbf4818b
     "provider": "seedance-2",
     "prompt": "",
     "duration": 8,
+    "segmentMode": "max",
+    "renderMethod": "keyframes",
+    "anchorMode": "start-only",
+    "plannerModel": "claude-fable-5",
+    "plannerMode": "auto",
+    "rollingRefs": true,
+    "audioTail": true,
+    "overlapAnchor": true,
+    "overlapAnchorMode": "last-frame",
+    "smartCutMode": "legacy-8x8",
+    "smartCutFramesPrev": 8,
+    "smartCutFramesNext": 8,
+    "injectLook": true,
+    "injectElements": true,
     "aspectRatio": "adaptive",
     "resolution": "720p",
     "generateAudio": true,

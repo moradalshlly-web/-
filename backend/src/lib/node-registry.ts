@@ -612,7 +612,9 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-audio",
     description: "Detect each speaker in a multi-speaker recording and replace each one's voice independently, preserving words, timing and lip-sync. Provide an ordered list of target voices — voice N recasts the N-th speaker to talk; a null entry is a keep-slot (that speaker keeps their original voice). Per-voice engine: \"sts\" (default recast) or \"v3\" (Re-speak — regenerates the performance from the transcript with eleven_v3). Cloud edition only.",
     outputType: "audio",
-    creditCost: 4,
+    // Per started minute of one speech-to-speech voice's stem; Re-speak voices
+    // are priced per started 1K characters. See docs/nodes/ai-audio/voice-changer-pro.md.
+    creditCost: 40,
     capabilities: ["multi-speaker", "video-revoice", "dual-output-handles"],
     inputSchema: {
       fields: [
@@ -1278,12 +1280,13 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
   { type: "action-fx",            label: "Action FX",            category: "parameter", description: "Pick environmental effects (multi-pick) from the action-fx catalog (earthquake, lightning, explosion, falling-objects, ...). Emits a scene-event prompt fragment via the cinematography handle.", outputType: "text" },
   { type: "loop-subject",         label: "Loop Subject",         category: "parameter", description: "Pick a loop subject from 35 entries across 2 categories. Emits a subject descriptor for seamlessly looped video content.", outputType: "text" },
 
-  // ---- Camera family (5) — lens, format, motion, transition, character FX ----
+  // ---- Camera family (6) — lens, format, motion, transition, character FX, character motion ----
   { type: "camera-motion",        label: "Camera Motion",        category: "parameter", description: "Pick a camera motion from 71 entries across categories (static/pan/tilt/dolly/zoom/track). Graph-aware: walks startState/endState input handles. Emits a 'beginning with X, ending with Y' prompt fragment via the cinematography handle.", outputType: "text" },
   { type: "lens",                 label: "Lens",                 category: "parameter", description: "Pick a lens from 16 entries (wide-angle, normal-50mm, telephoto, fisheye, anamorphic, ...). Emits a lens-characteristic prompt fragment via the cinematography handle.", outputType: "text" },
   { type: "camera-format",        label: "Camera / Film Stock",  category: "parameter", description: "Pick a camera or film format from 31 entries (35mm-film, IMAX, super-8, polaroid, vhs, ...). Emits a camera-medium prompt fragment via the cinematography handle.", outputType: "text" },
   { type: "transition",           label: "Transition",           category: "parameter", description: "Pick a cinematic transition (76 entries, 8 categories) with position/duration/intensity timing fields. Multi-pick supported. Graph-aware startState/endState handles. Emits a transition prompt fragment via the cinematography handle.", outputType: "text" },
   { type: "character-fx",         label: "Character FX",         category: "parameter", description: "Pick character-driven effects (57 entries, 5 categories — transformation, power, body-mod, face FX, aura) with position/duration/intensity timing. Multi-pick supported. Target ref-name substitution via the `target` input handle. Emits a subject-bound prompt fragment via the cinematography handle.", outputType: "text" },
+  { type: "character-motion",     label: "Character Motion",     category: "parameter", description: "Pick what the subject does across the clip (1054 moves, 20 categories — entrances, turns, head and hand gestures, walks, runway, dance, expressions, camera interaction, stylized combat, athletics, falls, posture, everyday actions, vehicles, animals, two-person moves, idle life, stage, uncanny). Up to 3 ordered picks joined with \"then\", with position/pace timing. `target` names the subject and `partner` a second person, animal or object recipient. Emits a subject-bound prompt fragment via the cinematography handle.", outputType: "text" },
 
   // ---- Subject / Object family (6) — pose, material, animal, vehicle, weapon, prop ----
   { type: "pose",                 label: "Pose",                 category: "parameter", description: "Pick a pose from 81 entries across categories (standing, sitting, action, dynamic). Emits a pose-descriptor prompt fragment via the cinematography handle.", outputType: "text" },

@@ -1,0 +1,500 @@
+{
+  "slug": "ad-motion-studio",
+  "name": "Ad Motion Studio",
+  "description": "One finished static ad in, three ready-to-post clips out: an entrance video where the ad builds itself piece by piece, the same build played backwards as an exit, and the two cut together as a seamless loop — text, product and logo unchanged.",
+  "markdownDescription": "## Ad Motion Studio\n\nOne finished static ad becomes three ready-to-post vertical clips. No animator, nothing redrawn: text, product and logo stay exactly as designed.\n\n1. **Your ad** — the finished 9:16 creative, exactly as it will be posted.\n2. **Motion brief** — a few words on the feel of the motion.\n3. **Ad breakdown** — an AI lists the background and every element on it, back to front, with the exact words.\n4. **Clean background** — the same ad with every element removed: the empty first frame.\n5. **Entrance director** — an AI motion designer writes the build: which element arrives when, from where, how it eases.\n6. **Three clips** — Entrance builds the ad on the empty background; Exit is the same build played backwards, so everything leaves exactly the way it arrived; Loop cuts the two into one seamless 16-second loop.",
+  "category": "static-ads",
+  "outputTypes": [
+    "video",
+    "image"
+  ],
+  "tags": [
+    "static-ads",
+    "motion-graphics",
+    "animation",
+    "social",
+    "loop"
+  ],
+  "complexity": "intermediate",
+  "estimatedCredits": 219,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "speed-ramp",
+    "combine-videos",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/90c84971-c648-4fe1-aa6d-eb5c65538ae7.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 20,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "One finished static ad goes in; three ready-to-post vertical clips come out: the ad building itself piece by piece, the same build played backwards, and the two cut together as a seamless loop. Text, product and logo stay exactly as designed.\n\n1. Your ad — the finished 9:16 creative, exactly as it will be posted.\n2. Motion brief — a few words on the feel: clean, premium, playful, punchy.\n3. Ad breakdown — an AI lists the background and every element on it, back to front, with the exact words.\n4. Clean background — the same ad with every element removed: the empty first frame the entrance builds on.\n5. Entrance director — an AI motion designer writes the build: which element arrives when, from where, how it eases, what the camera does.\n6. Three clips — Entrance builds from the empty background to your ad, Exit plays it backwards so everything leaves the way it arrived, Loop cuts the two together.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Ad motion studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-ad",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "The finished static ad, 9:16, exactly as it will be posted: headline, product, badge, button. It is the last frame of the entrance clip and the first frame of the exit clip, so nothing on it is ever redrawn. For another size, set the same ratio on the Clean background and on the Entrance.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Your ad",
+        "width": 640,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brief",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1966
+      },
+      "data": {
+        "bold": false,
+        "text": "A few words on the feel of the motion: clean and premium, playful, punchy, slow and cinematic. The entrance director takes the mood from here. Leave it as it is for a polished default.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Motion brief",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-clean",
+      "type": "sticky-note",
+      "position": {
+        "x": 1500,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "An AI reads the ad once and writes down the background and every element on it, back to front, with the exact words. The clean background uses this list to know what to remove; the director uses it to know what to animate.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Ad breakdown",
+        "width": 560,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-directors",
+      "type": "sticky-note",
+      "position": {
+        "x": 2300,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "With the empty background and the finished ad in front of it, an AI motion designer writes one paragraph: which element arrives when, from where, how it moves and eases, what the camera does — ending exactly on your ad. Edit the paragraph by hand, then rerun the Entrance; Exit and Loop follow.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "5 · Entrance director",
+        "width": 480,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-clips",
+      "type": "sticky-note",
+      "position": {
+        "x": 3020,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Entrance: Seedance, 8 seconds, 1080p, no audio, pinned to the two frames — it starts on the clean background and ends on your ad, so the ad in it is your ad, not a redraw. Exit: the entrance played backwards, frame for frame, so every element leaves exactly the way it arrived and nothing can smear or linger. Loop: Entrance and Exit cut together — the ad builds, comes apart, and the last frame meets the first. One 16-second clip that loops without a seam. Change the Entrance and rerun it; Exit and Loop follow.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "6 · Entrance, Exit, Loop",
+        "width": 2040,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "your-ad",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/604b0bf8-3512-4eb9-b5e0-24dfef497118.png",
+        "label": "Your ad",
+        "r2Url": "https://cdn.nodaro.ai/images/604b0bf8-3512-4eb9-b5e0-24dfef497118.png",
+        "assetId": "604b0bf8-3512-4eb9-b5e0-24dfef497118",
+        "filename": "cold-brew-static-ad-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/604b0bf8-3512-4eb9-b5e0-24dfef497118.png",
+        "presentationInput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brief",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1966
+      },
+      "data": {
+        "text": "Clean, premium motion graphics. Confident, not flashy.",
+        "label": "Motion brief",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "breakdown",
+      "type": "llm-chat",
+      "position": {
+        "x": 1500,
+        "y": 1320
+      },
+      "data": {
+        "label": "Ad breakdown",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "Describe the advertisement in the reference image.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You describe finished advertisements for an image editor and a motion designer. Look at the reference image and write ONE paragraph of plain English, 80 to 130 words, in this order: first the background alone (its colours, gradient, light, texture, and where the light comes from); then every element that sits on it, back to front, one short sentence each, naming what it is, where it sits and its colours, and quoting any text on it word for word in double quotes; finish with one sentence that begins with the words Remove everything except the background and lists the elements to remove. Only what is visible. No opinions, no bullet points, no headings, no commentary. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "clean-bg",
+      "type": "generate-image",
+      "position": {
+        "x": 1500,
+        "y": 2360
+      },
+      "data": {
+        "label": "Clean background",
+        "style": "",
+        "prompt": "Recreate the reference advertisement exactly — same size, same framing, same background colours, gradient, light and texture — but with every element removed, leaving only the empty background: no text, no headline, no logo, no product, no badge, no button, no splash, no decorative object, and no shadow or reflection of anything removed. Fill every gap so the background reads as one continuous, untouched surface with the same light. What is on the ad: {Ad breakdown || the background and every element on it.} Output only the empty background with nothing on it.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "entrance-director",
+      "type": "llm-chat",
+      "position": {
+        "x": 2300,
+        "y": 1450
+      },
+      "data": {
+        "label": "Entrance director",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 600,
+        "userInput": "Brief: {Motion brief || clean, premium motion graphics.} The elements on the ad, back to front: {Ad breakdown || see the finished ad.} Of the two reference images, the one with nothing on it is the first frame (the empty background) and the complete advertisement is the last frame. Write the entrance.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a senior motion designer writing the prompt for a video model that is given a first frame and a last frame. The first frame is the empty background of an advertisement; the last frame is the finished advertisement. Write ONE paragraph of 110 to 160 words that builds the finished ad on the empty background piece by piece over 8 seconds: a touch of light or atmosphere first, then the product, then the supporting graphics, then the headline, then the smaller text, then the button, then a final settling micro-motion. The last second settles on the finished advertisement with every element exactly in its final place. Name each element by what it is and quote its exact text. For each one say where it comes from or goes to, how it moves, how it eases, and roughly when it settles, so the whole sequence fills the 8 seconds with staggered motion rather than everything at once. Keep the camera almost still — at most one slow, subtle push. Do not crossfade, do not redraw or reinterpret anything, and never change any text, logo or product. Plain English, present tense, no headings, no lists, no timestamps in brackets, no quotation marks around the paragraph. Output only the paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "entrance",
+      "type": "generate-video",
+      "position": {
+        "x": 3020,
+        "y": 1450
+      },
+      "data": {
+        "label": "Entrance",
+        "prompt": "{Entrance director || The elements of the advertisement arrive one by one on the empty background — the product first, then the graphics, the headline, the smaller text and the button — each easing into its final place while the camera stays almost still, ending exactly on the finished advertisement.} Crisp, stable motion-graphics animation; text, logo and product stay exactly as designed; no morphing, no flicker, no extra objects, no camera shake, no scene change.",
+        "provider": "seedance",
+        "resolution": "1080p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "presentationOutput": true,
+        "duration": 8
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "exit",
+      "type": "speed-ramp",
+      "position": {
+        "x": 3720,
+        "y": 1450
+      },
+      "data": {
+        "label": "Exit",
+        "speed": 1,
+        "quality": "fast",
+        "reverse": true,
+        "audioMode": "drop",
+        "fieldMappings": {},
+        "presentationOutput": true
+      },
+      "width": 560,
+      "height": 996,
+      "className": "rf-resized"
+    },
+    {
+      "id": "loop",
+      "type": "combine-videos",
+      "position": {
+        "x": 4420,
+        "y": 1450
+      },
+      "data": {
+        "label": "Loop",
+        "audioMode": "remove",
+        "clipOrder": [
+          "entrance",
+          "exit"
+        ],
+        "transition": "cut",
+        "fieldMappings": {},
+        "trimEndFrames": 2,
+        "trimStartFrames": 1,
+        "presentationOutput": true,
+        "smartCutFramesNext": 8,
+        "smartCutFramesPrev": 8,
+        "transitionDuration": 0.5
+      },
+      "width": 640,
+      "height": 1138,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-background",
+      "type": "sticky-note",
+      "position": {
+        "x": 1500,
+        "y": 1680
+      },
+      "data": {
+        "bold": false,
+        "text": "Why a background before the video? A video clip needs a first frame and a last frame. The last frame is your ad. The first frame is your ad with everything removed — this empty background. The Entrance starts here and builds up to your ad; the Exit plays that back to here. Nothing is redrawn: both frames come from your ad. If any element is left over, rerun this node alone before the clips.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Clean background — the first frame",
+        "width": 560,
+        "height": 560,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-ad-breakdown",
+      "source": "your-ad",
+      "target": "breakdown",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-ad-clean",
+      "source": "your-ad",
+      "target": "clean-bg",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-breakdown-clean",
+      "source": "breakdown",
+      "target": "clean-bg",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ad-entrance-director",
+      "source": "your-ad",
+      "target": "entrance-director",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-clean-entrance-director",
+      "source": "clean-bg",
+      "target": "entrance-director",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-brief-entrance-director",
+      "source": "brief",
+      "target": "entrance-director",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-breakdown-entrance-director",
+      "source": "breakdown",
+      "target": "entrance-director",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-clean-entrance-start",
+      "source": "clean-bg",
+      "target": "entrance",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-ad-entrance-end",
+      "source": "your-ad",
+      "target": "entrance",
+      "sourceHandle": "image",
+      "targetHandle": "endFrame"
+    },
+    {
+      "id": "e-director-entrance",
+      "source": "entrance-director",
+      "target": "entrance",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-entrance-loop",
+      "source": "entrance",
+      "target": "loop",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-exit-loop",
+      "source": "exit",
+      "target": "loop",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-entrance-exit",
+      "source": "entrance",
+      "target": "exit",
+      "sourceHandle": "video",
+      "targetHandle": "video"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.238
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "exit": {
+          "title": "Exit",
+          "description": "The entrance played backwards — every element leaves exactly the way it arrived, ending on the empty background."
+        },
+        "loop": {
+          "title": "Loop",
+          "description": "Entrance and Exit cut together — one 16-second clip that loops without a seam."
+        },
+        "brief": {
+          "title": "Motion brief",
+          "description": "A few words on the feel of the motion. Leave it for a clean, premium default."
+        },
+        "your-ad": {
+          "title": "Your ad",
+          "description": "The finished 9:16 static ad, exactly as it will be posted. Nothing on it is redrawn."
+        },
+        "clean-bg": {
+          "title": "Clean background",
+          "description": "Your ad with every element removed — the empty first frame the entrance builds on."
+        },
+        "entrance": {
+          "title": "Entrance",
+          "description": "The ad builds itself piece by piece, 8 seconds, ending exactly on your ad."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "your-ad",
+        "brief"
+      ],
+      "outputOrder": [
+        "loop",
+        "entrance",
+        "exit",
+        "clean-bg"
+      ]
+    }
+  }
+}

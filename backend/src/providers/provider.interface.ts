@@ -1,3 +1,5 @@
+import type { FrameFit, FrameDelivery } from "@nodaro/shared"
+
 // Result types
 export interface ProviderResult {
   url: string
@@ -113,6 +115,15 @@ export interface ProviderOptions {
   referenceImageUrls?: string[] // Reference images (VEO 3 ref2v 3, Seedance 2 9, Wan 3 10, Gemini Omni 7)
   referenceVideoUrls?: string[] // Reference videos (Seedance 2 3, Wan 3 5, Gemini Omni V2V 1)
   referenceAudioUrls?: string[] // Reference audio tracks (Seedance 2 3, Wan 3 5)
+  // Start/end FRAME handling, applied once at dispatch (lib/video-frame-dispatch.ts),
+  // never inside a provider. `frameFit` reshapes the frame to the model's MEASURED
+  // output canvas, because a frame that is not already that size gets reshaped by
+  // the provider instead — Seedance 2.5 does it one frame in, visibly.
+  // `frameDelivery` chooses whether the frame rides as a frame or as a bound
+  // reference image; the Seedance 2.0 family is measurably better as a reference.
+  // Absent = the platform defaults (`resolution`, `auto`).
+  frameFit?: FrameFit
+  frameDelivery?: FrameDelivery
   videoTrimStart?: number  // Gemini Omni V2V: source-clip trim start (seconds)
   videoTrimEnd?: number    // Gemini Omni V2V: source-clip trim end (seconds, ends-start ≤ 10)
   // Seedance 2.5 ONLY: request the `mov` container (H.264 yuv444p + PCM)

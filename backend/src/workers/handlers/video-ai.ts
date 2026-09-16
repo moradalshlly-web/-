@@ -106,6 +106,8 @@ import {
   providerKindForVideoToVideoModel,
 } from "../../lib/reconcile/provider-kind.js"
 import type { ProviderKind } from "../../lib/reconcile/types.js"
+import { applyFrameFitAndDelivery } from "../../lib/video-frame-dispatch.js"
+import type { FrameFit, FrameDelivery } from "@nodaro/shared"
 
 /**
  * Lightricks LTX 2.3 dispatch.
@@ -169,10 +171,21 @@ async function dispatchLtxIfRequested(
     if (task === "audio_to_video" && variant === "ltx-2.3-pro") {
       result = await runLtxAudioToVideo({ ...common, variant, audio: d.audio as string })
     } else if (task === "image_to_video") {
+      // LTX bypasses the router, so the frame fit has to be applied here or a
+      // start frame reaches Replicate at whatever size the user uploaded.
+      // Delivery never switches on LTX (no reference-image support), so this is
+      // the fit alone.
+      const shaped = await applyFrameFitAndDelivery({
+        model: variant,
+        imageUrl: d.image as string,
+        endFrameUrl: d.last_frame_image as string | undefined,
+        prompt: common.prompt,
+        options: { resolution: common.resolution, aspectRatio: common.aspectRatio, frameFit: d.frameFit as FrameFit | undefined },
+      })
       result = await runLtxImageToVideo({
         ...common,
-        image: d.image as string,
-        lastFrameImage: d.last_frame_image as string | undefined,
+        image: shaped.imageUrl as string,
+        lastFrameImage: shaped.endFrameUrl,
       })
     } else {
       result = await runLtxTextToVideo(common)
@@ -249,7 +262,7 @@ async function chainVeoBaseTo4k(
 }
 
 const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx) {
-  const { imageUrl, endFrameUrl, audioUrl, prompt, provider, generateAudio, duration, mode, sound, negativePrompt, motionPrompt, cfgScale, aspectRatio, multiShot, shots, elements, resolution, grokMode, videoSize, seed, cameraFixed, referenceImageUrls, referenceVideoUrls, referenceAudioUrls, webSearch, nsfwChecker, generationType, loopTrim, enableTranslation, videoTrimStart, videoTrimEnd, refVideoDurationsSec } = job.data as {
+  const { imageUrl, endFrameUrl, audioUrl, prompt, provider, generateAudio, duration, mode, sound, negativePrompt, motionPrompt, cfgScale, aspectRatio, multiShot, shots, elements, resolution, grokMode, videoSize, seed, cameraFixed, referenceImageUrls, referenceVideoUrls, referenceAudioUrls, webSearch, nsfwChecker, generationType, loopTrim, frameFit, frameDelivery, enableTranslation, videoTrimStart, videoTrimEnd, refVideoDurationsSec } = job.data as {
     jobId: string
     imageUrl?: string
     endFrameUrl?: string
@@ -275,6 +288,9 @@ const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx
     referenceImageUrls?: string[]
     referenceVideoUrls?: string[]
     referenceAudioUrls?: string[]
+    /** Start/end frame handling; absent = platform defaults. */
+    frameFit?: FrameFit
+    frameDelivery?: FrameDelivery
     /** The reservation's ffprobe of `referenceVideoUrls` (a failed probe is
      *  NaN, or null once through JSON) — the settlement reads it instead of
      *  probing again. */
@@ -336,7 +352,7 @@ const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx
   const baseResolution = wantsVeo4k ? VEO_4K_BASE_RESOLUTION : resolution
   let result
   try {
-    result = await imageToVideo(imageUrl, resolvedI2vProvider, prompt, duration, endFrameUrl, { onProgress, mode, sound, negativePrompt, motionPrompt, cfgScale, aspectRatio, multiShots: multiShot, multiPrompt, klingElements, resolution: baseResolution, grokMode, seed, cameraFixed, generateAudio, referenceImageUrls, referenceVideoUrls, referenceAudioUrls, webSearch, nsfwChecker, generationType, enableTranslation, videoTrimStart, videoTrimEnd }, { onTaskCreated })
+    result = await imageToVideo(imageUrl, resolvedI2vProvider, prompt, duration, endFrameUrl, { onProgress, mode, sound, negativePrompt, motionPrompt, cfgScale, aspectRatio, multiShots: multiShot, multiPrompt, klingElements, resolution: baseResolution, grokMode, seed, cameraFixed, generateAudio, referenceImageUrls, referenceVideoUrls, referenceAudioUrls, webSearch, nsfwChecker, generationType, frameFit, frameDelivery, enableTranslation, videoTrimStart, videoTrimEnd }, { onTaskCreated })
   } finally {
     ramp.stop()
   }
