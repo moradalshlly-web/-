@@ -455,6 +455,12 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
             "without audio-reference support. Ignored in 'frames' mode. " +
             "Accepts an array; a lone URL or JSON-stringified array is coerced.",
           ),
+        // NO `frame_fit` / `frame_delivery` here on purpose: animate_image is
+        // within ~200 B of the per-tool wire budget (tool-surface-snapshot.test),
+        // and two enum params with descriptions cost more than that. MCP callers
+        // still GET the fit — it runs at dispatch for every caller — they just
+        // cannot opt out of it from MCP. Add them the next time this tool's
+        // schema is trimmed.
         loop_trim: z.object({
           enabled: z.boolean(),
           frames_to_test: z.number().int().min(1).max(64).optional(),

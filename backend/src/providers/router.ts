@@ -51,6 +51,7 @@ import { getNodaroCredential } from "../lib/nodaro-connect.js"
 import { describeEmptyCapability } from "./provider-keys.js"
 import { config } from "../lib/config.js"
 import { refreshProviderCredentialsNow } from "../lib/provider-credentials.js"
+import { applyFrameFitAndDelivery } from "../lib/video-frame-dispatch.js"
 
 // ─── Result type ──────────────────────────────────────────────────
 
@@ -339,13 +340,21 @@ export async function imageToVideo(
   options?: ProviderOptions,
   reconcileOpts?: ReconcileOpts,
 ): Promise<RouteResult> {
+  // Shape the frames ONCE, here, for every provider this router can reach:
+  // resize them to the model's MEASURED output canvas and decide whether they
+  // ride as frames or as bound reference images (lib/video-frame-dispatch.ts).
+  // Deliberately BEFORE routeAndExecute rather than inside the executor — a
+  // fallback hop down the provider chain then reuses the frames prepared for
+  // the FIRST model, which is the cheap trade (one upload saved) on a path that
+  // is already degraded.
+  const shaped = await applyFrameFitAndDelivery({ model, imageUrl, endFrameUrl, prompt, options })
   return routeAndExecute(
     "image-to-video",
     model,
     "imageToVideo",
     async (instance) => {
       const p = resolveModule<ImageToVideoProvider>(instance, "video")
-      return p.imageToVideo(imageUrl, prompt, model, duration, endFrameUrl, options, reconcileOpts)
+      return p.imageToVideo(shaped.imageUrl, shaped.prompt, model, duration, shaped.endFrameUrl, shaped.options, reconcileOpts)
     }
   )
 }

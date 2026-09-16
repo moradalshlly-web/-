@@ -1,7 +1,7 @@
 ---
 node_type: image-to-video
-generated_at: 2026-09-15T12:15:54.270Z
-generated_from: 026f94462
+generated_at: 2026-09-16T00:12:42.295Z
+generated_from: e4f44341a
 ---
 
 # image-to-video
@@ -47,6 +47,8 @@ generated_from: 026f94462
 - `videoTrimStart?: number`
 - `videoTrimEnd?: number`
 - `attachReferenceVideoVariant?: string`
+- `frameFit?: FrameFit`
+- `frameDelivery?: FrameDelivery`
 - `loopTrim?: {
     enabled: boolean
     framesToTest?: number

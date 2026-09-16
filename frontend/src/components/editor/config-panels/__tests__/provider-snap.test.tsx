@@ -1099,3 +1099,72 @@ describe("ImageToVideoConfig / TextToVideoConfig — Wan 3.0 parity with the uni
     })
   }
 })
+
+// =============================================================================
+// Start/end frame handling — frameFit / frameDelivery fail-safe + indicator
+// =============================================================================
+
+describe("GenerateVideoConfig / ImageToVideoConfig — frame handling fail-safe", () => {
+  const frame = [{ id: "img1", type: "upload-image", label: "Start", targetHandle: "startFrame" }]
+
+  it("clears frameDelivery on a model with no reference-image support (the lever does not exist)", () => {
+    const onUpdate = vi.fn()
+    const data = baseGenerateVideoData({ provider: "veo3", frameDelivery: "reference" })
+    render(<GenerateVideoConfig {...commonProps(onUpdate, data)} />)
+    const merged: Record<string, unknown> = onUpdate.mock.calls.reduce((acc: any, [u]: any) => ({ ...acc, ...u }), {})
+    expect("frameDelivery" in merged).toBe(true)
+    expect(merged.frameDelivery).toBeUndefined()
+  })
+
+  it("preserves frameDelivery on a reference-capable model", () => {
+    const onUpdate = vi.fn()
+    const data = baseGenerateVideoData({ provider: "seedance-2", frameDelivery: "reference" })
+    render(<GenerateVideoConfig {...commonProps(onUpdate, data)} />)
+    for (const [u] of onUpdate.mock.calls) expect("frameDelivery" in u).toBe(false)
+  })
+
+  it("clears a frameFit value the select cannot render (stale / injected), on both panels", () => {
+    for (const Comp of [GenerateVideoConfig, ImageToVideoConfig]) {
+      const onUpdate = vi.fn()
+      const data = baseGenerateVideoData({ provider: "seedance-2-5", frameFit: "stretch" })
+      render(<Comp {...commonProps(onUpdate, data)} />)
+      const merged: Record<string, unknown> = onUpdate.mock.calls.reduce((acc: any, [u]: any) => ({ ...acc, ...u }), {})
+      expect("frameFit" in merged).toBe(true)
+      expect(merged.frameFit).toBeUndefined()
+    }
+  })
+
+  it("leaves both fields alone when unset", () => {
+    const onUpdate = vi.fn()
+    render(<GenerateVideoConfig {...commonProps(onUpdate, baseGenerateVideoData({ provider: "veo3" }))} />)
+    for (const [u] of onUpdate.mock.calls) {
+      expect("frameFit" in u).toBe(false)
+      expect("frameDelivery" in u).toBe(false)
+    }
+  })
+
+  it("mounts the controls only while a frame is wired", () => {
+    const onUpdate = vi.fn()
+    const data = baseGenerateVideoData({ provider: "seedance-2-5" })
+    const bare = render(<GenerateVideoConfig {...commonProps(onUpdate, data)} />)
+    expect(bare.queryByText("Frame fit")).toBeNull()
+    bare.unmount()
+    const wired = render(<GenerateVideoConfig {...commonProps(onUpdate, data)} sources={frame} />)
+    expect(wired.getByText("Frame fit")).toBeTruthy()
+    expect(wired.getByText("Send frames as")).toBeTruthy()
+  })
+
+  it("the resolved-mode indicator follows auto → reference on the Seedance 2.0 family, not on 2.5", () => {
+    const onUpdate = vi.fn()
+    const s20 = render(<GenerateVideoConfig {...commonProps(onUpdate, baseGenerateVideoData({ provider: "seedance-2-fast" }))} sources={frame} />)
+    expect(s20.getByText(/^Mode: Reference/)).toBeTruthy()
+    expect(s20.getByText(/Use @image_1 as the opening \(first\) frame/)).toBeTruthy()
+    s20.unmount()
+    const s25 = render(<GenerateVideoConfig {...commonProps(onUpdate, baseGenerateVideoData({ provider: "seedance-2-5" }))} sources={frame} />)
+    expect(s25.getByText(/^Mode: First Frame/)).toBeTruthy()
+    s25.unmount()
+    // An explicit frame choice on the 2.0 family keeps the exact-frame mode.
+    const forced = render(<GenerateVideoConfig {...commonProps(onUpdate, baseGenerateVideoData({ provider: "seedance-2-fast", frameDelivery: "frame" }))} sources={frame} />)
+    expect(forced.getByText(/^Mode: First Frame/)).toBeTruthy()
+  })
+})

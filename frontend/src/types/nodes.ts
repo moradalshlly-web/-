@@ -5,6 +5,7 @@ import type { ImageI2IProvider, ImageGenProvider, ImageEditProvider, ModifyImage
 import type { WardrobeValue, TransitionPosition, TransitionDuration, TransitionIntensity, CharacterFxPosition, CharacterFxDuration, CharacterFxIntensity, CharacterMotionPosition, CharacterMotionPace, PersonValue, PickerApplyMode, PickerGaps, DirectionFields, StructuredPromptFields } from "@nodaro/prompts"
 import type { ReferencePhotoKind } from "@/lib/reference-photo-routing"
 import { IMAGE_STYLE_PRESETS, GVP_PROVIDERS, getAspectRatiosForVideoModel, getVideoResolutionOptions } from "@/components/editor/config-panels/model-options"
+import type { FrameFit, FrameDelivery } from "@nodaro/shared"
 
 export type NodeCategory = "input" | "parameter" | "ai" | "processing" | "output" | "scene" | "character" | "face" | "object" | "creature" | "location" | "utility"
 
@@ -1859,6 +1860,11 @@ export type ImageToVideoData = PromptAffixFields & {
   //   - "lossless": keyframe-only candidates + stream-copy. Byte-perfect;
   //                 cut snaps to nearest keyframe; supports any resolution
   //                 including 4K with no encode-pipeline memory cost.
+  /** Start/end frame handling. `frameFit` reshapes the frame to the model's
+   *  measured output canvas (default `resolution`); `frameDelivery` picks frame
+   *  vs bound-reference delivery (default `auto`). Absent = platform defaults. */
+  frameFit?: FrameFit
+  frameDelivery?: FrameDelivery
   loopTrim?: {
     enabled: boolean
     framesToTest?: number
