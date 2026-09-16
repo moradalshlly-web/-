@@ -115,7 +115,7 @@ export const DANCE_MOTIONS: ReadonlyArray<CharacterMotion> = [
   { "id": "do-the-running-man", "label": "Running man", "category": "dance", "description": "Knees lift while the standing foot slides back",
     "promptHint": "the subject does the running man, one knee lifting high while the standing foot slides back, then switching, the feet appearing to run in place with the arms pumping", "term": "does the running man shuffle" },
   { "id": "shuffle-cutting-shapes", "label": "Melbourne shuffle", "category": "dance", "description": "Running man into T-steps, cutting shapes",
-    "promptHint": "the subject dances the melbourne shuffle, feet kicking and sliding through running-man steps then twisting sideways into t-steps, heels and toes pivoting across the floor while the arms swing loosely", "term": "shuffles and cuts shapes" },
+    "promptHint": "the subject dances the melbourne shuffle, feet kicking and sliding through running-man steps then twisting sideways into t-steps, heels and toes pivoting across the floor while the arms swing loosely", "term": "dances the Melbourne shuffle" },
   { "id": "headbang-to-music", "label": "Headbang", "category": "dance", "description": "Head whips forward and back, hair flying",
     "promptHint": "the subject headbangs, whipping the head forward and down then back up from the neck in time with a heavy beat, hair flying, shoulders hunched and hands gripping the air", "term": "headbangs to the music" },
   { "id": "whip-hair-in-circle", "label": "Hair whip circle", "category": "dance", "description": "Head swings the hair through a full circle",

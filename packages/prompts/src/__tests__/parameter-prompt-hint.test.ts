@@ -330,8 +330,14 @@ describe("getParameterPromptHint — character-motion minor-age floor", () => {
   const ADULT = { age: "age-30s" }
   const motion = { id: "n1", type: "character-motion", data: { characterMotion: ["wave-hello", "kiss-partner"] } }
   const wave = (target: string) => getCharacterMotionPromptHint("wave-hello").replace(/\bthe subject\b/g, target)
-  const kiss = (target: string, partner: string) =>
-    getCharacterMotionPromptHint("kiss-partner").replace(/\bthe subject\b/g, target).replace(/\bthe partner\b/g, partner)
+  // kiss-partner names the partner twice. A wired name repeats; the unwired
+  // fallback is introduced once and referred back to after that.
+  const kiss = (target: string, ...partner: readonly string[]) => {
+    let i = 0
+    return getCharacterMotionPromptHint("kiss-partner")
+      .replace(/\bthe subject\b/g, target)
+      .replace(/\bthe partner\b/g, () => partner[Math.min(i++, partner.length - 1)]!)
+  }
 
   it("a minor wired to target drops the adult-only move and keeps the neutral one", () => {
     const out = getParameterPromptHint(motion, {
@@ -347,7 +353,7 @@ describe("getParameterPromptHint — character-motion minor-age floor", () => {
       nodes: [{ id: "c1", type: "character", data: { characterName: "Mira", person: ADULT } }],
       edges: [{ source: "c1", target: "n1", targetHandle: "target" }],
     })
-    expect(out).toBe(`${wave("Mira")}, then ${kiss("Mira", "another person")}`)
+    expect(out).toBe(`${wave("Mira")}, then ${kiss("Mira", "another person", "that same person")}`)
     expect(out).toMatch(/kiss/)
   })
 

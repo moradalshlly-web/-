@@ -107,10 +107,17 @@ describe("composeCharacterMotionHintFromConnections — full mode", () => {
     )
   })
 
-  it("an unwired partner reads 'another person' — the literal token never ships", () => {
+  it("an unwired partner is introduced once, then referred back to", () => {
     const out = compose(DUO, [], [])
     expect(out).not.toMatch(/\bthe partner\b/)
-    expect(out).toBe(hintOf(DUO).replace(/\bthe partner\b/g, "another person"))
+    // DUO mentions the partner twice: introduce, then refer back.
+    let first = true
+    expect(out).toBe(hintOf(DUO).replace(/\bthe partner\b/g, () => {
+      const word = first ? "another person" : "that same person"
+      first = false
+      return word
+    }))
+    expect(out.match(/another person/g)).toHaveLength(1)
   })
 
   it("substitutes both wired names", () => {
