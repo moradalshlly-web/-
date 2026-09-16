@@ -1,0 +1,727 @@
+{
+  "slug": "storyboard-film-studio",
+  "name": "Storyboard Film Studio",
+  "description": "A theme, the characters and a style in; a 12-second animated short out — a script in four shots, a character sheet that keeps the cast identical, four numbered keyframes, one continuous take over them, and a score.",
+  "markdownDescription": "## Storyboard Film Studio\n\nA theme, the characters and a style become a 12-second animated short — four numbered keyframes, one character sheet that keeps the cast identical, one continuous take, a score. No product, no photos: three lines of text.\n\n1. **Theme + Characters + Style** — where and what, who, and the visual medium in your own words.\n2. **Script** — four shots, each with the still it opens on and the action that follows; the character described precisely enough to draw four times.\n3. **Character sheet** — the cast drawn once, three views on one page. Every keyframe copies it.\n4. **Keyframes 1–4** — each shot's opening image, in the script's style. Rerun one alone for another take.\n5. **Timeline script** — one prompt: which keyframe each second starts from, what happens, where it arrives.\n6. **The film** — one video node with all four keyframes as numbered references renders the 12 seconds in one take; Suno scores it, trimmed and merged under it.",
+  "category": "video-ads",
+  "outputTypes": [
+    "video",
+    "image"
+  ],
+  "tags": [
+    "video-ads",
+    "storyboard",
+    "animation",
+    "short-film",
+    "character-sheet",
+    "keyframes"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 2031,
+  "nodeTypesUsed": [
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "suno-generate",
+    "trim-audio",
+    "merge-video-audio",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance-2-5",
+    "suno"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/f9a5c780-e525-47f3-b71f-c7aaede62892.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 36,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A theme, the characters and a style go in; a 12-second animated short comes out — four numbered keyframes, one character sheet that keeps the cast identical, one continuous take, a score.\n\n1. Theme + Characters + Style — three lines of text. No product, no photos.\n2. Script — four shots, each with the still it opens on and the action that follows; plus the character described precisely enough to draw four times.\n3. Character sheet — the cast drawn once, three views on one page. Every keyframe copies it: that is what keeps the character the same from shot to shot.\n4. Keyframes 1–4 — each shot's opening image, in the script's style, with the sheet as reference.\n5. Timeline script — one prompt: which keyframe each second starts from, what happens, where it arrives.\n6. The film — ONE video node with all four keyframes as numbered references renders the 12 seconds in one take; Suno scores it, Trim cuts it to length, Merge lays it under.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Storyboard film studio — how it works",
+        "width": 1180,
+        "height": 770,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-theme",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "Where and what the film is about, in one or two lines: the place, the time, the small event. The script builds the four shots on this.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Theme",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-characters",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1320
+      },
+      "data": {
+        "bold": false,
+        "text": "Who is in the film — name, age, look, one trait each. Keep it to one main character and at most one companion; the character sheet draws exactly these.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Characters",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-style",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1710
+      },
+      "data": {
+        "bold": false,
+        "text": "The visual medium and mood: hand-painted, watercolour, ink, stop-motion, flat vector… plus the palette and the pace. Describe it in your own words; never name a studio or an artist.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Style",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-script",
+      "type": "sticky-note",
+      "position": {
+        "x": 1240,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "Title, logline, style, a precise character description, the setting, four shots (frame + action) and a music line. Edit any shot by hand and rerun its keyframe.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Script",
+        "width": 480,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-sheet",
+      "type": "sticky-note",
+      "position": {
+        "x": 1960,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "The cast drawn once — front, three-quarter, face — in the film's style. Every keyframe takes this as its reference, so the character stays the same across shots. If the sheet is off, rerun it before the frames.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Character sheet",
+        "width": 600,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-frames",
+      "type": "sticky-note",
+      "position": {
+        "x": 2800,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "The opening image of each shot, rendered from the script with the character sheet as reference. These four images are the whole visual plan; rerun one alone for another take.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Keyframes 1–4",
+        "width": 600,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-film",
+      "type": "sticky-note",
+      "position": {
+        "x": 3640,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "A director turns the script into one prompt: \"0-3s: opens on @Image 1 … arriving at @Image 2 …\". The video node receives the four keyframes as references in order and that prompt, and Seedance 2.5 renders the 12 seconds as one continuous take. Then a one-sentence score brief goes to Suno, Trim cuts the track to 12 seconds and Merge lays it under the take. Prefer a cheaper take? Switch the video node's provider to Wan 3.0.",
+        "color": "#26221a",
+        "label": "Steps 5–6",
+        "title": "5–6 · Timeline script → The film",
+        "width": 1200,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "theme",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 930
+      },
+      "data": {
+        "text": "The last night of an old lighthouse on a rocky northern coast. A storm rolls in, the lamp has to be lit by hand one more time, and a small fishing boat finds its way home.",
+        "label": "Theme",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "characters",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1320
+      },
+      "data": {
+        "text": "Aldo, the keeper, about 70 — white beard, a navy wool coat with brass buttons, a lantern always in hand, slow and steady. Pip, a small red fox who follows him everywhere and worries more than he does.",
+        "label": "Characters",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "style",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1710
+      },
+      "data": {
+        "text": "Hand-painted animation with soft gouache textures and visible brushwork. Deep blue-black night against warm amber lamplight. Quiet, unhurried, emotional; slow camera moves.",
+        "label": "Style",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "script",
+      "type": "llm-chat",
+      "position": {
+        "x": 1240,
+        "y": 1360
+      },
+      "data": {
+        "label": "Script",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 1100,
+        "userInput": "Theme: {Theme || a quiet moment in a small town.} Characters: {Characters || one main character.} Style: {Style || hand-painted animation, warm and soft.} Write the script.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are the writer-director of a 12-second animated short told in four shots of three seconds. From the theme, the characters and the style, write the script in exactly this shape, plain English, nothing else:\nTitle: <two to five words>\nLogline: <one sentence>\nStyle: <one paragraph of 40 to 70 words: the visual medium and technique, the palette, the light, the line and texture — one look every frame follows>\nCharacter: <one paragraph of 50 to 80 words describing the main character precisely enough to draw them the same way four times: age, build, face, hair, clothing with colours, one signature object; then the companion, if there is one, in one sentence>\nSetting: <one sentence — the one place and time the whole film happens in>\nShot 1: Frame: <one paragraph of 40 to 60 words — the single still image this shot opens on: who is where, doing what, camera angle and distance, the light> Action: <one sentence — what happens in the three seconds and how the shot ends>\nShot 2: Frame: <…> Action: <…>\nShot 3: Frame: <…> Action: <…>\nShot 4: Frame: <…> Action: <… — the film's final image, where it holds>\nMusic: <one sentence — genre, mood, tempo, instruments of the instrumental score>\nThe four shots are one continuous story with a beginning, a turn and an ending. Only the characters named in the input appear. No other headings, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "sheet",
+      "type": "generate-image",
+      "position": {
+        "x": 1960,
+        "y": 1400
+      },
+      "data": {
+        "label": "Character sheet",
+        "style": "",
+        "prompt": "Character model sheet on a plain warm off-white background, one page, landscape: the main character from this script drawn three times in the same style and at the same size — a full-body front view on the left, a full-body three-quarter view in the middle, and a close-up of the face with the character's typical expression on the right — plus the companion, if the script names one, drawn small once in the lower right. Every frame of the film will copy this sheet, so every detail is clean and definite: face, hair, build, clothing and colours exactly as the script's Character paragraph says, and the signature object in hand. The script: {Script || an animated short with one main character.} Render it in the script's Style. No text, no labels, no captions, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2800,
+        "y": 1400
+      },
+      "data": {
+        "label": "Keyframe 1",
+        "style": "",
+        "prompt": "Cinematic 16:9 frame of an animated short — the opening image of Shot 1, exactly as the script describes it under Shot 1: Frame, in the script's Style and Setting, no other shot: {Script || a four-shot animated short.} The reference image is the character model sheet — the character in this frame is that character, drawn with the same face, hair, build, clothing and colours, in the same medium; the companion, if present, matches the sheet too. Painterly, consistent, no text, no captions, no panels, no grid, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-2",
+      "type": "generate-image",
+      "position": {
+        "x": 2800,
+        "y": 1858
+      },
+      "data": {
+        "label": "Keyframe 2",
+        "style": "",
+        "prompt": "Cinematic 16:9 frame of an animated short — the opening image of Shot 2, exactly as the script describes it under Shot 2: Frame, in the script's Style and Setting, no other shot: {Script || a four-shot animated short.} The reference image is the character model sheet — the character in this frame is that character, drawn with the same face, hair, build, clothing and colours, in the same medium; the companion, if present, matches the sheet too. Painterly, consistent, no text, no captions, no panels, no grid, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-3",
+      "type": "generate-image",
+      "position": {
+        "x": 2800,
+        "y": 2316
+      },
+      "data": {
+        "label": "Keyframe 3",
+        "style": "",
+        "prompt": "Cinematic 16:9 frame of an animated short — the opening image of Shot 3, exactly as the script describes it under Shot 3: Frame, in the script's Style and Setting, no other shot: {Script || a four-shot animated short.} The reference image is the character model sheet — the character in this frame is that character, drawn with the same face, hair, build, clothing and colours, in the same medium; the companion, if present, matches the sheet too. Painterly, consistent, no text, no captions, no panels, no grid, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-4",
+      "type": "generate-image",
+      "position": {
+        "x": 2800,
+        "y": 2774
+      },
+      "data": {
+        "label": "Keyframe 4",
+        "style": "",
+        "prompt": "Cinematic 16:9 frame of an animated short — the opening image of Shot 4, exactly as the script describes it under Shot 4: Frame, in the script's Style and Setting, no other shot: {Script || a four-shot animated short.} The reference image is the character model sheet — the character in this frame is that character, drawn with the same face, hair, build, clothing and colours, in the same medium; the companion, if present, matches the sheet too. Painterly, consistent, no text, no captions, no panels, no grid, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "timeline",
+      "type": "llm-chat",
+      "position": {
+        "x": 3640,
+        "y": 1400
+      },
+      "data": {
+        "label": "Timeline script",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Script: {Script || a four-shot animated short.} Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the single prompt for a video model that generates one continuous 12-second animated short from FOUR reference images attached in this order: @Image 1 is the opening frame of Shot 1, @Image 2 the opening frame of Shot 2, @Image 3 the opening frame of Shot 3, @Image 4 the opening frame of Shot 4. You get the script. Write ONE prompt of 150 to 220 words in this order, plain prose, no headings:\nFirst one sentence that defines the medium and the look from the script's Style, and the main character once — \"the character from @Image 1\" — with the companion if there is one.\nThen four gap-free timed intervals, exactly: \"0-3s: …\" \"3-6s: …\" \"6-9s: …\" \"9-12s: …\". Each interval opens by naming the image it starts from (\"opens on the scene of @Image 1\"), states the shot's Action in physical, quantified detail, names one camera move, and says which image it arrives at (\"arriving at the framing of @Image 2\"). The 9-12s interval ends with: \"At the 11-second mark the picture settles and holds on @Image 4 exactly until the end.\"\nThen the constraints, as one sentence: the same characters throughout, drawn as in the images, no new characters, nothing appears or vanishes on its own, no cuts other than at the intervals; keep it subtitle-free, do not generate any text, do not generate a watermark or a logo; consistent medium, stable picture.\nOutput only the prompt.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "take",
+      "type": "generate-video",
+      "position": {
+        "x": 3640,
+        "y": 1820
+      },
+      "data": {
+        "label": "The take",
+        "prompt": "{Timeline script || 0-3s: opens on the scene of @Image 1 and arrives at the framing of @Image 2. 3-6s: opens on @Image 2, arrives at @Image 3. 6-9s: opens on @Image 3, arrives at @Image 4. 9-12s: opens on @Image 4; at the 11-second mark the picture settles and holds on @Image 4 exactly until the end. Same characters throughout, no text, no watermark, consistent medium, stable picture.}",
+        "duration": 12,
+        "provider": "seedance-2-5",
+        "resolution": "720p",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "generateAudio": true,
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "music",
+      "type": "suno-generate",
+      "position": {
+        "x": 4480,
+        "y": 1760
+      },
+      "data": {
+        "label": "Score",
+        "model": "V6",
+        "style": "",
+        "title": "",
+        "lyrics": "",
+        "prompt": "Instrumental score for a 12-second animated short, no vocals: {Score brief || gentle, warm, acoustic, unhurried.} A clear beginning, a lift in the middle and a resolved ending at twelve seconds.",
+        "customMode": false,
+        "instrumental": true,
+        "fieldMappings": {},
+        "negativeStyle": "",
+        "presentationOutput": false
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "trim",
+      "type": "trim-audio",
+      "position": {
+        "x": 4480,
+        "y": 2120
+      },
+      "data": {
+        "label": "Trim to 12 s",
+        "endTime": 12,
+        "startTime": 0,
+        "audioFormat": "wav",
+        "fieldMappings": {},
+        "presentationOutput": false
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "film",
+      "type": "merge-video-audio",
+      "position": {
+        "x": 4480,
+        "y": 2480
+      },
+      "data": {
+        "label": "The film",
+        "audioType": "background",
+        "fieldMappings": {},
+        "trackSettings": {},
+        "voiceoverVolume": 100,
+        "backgroundVolume": 80,
+        "keepOriginalAudio": false,
+        "originalAudioRole": "background",
+        "presentationOutput": true,
+        "originalAudioVolume": 0
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "score",
+      "type": "llm-chat",
+      "position": {
+        "x": 4480,
+        "y": 1400
+      },
+      "data": {
+        "label": "Score brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 120,
+        "userInput": "Script: {Script || a four-shot animated short.} Write the score brief.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You brief a composer. From the script, write ONE sentence of at most 40 words describing the instrumental score for the film: genre, mood, tempo and instruments, following the script's Music line and its story arc. Output only the sentence — no title, no quotes, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-theme-script",
+      "source": "theme",
+      "target": "script",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-characters-script",
+      "source": "characters",
+      "target": "script",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-script",
+      "source": "style",
+      "target": "script",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-script-sheet",
+      "source": "script",
+      "target": "sheet",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-script-timeline",
+      "source": "script",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-script-frame-1",
+      "source": "script",
+      "target": "frame-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-sheet-frame-1",
+      "source": "sheet",
+      "target": "frame-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-1-take",
+      "source": "frame-1",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-script-frame-2",
+      "source": "script",
+      "target": "frame-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-sheet-frame-2",
+      "source": "sheet",
+      "target": "frame-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-2-take",
+      "source": "frame-2",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-script-frame-3",
+      "source": "script",
+      "target": "frame-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-sheet-frame-3",
+      "source": "sheet",
+      "target": "frame-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-3-take",
+      "source": "frame-3",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-script-frame-4",
+      "source": "script",
+      "target": "frame-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-sheet-frame-4",
+      "source": "sheet",
+      "target": "frame-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-4-take",
+      "source": "frame-4",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-timeline-take",
+      "source": "timeline",
+      "target": "take",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-music-trim",
+      "source": "music",
+      "target": "trim",
+      "sourceHandle": "audio",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-take-film",
+      "source": "take",
+      "target": "film",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-trim-film",
+      "source": "trim",
+      "target": "film",
+      "sourceHandle": "audio",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-script-score",
+      "source": "script",
+      "target": "score",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-score-music",
+      "source": "score",
+      "target": "music",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.257
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "film": {
+          "title": "The film",
+          "description": "The finished 12-second animated short with its score."
+        },
+        "sheet": {
+          "title": "Character sheet",
+          "description": "The cast drawn once — the reference every frame follows."
+        },
+        "style": {
+          "title": "Style",
+          "description": "The visual medium, palette and mood — in your own words."
+        },
+        "theme": {
+          "title": "Theme",
+          "description": "Where and what the film is about."
+        },
+        "characters": {
+          "title": "Characters",
+          "description": "The main character and, at most, one companion."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "theme",
+        "characters",
+        "style"
+      ],
+      "outputOrder": [
+        "film",
+        "sheet"
+      ]
+    }
+  }
+}
