@@ -17,7 +17,7 @@
     "product"
   ],
   "complexity": "advanced",
-  "estimatedCredits": 368,
+  "estimatedCredits": 638,
   "nodeTypesUsed": [
     "upload-image",
     "text-prompt",
@@ -33,7 +33,7 @@
   "providersUsed": [
     "claude-sonnet-4.6",
     "gpt-image-2",
-    "seedance",
+    "wan-3",
     "suno"
   ],
   "previewMediaUrl": "https://cdn.nodaro.ai/images/53167d80-d43f-434a-afbf-9b3bb335e054.png",
@@ -302,7 +302,7 @@
         "userInput": "Brief: {Brief || a twelve-second commercial for a premium product.} Of the reference images, the person is the talent and the object on a plain background is the product. Write the story.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You are the creative director of a 12-second television commercial told in three shots of four seconds. From the brief, the product photo and the talent photo, write the story in exactly this shape, plain English, nothing else:\nTitle: <three to five words>\nIdea: <one sentence — the premise>\nTone: <two or three adjectives>\nSetting: <one sentence — one place, one time of day, the light; every shot happens here>\nTalent: <one sentence — how the person from the talent photo looks and what they wear, kept identical in every shot>\nAct 1 — Problem: <two sentences — what goes wrong for the talent, shown, not told>\nAct 2 — Product: <two sentences — the talent reaches for the product and uses it on screen; name what the product does>\nAct 3 — Resolution: <two sentences — life visibly better, an upbeat payoff>\nTagline: \"<at most six words>\"\nMusic: <one sentence — genre, mood, tempo and instruments of the instrumental soundtrack>\nUse only facts from the brief; never invent claims or specifications. No other headings, no commentary.",
+        "systemPrompt": "You are the creative director of a 12-second television commercial told in three shots of four seconds. From the brief, the product photo and the talent photo, write the story in exactly this shape, plain English, nothing else:\nTitle: <three to five words>\nIdea: <one sentence — the premise>\nTone: <two or three adjectives>\nSetting: <one sentence — one place, one time of day, the light; every shot happens here>\nTalent: <one sentence — how the person from the talent photo looks and what they wear, kept identical in every shot>\nAct 1 — Problem: <two sentences — what goes wrong for the talent, shown, not told>\nAct 2 — Product: <two sentences — the talent reaches for the product and uses it on screen; name what the product does>\nAct 3 — Resolution: <two sentences — life visibly better, an upbeat payoff>\nProps: <one sentence — every object the story needs, with its count, and what happens to each one: the old thing leaves the frame completely before the product appears and is never seen again (not set aside, not in the background); food is whole until it is cut; one product, never two of the same kind of thing in one frame>\nTagline: \"<at most six words>\"\nMusic: <one sentence — genre, mood, tempo and instruments of the instrumental soundtrack>\nUse only facts from the brief; never invent claims or specifications. No other headings, no commentary.",
         "fieldMappings": {}
       },
       "width": 480,
@@ -323,7 +323,7 @@
         "userInput": "Story: {Story || a three-act commercial: a problem, the product in use, a happy resolution.} Of the reference images, the person is the talent and the object on a plain background is the product. Write this shot.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You are the director of a 12-second commercial told in three continuous shots of four seconds. You get the story and the two reference photos. Write SHOT 1 — Act 1, the problem. It opens on its own frame and flows into the opening frame of Shot 2, where the talent reaches for the product.\nAnswer in exactly this shape, plain English, nothing else:\nFrame: <one paragraph of 60 to 90 words describing the single opening frame of this shot as a photograph: where the talent is and what they are doing, where the product is if it appears, the setting and the light from the story, the camera angle and distance. The talent looks exactly as the story's Talent line says; the product looks exactly as in its photo.>\nMotion: <one paragraph of 50 to 80 words describing what happens during the four seconds, from this frame to the next shot's opening frame: the talent's action, the product's movement, the camera's one simple move. Natural, continuous, no cuts, no new people.>\nNo other headings, no lists, no commentary.",
+        "systemPrompt": "You are the director of a 12-second commercial told in three continuous shots of four seconds. You get the story and the two reference photos. Write SHOT 1 — Act 1, the problem. It opens on its own frame and flows into the opening frame of Shot 2, where the talent reaches for the product.\nAnswer in exactly this shape, plain English, nothing else:\nObjects: <a short list of every object in the opening frame with its count and state — for example: one dull kitchen knife in her hand; one whole uncut tomato on the board; nothing else on the counter. Say exactly one of each thing that appears and never two of the same kind (never two knives, two plates, two of the product); if the product is not in this frame, say so; anything replaced by the product in an earlier act is out of frame entirely — do not list it as set aside; if food was cut in an earlier shot, say what state it is in now.>\nFrame: <one paragraph of 60 to 90 words describing the single opening frame of this shot as a photograph, consistent with the Objects list: where the talent is and what they are doing, where the product is if it appears, the setting and the light from the story, the camera angle and distance. The talent looks exactly as the story's Talent line says; the product looks exactly as in its photo.>\nMotion: <one paragraph of 60 to 90 words describing what happens during the four seconds, from this frame to the next shot's opening frame: the talent's action, the product's movement, the camera's one simple move. Account for every object that is visible at the start or at the end — where it is, whether it stays put, and if a hand puts it down or picks it up, say so — so nothing appears or vanishes on its own; when the product first enters, she brings it in from out of frame in her hand — never from a block, rack or drawer that would have to appear. Natural, continuous, no cuts, no new people.>\nNo other headings, no lists, no commentary.",
         "fieldMappings": {}
       },
       "width": 480,
@@ -344,7 +344,7 @@
         "userInput": "Story: {Story || a three-act commercial: a problem, the product in use, a happy resolution.} Of the reference images, the person is the talent and the object on a plain background is the product. Write this shot.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You are the director of a 12-second commercial told in three continuous shots of four seconds. You get the story and the two reference photos. Write SHOT 2 — Act 2, the product in use. It opens on its own frame and flows into the opening frame of Shot 3, where life is visibly better.\nAnswer in exactly this shape, plain English, nothing else:\nFrame: <one paragraph of 60 to 90 words describing the single opening frame of this shot as a photograph: where the talent is and what they are doing, where the product is if it appears, the setting and the light from the story, the camera angle and distance. The talent looks exactly as the story's Talent line says; the product looks exactly as in its photo.>\nMotion: <one paragraph of 50 to 80 words describing what happens during the four seconds, from this frame to the next shot's opening frame: the talent's action, the product's movement, the camera's one simple move. Natural, continuous, no cuts, no new people.>\nNo other headings, no lists, no commentary.",
+        "systemPrompt": "You are the director of a 12-second commercial told in three continuous shots of four seconds. You get the story and the two reference photos. Write SHOT 2 — Act 2, the product in use. It opens on its own frame and flows into the opening frame of Shot 3, where life is visibly better.\nAnswer in exactly this shape, plain English, nothing else:\nObjects: <a short list of every object in the opening frame with its count and state — for example: one dull kitchen knife in her hand; one whole uncut tomato on the board; nothing else on the counter. Say exactly one of each thing that appears and never two of the same kind (never two knives, two plates, two of the product); if the product is not in this frame, say so; anything replaced by the product in an earlier act is out of frame entirely — do not list it as set aside; if food was cut in an earlier shot, say what state it is in now.>\nFrame: <one paragraph of 60 to 90 words describing the single opening frame of this shot as a photograph, consistent with the Objects list: where the talent is and what they are doing, where the product is if it appears, the setting and the light from the story, the camera angle and distance. The talent looks exactly as the story's Talent line says; the product looks exactly as in its photo.>\nMotion: <one paragraph of 60 to 90 words describing what happens during the four seconds, from this frame to the next shot's opening frame: the talent's action, the product's movement, the camera's one simple move. Account for every object that is visible at the start or at the end — where it is, whether it stays put, and if a hand puts it down or picks it up, say so — so nothing appears or vanishes on its own; when the product first enters, she brings it in from out of frame in her hand — never from a block, rack or drawer that would have to appear. Natural, continuous, no cuts, no new people.>\nNo other headings, no lists, no commentary.",
         "fieldMappings": {}
       },
       "width": 480,
@@ -365,7 +365,7 @@
         "userInput": "Story: {Story || a three-act commercial: a problem, the product in use, a happy resolution.} Of the reference images, the person is the talent and the object on a plain background is the product. Write this shot.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You are the director of a 12-second commercial told in three continuous shots of four seconds. You get the story and the two reference photos. Write SHOT 3 — Act 3, the resolution. It opens on its own frame and flows into the end card: the product large and sharp in the foreground with the talent soft behind it.\nAnswer in exactly this shape, plain English, nothing else:\nFrame: <one paragraph of 60 to 90 words describing the single opening frame of this shot as a photograph: where the talent is and what they are doing, where the product is if it appears, the setting and the light from the story, the camera angle and distance. The talent looks exactly as the story's Talent line says; the product looks exactly as in its photo.>\nMotion: <one paragraph of 50 to 80 words describing what happens during the four seconds, from this frame to the next shot's opening frame: the talent's action, the product's movement, the camera's one simple move. Natural, continuous, no cuts, no new people.>\nNo other headings, no lists, no commentary.",
+        "systemPrompt": "You are the director of a 12-second commercial told in three continuous shots of four seconds. You get the story and the two reference photos. Write SHOT 3 — Act 3, the resolution. It opens on its own frame and flows into the end card: the product large and sharp in the foreground with the talent soft behind it.\nAnswer in exactly this shape, plain English, nothing else:\nObjects: <a short list of every object in the opening frame with its count and state — for example: one dull kitchen knife in her hand; one whole uncut tomato on the board; nothing else on the counter. Say exactly one of each thing that appears and never two of the same kind (never two knives, two plates, two of the product); if the product is not in this frame, say so; anything replaced by the product in an earlier act is out of frame entirely — do not list it as set aside; if food was cut in an earlier shot, say what state it is in now.>\nFrame: <one paragraph of 60 to 90 words describing the single opening frame of this shot as a photograph, consistent with the Objects list: where the talent is and what they are doing, where the product is if it appears, the setting and the light from the story, the camera angle and distance. The talent looks exactly as the story's Talent line says; the product looks exactly as in its photo.>\nMotion: <one paragraph of 60 to 90 words describing what happens during the four seconds, from this frame to the next shot's opening frame: the talent's action, the product's movement, the camera's one simple move. Account for every object that is visible at the start or at the end — where it is, whether it stays put, and if a hand puts it down or picks it up, say so — so nothing appears or vanishes on its own; when the product first enters, she brings it in from out of frame in her hand — never from a block, rack or drawer that would have to appear. Natural, continuous, no cuts, no new people.>\nNo other headings, no lists, no commentary.",
         "fieldMappings": {}
       },
       "width": 480,
@@ -382,7 +382,7 @@
       "data": {
         "label": "Keyframe 1",
         "style": "",
-        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render only the Frame paragraph: {Shot 1 || Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame. Photorealistic, shallow depth of field, natural light, no text, no captions, no logos, no watermark.",
+        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 1 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "16:9",
@@ -404,7 +404,7 @@
       "data": {
         "label": "Keyframe 2",
         "style": "",
-        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render only the Frame paragraph: {Shot 2 || Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame. Photorealistic, shallow depth of field, natural light, no text, no captions, no logos, no watermark.",
+        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 2 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "16:9",
@@ -426,7 +426,7 @@
       "data": {
         "label": "Keyframe 3",
         "style": "",
-        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render only the Frame paragraph: {Shot 3 || Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame. Photorealistic, shallow depth of field, natural light, no text, no captions, no logos, no watermark.",
+        "prompt": "Cinematic 16:9 film still, the opening frame of one shot of a television commercial, built from this shot description — render the Frame paragraph, and only the objects in the Objects list, in exactly the counts and states listed (one knife means one knife in the whole frame; whole or uncut means intact — no halves, no slices, no cut surface, the blade has not touched it yet): {Shot 3 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the reference images, the person is the talent — the same face, hair and wardrobe as in their photo — and the object on a plain background is the product, which must appear exactly as it is when it is in the frame, and only if the Objects list includes it. Never two of the same kind of thing anywhere in the image — not on the counter, not in the background, not in a hand. Photorealistic, shallow depth of field, natural light, no extra tools or food, no text, no captions, no logos, no watermark.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "16:9",
@@ -469,15 +469,15 @@
       },
       "data": {
         "label": "Clip 1",
-        "prompt": "{Shot 1 || Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural motion; one simple camera move; no cuts, no new people, no text, no morphing.",
-        "provider": "seedance",
-        "resolution": "1080p",
+        "prompt": "{Shot 1 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural human motion, hands and objects moving together; every object that is in either frame stays in the scene and moves only as described — nothing appears, vanishes or duplicates; if the product must enter, it enters from out of frame in her hand and nothing else comes with it — no knife block, no rack, no drawer, no other tools; one simple camera move; no cuts, no new people, no text, no morphing.",
+        "duration": 4,
+        "provider": "wan-3",
+        "resolution": "720p",
         "aspectRatio": "16:9",
         "fieldMappings": {},
         "generateAudio": false,
         "negativePrompt": "",
-        "presentationOutput": false,
-        "duration": 4
+        "presentationOutput": false
       },
       "width": 600,
       "height": 338,
@@ -492,15 +492,15 @@
       },
       "data": {
         "label": "Clip 2",
-        "prompt": "{Shot 2 || Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural motion; one simple camera move; no cuts, no new people, no text, no morphing.",
-        "provider": "seedance",
-        "resolution": "1080p",
+        "prompt": "{Shot 2 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural human motion, hands and objects moving together; every object that is in either frame stays in the scene and moves only as described — nothing appears, vanishes or duplicates; if the product must enter, it enters from out of frame in her hand and nothing else comes with it — no knife block, no rack, no drawer, no other tools; one simple camera move; no cuts, no new people, no text, no morphing.",
+        "duration": 4,
+        "provider": "wan-3",
+        "resolution": "720p",
         "aspectRatio": "16:9",
         "fieldMappings": {},
         "generateAudio": false,
         "negativePrompt": "",
-        "presentationOutput": false,
-        "duration": 4
+        "presentationOutput": false
       },
       "width": 600,
       "height": 338,
@@ -515,15 +515,15 @@
       },
       "data": {
         "label": "Clip 3",
-        "prompt": "{Shot 3 || Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural motion; one simple camera move; no cuts, no new people, no text, no morphing.",
-        "provider": "seedance",
-        "resolution": "1080p",
+        "prompt": "{Shot 3 || Objects: one dull knife in her hand; one crushed tomato on the board; nothing else on the counter. Frame: a bright kitchen in morning light, the talent at the counter looking at a crushed tomato with a dull knife in hand, medium shot at eye level. Motion: she puts the dull knife down, reaches to the right and picks up the new knife; the camera pushes in slowly.} Of the two reference frames, the first is this shot's opening frame and the second is where the shot ends. Photorealistic continuous take following the Motion paragraph: the same talent, the same product, the same setting; natural human motion, hands and objects moving together; every object that is in either frame stays in the scene and moves only as described — nothing appears, vanishes or duplicates; if the product must enter, it enters from out of frame in her hand and nothing else comes with it — no knife block, no rack, no drawer, no other tools; one simple camera move; no cuts, no new people, no text, no morphing.",
+        "duration": 4,
+        "provider": "wan-3",
+        "resolution": "720p",
         "aspectRatio": "16:9",
         "fieldMappings": {},
         "generateAudio": false,
         "negativePrompt": "",
-        "presentationOutput": false,
-        "duration": 4
+        "presentationOutput": false
       },
       "width": 600,
       "height": 338,
