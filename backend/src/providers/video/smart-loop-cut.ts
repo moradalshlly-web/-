@@ -219,7 +219,7 @@ export async function smartLoopCut(
     await runFfmpeg([
       "-y", "-i", inputPath,
       "-vf", `select='${selectExpr}'`,
-      "-vsync", "0",
+      "-fps_mode", "passthrough",
       "-frames:v", String(allIndices.length),
       framesPattern,
     ])

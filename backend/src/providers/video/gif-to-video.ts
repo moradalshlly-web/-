@@ -153,7 +153,7 @@ async function firstLastMeanDiff(
   await runFfmpeg([
     "-y", "-i", gifPath,
     "-vf", `select='eq(n\\,0)+eq(n\\,${frames - 1})',scale=32:32`,
-    "-vsync", "0",
+    "-fps_mode", "passthrough",
     "-frames:v", "2",
     pattern,
   ])
