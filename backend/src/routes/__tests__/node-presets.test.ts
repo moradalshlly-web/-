@@ -385,3 +385,76 @@ describe("node-presets routes", () => {
     expect(res.statusCode).toBe(201)
   })
 })
+
+
+describe("app setting presets", () => {
+  beforeEach(() => vi.clearAllMocks())
+  const config = { schemaVersion: 1, provider: "seedance-2-5", resolution: "480p", segmentSec: "max", renderMethod: "extend", anchorMode: "upfront", citeStyle: "bare", promptTiming: true, textOnly: false, interactive: true, anchorGates: false, musicGates: true, musicSource: "generated" }
+  it("serves complete immutable factory snapshots", async () => {
+    const app = buildApp(); await app.register(nodePresetRoutes)
+    const res = await app.inject({ method: "GET", url: "/v1/node-presets/factory?nodeType=recast-render" })
+    expect(res.json().data).toHaveLength(3)
+    expect(res.json().data[0].data).toEqual(config)
+    expect(fromMock).not.toHaveBeenCalled()
+  })
+  it("rejects project content on create and import before writing", async () => {
+    const app = buildApp(); await app.register(nodePresetRoutes)
+    for (const data of [{ ...config, source: { url: "https://private/source" } }, { ...config, schemaVersion: 2 }, { ...config, promptTiming: "yes" }]) {
+      const preset = { nodeType: "recast-render", name: "Mine", data }
+      expect((await app.inject({ method: "POST", url: "/v1/node-presets", payload: preset })).statusCode).toBe(400)
+      expect((await app.inject({ method: "POST", url: "/v1/node-presets/import", payload: { presets: [preset] } })).statusCode).toBe(400)
+    }
+    expect(fromMock).not.toHaveBeenCalled()
+  })
+  it("checks the owned preset namespace before replacing data", async () => {
+    const qb = makeQB({ single: { id: "p1", node_type: "recast-render", data: config } })
+    fromMock.mockReturnValue(qb)
+    const app = buildApp(); await app.register(nodePresetRoutes)
+    const res = await app.inject({ method: "PATCH", url: "/v1/node-presets/p1", payload: { data: { ...config, cast: {} } } })
+    expect(res.statusCode).toBe(400)
+    expect(qb.eq).toHaveBeenCalledWith("user_id", USER)
+    expect(qb.update).not.toHaveBeenCalled()
+  })
+  it("returns a conflict when a concurrent edit wins the timestamp condition", async () => {
+    const owned = makeQB({ single: { id: "p1", node_type: "recast-render", data: config } })
+    const stale = makeQB({ error: { code: "PGRST116" } })
+    fromMock.mockReturnValueOnce(owned).mockReturnValueOnce(stale)
+    const app = buildApp(); await app.register(nodePresetRoutes)
+    const res = await app.inject({ method: "PATCH", url: "/v1/node-presets/p1", payload: { name: "Renamed", expectedUpdatedAt: "2026-09-16T15:00:00+00:00" } })
+    expect(res.statusCode).toBe(409)
+    expect(stale.eq).toHaveBeenCalledWith("updated_at", "2026-09-16T15:00:00+00:00")
+    expect(stale.eq).toHaveBeenCalledWith("user_id", USER)
+  })
+  it("does not delete a newer preset or its favorites after a revision conflict", async () => {
+    const stale = makeQB({ error: { code: "PGRST116" } })
+    fromMock.mockReturnValue(stale)
+    const app = buildApp(); await app.register(nodePresetRoutes)
+    const res = await app.inject({ method: "DELETE", url: "/v1/node-presets/p1?expectedUpdatedAt=2026-09-16T15%3A00%3A00Z" })
+    expect(res.statusCode).toBe(409)
+    expect(stale.eq).toHaveBeenCalledWith("user_id", USER)
+    expect(stale.eq).toHaveBeenCalledWith("updated_at", "2026-09-16T15:00:00Z")
+    expect(fromMock).toHaveBeenCalledTimes(1)
+  })
+  it("does not update a preset absent from the caller's library", async () => {
+    const absent = makeQB({ error: { code: "PGRST116" } })
+    fromMock.mockReturnValue(absent)
+    const app = buildApp(); await app.register(nodePresetRoutes)
+    const res = await app.inject({ method: "PATCH", url: "/v1/node-presets/other-user", payload: { name: "Changed" } })
+    expect(res.statusCode).toBe(404)
+    expect(absent.eq).toHaveBeenCalledWith("user_id", USER)
+    expect(absent.update).not.toHaveBeenCalled()
+  })
+  it("preserves false checkbox values and hides invalid legacy app data", async () => {
+    const data = { ...config, interactive: false, musicGates: false, promptTiming: false }
+    const qb = makeQB({ rows: [
+      { id: "valid", node_type: "recast-render", data },
+      { id: "invalid", node_type: "recast-render", data: { ...data, source: "private" } },
+    ] })
+    fromMock.mockReturnValue(qb)
+    const app = buildApp(); await app.register(nodePresetRoutes)
+    const res = await app.inject({ method: "GET", url: "/v1/node-presets?nodeType=recast-render" })
+    expect(res.json().data[0].data).toEqual(data)
+    expect(res.json().data[1].data).toEqual({})
+  })
+
+})

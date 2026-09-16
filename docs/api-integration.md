@@ -2228,6 +2228,34 @@ captured node config; merge it into a node's data when you build a workflow to
 
 A custom preset has `{ id, nodeType, name, description?, data, groupId?, tags, sortOrder, createdAt, updatedAt }`. The factory response is `{ data: FactoryPreset[] }`, where each entry has `{ id, name, description?, group?, groupKind?, data }`.
 
+### App settings presets
+
+The same personal library supports app settings under logical namespaces. `recast-render` stores Recast generation settings; it is not an executable node type. Factory entries are read-only and personal entries remain private to their owner across devices.
+
+Its `data` is a strict complete snapshot:
+
+```json
+{
+  "schemaVersion": 1,
+  "provider": "seedance-2-5",
+  "resolution": "480p",
+  "segmentSec": "max",
+  "renderMethod": "extend",
+  "anchorMode": "upfront",
+  "citeStyle": "bare",
+  "promptTiming": true,
+  "textOnly": false,
+  "interactive": true,
+  "anchorGates": false,
+  "musicGates": true,
+  "musicSource": "generated"
+}
+```
+
+`segmentSec` accepts `max`, `scenes-max` (Long), or `scenes` (Short). `resolution` accepts `480p`, `720p`, `1080p`, or `4k`; `renderMethod` accepts `extend` or `keyframes`; `anchorMode` accepts `upfront`, `progressive`, or `none`; `citeStyle` accepts `bare` or `rich`; `musicSource` accepts `generated`, `original`, or `upload`. All switches are booleans. Unknown fields and schema versions are rejected on create, replacement and import. Source media, cast references, prompts, uploaded track URLs, rights attestations and results are excluded. Applying an Original or Upload music choice uses the target project's own media; it never prepares or uploads audio automatically.
+
+First-party authenticated clients can create with `POST /v1/node-presets`, rename or replace data with `PATCH /v1/node-presets/:id`, and delete with `DELETE /v1/node-presets/:id`. Programmatic-token writes remain disabled. PATCH accepts optional `expectedUpdatedAt` in its body; DELETE accepts it as a query parameter. Send the timestamp returned by the library: a concurrent change returns `409 conflict` and requires a refresh. Applying a preset updates settings and refreshes the quote; it does not submit generation. Validate the target model's current capabilities before generating.
+
 A preset may carry `promptPrefix` / `promptSuffix`; the MCP generation verbs wrap
 the caller's prompt with them when `presetId` is passed (see
 [Prompt pre & post text](./prompt-pre-post-text.md)).
