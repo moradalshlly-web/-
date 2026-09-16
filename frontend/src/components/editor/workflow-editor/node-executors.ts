@@ -1,3 +1,4 @@
+import type { FrameFit, FrameDelivery } from "@nodaro/shared";
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { llmAdvancedParams } from "@/lib/llm-advanced-params"
 import {
@@ -306,6 +307,10 @@ export function runVideoGeneration(
     attachReferenceVideoVariant?: string;
     videoTrimStart?: number;
     videoTrimEnd?: number;
+    /** Start/end frame handling — same two fields the orchestrator sends
+     *  (payload-builder). Absent = platform defaults. */
+    frameFit?: FrameFit;
+    frameDelivery?: FrameDelivery;
   },
   /** Per-call idempotency key — see runImageGeneration for rationale. */
   idempotencyKey?: string,
@@ -344,6 +349,8 @@ export function runVideoGeneration(
         seedance2InputMode: extras?.seedance2InputMode,
         enableTranslation: extras?.enableTranslation,
         loopTrim: extras?.loopTrim,
+        frameFit: extras?.frameFit,
+        frameDelivery: extras?.frameDelivery,
         videoTrimStart: extras?.videoTrimStart,
         videoTrimEnd: extras?.videoTrimEnd,
         injectCharacterContext: extras?.injectCharacterContext,

@@ -1110,4 +1110,7 @@ export { STUDIO_DEPENDENT_FRAMES_CAPABILITY, SequenceExecutionRequiredError, req
 export * from "./scene3d-authoring-engine.js"
 export * from "./scene3d-input-assets.js"
 
+// --- Start/end frame fit: measured output canvases + the pure fit math ---
+export * from "./video-output-canvas.js"
+export * from "./video-frame-fit.js"
 export type { CharacterMotionMetadata } from "./character-motion-metadata.js"

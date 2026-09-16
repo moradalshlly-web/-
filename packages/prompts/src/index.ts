@@ -93,4 +93,6 @@ export * from "./factory-snippets/index.js"
 export * from "./picker-wiring.js"
 export * from "./surround-fill.js"
 
+// --- Start/end frame delivery: one plan for the dispatch and the editor ---
+export * from "./frame-delivery.js"
 export * from "./character-motion-diagnostics.js"

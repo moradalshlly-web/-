@@ -77,6 +77,7 @@ import { ConnectedMediaList, getSourceThumbnail } from "./connected-media-list"
 import { InjectedReferenceList } from "./injected-reference-list"
 import { SeedanceReferenceTip } from "./seedance-reference-tip"
 import { FramesAndReferencesTip } from "./frames-references-tip"
+import { FrameFitFields, previewFrameDelivery, supportsReferenceDelivery, isFrameFit, isFrameDelivery } from "./frame-fit-fields"
 import { removeMentionToken, makeRemoveWiredSource, appendSuppressedSlug } from "./injected-reference-helpers"
 import { useT, tx } from "@/lib/i18n"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
@@ -430,6 +431,16 @@ function ImageToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
     if (baseDurations && data.duration && !baseDurations.includes(data.duration)) {
       updates.duration = baseDurations[0]
     }
+    // Start/end frame handling — a stale value the select cannot render is
+    // cleared, and delivery is cleared outright on a model with no reference-
+    // image support (the lever does not exist there; the backend collapses it
+    // to frame mode anyway).
+    if (data.frameFit !== undefined && !isFrameFit(data.frameFit)) {
+      updates.frameFit = undefined
+    }
+    if (data.frameDelivery !== undefined && (!isFrameDelivery(data.frameDelivery) || !supportsReferenceDelivery(currentI2VProvider))) {
+      updates.frameDelivery = undefined
+    }
     // Aspect ratio — snap a stale EXPLICIT value (e.g. Seedance's "adaptive" /
     // "21:9" / "4:3" / "3:4") to the new provider's first valid option when it
     // isn't in that provider's set. Reads the same option source the dropdown
@@ -553,15 +564,29 @@ function ImageToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
           refAudioUrls: Array.from({ length: ((data.referenceAudioUrls as readonly unknown[] | undefined) ?? []).length }, (_, i) => `a${i}`),
           limits: modeLimits,
         })
-        const label = s2.mode === "reference"
+        // Frame delivery runs BEFORE this resolver on the backend: when it
+        // resolves to reference (auto on the Seedance 2.0 family, or chosen),
+        // the frames reach the provider as reference images and the sentence
+        // the dispatch step appends is the one that lands in the prompt.
+        const dv = previewFrameDelivery({
+          provider: currentI2VProvider,
+          requested: data.frameDelivery,
+          hasStartFrame: connectedImages.some((img) => img.targetHandle !== "endFrame"),
+          hasEndFrame,
+          userRefCount: connectedRefImages.length,
+          prompt: data.prompt,
+        })
+        const mode = dv.delivery === "reference" ? "reference" : s2.mode
+        const promptSuffix = dv.delivery === "reference" ? dv.promptSuffix : s2.promptSuffix
+        const label = mode === "reference"
           ? t("vidcfg.modeReference")
-          : s2.mode === "first-last-frame" ? t("vidcfg.modeFirstLastFrame") : t("vidcfg.modeFirstFrame")
+          : mode === "first-last-frame" ? t("vidcfg.modeFirstLastFrame") : t("vidcfg.modeFirstFrame")
         return (
           <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/30 p-2">
             <span className="text-[11px] font-medium text-foreground">{t("vidcfg.modeLabel", { label })}</span>
-            {s2.promptSuffix && (
+            {promptSuffix && (
               <span className="text-[10px] leading-snug text-muted-foreground">
-                {t("vidcfg.appendedToPrompt", { suffix: s2.promptSuffix })}
+                {t("vidcfg.appendedToPrompt", { suffix: promptSuffix })}
               </span>
             )}
             {s2.droppedRefImages > 0 && (
@@ -818,6 +843,18 @@ function ImageToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
           {t("vidcfg.providerProducesNSecondVideos", { provider: data.provider || t("vidcfg.thisProvider"), n: allowedDurations[0] })}
         </p>
       )}
+      {/* Start/end frame handling — only while a frame is wired, and not in
+          VEO reference mode, where the wired images are references, not
+          frames. Sits with duration / end frame: the run-shape levers. */}
+      <FrameFitFields
+        provider={currentI2VProvider}
+        resolution={data.resolution}
+        aspectRatio={data.aspectRatio}
+        frameFit={data.frameFit}
+        frameDelivery={data.frameDelivery}
+        hasFrame={connectedImages.length > 0 && !isVeoRefMode}
+        onUpdate={onUpdate}
+      />
       {supportsEndFrame && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">{t("vidcfg.endFrameOptional")}</Label>
@@ -2699,6 +2736,16 @@ function GenerateVideoConfigImpl({ data: rawData, onUpdate: rawOnUpdate, sources
     } else if (data.resolution !== undefined) {
       updates.resolution = undefined
     }
+    // Start/end frame handling — a stale value the select cannot render is
+    // cleared, and delivery is cleared outright on a model with no reference-
+    // image support (the lever does not exist there; the backend collapses it
+    // to frame mode anyway).
+    if (data.frameFit !== undefined && !isFrameFit(data.frameFit)) {
+      updates.frameFit = undefined
+    }
+    if (data.frameDelivery !== undefined && (!isFrameDelivery(data.frameDelivery) || !supportsReferenceDelivery(currentProvider))) {
+      updates.frameDelivery = undefined
+    }
     const baseDurations = VIDEO_DURATION_OPTIONS[currentProvider]?.map((o) => o.value) ?? null
     if (baseDurations && data.duration && !baseDurations.includes(data.duration)) {
       updates.duration = baseDurations[0]
@@ -2918,15 +2965,29 @@ function GenerateVideoConfigImpl({ data: rawData, onUpdate: rawOnUpdate, sources
           refAudioUrls: Array.from({ length: connectedRefAudio.length }, (_, i) => `a${i}`),
           limits: modeLimits,
         })
-        const label = s2.mode === "reference"
+        // Frame delivery runs BEFORE this resolver on the backend: when it
+        // resolves to reference (auto on the Seedance 2.0 family, or chosen),
+        // the frames reach the provider as reference images and the sentence
+        // the dispatch step appends is the one that lands in the prompt.
+        const dv = previewFrameDelivery({
+          provider: currentProvider,
+          requested: data.frameDelivery,
+          hasStartFrame: connectedImages.some((img) => img.targetHandle !== "endFrame"),
+          hasEndFrame,
+          userRefCount: connectedRefImages.length,
+          prompt: data.prompt,
+        })
+        const mode = dv.delivery === "reference" ? "reference" : s2.mode
+        const promptSuffix = dv.delivery === "reference" ? dv.promptSuffix : s2.promptSuffix
+        const label = mode === "reference"
           ? t("vidcfg.modeReference")
-          : s2.mode === "first-last-frame" ? t("vidcfg.modeFirstLastFrame") : t("vidcfg.modeFirstFrame")
+          : mode === "first-last-frame" ? t("vidcfg.modeFirstLastFrame") : t("vidcfg.modeFirstFrame")
         return (
           <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/30 p-2">
             <span className="text-[11px] font-medium text-foreground">{t("vidcfg.modeLabel", { label })}</span>
-            {s2.promptSuffix && (
+            {promptSuffix && (
               <span className="text-[10px] leading-snug text-muted-foreground">
-                {t("vidcfg.appendedToPrompt", { suffix: s2.promptSuffix })}
+                {t("vidcfg.appendedToPrompt", { suffix: promptSuffix })}
               </span>
             )}
             {s2.droppedRefImages > 0 && (
@@ -3217,6 +3278,17 @@ function GenerateVideoConfigImpl({ data: rawData, onUpdate: rawOnUpdate, sources
           {t("vidcfg.providerProducesNSecondVideos", { provider: currentProvider || t("vidcfg.thisProvider"), n: allowedDurations[0] })}
         </p>
       )}
+      {/* Start/end frame handling — twin of the ImageToVideoConfigImpl mount. */}
+      <FrameFitFields
+        provider={currentProvider}
+        resolution={data.resolution}
+        aspectRatio={data.aspectRatio}
+        frameFit={data.frameFit}
+        frameDelivery={data.frameDelivery}
+        hasFrame={connectedImages.length > 0 && !isVeoRefMode}
+        onUpdate={onUpdate}
+        idPrefix="gv-"
+      />
       {supportsEndFrame && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">{t("vidcfg.endFrameOptional")}</Label>

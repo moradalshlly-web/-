@@ -43,6 +43,7 @@ import {
 } from "./scene3d-reference-scoping.js"
 import { IMAGE_SOURCE_TYPES, VIDEO_SOURCE_TYPES, AUDIO_SOURCE_TYPES, isSourceNode } from "./execution-graph.js"
 import { OVERLAY_MAX_LAYERS } from "../../providers/image/overlay-contract.js"
+import type { FrameFit, FrameDelivery } from "@nodaro/shared"
 
 // ---------------------------------------------------------------------------
 // Character definitions + prompt template types (from workflow settings)
@@ -3469,6 +3470,12 @@ export function buildPayload(
           // Legacy autoLoopTrim is normalized at the route level; orchestrator
           // path sees it migrated by the frontend already (use-workflow-store).
           loopTrim: data.loopTrim,
+          // Start/end frame handling. Read straight off the node (an unset node
+          // sends nothing and the dispatch step applies the platform defaults),
+          // and validated at the route's Zod on the canvas path — the two must
+          // stay in step, which dag-parity pins.
+          frameFit: data.frameFit as FrameFit | undefined,
+          frameDelivery: data.frameDelivery as FrameDelivery | undefined,
           enableTranslation: data.enableTranslation,
           ...scene3DWarningsField({ references: i2vScene3D, node, buildCtx, data, provider }),
           usageLogId,
@@ -3911,6 +3918,12 @@ export function buildPayload(
           nsfwChecker: data.nsfwChecker,
           generationType,
           loopTrim: data.loopTrim,
+          // Start/end frame handling. Read straight off the node (an unset node
+          // sends nothing and the dispatch step applies the platform defaults),
+          // and validated at the route's Zod on the canvas path — the two must
+          // stay in step, which dag-parity pins.
+          frameFit: data.frameFit as FrameFit | undefined,
+          frameDelivery: data.frameDelivery as FrameDelivery | undefined,
           enableTranslation: data.enableTranslation,
           usageLogId,
         },

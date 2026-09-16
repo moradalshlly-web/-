@@ -116,6 +116,7 @@ import { promises as fs } from "node:fs"
 import type { ZodType } from "zod"
 import type { PluginEntityRead, PluginEntityTable, PluginInternalRequestOptions, PluginOwnedJobRow } from "./types.js"
 import type { PluginToolkit, PluginLlmRequest, PluginLlmMultimodalRequest, PluginVideoGenOptions, PluginVideoGenResult, PluginImageGenOptions, PluginImageGenResult, PluginMusicGenOptions, PluginMusicGenResult, PipelineSnapshot } from "./types.js"
+import { applyFrameFitAndDelivery } from "../video-frame-dispatch.js"
 
 /**
  * Assembles the real `PluginToolkit` dependency-injection surface handed to
@@ -180,6 +181,8 @@ function toProviderOptions(options: PluginVideoGenOptions | undefined, aspectRat
     referenceImageUrls: options?.referenceImageUrls,
     referenceVideoUrls: options?.referenceVideoUrls,
     referenceAudioUrls: options?.referenceAudioUrls,
+    frameFit: options?.frameFit,
+    frameDelivery: options?.frameDelivery,
     ...(aspectRatio !== undefined ? { aspectRatio } : {}),
   }
 }
@@ -212,17 +215,27 @@ async function pluginImageToVideo(
   aspectRatio: string,
   options?: PluginVideoGenOptions,
 ): Promise<PluginVideoGenResult> {
-  const result = await new KieVideoProvider().imageToVideo(
+  // Frames are shaped here too: this path calls the KIE provider DIRECTLY, so
+  // the router's fit/delivery step never runs for a plugin render (gvp, recast,
+  // studio). Same call, same defaults — see lib/video-frame-dispatch.ts.
+  const shaped = await applyFrameFitAndDelivery({
+    model,
     imageUrl,
+    endFrameUrl: options?.endFrameUrl,
     prompt,
+    options: toProviderOptions(options, aspectRatio),
+  })
+  const result = await new KieVideoProvider().imageToVideo(
+    shaped.imageUrl,
+    shaped.prompt,
     model,
     durationSec,
     // The FINAL segment of a generate-video-pro run may carry the user's
     // closing frame (plugin contract PluginVideoGenOptions.endFrameUrl) —
     // positional here, where the Seedance-2 input resolver turns it into the
     // closing-frame reference hint. Undefined for every other segment.
-    options?.endFrameUrl,
-    toProviderOptions(options, aspectRatio),
+    shaped.endFrameUrl,
+    shaped.options,
     toReconcileOpts(options),
   )
   return { url: result.url, taskId: result.kieTaskId }

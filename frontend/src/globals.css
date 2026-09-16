@@ -1,9 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-/* Rich-lane picker UI (@nodaroai/picker-ui) ships prebuilt JS whose Tailwind
+/* Rich-lane picker UI (@nodaro/picker-ui) ships prebuilt JS whose Tailwind
    utility classes must survive the content scan — v4 skips node_modules by
-   default. Harmless when the private package isn't installed (community). */
-@source "../../node_modules/@nodaroai/picker-ui/dist";
+   default. Harmless when the private package isn't installed (community).
+   The scope is @nodaro, not @nodaroai: the path is not validated by the build,
+   so a wrong one silently drops every utility the package does not share with
+   frontend source — the tab count badge lost its horizontal padding and the
+   tile icons lost their size constraint exactly that way.
+   `picker-ui-tailwind-source.test.ts` pins every @source path to a real dir. */
+@source "../../node_modules/@nodaro/picker-ui/dist";
 
 /* Self-hosted Geist fonts — served from /fonts/ to eliminate the
    JS → CSS → woff2 waterfall that @fontsource-variable introduced. */

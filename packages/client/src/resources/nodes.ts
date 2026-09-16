@@ -156,9 +156,20 @@ export interface GenerateVideoParams extends StructuredReferenceParams, Referenc
   provider?: string
   /** Start-frame image (image-to-video). */
   imageUrl?: string
+  /** Closing frame, paired with `imageUrl` on models that support one. */
+  endFrameUrl?: string
   referenceImageUrls?: string[]
   referenceVideoUrls?: string[]
   referenceAudioUrls?: string[]
+  /** How a start/end frame is reshaped before the model sees it. Default
+   *  `"resolution"`: resize it to the pixel size that model actually renders,
+   *  which is what stops the provider reshaping it mid-clip. `"ratio"` corrects
+   *  only the aspect; `"original"` sends it untouched. */
+  frameFit?: "original" | "ratio" | "resolution"
+  /** Whether the frame travels as a real start frame or as a reference image
+   *  bound in the prompt as the opening frame. Default `"auto"`, which picks per
+   *  model. Ignored by models that take no reference images. */
+  frameDelivery?: "auto" | "frame" | "reference"
   [k: string]: unknown
 }
 

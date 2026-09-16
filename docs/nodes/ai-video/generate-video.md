@@ -468,6 +468,8 @@ Common fields:
 | Aspect Ratio | Select | Provider-specific | 16:9 / 9:16 / 1:1 / 4:3 / 3:4 / 21:9 / Auto |
 | Generate Audio | Checkbox | Provider-specific | VEO 3.x default on |
 | Loop Trim | Group | off | Enable + framesToTest + quality |
+| Frame fit | Select | `Match output size` | How a wired start/end frame is reshaped before the model sees it |
+| Send frames as | Select | `Auto` | Whether that frame rides as a frame or as a bound reference image |
 | Inject Character Context | Checkbox | off | When an upstream Character has identity-injection on |
 | `promptPrefix` / `promptSuffix` | text | -- | Optional pre/post text wrapped around the prompt at run time (settings panel → **Pre & post text**; hidden from app users; captured by presets). See [Prompt pre & post text](../../prompt-pre-post-text.md). |
 
@@ -539,6 +541,62 @@ Duration and the clip — and settled to the length actually delivered once the
 run completes (a style run is refunded down to its Duration). The formula and a
 worked example are under *Reference videos bill input + output duration* in the
 pricing section above.
+
+### Start and end frame handling
+
+A start frame that is not already the size the model renders gets reshaped by the
+provider, and some models do it one frame into the clip: frame 0 is your image,
+and the rest of the video is very slightly taller or wider. Seedance 2.5 did this
+on five of ten measured runs with a 940x1672 image, and on none of three runs with
+the same image resized to 720x1280.
+
+**Frame fit** decides what happens to the frame before it is sent.
+
+| Value | What it does |
+|---|---|
+| `Match output size` (default) | Resizes the frame to the exact pixel size the model renders for the chosen resolution and ratio |
+| `Match aspect ratio` | Only corrects the aspect ratio, with the smallest possible pixel change |
+| `Keep original` | Sends the frame untouched |
+
+When the model, resolution and ratio have been measured, the panel names the target
+under the select, for example “Frames are fitted to 720×1280 before sending.”
+
+The target size is measured from real renders per model, resolution and ratio,
+because models do not always render the ratio they are asked for. Minimax H3 at
+768P returns 768x1344 for a 9:16 request, and Seedance 2.0 at 480p 16:9 returns
+864x496 where Seedance 2.5 returns 854x480. For a combination we have not
+measured, `Match resolution` falls back to `Match ratio`, and `Match ratio` falls
+back to leaving the frame alone. Nothing is ever guessed.
+
+When your image is more than 5% away from the target shape — a square photo into a
+9:16 video, say — the frame is centre-cropped to the target ratio first and then
+resized, so the subject is never squashed.
+
+**Send frames as** decides how the frame travels.
+
+| Value | What it does |
+|---|---|
+| `Auto` (default) | Picks per model, and the option names what it resolves to: “Auto (as frame)” or “Auto (as reference image)” |
+| `Frame` | Always a real start frame |
+| `Reference image` | Always a reference image, bound in the prompt as the opening frame |
+
+The Seedance 2.0 family (fast, standard and mini) zooms the frame about 2% and
+loses 11–26% brightness within six frames when the image is sent as a frame; the
+same models hold their look from frame 0 when it is sent as a reference. Every
+other model measured reproduces your opening frame more faithfully as a frame, so
+`Auto` leaves them in frame mode. On a model that takes no reference images the
+setting is hidden and has no effect.
+
+Two limits worth knowing. Reference delivery never drops one of your own
+reference images to make room: if the frames would push the request past the
+model's image limit, the frame stays a frame. And when your request already
+carries reference images, several models cannot keep a real start frame at all —
+Seedance and Wan move it into the reference list, Minimax H3 switches endpoints,
+and Veo 3.1 drops the end frame. That is provider behaviour, unchanged by these
+settings.
+
+API and SDK callers set `frameFit` and `frameDelivery` on `POST /v1/generate-video`.
+Both are optional and default as above.
 
 ## Migration from legacy nodes
 

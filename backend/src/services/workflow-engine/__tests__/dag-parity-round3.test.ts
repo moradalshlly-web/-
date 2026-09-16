@@ -183,6 +183,37 @@ describe("image-to-video — forwards videoTrimStart/videoTrimEnd", () => {
 })
 
 // ---------------------------------------------------------------------------
+// FUNCTIONAL #6b — both video cases forward frameFit / frameDelivery.
+// A DAG run that dropped them would silently send the user's frame at whatever
+// size it was uploaded, which is the snap this feature exists to remove — and
+// the canvas run (execute-node.ts) would differ from the same node run in a
+// workflow, which is the parity this file guards.
+// ---------------------------------------------------------------------------
+
+describe("video nodes — forward frameFit/frameDelivery", () => {
+  it("passes both through on image-to-video", () => {
+    const n = node("v1", "image-to-video", { provider: "seedance-2-5", frameFit: "ratio", frameDelivery: "reference" })
+    const r = buildPayload(n, JOB_ID, { imageUrl: "https://i.png" })
+    expect(r.payload.frameFit).toBe("ratio")
+    expect(r.payload.frameDelivery).toBe("reference")
+  })
+
+  it("passes both through on generate-video", () => {
+    const n = node("v2", "generate-video", { provider: "seedance-2-fast", frameFit: "original", frameDelivery: "frame" })
+    const r = buildPayload(n, JOB_ID, { imageUrl: "https://i.png" })
+    expect(r.payload.frameFit).toBe("original")
+    expect(r.payload.frameDelivery).toBe("frame")
+  })
+
+  it("sends nothing when the node sets nothing — the dispatch defaults own it", () => {
+    const n = node("v3", "image-to-video", { provider: "seedance-2-5" })
+    const r = buildPayload(n, JOB_ID, { imageUrl: "https://i.png" })
+    expect(r.payload.frameFit).toBeUndefined()
+    expect(r.payload.frameDelivery).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // FUNCTIONAL #7 — add-captions reads camelCase autoTranscribe/transcribeProvider
 // (DAG read snake_case data.auto_transcribe → always undefined; an explicit
 //  autoTranscribe:false and any transcribeProvider choice were silently dropped.

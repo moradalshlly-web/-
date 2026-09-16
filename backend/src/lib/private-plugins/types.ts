@@ -41,6 +41,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify"
 import type { ZodError, ZodType } from "zod"
 import type { AudioFxPreset, PresetSettings, SurroundDirection } from "@nodaro/shared"
 import type { PluginScene3DEngine, PluginStageToolkit } from "./scene3d-contract.js"
+import type { FrameFit, FrameDelivery } from "@nodaro/shared"
 export type * from "./scene3d-contract.js"
 
 // ============================================================================
@@ -131,6 +132,15 @@ export interface PluginVideoGenOptions {
    *  param (Seedance-2 resolver builds the closing-frame hint). Sent by the
    *  gvp plugin for the FINAL segment only. */
   endFrameUrl?: string
+  /** Start/end FRAME handling — additive-optional (2026-09-16). Absent means
+   *  the platform defaults, which is what every plugin gets today: the frame is
+   *  resized to the model's measured output canvas and delivered as a frame
+   *  (or, on the Seedance 2.0 family, as a bound reference). A plugin only
+   *  needs these to OPT OUT — e.g. an engine that has already sized its own
+   *  anchors passes `frameFit: "original"`. Mirror in the plugins repo's
+   *  contract.ts before a plugin can send them. */
+  frameFit?: FrameFit
+  frameDelivery?: FrameDelivery
   /** Invoked with the provider task id as soon as it exists. The pro engine
    * checkpoints it; jobs.provider_task_id is NEVER written (spec §6 linchpin). */
   onTaskCreated?: (taskId: string) => void | Promise<void>

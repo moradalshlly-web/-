@@ -2805,6 +2805,11 @@ export interface GenerateVideoOptions {
     framesToTest?: number
     quality?: "lossless" | "precise"
   }
+  /** Start/end frame handling — reshape the frame to the model's measured
+   *  output canvas, and choose frame vs bound-reference delivery. Omit for the
+   *  platform defaults (`resolution` / `auto`). */
+  frameFit?: FrameFit
+  frameDelivery?: FrameDelivery
   /** Gemini V2V: trim start/end seconds applied to the reference video before
    *  it is sent to the model. Forwarded to backend POST /v1/generate-video. */
   videoTrimStart?: number
@@ -2871,6 +2876,8 @@ export async function generateVideo(
       seedance2InputMode: opts.seedance2InputMode,
       enableTranslation: opts.enableTranslation,
       loopTrim: opts.loopTrim,
+      frameFit: opts.frameFit,
+      frameDelivery: opts.frameDelivery,
       videoTrimStart: opts.videoTrimStart,
       videoTrimEnd: opts.videoTrimEnd,
     }
@@ -8801,6 +8808,7 @@ export async function batchExecutionEstimates(
 // ──────────────────────────────────────────────────────────────────────────
 
 import type { AdminDefault } from "@/lib/node-defaults"
+import type { FrameFit, FrameDelivery } from "@nodaro/shared"
 
 export async function fetchNodeDefaults(): Promise<AdminDefault[]> {
   const res = await fetch(`${API_BASE_URL}/v1/node-defaults`, {

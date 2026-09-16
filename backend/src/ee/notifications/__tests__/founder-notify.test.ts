@@ -23,6 +23,15 @@ vi.mock("@/ee/notifications/signup-product.js", () => ({
   signupProduct: vi.fn(async () => "app"),
   signupProductsFor: vi.fn(async () => new Map()),
 }))
+// Stream D and the Loops pull have their own suites; here they are inert.
+vi.mock("@/ee/notifications/welcome-offer-notify.js", () => ({
+  pollWelcomeOffer: vi.fn(async () => undefined),
+  welcomeLabelsFor: vi.fn(async () => new Map()),
+  countSubscribed: vi.fn(async () => "0"),
+}))
+vi.mock("@/ee/notifications/loops-unsubscribe-pull.js", () => ({
+  pullLoopsUnsubscribes: vi.fn(async () => null),
+}))
 // PUBLIC_URL drives the single-sender guard; default "" = this instance sends.
 vi.mock("@/lib/config.js", () => ({ config: { PUBLIC_URL: "" } }))
 
@@ -46,6 +55,7 @@ const CONFIG_ON = {
   digestHour: 8,
   milestonesEnabled: true,
   everySignupEnabled: false,
+  welcomeOfferEnabled: false,
   slackWebhookUrl: "https://hooks.slack.com/services/T0/B0/secret",
 }
 
