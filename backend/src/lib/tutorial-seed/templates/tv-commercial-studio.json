@@ -476,7 +476,8 @@
         "fieldMappings": {},
         "generateAudio": false,
         "negativePrompt": "",
-        "presentationOutput": false
+        "presentationOutput": false,
+        "duration": 4
       },
       "width": 600,
       "height": 338,
@@ -498,7 +499,8 @@
         "fieldMappings": {},
         "generateAudio": false,
         "negativePrompt": "",
-        "presentationOutput": false
+        "presentationOutput": false,
+        "duration": 4
       },
       "width": 600,
       "height": 338,
@@ -520,7 +522,8 @@
         "fieldMappings": {},
         "generateAudio": false,
         "negativePrompt": "",
-        "presentationOutput": false
+        "presentationOutput": false,
+        "duration": 4
       },
       "width": 600,
       "height": 338,

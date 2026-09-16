@@ -280,7 +280,8 @@
         "fieldMappings": {},
         "generateAudio": false,
         "negativePrompt": "",
-        "presentationOutput": true
+        "presentationOutput": true,
+        "duration": 8
       },
       "width": 560,
       "height": 996,
