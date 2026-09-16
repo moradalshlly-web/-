@@ -83,7 +83,10 @@ vi.mock("node:fs", async (importOriginal) => {
   }
 })
 
-vi.mock("../captions-mappers.js", () => ({
+vi.mock("../captions-mappers.js", async (importOriginal) => ({
+  // scribeWordsToCaptions stays REAL: its leading-space delimiter is the
+  // wire-contract detail the elevenlabs-stt assertions below pin.
+  ...(await importOriginal<typeof import("../captions-mappers.js")>()),
   fastWhisperWordsToCaptions: mocks.fastWhisperToCaptions,
   whisperWordsToCaptions: mocks.whisperToCaptions,
 }))
@@ -672,7 +675,8 @@ describe("transcribe — provider: elevenlabs-stt", () => {
 
     expect(result.words).toEqual([
       { text: "hi", startMs: 120, endMs: 500, timestampMs: null, confidence: null, speaker: "speaker_1" },
-      { text: "there", startMs: 550, endMs: 900, timestampMs: null, confidence: null, speaker: "speaker_2" },
+      // Leading space = the @remotion/captions word delimiter the overlays rely on.
+      { text: " there", startMs: 550, endMs: 900, timestampMs: null, confidence: null, speaker: "speaker_2" },
     ])
   })
 
