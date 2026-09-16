@@ -38,6 +38,7 @@ describe("getNotifyConfig", () => {
       { key: "notify_digest_hour", value: 20 },
       { key: "notify_milestones_enabled", value: false },
       { key: "notify_every_signup_enabled", value: true },
+      { key: "notify_welcome_offer_enabled", value: true },
       { key: "notify_slack_webhook_url", value: "  https://hooks.slack.com/services/x  " },
     ]
     const cfg = await getNotifyConfig()
@@ -45,6 +46,7 @@ describe("getNotifyConfig", () => {
     expect(cfg.digestHour).toBe(20)
     expect(cfg.milestonesEnabled).toBe(false)
     expect(cfg.everySignupEnabled).toBe(true)
+    expect(cfg.welcomeOfferEnabled).toBe(true)
     expect(cfg.slackWebhookUrl).toBe("https://hooks.slack.com/services/x")
   })
 

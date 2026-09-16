@@ -3,22 +3,29 @@ import { config } from "../../lib/config.js"
 import { getNotifyConfig, readNotifyState, writeNotifyState } from "./notify-config.js"
 import { sendSlack, type SlackMessage } from "./slack-client.js"
 import { signupProduct, signupProductsFor } from "./signup-product.js"
+import { israelParts, startOfIsraelDayUtc } from "./israel-time.js"
+import { pollWelcomeOffer, welcomeLabelsFor, countSubscribed } from "./welcome-offer-notify.js"
+import { pullLoopsUnsubscribes } from "./loops-unsubscribe-pull.js"
+
+export { israelParts, startOfIsraelDayUtc }
 
 /**
- * Internal founder notifications (Cloud-only). Three streams, all posting to one
+ * Internal founder notifications (Cloud-only). Four streams, all posting to one
  * admin-configured Slack webhook:
  *   A. Daily digest      — once/day at the configured Israel hour (poll below).
  *   B. Milestones        — paid convert / cancel via the Stripe handlers
  *                          (notify* exports); first generation via the poll.
  *   C. Every signup      — near-immediate (~poll interval), default OFF.
+ *   D. Welcome offer     — accepted / dismissed / unsubscribed, default OFF
+ *                          (welcome-offer-notify.ts), plus the daily Loops
+ *                          unsubscribe pull (loops-unsubscribe-pull.ts).
  *
  * Everything is dormant with no webhook set. Timezone is Asia/Jerusalem,
- * computed from the actual wall clock (DST-safe) — never a hand-rolled offset.
- * Internal accounts (role != 'user', @nodaro.ai) are excluded from the per-user
- * streams (C + the digest list) but stay in the totals.
+ * computed from the actual wall clock (DST-safe) — never a hand-rolled offset
+ * (israel-time.ts). Internal accounts (role != 'user', @nodaro.ai) are excluded
+ * from the per-user streams (C, D + the digest list) but stay in the totals.
  */
 
-const IL_TZ = "Asia/Jerusalem"
 const INTERNAL_EMAIL_LIKE = "%@nodaro.ai"
 const PAID_TIERS = ["basic", "standard", "pro", "business", "enterprise"]
 
@@ -45,35 +52,6 @@ export function isStandbySender(): boolean {
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean)
   return standby.includes(host)
-}
-
-// ---------------------------------------------------------------------------
-// Timezone (Asia/Jerusalem), DST-safe: derive everything from the wall clock.
-// ---------------------------------------------------------------------------
-export function israelParts(d: Date): { date: string; hour: number; secondsOfDay: number } {
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: IL_TZ,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  })
-  const p: Record<string, string> = {}
-  for (const part of fmt.formatToParts(d)) p[part.type] = part.value
-  const hour = Number(p.hour) % 24 // en-CA can render midnight as "24"
-  return {
-    date: `${p.year}-${p.month}-${p.day}`,
-    hour,
-    secondsOfDay: hour * 3600 + Number(p.minute) * 60 + Number(p.second),
-  }
-}
-
-/** UTC instant of the most recent Israel midnight at/before d. */
-export function startOfIsraelDayUtc(d: Date): Date {
-  return new Date(d.getTime() - israelParts(d).secondsOfDay * 1000)
 }
 
 async function post(msg: SlackMessage): Promise<boolean> {
@@ -140,6 +118,10 @@ export async function runFounderNotifyTick(): Promise<void> {
   const now = new Date()
   await pollEverySignup(now, cfg.everySignupEnabled)
   await pollFirstGenerations(now, cfg.milestonesEnabled)
+  await pollWelcomeOffer(now, cfg.welcomeOfferEnabled, post)
+  // The pull runs BEFORE the digest on purpose: an email-link unsubscribe found
+  // today is out of the "subscribed to email" total the same morning.
+  await pullLoopsUnsubscribes(now, cfg.welcomeOfferEnabled, cfg.digestHour)
   await maybeSendDigest(now, cfg.digestEnabled, cfg.digestHour)
 }
 
@@ -243,16 +225,27 @@ async function maybeSendDigest(now: Date, enabled: boolean, digestHour: number):
     }
 
     const ids = rows.map((r) => r.id)
-    const [products, ranSet, totals] = await Promise.all([signupProductsFor(ids), usersWhoRan(ids), computeTotals()])
+    const [products, ranSet, totals, welcome] = await Promise.all([
+      signupProductsFor(ids),
+      usersWhoRan(ids),
+      computeTotals(),
+      welcomeLabelsFor(ids),
+    ])
     const lines = rows.map(
-      (r) => `• ${r.email} — ${products.get(r.id) ?? "unknown"} — ${ranSet.has(r.id) ? "ran ✓" : "no run"}`,
+      (r) =>
+        `• ${r.email} — ${products.get(r.id) ?? "unknown"} — ${ranSet.has(r.id) ? "ran ✓" : "no run"} — welcome: ${welcome.get(r.id) ?? "?"}`,
     )
     const blocks: unknown[] = [
       { type: "header", text: { type: "plain_text", text: `Yesterday: ${rows.length} signup${rows.length === 1 ? "" : "s"}` } },
       ...chunkForSlackSections(lines).map((text) => ({ type: "section", text: { type: "mrkdwn", text } })),
       {
         type: "context",
-        elements: [{ type: "mrkdwn", text: `Totals: *${totals.total}* users · *${totals.paid}* paid` }],
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `Totals: *${totals.total}* users · *${totals.paid}* paid · *${totals.subscribed}* subscribed to email`,
+          },
+        ],
       },
     ]
     const ok = await post({ text: `Daily digest — ${rows.length} signup(s) yesterday`, blocks })
@@ -306,7 +299,7 @@ async function usersWhoRan(userIds: string[]): Promise<Set<string>> {
  *  (last_sign_in_at, unreachable through PostgREST's public-only schema) or a
  *  COUNT(DISTINCT user_id) over jobs (which PostgREST can't express) — either
  *  would want an RPC, and this feature ships without a migration on purpose. */
-async function computeTotals(): Promise<{ total: string; paid: string }> {
+async function computeTotals(): Promise<{ total: string; paid: string; subscribed: string }> {
   const countOf = async (build: () => PromiseLike<{ count: number | null; error: unknown }>): Promise<string> => {
     try {
       const { count, error } = await build()
@@ -315,9 +308,10 @@ async function computeTotals(): Promise<{ total: string; paid: string }> {
       return "?"
     }
   }
-  const [total, paid] = await Promise.all([
+  const [total, paid, subscribed] = await Promise.all([
     countOf(() => supabase.from("profiles").select("id", { count: "exact", head: true })),
     countOf(() => supabase.from("profiles").select("id", { count: "exact", head: true }).in("subscription_tier", PAID_TIERS)),
+    countSubscribed(),
   ])
-  return { total, paid }
+  return { total, paid, subscribed }
 }

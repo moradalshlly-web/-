@@ -84,6 +84,55 @@ export async function updateContact(
 }
 
 // ---------------------------------------------------------------------------
+// Contact lookup — the one READ. Loops is the only place an unsubscribe made
+// from the link inside an email is recorded, so the daily pull in
+// ee/notifications/loops-unsubscribe-pull.ts asks it, contact by contact.
+// ---------------------------------------------------------------------------
+
+export interface LoopsContactLookup extends LoopsResult {
+  /** `null` when Loops has no contact for the email (deleted there, or never pushed). */
+  contact: { email: string; subscribed: boolean } | null
+}
+
+/**
+ * Look a contact up by email. `{ ok: true, contact: null }` means Loops knows
+ * no such contact; `{ ok: false }` means we could not find out (key missing,
+ * timeout, HTTP error) — the caller must treat that as "unknown", never as
+ * "unsubscribed".
+ */
+export async function findContact(email: string): Promise<LoopsContactLookup> {
+  if (!isLoopsConfigured()) return { ok: false, error: "loops_not_configured", contact: null }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${LOOPS_API_BASE}/contacts/find?email=${encodeURIComponent(email)}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${config.LOOPS_API_KEY}` },
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => "")).slice(0, 300)
+      return { ok: false, status: res.status, error: detail || `http_${res.status}`, contact: null }
+    }
+    const body: unknown = await res.json().catch(() => null)
+    if (!Array.isArray(body)) return { ok: false, status: res.status, error: "loops_unexpected_body", contact: null }
+    const hit = body.find((c): c is { email?: unknown; subscribed?: unknown } => typeof c === "object" && c !== null)
+    if (!hit) return { ok: true, status: res.status, contact: null }
+    return {
+      ok: true,
+      status: res.status,
+      contact: { email: typeof hit.email === "string" ? hit.email : email, subscribed: hit.subscribed === true },
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "loops_request_failed"
+    return { ok: false, error: msg, contact: null }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Transactional send
 // ---------------------------------------------------------------------------
 

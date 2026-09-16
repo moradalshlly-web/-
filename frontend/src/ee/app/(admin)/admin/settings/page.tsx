@@ -83,6 +83,7 @@ export default function AdminSettingsPage() {
   const [notifyDigestHour, setNotifyDigestHour] = useState(8)
   const [notifyMilestonesEnabled, setNotifyMilestonesEnabled] = useState(true)
   const [notifyEverySignupEnabled, setNotifyEverySignupEnabled] = useState(false)
+  const [notifyWelcomeOfferEnabled, setNotifyWelcomeOfferEnabled] = useState(false)
   const [notifySlackWebhookUrl, setNotifySlackWebhookUrl] = useState("")
   const [adminMessagesDailyLimit, setAdminMessagesDailyLimit] = useState(50)
   // What the input shows while it is being edited. Kept as a string so the
@@ -118,6 +119,7 @@ export default function AdminSettingsPage() {
       setNotifyDigestHour(settings.notify_digest_hour ?? 8)
       setNotifyMilestonesEnabled(settings.notify_milestones_enabled ?? true)
       setNotifyEverySignupEnabled(settings.notify_every_signup_enabled ?? false)
+      setNotifyWelcomeOfferEnabled(settings.notify_welcome_offer_enabled ?? false)
       setNotifySlackWebhookUrl(settings.notify_slack_webhook_url ?? "")
       setAdminMessagesDailyLimit(settings.admin_messages_daily_limit ?? 50)
       setAdminMessagesLimitDraft(String(settings.admin_messages_daily_limit ?? 50))
@@ -192,6 +194,7 @@ export default function AdminSettingsPage() {
     if (notifyDigestHour !== (settings?.notify_digest_hour ?? 8)) updates.push({ key: "notify_digest_hour", value: notifyDigestHour })
     if (notifyMilestonesEnabled !== (settings?.notify_milestones_enabled ?? true)) updates.push({ key: "notify_milestones_enabled", value: notifyMilestonesEnabled })
     if (notifyEverySignupEnabled !== (settings?.notify_every_signup_enabled ?? false)) updates.push({ key: "notify_every_signup_enabled", value: notifyEverySignupEnabled })
+    if (notifyWelcomeOfferEnabled !== (settings?.notify_welcome_offer_enabled ?? false)) updates.push({ key: "notify_welcome_offer_enabled", value: notifyWelcomeOfferEnabled })
     // The webhook may legitimately be cleared to "" (turns notifications off), so
     // unlike consent_text this pushes even an empty value when it changed.
     if (notifySlackWebhookUrl.trim() !== (settings?.notify_slack_webhook_url ?? "")) updates.push({ key: "notify_slack_webhook_url", value: notifySlackWebhookUrl.trim() })
@@ -241,6 +244,7 @@ export default function AdminSettingsPage() {
     notifyDigestHour !== (settings.notify_digest_hour ?? 8) ||
     notifyMilestonesEnabled !== (settings.notify_milestones_enabled ?? true) ||
     notifyEverySignupEnabled !== (settings.notify_every_signup_enabled ?? false) ||
+    notifyWelcomeOfferEnabled !== (settings.notify_welcome_offer_enabled ?? false) ||
     notifySlackWebhookUrl.trim() !== (settings.notify_slack_webhook_url ?? "") ||
     adminMessagesDailyLimit !== (settings.admin_messages_daily_limit ?? 50)
   )
@@ -745,6 +749,18 @@ export default function AdminSettingsPage() {
               </p>
             </div>
             <Switch id="notify-every-signup" checked={notifyEverySignupEnabled} onCheckedChange={setNotifyEverySignupEnabled} />
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="pr-4">
+              <Label htmlFor="notify-welcome-offer">Welcome offer &amp; mailing list</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                A line when someone accepts the welcome credits (and how long after dismissing, if they came back),
+                dismisses the popup, declines, or unsubscribes. Also checks Loops once a day for unsubscribes made
+                from the email link and mirrors them here. Off by default.
+              </p>
+            </div>
+            <Switch id="notify-welcome-offer" checked={notifyWelcomeOfferEnabled} onCheckedChange={setNotifyWelcomeOfferEnabled} />
           </div>
 
           <div className="mt-4 flex items-center justify-between">
