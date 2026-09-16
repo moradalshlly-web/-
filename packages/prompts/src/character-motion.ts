@@ -16,7 +16,14 @@
  * Every non-empty `promptHint` references "the subject" at least once — the
  * composer does a global regex replace of "the subject" with the wired target's
  * display name. Two-person moves ALSO contain the literal words "the partner",
- * replaced with the wired partner's name, or "another person" when unwired.
+ * replaced with the wired partner's name on every occurrence. With nothing
+ * wired to the partner handle, the fallback "another person" INTRODUCES the
+ * referent at its first occurrence in THAT TARGET's clauses and every later
+ * occurrence of that target reads "that same person" — a hint that names the
+ * partner five times still describes one person, and a sequence of picks keeps
+ * that one person throughout. Multiple wired targets each perform a separate
+ * copy of the sequence, so each copy introduces its own partner rather than
+ * sharing one between two performers. See `referenceTo` in the composer.
  *
  * Multi-pick is an ORDERED SEQUENCE: value field accepts `string | string[]`
  * (cap 3), joined with ", then " in BOTH hint modes (a movement happens after
@@ -225,6 +232,29 @@ void _timingIdsStayNarrow
 // ---------------------------------------------------------------------------
 
 const PARTNER_FALLBACK = "another person"
+/** Last-resort recipient for a `counterpart` token whose entry authored no noun. */
+const COUNTERPART_FALLBACK = "the other participant"
+
+/**
+ * How an unwired partner / counterpart reads on its SECOND and later mention.
+ *
+ * Only an INDEFINITE noun phrase is rewritten. "another person" and "a horse"
+ * introduce a fresh referent every time they repeat, so a hint that mentions
+ * the partner five times would otherwise describe up to five different people.
+ * A DEFINITE phrase — "the held object", "the ducks", "the other participant" —
+ * already picks out one referent on every repetition, so it repeats verbatim:
+ * rewriting it would buy nothing and would mangle a plural ("that same ducks").
+ * That exemption is invisible on today's data (every counterpart noun mentioned
+ * more than once is indefinite) and exists so a future definite or plural noun
+ * cannot produce broken English here.
+ *
+ * A pronoun is deliberately NOT the fix: with two actors in the clause,
+ * "they" / "their" can attach to either one.
+ */
+function laterReferenceTo(phrase: string): string {
+  const indefinite = /^(?:another|an|a) (.+)$/.exec(phrase)
+  return indefinite ? `that same ${indefinite[1]}` : phrase
+}
 
 /** What the caller knows about the wired target. `subjectMinor: true` drops
  *  every `adultOnly` pick after the cap; otherwise the output is unchanged. */
@@ -238,9 +268,10 @@ export interface CharacterMotionFloor {
  * optional Position / Pace timing.
  *
  * Full mode: each hint has "the subject" rewritten to the target name(s) (only
- * when a target is wired) and "the partner" rewritten to the partner name (or
- * "another person" — ALWAYS, so the literal words "the partner" never ship);
- * both BEFORE the ", then " join. Compact mode: terms joined with ", then ",
+ * when a target is wired) and "the partner" rewritten to the partner name, or —
+ * when nothing is wired to that handle — to "another person" on that target's
+ * first mention and "that same person" after; ALWAYS, so the literal words
+ * "the partner" never ship. Both BEFORE the ", then " join. Compact mode: terms joined with ", then ",
  * prefixed `"{target}: "` when a target is wired. A term never contains "the
  * subject" (the prefix names the target) but a two-person term always contains
  * "the partner", which is substituted exactly as in full mode.
@@ -271,13 +302,49 @@ export function composeCharacterMotionHintFromConnections(
   const partnerClause = partnerHints.filter((h) => h && h.length > 0).join(" and ")
   const partnerName   = partnerClause || PARTNER_FALLBACK
 
+  /**
+   * One introduction PER TARGET. Within one target's clauses the partner handle
+   * names a single participant, so the first occurrence introduces it and every
+   * later occurrence refers back. The scope decisions, stated:
+   *  - ACROSS THE SEQUENCE (up to 3 picks): SHARED. Pick 2 reading "that same
+   *    person" refers to the person pick 1 introduced — one target doing two
+   *    moves does them to one partner.
+   *  - ACROSS MULTIPLE TARGETS: NOT SHARED. Each target performs a SEPARATE
+   *    COPY of the sequence — what the `multiple-targets` diagnostic promises —
+   *    so each copy introduces its own partner. Sharing one referent across the
+   *    "; separately, " clauses instead described one person being hugged,
+   *    dipped or bridal-carried by two people at once.
+   *  - COMPACT MODE: same rule, same scope, same helper. Its terms are shorter,
+   *    but a 3-pick compact sequence repeats the referent just as a full one
+   *    does, so it needs the same treatment.
+   *  - A WIRED NAME IS NEVER REWRITTEN: repeating "Theo" is already unambiguous,
+   *    which also keeps wired output byte-identical to the pre-fix composer.
+   * Each target's state is keyed by the resolved phrase rather than by one flag,
+   * because two picks can carry DIFFERENT counterpart nouns ("a dog", then
+   * "a horse") — two referents, each owed its own introduction.
+   *
+   * Call order is output order: `entries.map` runs in sequence order and, inside
+   * it, `targets.map` runs in the order those clauses are joined. A target's
+   * state therefore spans that target's picks and ignores the clauses of the
+   * other targets interleaved between them.
+   */
+  const introducedByTarget = new Map<string, Set<string>>()
+  const referenceTo = (target: string, phrase: string): string => {
+    if (partnerClause) return phrase
+    let introduced = introducedByTarget.get(target)
+    if (!introduced) introducedByTarget.set(target, (introduced = new Set<string>()))
+    if (introduced.has(phrase)) return laterReferenceTo(phrase)
+    introduced.add(phrase)
+    return phrase
+  }
+
   const substituted = entries.map(({ id, base }) => {
     // One pass with a callback: names are literal data, never replacement
     // syntax ($&, $`, $') or a second set of template tokens to reprocess.
     const substitute = (target: string) => base.replace(/\bthe (subject|partner|counterpart)\b/g, (token, role: string) => {
       if (role === "subject") return mode !== "compact" && target ? target : token
-      if (role === "partner") return partnerName
-      return partnerClause || getCharacterMotion(id)?.counterpart || "the other participant"
+      if (role === "partner") return referenceTo(target, partnerName)
+      return referenceTo(target, partnerClause || getCharacterMotion(id)?.counterpart || COUNTERPART_FALLBACK)
     })
     // Each actor receives a grammatical singular clause. Do not invent a
     // plural choreography or attach a singular verb to a joined name list.

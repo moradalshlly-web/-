@@ -685,7 +685,19 @@ export function useAdminSettings() {
         notify_digest_hour: (settings.notify_digest_hour as number | undefined) ?? 8,
         notify_milestones_enabled: (settings.notify_milestones_enabled as boolean | undefined) ?? true,
         notify_every_signup_enabled: (settings.notify_every_signup_enabled as boolean | undefined) ?? false,
+        // The settings page reads THIS hook, so every notify_* switch must be
+        // mapped here or it renders its default after every reload no matter
+        // what was saved (the welcome-offer switch did exactly that).
+        notify_welcome_offer_enabled: (settings.notify_welcome_offer_enabled as boolean | undefined) ?? false,
+        notify_credits_digest_enabled: (settings.notify_credits_digest_enabled as boolean | undefined) ?? true,
         notify_slack_webhook_url: (settings.notify_slack_webhook_url as string | undefined) ?? "",
+        // Same class of omission, higher stakes: the page seeds its per-service
+        // margin table from this key, so an unmapped value read as {} and the
+        // next save of ONE margin row overwrote every stored margin.
+        service_margin_percent: (settings.service_margin_percent && typeof settings.service_margin_percent === "object"
+          ? settings.service_margin_percent
+          : undefined) as AppSettings["service_margin_percent"],
+        admin_messages_daily_limit: (settings.admin_messages_daily_limit as number | undefined) ?? 50,
       }
     },
     enabled: hasAdmin(),

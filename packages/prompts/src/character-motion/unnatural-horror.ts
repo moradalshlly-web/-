@@ -19,7 +19,7 @@ export const UNNATURAL_HORROR_MOTIONS: ReadonlyArray<CharacterMotion> = [
   { "id": "claw-at-the-air", "label": "Claw at air", "category": "unnatural-horror", "description": "Hands rake at empty air near the face",
     "promptHint": "the subject raises both hands to face height and rakes the fingers through empty air in repeated grabbing sweeps, the elbows jerking and the hands closing on nothing each time", "term": "claws at the air" },
   { "id": "scratch-at-door", "label": "Scratch at door", "category": "unnatural-horror", "description": "Fingernails drag down a door in strokes",
-    "promptHint": "the subject presses both palms flat against the door in front of them and drags the fingernails down the surface in repeated strokes, the fingers curling tighter with each pass as the forehead leans against it", "term": "scratches at a door",
+    "promptHint": "the subject presses the fingertips of both hands against the door in front of them and drags the fingernails down the surface in repeated strokes, the fingers curling tighter with each pass as the forehead leans against it", "term": "scratches at a door",
     "requires": ["door"] },
   { "id": "roll-eyes-back", "label": "Roll eyes back", "category": "unnatural-horror", "description": "Eyes roll up until only the whites show",
     "promptHint": "the subject rolls both eyes upward until only the whites show, the lids staying open and the head drifting back a few degrees, then the pupils drop into place again", "term": "rolls the eyes back" },

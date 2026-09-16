@@ -6,11 +6,13 @@ import { signupProduct, signupProductsFor } from "./signup-product.js"
 import { israelParts, startOfIsraelDayUtc } from "./israel-time.js"
 import { pollWelcomeOffer, welcomeLabelsFor, countSubscribed } from "./welcome-offer-notify.js"
 import { pullLoopsUnsubscribes } from "./loops-unsubscribe-pull.js"
+import { maybeSendCreditsDigest } from "./credits-digest.js"
+import { sectionBlocks } from "./slack-blocks.js"
 
 export { israelParts, startOfIsraelDayUtc }
 
 /**
- * Internal founder notifications (Cloud-only). Four streams, all posting to one
+ * Internal founder notifications (Cloud-only). Five streams, all posting to one
  * admin-configured Slack webhook:
  *   A. Daily digest      — once/day at the configured Israel hour (poll below).
  *   B. Milestones        — paid convert / cancel via the Stripe handlers
@@ -19,6 +21,9 @@ export { israelParts, startOfIsraelDayUtc }
  *   D. Welcome offer     — accepted / dismissed / unsubscribed, default OFF
  *                          (welcome-offer-notify.ts), plus the daily Loops
  *                          unsubscribe pull (loops-unsubscribe-pull.ts).
+ *   E. Credits digest    — once/day, same hour as A: yesterday's committed
+ *                          credits per user with what they cost us in USD,
+ *                          plus the KIE.ai balance movement (credits-digest.ts).
  *
  * Everything is dormant with no webhook set. Timezone is Asia/Jerusalem,
  * computed from the actual wall clock (DST-safe) — never a hand-rolled offset
@@ -111,18 +116,35 @@ export async function notifyCancellation(
 // `now` at the start and advance cursors to it, so a row written mid-run can't
 // slip between "not in the result yet" and "cursor already past it".
 // ---------------------------------------------------------------------------
-export async function runFounderNotifyTick(): Promise<void> {
+// node-cron does not serialize async callbacks: a tick that outlives the
+// 5-minute interval (a long digest walk, a slow Slack POST) would overlap the
+// next one, which then passes the same read-then-write date gates and sends
+// the digests twice. One sender per process is already guaranteed by
+// isStandbySender(), so an in-process latch is the whole fix — with an age
+// limit: supabase-js calls carry no timeout, and a tick parked forever on one
+// must not mute every stream until the next deploy. A legitimate walk never
+// approaches the limit; a rare double digest beats permanent silence.
+let tickStartedAt: number | null = null
+export const TICK_LATCH_MAX_MS = 15 * 60_000
+
+export async function runFounderNotifyTick(now: Date = new Date()): Promise<void> {
+  if (tickStartedAt !== null && now.getTime() - tickStartedAt < TICK_LATCH_MAX_MS) return
   if (isStandbySender()) return // staging shares prod's DB — prod is the sole sender/cursor-owner
-  const cfg = await getNotifyConfig()
-  if (!cfg.slackWebhookUrl) return // nothing configured — fully dormant
-  const now = new Date()
-  await pollEverySignup(now, cfg.everySignupEnabled)
-  await pollFirstGenerations(now, cfg.milestonesEnabled)
-  await pollWelcomeOffer(now, cfg.welcomeOfferEnabled, post)
-  // The pull runs BEFORE the digest on purpose: an email-link unsubscribe found
-  // today is out of the "subscribed to email" total the same morning.
-  await pullLoopsUnsubscribes(now, cfg.welcomeOfferEnabled, cfg.digestHour)
-  await maybeSendDigest(now, cfg.digestEnabled, cfg.digestHour)
+  tickStartedAt = now.getTime()
+  try {
+    const cfg = await getNotifyConfig()
+    if (!cfg.slackWebhookUrl) return // nothing configured — fully dormant
+    await pollEverySignup(now, cfg.everySignupEnabled)
+    await pollFirstGenerations(now, cfg.milestonesEnabled)
+    await pollWelcomeOffer(now, cfg.welcomeOfferEnabled, post)
+    // The pull runs BEFORE the digest on purpose: an email-link unsubscribe found
+    // today is out of the "subscribed to email" total the same morning.
+    await pullLoopsUnsubscribes(now, cfg.welcomeOfferEnabled, cfg.digestHour)
+    await maybeSendDigest(now, cfg.digestEnabled, cfg.digestHour)
+    await maybeSendCreditsDigest(now, cfg.creditsDigestEnabled, cfg.digestHour, post)
+  } finally {
+    tickStartedAt = null
+  }
 }
 
 // C. Every signup. Cursor advances every tick regardless of `enabled`, so
@@ -237,7 +259,7 @@ async function maybeSendDigest(now: Date, enabled: boolean, digestHour: number):
     )
     const blocks: unknown[] = [
       { type: "header", text: { type: "plain_text", text: `Yesterday: ${rows.length} signup${rows.length === 1 ? "" : "s"}` } },
-      ...chunkForSlackSections(lines).map((text) => ({ type: "section", text: { type: "mrkdwn", text } })),
+      ...sectionBlocks(lines),
       {
         type: "context",
         elements: [
@@ -253,37 +275,6 @@ async function maybeSendDigest(now: Date, enabled: boolean, digestHour: number):
   } catch {
     /* best-effort */
   }
-}
-
-// Slack caps a section's text at 3000 chars and a message at 50 blocks. On a
-// high-signup day one joined list would blow the first cap (→ 400 → the digest
-// retries every tick and never sends), so pack lines into multiple sections
-// within budget and fold any overflow past the block cap into a "…and N more".
-const SLACK_SECTION_MAX = 2900
-const MAX_DIGEST_SECTIONS = 45
-
-function chunkForSlackSections(lines: string[]): string[] {
-  const chunks: string[] = []
-  let cur: string[] = []
-  let curLen = 0
-  for (const line of lines) {
-    const addLen = curLen === 0 ? line.length : curLen + 1 + line.length
-    if (addLen > SLACK_SECTION_MAX && cur.length > 0) {
-      chunks.push(cur.join("\n"))
-      cur = []
-      curLen = 0
-    }
-    cur.push(line)
-    curLen = curLen === 0 ? line.length : curLen + 1 + line.length
-  }
-  if (cur.length > 0) chunks.push(cur.join("\n"))
-  if (chunks.length > MAX_DIGEST_SECTIONS) {
-    const kept = chunks.slice(0, MAX_DIGEST_SECTIONS - 1)
-    const droppedLines = chunks.slice(MAX_DIGEST_SECTIONS - 1).reduce((n, c) => n + c.split("\n").length, 0)
-    kept.push(`…and ${droppedLines} more`)
-    return kept
-  }
-  return chunks
 }
 
 async function usersWhoRan(userIds: string[]): Promise<Set<string>> {

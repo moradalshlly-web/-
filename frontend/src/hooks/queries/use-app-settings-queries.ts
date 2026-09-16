@@ -35,6 +35,7 @@ export interface AppSettings {
   readonly notify_milestones_enabled?: boolean
   readonly notify_every_signup_enabled?: boolean
   readonly notify_welcome_offer_enabled?: boolean
+  readonly notify_credits_digest_enabled?: boolean
   readonly notify_slack_webhook_url?: string
   /** Admin -> user email: sends allowed per admin per UTC day (Cloud-only). */
   readonly admin_messages_daily_limit?: number
@@ -86,6 +87,7 @@ async function fetchAppSettings(): Promise<AppSettings> {
     notify_milestones_enabled: (settings.notify_milestones_enabled as boolean | undefined) ?? true,
     notify_every_signup_enabled: (settings.notify_every_signup_enabled as boolean | undefined) ?? false,
     notify_welcome_offer_enabled: (settings.notify_welcome_offer_enabled as boolean | undefined) ?? false,
+    notify_credits_digest_enabled: (settings.notify_credits_digest_enabled as boolean | undefined) ?? true,
     notify_slack_webhook_url: (settings.notify_slack_webhook_url as string | undefined) ?? "",
     admin_messages_daily_limit: (settings.admin_messages_daily_limit as number | undefined) ?? 50,
   }

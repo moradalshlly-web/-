@@ -8,6 +8,7 @@ import { creditUnits, creditUnitLabel } from "@/lib/credit-units"
 import { lazyWithRetry } from "@/lib/lazy-with-retry"
 import { ImageIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { ClampedNumberInput } from "@/components/ui/clamped-number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -4098,16 +4099,16 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
             className="flex-1 h-1.5 rounded-lg cursor-pointer accent-[#ff0073]"
             aria-label={t("field.durationSeconds")}
           />
-          <Input
-            type="number"
+          {/* Commits on blur / Enter. Clamping per keystroke made any two-digit
+              length untypeable: "12" starts as "1", which snapped to 4 before
+              the "2" could land (reported 2026-09-16). */}
+          <ClampedNumberInput
             min={4}
             max={maxDuration}
+            step={1}
             value={duration}
-            onChange={(e) => {
-              if (e.target.value === "") return
-              const parsed = parseInt(e.target.value, 10)
-              if (Number.isNaN(parsed)) return
-              onUpdate({ duration: Math.min(maxDuration, Math.max(4, parsed)) })
+            onCommit={(n) => {
+              if (n !== undefined) onUpdate({ duration: n })
             }}
             className="w-16 h-7 text-xs shrink-0"
           />
@@ -4382,20 +4383,15 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
         <label htmlFor="gvp-preferredSegmentSec" className="text-xs shrink-0">
           {t("vidcfg.preferredSegmentLength")}
         </label>
-        <Input
+        <ClampedNumberInput
           id="gvp-preferredSegmentSec"
-          type="number"
           min={4}
           max={15}
           step={1}
+          allowEmpty
           placeholder={t("vidcfg.phAutoLower")}
-          value={data.preferredSegmentSec ?? ""}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v === "") return onUpdate({ preferredSegmentSec: undefined })
-            const n = Math.round(Number(v))
-            if (Number.isFinite(n)) onUpdate({ preferredSegmentSec: Math.min(15, Math.max(4, n)) })
-          }}
+          value={data.preferredSegmentSec}
+          onCommit={(n) => onUpdate({ preferredSegmentSec: n })}
           className="h-7 w-20 text-xs"
         />
         <span className="text-[11px] text-muted-foreground">
@@ -4482,17 +4478,15 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
               <Label htmlFor="gvp-smartCutFramesPrev" className="text-[11px] font-normal text-muted-foreground">
                 {t("vidcfg.fromPreviousEnd")}
               </Label>
-              <Input
+              <ClampedNumberInput
                 id="gvp-smartCutFramesPrev"
-                type="number"
                 min={SMART_CUT_WINDOW_MIN}
                 max={SMART_CUT_WINDOW_MAX}
                 step={1}
+                allowEmpty
                 placeholder={String(SMART_CUT_WINDOW_DEFAULT)}
-                value={data.smartCutFramesPrev ?? ""}
-                onChange={(e) =>
-                  onUpdate({ smartCutFramesPrev: e.target.value === "" ? undefined : clampSmartCutWindow(Number(e.target.value)) })
-                }
+                value={data.smartCutFramesPrev}
+                onCommit={(n) => onUpdate({ smartCutFramesPrev: n === undefined ? undefined : clampSmartCutWindow(n) })}
                 className="h-9 text-sm"
               />
             </div>
@@ -4500,17 +4494,15 @@ function GenerateVideoProConfigImpl({ data, onUpdate, sources, fieldMappings, on
               <Label htmlFor="gvp-smartCutFramesNext" className="text-[11px] font-normal text-muted-foreground">
                 {t("vidcfg.fromNextStart")}
               </Label>
-              <Input
+              <ClampedNumberInput
                 id="gvp-smartCutFramesNext"
-                type="number"
                 min={SMART_CUT_WINDOW_MIN}
                 max={SMART_CUT_WINDOW_MAX}
                 step={1}
+                allowEmpty
                 placeholder={String(SMART_CUT_WINDOW_DEFAULT)}
-                value={data.smartCutFramesNext ?? ""}
-                onChange={(e) =>
-                  onUpdate({ smartCutFramesNext: e.target.value === "" ? undefined : clampSmartCutWindow(Number(e.target.value)) })
-                }
+                value={data.smartCutFramesNext}
+                onCommit={(n) => onUpdate({ smartCutFramesNext: n === undefined ? undefined : clampSmartCutWindow(n) })}
                 className="h-9 text-sm"
               />
             </div>
