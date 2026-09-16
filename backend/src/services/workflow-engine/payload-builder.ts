@@ -1977,10 +1977,10 @@ function hasConnectedStyleNode(
 /**
  * Walk the `cinematography` target handle's incoming edges on a consumer node
  * and aggregate one prompt-hint string per connected source. Graph-composed
- * sources (`EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`: camera-motion's
- * startState/endState walk, character-motion's target/partner names) are
- * dispatched WITH the graph; all other parameter nodes dispatch through
- * `getNodePromptHint`.
+ * sources (`EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`: camera-motion's and
+ * transition's startState/endState walk, character-motion's target/partner
+ * names, character-fx's target name) are dispatched WITH the graph; all other
+ * parameter nodes dispatch through `getNodePromptHint`.
  *
  * Mirror of the frontend executor (execute-node.ts:collectCinematographyHints).
  */
@@ -2033,8 +2033,9 @@ function collectCinematographyHints(
 
     if (EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES.has(srcNode.type ?? "")) {
       // Shared getParameterPromptHint WITH graph context (mirror of the editor):
-      // camera-motion walks start/end states, character-motion reads target /
-      // partner names; preText/postText are applied by withCustomText. (The old
+      // camera-motion and transition walk start/end states, character-motion
+      // reads target / partner names, character-fx substitutes its target's
+      // name; preText/postText are applied by withCustomText. (The old
       // composeCameraMotionHintForNode bypassed custom text and dropped
       // everything when no motion was set.)
       const composed = getParameterPromptHint(srcNode, { nodes, edges })

@@ -154,7 +154,19 @@ describe("VIDEO_ONLY_PARAMETER_NODE_TYPES", () => {
 
 describe("EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES", () => {
   it("names the pickers whose fragment needs the graph at execution", () => {
-    expect([...EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES].sort()).toEqual(["camera-motion", "character-motion"])
+    // Transition and character-fx joined camera-motion and character-motion in
+    // the signed-off "compose from the graph on every path" change: they always
+    // composed in the config-panel preview, on the canvas card and on the
+    // frontend `{Label}` path, and now do so on both cinematography collectors
+    // too. Unwired pickers are byte-identical either way — proved entry-by-entry
+    // in packages/prompts/src/__tests__/graph-composed-unwired-identity.test.ts.
+    expect([...EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES].sort()).toEqual(
+      ["camera-motion", "character-fx", "character-motion", "transition"],
+    )
+  })
+
+  it("every member is a real parameter node type", () => {
+    for (const t of EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES) expect(PARAMETER_NODE_TYPES.has(t), t).toBe(true)
   })
 })
 
