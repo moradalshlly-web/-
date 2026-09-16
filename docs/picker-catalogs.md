@@ -201,3 +201,7 @@ Picker `icon`/thumbnails are **not** shipped — the editor's previews are bespo
 | `PICKER_CATALOGS` / `getPickerCatalog` / `listPickerCatalogs` | The registry. |
 
 See also: [SDK Quickstart](./sdk-quickstart.md) · [SDK Reference](./sdk-reference.md) · [Embed App Guide](./embed-app-guide.md)
+
+### Character Motion metadata
+
+Character Motion catalog options include optional `motion` metadata at both compact and full detail. It carries authored `requires`, `startPose`/`endPose`, `endVisibility`, `handsAfter`, `needsFreeHands`, `kind`, `fixedPace`, `counterpart`, search `aliases`, and `deprecated`/`replacementId`. Missing fields mean unknown. Preserve retired IDs when loading saved workflows; hide them from new choices. See [Character Motion](nodes/parameters/character-motion.md) for composition, naming, review and advisory-diagnostic behavior. `client.pickerCatalogs.get("character-motion")` exposes this as `PickerOption.motion`; the structural type is `CharacterMotionMetadata` from `@nodaro/shared`.

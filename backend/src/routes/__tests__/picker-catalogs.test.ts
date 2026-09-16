@@ -47,3 +47,11 @@ describe("GET /v1/picker-catalogs", () => {
     expect(res.json().error.code).toBe("validation_error")
   })
 })
+
+  it.each(["compact", "full"])("preserves motion requirements at %s detail", async detail => {
+    const res = await app.inject({ method: "GET", url: `/v1/picker-catalogs/character-motion?detail=${detail}` })
+    expect(res.statusCode).toBe(200)
+    const motion = res.json().data.options.find((entry: { id: string }) => entry.id === "sun-salutation")
+    expect(motion.motion.kind).toBe("compound")
+    expect(motion.motion.requires).toContain("floor space")
+  })

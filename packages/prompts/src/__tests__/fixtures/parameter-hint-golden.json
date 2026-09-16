@@ -658,17 +658,17 @@
       "expected": "the subject lets the jaw fall open under its own weight until the mouth hangs wide and slack, the lips loose and the tongue still, holding it open while the rest of the face stays blank"
     },
     {
-      "key": "character-motion/id:rise-after-knockdown",
+      "key": "character-motion/id:sprint-start",
       "note": "single-dim catalog id",
       "node": {
         "id": "n1",
         "type": "character-motion",
         "data": {
-          "characterMotion": "rise-after-knockdown"
+          "characterMotion": "sprint-start"
         }
       },
       "ctx": null,
-      "expected": "the subject pushes up from the ground onto one knee, plants a hand and rises to standing, shakes the head clear and raises both fists back into guard"
+      "expected": "the subject crouches in starting blocks with fingertips on the line, raises the pelvis into the set position, then drives forward off the front foot in a low lean and accelerates into full stride"
     },
     {
       "key": "character-motion/multi-pick",

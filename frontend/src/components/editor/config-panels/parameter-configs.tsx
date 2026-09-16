@@ -1,5 +1,7 @@
 "use client"
 
+import { CharacterMotionDiagnostics } from "./character-motion-diagnostics"
+
 import { useT, tx } from "@/lib/i18n"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -1496,6 +1498,7 @@ export function CharacterMotionConfig({ data, onUpdate }: ConfigProps<CharacterM
     <div className="flex flex-col gap-3" dir={dir}>
       <LocaleHeader />
       <PromptInjectionPreview hints={[data.preText, composed, data.postText]} />
+      <CharacterMotionDiagnostics data={data} />
       <CustomTextRows
         idPrefix="character-motion"
         preText={data.preText}
