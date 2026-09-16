@@ -71,6 +71,21 @@ describe("useWorkflowStore", () => {
   })
 
   describe("addNode", () => {
+    it("creates Video Pro with the selected defaults while keeping explicit overrides", () => {
+      useWorkflowStore.getState().addNode("generate-video-pro", { x: 0, y: 0 })
+      expect(useWorkflowStore.getState().nodes[0].data).toMatchObject({
+        segmentMode: "max", renderMethod: "keyframes", anchorMode: "start-only",
+        plannerModel: "claude-fable-5", plannerMode: "auto",
+        rollingRefs: true, audioTail: true, overlapAnchor: true,
+        overlapAnchorMode: "last-frame", smartCutMode: "legacy-8x8",
+        smartCutFramesPrev: 8, smartCutFramesNext: 8, injectLook: true, injectElements: true,
+      })
+      useWorkflowStore.getState().addNode("generate-video-pro", { x: 100, y: 0 }, { renderMethod: "extend", plannerMode: "hybrid-max" })
+      expect(useWorkflowStore.getState().nodes[1].data).toMatchObject({
+        renderMethod: "extend", plannerMode: "hybrid-max",
+      })
+    })
+
     it("adds a text-prompt node", () => {
       useWorkflowStore.getState().addNode("text-prompt", { x: 100, y: 200 })
 

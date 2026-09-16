@@ -4016,6 +4016,7 @@ export const en = {
   "vidcfg.splitHybridMax": "Hybrid Max — Hybrid Plus, no compression, keeps every analysis detail (experimental)",
   "vidcfg.overlapKeyframe": "Last keyframe — re-enact the overlap, then continue",
   "vidcfg.overlapLastFrame": "Last frame — continue from the very end",
+  "vidcfg.smartCutContinuousKeyframes": "Matches continuous shots only; intentional cuts stay intact. If no close match is found, no frames are trimmed. A successful match may shorten the join slightly.",
   "vidcfg.smartCut": "Smart cut (experimental)",
   "vidcfg.cutBestPair": "Best pair — PSNR match the boundary (default)",
   "vidcfg.cutPrerollKeepNext": "Pre-roll keep-next — hide the seam in the overlap",
