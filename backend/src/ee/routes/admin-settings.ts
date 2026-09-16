@@ -264,7 +264,8 @@ export async function adminSettingsRoutes(app: FastifyInstance) {
       key === "notify_digest_enabled" ||
       key === "notify_milestones_enabled" ||
       key === "notify_every_signup_enabled" ||
-      key === "notify_welcome_offer_enabled"
+      key === "notify_welcome_offer_enabled" ||
+      key === "notify_credits_digest_enabled"
     ) {
       if (typeof value !== "boolean") {
         return reply.status(400).send({

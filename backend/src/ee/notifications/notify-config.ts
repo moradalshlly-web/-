@@ -16,6 +16,8 @@ export interface NotifyConfig {
   everySignupEnabled: boolean
   /** Welcome-offer events (accepted / dismissed / unsubscribed) + the daily Loops unsubscribe pull. */
   welcomeOfferEnabled: boolean
+  /** Daily credits digest (per-user committed credits + USD cost + KIE balance movement), sent at `digestHour`. */
+  creditsDigestEnabled: boolean
   /** Slack incoming-webhook URL (the routing target). Empty = notifications off. */
   slackWebhookUrl: string
 }
@@ -26,6 +28,7 @@ export const NOTIFY_CONFIG_DEFAULTS: NotifyConfig = {
   milestonesEnabled: true,
   everySignupEnabled: false,
   welcomeOfferEnabled: false,
+  creditsDigestEnabled: true,
   slackWebhookUrl: "",
 }
 
@@ -40,6 +43,7 @@ const CONFIG_KEYS = [
   "notify_milestones_enabled",
   "notify_every_signup_enabled",
   "notify_welcome_offer_enabled",
+  "notify_credits_digest_enabled",
   "notify_slack_webhook_url",
 ] as const
 
@@ -85,6 +89,9 @@ async function refresh(): Promise<NotifyConfig> {
       case "notify_welcome_offer_enabled":
         if (typeof v === "boolean") cfg.welcomeOfferEnabled = v
         break
+      case "notify_credits_digest_enabled":
+        if (typeof v === "boolean") cfg.creditsDigestEnabled = v
+        break
       case "notify_slack_webhook_url":
         if (typeof v === "string") cfg.slackWebhookUrl = v.trim()
         break
@@ -111,6 +118,7 @@ export type NotifyStateKey =
   | "notify_firstgen_cursor"
   | "notify_welcome_cursor"
   | "notify_last_digest_date"
+  | "notify_last_credits_digest_date"
   | "notify_last_loops_pull_date"
 
 export async function readNotifyState(key: NotifyStateKey): Promise<string | null> {
