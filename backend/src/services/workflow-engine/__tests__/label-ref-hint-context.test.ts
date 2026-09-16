@@ -15,7 +15,12 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, PARAMETER_NODE_TYPES } from "@nodaro/shared"
-import { getParameterPromptHint, composeCameraMotionHintFromConnections } from "@nodaro/prompts"
+import {
+  getParameterPromptHint,
+  composeCameraMotionHintFromConnections,
+  composeTransitionHintFromConnections,
+  composeCharacterFxHintFromConnections,
+} from "@nodaro/prompts"
 import { LABEL_REF_GRAPH_COMPOSED_PARAMETER_TYPES, labelRefHintContext } from "../label-ref-hint-context.js"
 import { buildPayload } from "../payload-builder.js"
 import type { SimpleNode, SimpleEdge } from "../types.js"
@@ -58,10 +63,19 @@ describe("labelRefHintContext", () => {
     expect(getParameterPromptHint(cam, ctx)).not.toBe(getParameterPromptHint(cam))
   })
 
-  it.each(["transition", "character-fx", "mood", "character", ""])(
+  it.each(["mood", "character", "framing", ""])(
     "gives %s no graph (its server {Label} text stays context-free)",
     (type) => {
       expect(labelRefHintContext(node("x", type), nodes, edges)).toBeUndefined()
+    },
+  )
+
+  it.each(["transition", "character-fx"])(
+    "hands %s the graph too (it joined the set in the signed-off change)",
+    (type) => {
+      const ctx = labelRefHintContext(node("x", type), nodes, edges)
+      expect(ctx?.nodes).toBe(nodes)
+      expect(ctx?.edges).toBe(edges)
     },
   )
 
@@ -70,8 +84,17 @@ describe("labelRefHintContext", () => {
     expect(labelRefHintContext(undefined, nodes, edges)).toBeUndefined()
   })
 
-  it("is exactly {camera-motion, character-motion}: widening it changes existing workflows' prompts and needs sign-off", () => {
-    expect([...LABEL_REF_GRAPH_COMPOSED_PARAMETER_TYPES].sort()).toEqual(["camera-motion", "character-motion"])
+  it("is exactly {camera-motion, character-fx, character-motion, transition}: widening it changes existing workflows' prompts and needs sign-off", () => {
+    // Transition and character-fx were admitted deliberately (signed off): they
+    // already composed from the graph in the config-panel preview, on the canvas
+    // card and on the frontend `{Label}` path, so the server was the last
+    // surface dropping a wired startState / endState / target. The bound Tal
+    // accepted — an UNWIRED picker is byte-identical either way — is proved
+    // entry-by-entry in
+    // packages/prompts/src/__tests__/graph-composed-unwired-identity.test.ts.
+    expect([...LABEL_REF_GRAPH_COMPOSED_PARAMETER_TYPES].sort()).toEqual(
+      ["camera-motion", "character-fx", "character-motion", "transition"],
+    )
   })
 
   it("is a subset of the execution-path graph-composed set and of the parameter types", () => {
@@ -126,8 +149,25 @@ describe("camera-motion server {Label} text composes from the graph", () => {
   })
 })
 
-describe("transition + character-fx server {Label} text is still context-free (pin)", () => {
-  it("transition: a wired startState does NOT reach its {Label} text", () => {
+/**
+ * The behaviour that FLIPPED. Both server paths a picker's text can reach a
+ * prompt by are covered, because they are reached differently:
+ *
+ *  - `{Label}`: the consumer's prompt names the picker. Naming it ALSO
+ *    suppresses the cinematography auto-inject (no double-injection), so the
+ *    ref-map / pre-completion path is the only thing that can put text in the
+ *    prompt — which is exactly what makes it a clean probe of that path.
+ *  - DIRECT WIRE: the picker feeds the consumer's `cinematography` handle and
+ *    the prompt does NOT name it, so `collectCinematographyHints` fires. That
+ *    path reads `EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`, not the label set.
+ *
+ * Expected text is always derived from the catalog composer the picker itself
+ * dispatches to — never a hand-written sentence — so catalog copy can change
+ * without touching this file, and the test really cross-checks the walker in
+ * `resolveParameterHint` against the composer.
+ */
+describe("transition + character-fx server text composes from the graph", () => {
+  it("transition {Label}: a wired startState now reaches its text", () => {
     const s2v = node("s2v", "speech-to-video", {
       prompt: "a man walks forward, {Cut}",
       imageUrl: "https://example.com/a.png",
@@ -143,12 +183,24 @@ describe("transition + character-fx server {Label} text is still context-free (p
     expect(contextFree).not.toBe("")
     expect(composed).not.toBe(contextFree)
 
+    const expected = composeTransitionHintFromConnections(
+      "cross-dissolve",
+      [getParameterPromptHint(tone)],
+      [],
+    )
+    expect(composed).toBe(expected)
+
     const prompt = buildPayload(s2v, "job-2", {}, undefined, { nodes, edges, nodeStates: {} }).payload.prompt as string
-    expect(prompt).toContain(contextFree)
-    expect(prompt).not.toContain(composed)
+    expect(prompt).toContain(expected)
+    // `contextFree` is a PREFIX of `composed` for transition (the start/end
+    // clauses are appended), so asserting it discriminates nothing — the added
+    // clause is what flipped, and it is sliced off the composer's own output.
+    const addedClause = expected.slice(contextFree.length)
+    expect(addedClause.trim()).not.toBe("")
+    expect(prompt).toContain(addedClause)
   })
 
-  it("character-fx: a wired target ref does NOT reach its {Label} text", () => {
+  it("character-fx {Label}: a wired target ref now reaches its text", () => {
     const s2v = node("s2v", "speech-to-video", {
       prompt: "a man walks forward, {FX}",
       imageUrl: "https://example.com/a.png",
@@ -164,9 +216,101 @@ describe("transition + character-fx server {Label} text is still context-free (p
     expect(contextFree).not.toBe("")
     expect(composed).not.toBe(contextFree)
 
+    const expected = composeCharacterFxHintFromConnections("werewolf", ["Mira"])
+    expect(composed).toBe(expected)
+
     const prompt = buildPayload(s2v, "job-3", {}, undefined, { nodes, edges, nodeStates: {} }).payload.prompt as string
-    expect(prompt).toContain(contextFree)
-    expect(prompt).not.toContain(composed)
+    expect(prompt).toContain(expected)
+    // Character FX substitutes the wired name INTO the sentence ("the subject"
+    // → "Mira"), so the old context-free string is not a prefix — it must be
+    // gone from the prompt entirely.
+    expect(prompt).not.toContain(contextFree)
+  })
+
+  it("transition DIRECT WIRE: the cinematography collector composes the start/end clauses", () => {
+    // No `{Cut}` in the prompt: the label-ref suppression does not apply, so
+    // this exercises collectCinematographyHints / the execution set, not the
+    // label set.
+    const s2v = node("s2v", "speech-to-video", {
+      prompt: "a man walks forward",
+      imageUrl: "https://example.com/a.png",
+      audioUrl: "https://example.com/a.mp3",
+    })
+    const tone = node("tone", "tone", { label: "Tone", tone: "warm golden morning light" })
+    const dusk = node("dusk", "tone", { label: "Dusk", tone: "cold blue dusk" })
+    const cut = node("cut", "transition", { label: "Cut", transition: "cross-dissolve" })
+    const nodes = [s2v, tone, dusk, cut]
+    const edges = [
+      edge("tone", "cut", "startState"),
+      edge("dusk", "cut", "endState"),
+      edge("cut", "s2v", "cinematography"),
+    ]
+
+    const contextFree = getParameterPromptHint(cut)
+    const expected = composeTransitionHintFromConnections(
+      "cross-dissolve",
+      [getParameterPromptHint(tone)],
+      [getParameterPromptHint(dusk)],
+    )
+    expect(expected).not.toBe(contextFree)
+
+    const prompt = buildPayload(s2v, "job-4", {}, undefined, { nodes, edges, nodeStates: {} }).payload.prompt as string
+    expect(prompt).toContain(expected)
+    const addedClause = expected.slice(contextFree.length)
+    expect(addedClause.trim()).not.toBe("")
+    expect(prompt).toContain(addedClause)
+  })
+
+  it("character-fx DIRECT WIRE: the cinematography collector substitutes the target's name", () => {
+    const s2v = node("s2v", "speech-to-video", {
+      prompt: "a man walks forward",
+      imageUrl: "https://example.com/a.png",
+      audioUrl: "https://example.com/a.mp3",
+    })
+    const mira = node("mira", "character", { label: "Mira", characterName: "Mira" })
+    const fx = node("fx", "character-fx", { label: "FX", characterFx: "werewolf" })
+    const nodes = [s2v, mira, fx]
+    const edges = [edge("mira", "fx", "target"), edge("fx", "s2v", "cinematography")]
+
+    const contextFree = getParameterPromptHint(fx)
+    const expected = composeCharacterFxHintFromConnections("werewolf", ["Mira"])
+    expect(expected).not.toBe(contextFree)
+
+    const prompt = buildPayload(s2v, "job-5", {}, undefined, { nodes, edges, nodeStates: {} }).payload.prompt as string
+    expect(prompt).toContain(expected)
+    expect(prompt).not.toContain(contextFree)
+  })
+
+  it("UNWIRED is untouched: nothing on the picker's handles → the prompt is byte-identical to the context-free text", () => {
+    // The bound Tal signed off on, at the level of a real payload. The
+    // exhaustive per-entry version lives in the prompts package
+    // (graph-composed-unwired-identity.test.ts); this is the payload-level
+    // sanity check that the collector does not add anything of its own.
+    const mk = (pickerType: string, pickerData: Record<string, unknown>) => {
+      const s2v = node("s2v", "speech-to-video", {
+        prompt: "a man walks forward",
+        imageUrl: "https://example.com/a.png",
+        audioUrl: "https://example.com/a.mp3",
+      })
+      const picker = node("p", pickerType, pickerData)
+      const nodes = [s2v, picker]
+      const edges = [edge("p", "s2v", "cinematography")]
+      return {
+        picker,
+        nodes,
+        edges,
+        prompt: buildPayload(s2v, "job-6", {}, undefined, { nodes, edges, nodeStates: {} }).payload.prompt as string,
+      }
+    }
+
+    for (const [type, data] of [
+      ["transition", { label: "Cut", transition: "cross-dissolve" }],
+      ["character-fx", { label: "FX", characterFx: "werewolf" }],
+    ] as const) {
+      const { picker, nodes, edges, prompt } = mk(type, data)
+      expect(getParameterPromptHint(picker, { nodes, edges })).toBe(getParameterPromptHint(picker))
+      expect(prompt).toBe(`a man walks forward. ${getParameterPromptHint(picker)}`)
+    }
   })
 })
 

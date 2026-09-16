@@ -52,10 +52,10 @@ export function composeCameraMotionHintForNode(
 /**
  * Walk a consumer node's `cinematography` target handle and aggregate one
  * prompt-hint string per connected source. Graph-composed sources
- * (`EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`: camera-motion's
- * startState/endState walk, character-motion's target/partner names) are
- * dispatched WITH the graph; all other parameter nodes dispatch through
- * {@link getNodePromptHint}.
+ * (`EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES`: camera-motion's and
+ * transition's startState/endState walk, character-motion's target/partner
+ * names, character-fx's target name) are dispatched WITH the graph; all other
+ * parameter nodes dispatch through {@link getNodePromptHint}.
  *
  * Returns an array of non-empty hint strings — the caller decides how to join
  * and append them onto the user prompt. Used by:
@@ -168,8 +168,9 @@ export function collectCinematographyHints(
 
     if (EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES.has(srcNode.type ?? "")) {
       // Build via the shared getParameterPromptHint WITH graph context: camera
-      // motion walks its start/end states, character motion reads its target and
-      // partner names — and preText/postText (withCustomText) is applied.
+      // motion and transition walk their start/end states, character motion
+      // reads its target and partner names, character FX substitutes its
+      // target's name — and preText/postText (withCustomText) is applied.
       // (composeCameraMotionHintForNode bypassed custom text, so it was dropped
       // at execution while the injection preview promised it.)
       const composed = getParameterPromptHint(srcNode, { nodes, edges })
