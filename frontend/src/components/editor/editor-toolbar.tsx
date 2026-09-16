@@ -45,9 +45,6 @@ import {
   saveCharacter,
   saveObject,
   saveLocation,
-  type DbCharacter,
-  type DbObject,
-  type DbLocation,
 } from "@/lib/api"
 import {
   buildSaveCharacterPayloadFromExport,
@@ -56,8 +53,13 @@ import {
 } from "./editor-toolbar-inject-helpers"
 import { createClient } from "@/lib/supabase"
 import { ensureNodePositions } from "@/lib/node-position"
-import type { WorkflowExport } from "@nodaro/shared"
-import type { WorkflowNode, WorkflowEdge, CharacterNodeData, ObjectNodeData, CreatureNodeData, LocationNodeData } from "@/types/nodes"
+import {
+  describeMediaRefNodes,
+  parseWorkflowJson,
+  toWorkflowExportPayload,
+  type ExportedWorkflow,
+} from "@/lib/workflow-import"
+import type { CharacterNodeData, ObjectNodeData, CreatureNodeData, LocationNodeData } from "@/types/nodes"
 import { useT } from "@/lib/i18n"
 
 type EditorTab = "editor" | "present" | "executions" | "cost"
@@ -70,28 +72,6 @@ interface EditorToolbarProps {
   readonly onNavigate?: (href: string) => void
   readonly activeTab?: EditorTab
   readonly onTabChange?: (tab: EditorTab) => void
-}
-
-interface ExportedWorkflow {
-  name: string
-  nodes: WorkflowNode[]
-  edges: WorkflowEdge[]
-  settings?: Record<string, unknown>
-  exportedAt: string
-  version: string
-  assets?: {
-    characters: DbCharacter[]
-    objects: DbObject[]
-    locations: DbLocation[]
-  }
-  /** Media another instance cannot fetch — see `WorkflowPortability` (#866). */
-  portability?: { unreachableMedia: Array<{ nodeId: string; nodeLabel?: string; field: string; url: string }> }
-}
-
-/** "Node A, Node B, …" for a media-ref list — labels first, ids as the fallback, capped. */
-function describeMediaRefNodes(refs: ReadonlyArray<{ nodeId: string; nodeLabel?: string }>, max = 4): string {
-  const names = [...new Set(refs.map((r) => r.nodeLabel || r.nodeId))]
-  return names.slice(0, max).join(", ") + (names.length > max ? ", …" : "")
 }
 
 export function EditorToolbar({ projectId, onSave, saving, onNavigate, activeTab = "editor", onTabChange }: EditorToolbarProps) {
@@ -184,20 +164,6 @@ export function EditorToolbar({ projectId, onSave, saving, onNavigate, activeTab
     }
   }, [workflowId, workflowName, t])
 
-  function parseWorkflowJson(jsonStr: string): ExportedWorkflow {
-    const raw = JSON.parse(jsonStr) as Record<string, unknown>
-    // Tutorial/seed format wraps the workflow: `{ meta, workflow: { name, nodes, edges, ... } }`.
-    // Unwrap so downstream import logic sees the flat ExportedWorkflow shape.
-    const inner = (raw.workflow && typeof raw.workflow === "object" && raw.workflow !== null
-      && "nodes" in (raw.workflow as object))
-      ? (raw.workflow as Record<string, unknown>)
-      : raw
-    const data = inner as unknown as ExportedWorkflow
-    if (!data.nodes || !Array.isArray(data.nodes)) throw new Error("Missing nodes array")
-    if (!data.edges || !Array.isArray(data.edges)) throw new Error("Missing edges array")
-    return data
-  }
-
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -223,22 +189,6 @@ export function EditorToolbar({ projectId, onSave, saving, onNavigate, activeTab
       toast.error(t("editor.clipboardImportFailed", { error: err instanceof Error ? err.message : t("editor.couldNotReadClipboard") }))
     }
   }, [t])
-
-  // Build the portable WorkflowExport payload the backend expects from a parsed
-  // file/clipboard blob. Coerces the version (older exports used "1.0") and lets
-  // the backend Zod schema strip any extra asset fields (category, userId, …).
-  function toWorkflowExportPayload(data: ExportedWorkflow): WorkflowExport {
-    const name = ((data.name || "Untitled Workflow") + " (Imported)").slice(0, 200)
-    return {
-      version: 1,
-      exportedAt: typeof data.exportedAt === "string" ? data.exportedAt : new Date().toISOString(),
-      name,
-      nodes: data.nodes as unknown as WorkflowExport["nodes"],
-      edges: data.edges as unknown as WorkflowExport["edges"],
-      ...(data.settings ? { settings: data.settings } : {}),
-      ...(data.assets ? { assets: data.assets as unknown as WorkflowExport["assets"] } : {}),
-    }
-  }
 
   const handleImportAsNew = useCallback(async (data: ExportedWorkflow) => {
     setImporting(true)
