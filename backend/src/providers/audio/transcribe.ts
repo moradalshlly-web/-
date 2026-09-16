@@ -7,6 +7,7 @@ import {
   type WhisperOutput,
   type FastWhisperOutput,
 } from "./transcribe-output.js"
+import { scribeWordsToCaptions } from "./captions-mappers.js"
 
 function extractVersion(modelString: string): string {
   const parts = modelString.split(":")
@@ -65,15 +66,9 @@ export async function transcribe(
       tagAudioEvents: options?.tagAudioEvents,
     })
     // Caption-shaped (ms), never raw seconds — `output_data.words` is a wire
-    // contract shared with the add-captions consumers.
-    const words = result.words.map((w) => ({
-      text: w.text,
-      startMs: Math.round(w.start * 1000),
-      endMs: Math.round(w.end * 1000),
-      timestampMs: null,
-      confidence: null,
-      ...(w.speaker ? { speaker: w.speaker } : {}),
-    }))
+    // contract shared with the add-captions consumers; the mapper adds the
+    // leading-space word delimiter the kinetic overlays rely on.
+    const words = scribeWordsToCaptions(result.words)
     return {
       text: result.text,
       language: result.language,
