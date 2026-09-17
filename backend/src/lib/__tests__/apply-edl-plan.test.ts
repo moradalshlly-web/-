@@ -104,6 +104,17 @@ describe("buildEffectiveEdl — positional source overrides", () => {
     expect(edl.sources[0].url).toBe("https://orig/a.mp4")
     expect(edl.sources[1].url).toBe("https://new/b.mp4")
   })
+
+  it("ignores a non-string override without throwing (computeCredits runs on raw pre-Zod body → clean 400, not 500)", () => {
+    const raw: unknown = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "A", url: "https://orig/a.mp4", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 1000, video: "A", audio: "A" }],
+    }
+    const edl = buildEffectiveEdl(raw, { sourceOverrides: [123 as unknown as string] })
+    expect(edl.sources[0].url).toBe("https://orig/a.mp4")
+  })
 })
 
 describe("validateEffectiveEdl — output-aware picture requirement", () => {

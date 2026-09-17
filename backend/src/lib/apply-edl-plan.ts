@@ -64,7 +64,10 @@ export function buildEffectiveEdl(rawEdl: unknown, opts: EffectiveEdlOptions = {
       ...edl,
       sources: edl.sources.map((s, i) => {
         const url = opts.sourceOverrides?.[i]
-        return url && url.trim() ? { ...s, url: url.trim() } : s
+        // Guard the type: computeCredits runs on RAW pre-Zod body.sources, so a
+        // non-string entry (e.g. `sources:[123]`) would TypeError on `.trim()`
+        // and surface as a 500 instead of the handler's clean 400.
+        return typeof url === "string" && url.trim() ? { ...s, url: url.trim() } : s
       }),
     }
   }

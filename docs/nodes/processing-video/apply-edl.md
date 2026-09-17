@@ -68,4 +68,4 @@ The reserve is computed from the EDL's own durations (crossfades already subtrac
 
 - Leave **Default crossfade** at 0 for talking-head/podcast edits — hard cuts on speech read cleanly, and the EDL can still ask for a crossfade on any individual boundary.
 - Use **Proxy** quality for review passes, then switch to **Final** for delivery.
-- Wire a Transcribe node's transcript into the **Transcript** input and the `json` output into an Add Captions node to keep captions aligned to the finished edit.
+- Wire a Transcribe node's transcript into the **Transcript** input so the `json` output carries the transcript **remapped onto the finished edit** — every word timestamp shifts to match the cut. Downstream nodes (e.g. Extract Field) read that aligned transcript. (Feeding the remapped `json` straight into Add Captions is a phase-2 wiring — Add Captions currently reads word timings from a Transcribe source specifically.)
