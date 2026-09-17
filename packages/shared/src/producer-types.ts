@@ -150,6 +150,19 @@ export const DYNAMIC_PRODUCER_TYPES: ReadonlySet<string> = new Set([
   // backend routes the correct lane by sourceHandle in getPrimaryOutput
   // (output-extractor.ts); the frontend does so in extractNodeOutput.
   "split-media",
+  // apply-edl renders an EDL into ONE media output whose type is decided at
+  // run time by the node's `output` setting (video OR audio) — so its static
+  // medium is genuinely unknown and it belongs here, letting canvas validators
+  // accept its default media handle on BOTH audio and video input handles. It
+  // ALSO emits a fixed `json` handle (the remapped Transcript); that half lives
+  // in JSON_PRODUCER_TYPES (frontend/src/lib/data-handles.ts). The FIRST node
+  // with both a dynamic media handle and a fixed json handle. Because
+  // getOutputType (presentation-utils.ts) deliberately returns "data" for
+  // DYNAMIC members, apply-edl is ALSO added to the literal VIDEO_OUTPUT_TYPES
+  // there so a published app renders the cut as video, mirroring the
+  // voice-changer/dubbing precedent. Asserted in producer-types.test.ts (the
+  // suite does not fail on omission).
+  "apply-edl",
 ])
 
 /**

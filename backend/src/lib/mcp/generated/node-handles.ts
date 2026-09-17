@@ -16,6 +16,7 @@ export const NODE_HANDLES: Readonly<Record<string, NodeHandleSpec>> = {
   "after-effects": { inputs: ["in"], outputs: ["composition"] },
   "ai-avatar": { inputs: ["script", "audio", "image"], outputs: ["video"] },
   "animal": { inputs: ["in"], outputs: ["out"] },
+  "apply-edl": { inputs: ["edl", "transcript", "sources"], outputs: ["media", "json"] },
   "aspect-ratio": { inputs: ["in"], outputs: ["aspect_ratio"] },
   "assemble-narrated-video": { inputs: ["video", "audio"], outputs: ["video"] },
   "atmosphere": { inputs: ["in"], outputs: ["out"] },

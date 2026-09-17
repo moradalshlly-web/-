@@ -33,6 +33,8 @@ export const HANDLE_OUTPUT_TYPES: Record<string, Partial<Record<string, HandleCo
   "edit-3d-scene": { composition: "control" },
   "pro-3d-render": { composition: "control", video: "video", stills: "image" },
   "ai-avatar": { video: "video" },
+  // media pip (video|audio) is runtime-typed — see DYNAMIC_SOURCE_NODES; only json is static.
+  "apply-edl": { json: "look" },
   "add-captions": { "video-out": "video" },
   "adjust-volume": { "video-out": "video", "audio-out": "audio" },
   "assemble-narrated-video": { video: "video" },

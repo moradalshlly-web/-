@@ -563,6 +563,25 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     if (sourceHandle === "audio" || sourceHandle === "audio-out") return audioUrls[0];
     return videoUrls[0] ?? audioUrls[0];
   }
+  if (type === "apply-edl") {
+    // Dual-handle: the `json` handle carries the remapped Transcript
+    // (data.generatedJson, stringified for generic consumers). Every other
+    // handle — the default (`!sourceHandle`) and the `media` handle — is the
+    // rendered cut (video OR audio per the node's `output` setting). Mirrors
+    // backend getPrimaryOutput; the media default is what node-input-resolver
+    // taps when no sourceHandle is set (C4).
+    if (sourceHandle === "json") {
+      const json = data.generatedJson;
+      return json === undefined ? undefined : JSON.stringify(json);
+    }
+    const results = (data.generatedResults as GeneratedResult[] | undefined) ?? [];
+    const activeIndex = (data.activeResultIndex as number | undefined) ?? 0;
+    return (
+      results[activeIndex]?.url ??
+      (data.generatedVideoUrl as string | undefined) ??
+      (data.generatedAudioUrl as string | undefined)
+    );
+  }
   if (type === "trim-audio" || type === "mix-audio" || type === "combine-audio" || type === "extract-audio") {
     const results =
       (data.generatedResults as GeneratedResult[] | undefined) ?? [];
@@ -1111,6 +1130,9 @@ export function detectPreviewItemType(
   // media URL — classify it as data so its preview isn't mis-typed by the URL
   // fallthrough below.
   if (nodeType === "silence-detect") return "data"
+  // apply-edl `json` handle = the remapped Transcript (data). Its media handle
+  // falls through to the URL regex below (mp4 → video, m4a → audio).
+  if (nodeType === "apply-edl" && sourceHandle === "json") return "data"
   if (value) {
     if (IMAGE_URL_RE.test(value)) return "image"
     if (VIDEO_URL_RE.test(value)) return "video"

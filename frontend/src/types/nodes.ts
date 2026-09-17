@@ -3498,6 +3498,37 @@ export type CombineVideosData = {
   activeResultIndex?: number
 }
 
+/** apply-edl — render an EDL into ONE media file (video OR audio) plus, when a
+ *  transcript is wired, the transcript remapped through the cut on the `json`
+ *  output. The EDL resolves from the required `edl` (json) input; `sources`
+ *  positionally overrides `EdlSource.url`. The FIRST node with both a dynamic
+ *  media output handle (`media`) and a fixed `json` output handle. */
+export type ApplyEdlData = {
+  currentJobProgress?: number
+  [key: string]: unknown
+  label: string
+  /** Which medium to render. Decides the `media` output handle's type. */
+  output?: "video" | "audio"
+  /** proxy = 720p review render; final = full-quality delivery. */
+  quality?: "proxy" | "final"
+  /** Default crossfade (ms) on boundaries with no explicit transition;
+   *  per-boundary clamped to the ffmpeg-xfade limit. 0 = hard cuts. */
+  crossfadeMs?: number
+  /** Optional inline EDL (durable node config, used when nothing is wired to
+   *  the `edl` handle). */
+  edl?: unknown
+  fieldMappings: FieldMappings
+  executionStatus?: "idle" | "running" | "completed" | "failed"
+  errorMessage?: string
+  generatedVideoUrl?: string
+  generatedAudioUrl?: string
+  /** The remapped Transcript emitted on the `json` handle (stringified for
+   *  generic consumers by the extractors). */
+  generatedJson?: unknown
+  generatedResults?: readonly GeneratedResult[]
+  activeResultIndex?: number
+}
+
 export type ImageCollageData = {
   currentJobProgress?: number
   [key: string]: unknown
@@ -6148,6 +6179,7 @@ export type SceneNodeData =
   | VoiceDesignData
   | ForcedAlignmentData
   | CombineVideosData
+  | ApplyEdlData
   | ImageCollageData
   | ImageOverlayData
   | AssembleNarratedVideoData
@@ -6344,6 +6376,7 @@ export type SceneNodeType =
   | "video-analysis"
   | "video-audit"
   | "combine-videos"
+  | "apply-edl"
   | "image-collage"
   | "image-overlay"
   | "assemble-narrated-video"
@@ -7930,6 +7963,17 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     inputs: ["in"],
     outputs: ["video"],
     defaultData: { label: "Combine Videos", transition: "cut", transitionDuration: 0.5, audioMode: "crossfade", audioCrossfadeDuration: 0.5, trimEndFrames: 2, trimStartFrames: 1, smartCutFramesPrev: 8, smartCutFramesNext: 8, fieldMappings: {} },
+  },
+  {
+    type: "apply-edl",
+    label: "Apply EDL",
+    category: "processing",
+    // Priced per minute of rendered output; the estimator shows the 1-minute
+    // floor until an EDL is wired.
+    creditCost: 10,
+    inputs: ["edl", "transcript", "sources"],
+    outputs: ["media", "json"],
+    defaultData: { label: "Apply EDL", output: "video", quality: "final", crossfadeMs: 0, fieldMappings: {} } as ApplyEdlData,
   },
   {
     type: "image-collage",

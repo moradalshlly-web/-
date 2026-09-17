@@ -1381,6 +1381,29 @@ function routeOutput(
     return
   }
 
+  // --- apply-edl inputs: routed by targetHandle BEFORE any source-type branch
+  // (the same reason as the analysis interceptor above — otherwise the json
+  // `edl`/`transcript` edges fall into inputs.prompt and the media `sources`
+  // edges into inputs.videoUrl). `output` is already the value getPrimaryOutput
+  // narrowed for that handle: a stringified EDL/Transcript for the json inputs,
+  // a media URL for a `sources` override. Gated on targetType so these handle
+  // names don't hijack same-named handles elsewhere. Mirrors the frontend
+  // node-input-resolver apply-edl branch. ---
+  if (targetType === "apply-edl") {
+    if (edge.targetHandle === "edl") {
+      inputs.edl = output
+      return
+    }
+    if (edge.targetHandle === "transcript") {
+      inputs.transcript = output
+      return
+    }
+    if (edge.targetHandle === "sources") {
+      inputs.sources = [...(inputs.sources ?? []), output]
+      return
+    }
+  }
+
   // --- Handle-specific routing takes priority for named input slots ---
   // These MUST be checked before source-type routing, otherwise source-type
   // handlers (e.g., generate-image → imageUrl) return early and these are
@@ -1945,6 +1968,27 @@ function routeOutput(
       Boolean(src.data.generatedVideoUrl)
     if (edge.sourceHandle === "video" || (edge.sourceHandle !== "audio" && producedVideo)) {
       inputs.videoUrl = output
+    } else {
+      routeAudioOutput(inputs, output, targetType, src.id)
+    }
+    return
+  }
+
+  // --- apply-edl → the DEFAULT (media) handle carries video OR audio, decided
+  // at run time by the node's `output` setting. It is a DYNAMIC producer (not in
+  // VIDEO/AUDIO_OUTPUT_NODE_TYPES), so without this branch its media output falls
+  // through to the `prompt` fallback on server DAG runs — the exact drift its own
+  // comments warn about. Route by what the run produced, through routeVideo/
+  // AudioOutput so a combine-videos/mix-audio consumer accumulates it. The `json`
+  // handle (the remapped Transcript) is NOT handled here — it was already caught
+  // by the apply-edl / add-captions target interceptor, or falls through to the
+  // generic json/text routing. Mirrors the frontend node-input-resolver. ---
+  if (srcType === "apply-edl" && edge.sourceHandle !== "json") {
+    const producedVideo =
+      Boolean(nodeStates[src.id]?.output?.videoUrl) ||
+      Boolean(src.data.generatedVideoUrl)
+    if (producedVideo) {
+      routeVideoOutput(inputs, output, targetType, src.id)
     } else {
       routeAudioOutput(inputs, output, targetType, src.id)
     }

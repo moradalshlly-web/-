@@ -13,6 +13,7 @@ import { applyOrgEntitlements } from "./org-entitlements.js"
 import type { BillingContext } from "../../lib/billing-context.js"
 import { hasCredits } from "../../lib/config.js"
 import { getAppSettings } from "../../lib/app-settings.js"
+import { APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE } from "../../lib/apply-edl-plan.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
 import { FREE_TIER_RESTRICTIONS, TIER_STORAGE_LIMITS } from "./stripe-config.js"
 import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode } from "@nodaro/shared"
@@ -1444,6 +1445,14 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   //    use the computeCredits hook in creditGuard. Their model_pricing rows
   //    (also 0) are likewise unreachable.
   "combine-videos": 30,
+  // apply-edl — render an EDL into ONE media file (local ffmpeg, no provider
+  // cost). Priced PER MINUTE of rendered output: the route's computeCredits and
+  // the DAG's applyEdlCreditOverride both reserve `this × ceil(edlDurationMs/
+  // 60000)`. The bare row here is the estimator fallback (1-minute floor).
+  // Value is the single source of truth `APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE`
+  // (lib/apply-edl-plan.ts); the model_pricing row (migration 429) mirrors it.
+  // PROVISIONAL — the 3-hour staging probe sets the final per-minute number.
+  "apply-edl": APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE,
   // Image Collage — composites N images into one 2K/4K image (local ffmpeg,
   // no provider cost). Priced by resolution. Base + resolution composites;
   // the single-node route uses computeCredits, workflow runs reserve the

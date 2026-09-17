@@ -18,6 +18,7 @@ import {
   isValidSelectorConnection,
   isDataProducer,
   ACCEPTS_ANALYSIS,
+  ACCEPTS_JSON,
 } from "./data-handles"
 import { VISUAL_PARAMETER_PICKER_NODE_TYPES, isVisualPickerType } from "./parameter-picker-types"
 import { SCENE3D_HANDLE_LABELS, isValidScene3DConnection } from "./scene3d-handles"
@@ -352,6 +353,13 @@ const BASE_TARGET_HANDLE_ACCEPTS: Record<string, ReadonlyArray<TargetHandleEntry
     { handleId: "analysis", label: "Analysis", accepts: ACCEPTS_ANALYSIS },
   ],
   "combine-videos":     [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
+  // apply-edl: a required EDL (json), an optional Transcript (json), and
+  // optional positional media-URL overrides (video or audio).
+  "apply-edl":          [
+    { handleId: "edl", label: "EDL", accepts: ACCEPTS_JSON },
+    { handleId: "transcript", label: "Transcript", accepts: ACCEPTS_JSON },
+    { handleId: "sources", label: "Sources", accepts: ACCEPTS_MEDIA },
+  ],
   "extract-frame":      [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "loop-video":         [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "resize-video":       [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],

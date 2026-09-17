@@ -33,6 +33,7 @@ import { isVoiceGenderAllowed, premadeVoiceGender } from "../../lib/voice-policy
 import { applyPromptPolicies } from "../../lib/prompt-policy.js"
 import { ltxCameraMotionFromUpstream } from "../../lib/ltx-camera-motion.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
+import { buildEffectiveEdl, validateEffectiveEdl } from "../../lib/apply-edl-plan.js"
 import { extractSavedNodeOutput, extractSourceNodeOutput, getPrimaryOutput } from "./output-extractor.js"
 import {
   appendScene3DStillScopingLines,
@@ -1629,6 +1630,18 @@ interface PayloadResult {
   payload: Record<string, unknown>
   /** Model identifier for credit reservation */
   modelIdentifier: string
+}
+
+/** Parse a JSON string, returning undefined (never throwing) on bad input —
+ *  used by the apply-edl case where the EDL/transcript arrive stringified on a
+ *  json handle. `normalizeEdl` then coerces the parsed value (or {} on
+ *  undefined) into a well-formed EDL. */
+function parseJsonOrUndefined(s: string): unknown {
+  try {
+    return JSON.parse(s)
+  } catch {
+    return undefined
+  }
 }
 
 /** Shorthand for FFmpeg nodes that all share queueName + modelIdentifier.
@@ -5475,6 +5488,33 @@ export function buildPayload(
         trimStartFrames: (data.trimStartFrames as number) ?? 1,
         trimEndFrames: (data.trimEndFrames as number) ?? 2,
         upstreamDurations,
+        usageLogId,
+      })
+    }
+
+    case "apply-edl": {
+      // The EDL arrives stringified on the `edl` json handle (or inline on
+      // data.edl). Build the ONE effective EDL — same helper the route uses —
+      // and validate it HERE so a bad/unresolvable EDL fails the run before a
+      // paid render (parity with the route's 400), not with "Unknown node type"
+      // or a mid-render ffmpeg error.
+      const rawEdlInput = resolvedInputs.edl ?? (data.edl as unknown)
+      const rawEdl = typeof rawEdlInput === "string" ? parseJsonOrUndefined(rawEdlInput) : rawEdlInput
+      const output = data.output === "audio" ? "audio" : "video"
+      const quality = data.quality === "proxy" ? "proxy" : "final"
+      const crossfadeMs = typeof data.crossfadeMs === "number" ? data.crossfadeMs : 0
+      const effectiveEdl = buildEffectiveEdl(rawEdl, { crossfadeMs, sourceOverrides: resolvedInputs.sources })
+      const validation = validateEffectiveEdl(effectiveEdl, output)
+      if (!validation.ok) {
+        throw new Error(`apply-edl: invalid EDL — ${validation.issues.slice(0, 3).join("; ")}`)
+      }
+      const transcript = resolvedInputs.transcript ?? (typeof data.transcript === "string" ? data.transcript : undefined)
+      return ffmpegResult("apply-edl", {
+        jobId,
+        edl: effectiveEdl,
+        transcript,
+        output,
+        quality,
         usageLogId,
       })
     }

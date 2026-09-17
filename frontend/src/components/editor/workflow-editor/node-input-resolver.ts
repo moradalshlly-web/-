@@ -13,6 +13,7 @@ import type {
   VoiceChangerData,
   VoiceChangerProData,
   DubbingData,
+  ApplyEdlData,
   GeneratedResult,
   LoopNodeData,
 } from "@/types/nodes";
@@ -689,6 +690,13 @@ export interface FrontendResolvedInputs {
    *  `video-audit:auto`, where the node runs its own fast analysis first), so
    *  it must never be coerced to null/{}. */
   analysis?: unknown;
+  /** apply-edl: the EDL (stringified json) wired into the required `edl`
+   *  handle; the optional Transcript (stringified json) wired into `transcript`;
+   *  and positional `EdlSource.url` overrides wired into `sources`. Mirror of
+   *  backend ResolvedInputs.edl / transcript / sources. */
+  edl?: string;
+  transcript?: string;
+  sources?: string[];
   /** Fan-in input list — populated by the resolver for reduce-style targets.
    *  Carries the full upstream list (or `[singleOutput]` when upstream wasn't
    *  fanned out) so the reduce strategy can fold it into a single value.
@@ -1612,6 +1620,28 @@ export function resolveNodeInputs(
       continue;
     }
 
+    // apply-edl inputs: routed by targetHandle BEFORE the source-type chain
+    // (else the json `edl`/`transcript` edges fall into inputs.prompt and the
+    // media `sources` edges into inputs.videoUrl). `output` is the value
+    // extractNodeOutput already narrowed for that handle: a stringified
+    // EDL/Transcript for the json inputs, a media URL for a `sources` override.
+    // Gated on node.type so these handle names don't hijack same-named handles
+    // elsewhere. Mirror of the backend input-resolver apply-edl branch.
+    if (node.type === "apply-edl") {
+      if (srcEdge.targetHandle === "edl") {
+        inputs.edl = output;
+        continue;
+      }
+      if (srcEdge.targetHandle === "transcript") {
+        inputs.transcript = output;
+        continue;
+      }
+      if (srcEdge.targetHandle === "sources") {
+        inputs.sources = [...(inputs.sources ?? []), output];
+        continue;
+      }
+    }
+
     // --- Handle-specific routing takes priority (matches backend) ---
     if (node.type === "face-swap") {
       if (srcEdge.targetHandle === "face") {
@@ -2409,6 +2439,45 @@ export function resolveNodeInputs(
           ...(inputs.audioSources ?? []),
           { url: output, sourceNodeId: src.id },
         ];
+      } else if (node.type === "manual-edit") {
+        appendManualEditAsset(inputs, src.id, output, "audio");
+      } else {
+        inputs.audioUrl = output;
+      }
+    } else if (src.type === "apply-edl" && resolvedSourceHandle !== "json") {
+      // Dual-handle. The `json` handle (remapped Transcript) is handled by the
+      // apply-edl / add-captions target interceptor above (or the generic json
+      // routing) — never here. The DEFAULT (media) handle carries video OR audio
+      // per the node's `output` setting; route it like the matching media source
+      // so a combine-videos / mix-audio consumer accumulates it. Mirror of the
+      // backend input-resolver apply-edl branch.
+      const aeData = src.data as ApplyEdlData;
+      const producedVideo = Boolean(aeData.generatedVideoUrl) || aeData.output !== "audio";
+      if (producedVideo) {
+        if (MULTI_VIDEO_INPUT_TYPES.has(node.type!)) {
+          inputs.videoUrls = [...(inputs.videoUrls ?? []), output];
+          inputs.videoUrlsWithSourceIds = [
+            ...(inputs.videoUrlsWithSourceIds ?? []),
+            { nodeId: src.id, url: output },
+          ];
+        } else if (node.type === "merge-video-audio") {
+          if (!inputs.videoUrl) inputs.videoUrl = output;
+          else inputs.audioSources = [...(inputs.audioSources ?? []), { url: output, sourceNodeId: src.id, sourceType: "video" as const }];
+        } else if (node.type === "manual-edit") {
+          appendManualEditAsset(inputs, src.id, output, "video");
+        } else {
+          inputs.videoUrl = output;
+        }
+      } else if (node.type === "suno-mashup") {
+        routeSunoMashupAudio(inputs, output);
+      } else if (MULTI_AUDIO_INPUT_TYPES.has(node.type!)) {
+        inputs.audioUrls = [...(inputs.audioUrls ?? []), output];
+        inputs.audioUrlsWithSourceIds = [
+          ...(inputs.audioUrlsWithSourceIds ?? []),
+          { nodeId: src.id, url: output },
+        ];
+      } else if (node.type === "merge-video-audio") {
+        inputs.audioSources = [...(inputs.audioSources ?? []), { url: output, sourceNodeId: src.id }];
       } else if (node.type === "manual-edit") {
         appendManualEditAsset(inputs, src.id, output, "audio");
       } else {

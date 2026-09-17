@@ -1112,6 +1112,14 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
     group: "video-cut-assemble",
   },
   {
+    type: "apply-edl",
+    label: "Apply EDL",
+    icon: <Scissors className="h-4 w-4" />,
+    category: "Processing",
+    group: "video-cut-assemble",
+    keywords: ["edl", "edit decision list", "cut", "assemble", "timeline", "render", "transcript", "podcast", "tighten"],
+  },
+  {
     type: "assemble-narrated-video",
     label: "Assemble Narrated Video",
     icon: <Merge className="h-4 w-4" />,

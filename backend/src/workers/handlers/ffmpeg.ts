@@ -8,6 +8,7 @@ import { renderQueue } from "../../lib/render-queue.js"
 import { supabase } from "../../lib/supabase.js"
 import { cleanupWorkDir, createWorkDir, downloadFile, runFfmpeg, BROWSER_SAFE_VIDEO_ARGS, probeVideoSource } from "../../providers/video/ffmpeg-utils.js"
 import { combineVideos } from "../../providers/video/combine-videos.js"
+import { applyEdl } from "../../providers/video/apply-edl.js"
 import { assembleNarratedVideo } from "../../providers/video/assemble-narrated-video.js"
 import { createImageCollage } from "../../providers/image/collage.js"
 import { createImageOverlay, type ImageOverlayParams } from "../../providers/image/overlay.js"
@@ -48,7 +49,7 @@ import {
   type HandlerFn,
   type JobContext,
 } from "../shared.js"
-import { isKineticCaptionStyle, type SupportedFontName } from "@nodaro/shared"
+import { isKineticCaptionStyle, normalizeTranscript, remapTranscriptThroughEdl, type Edl, type SupportedFontName, type Transcript } from "@nodaro/shared"
 import { attachAssetToCharacter, resolveAssetColumn } from "../../lib/character-auto-attach.js"
 import { DrainAbortError } from "../../lib/worker-drain.js"
 
@@ -113,6 +114,79 @@ const handleCombineVideos: HandlerFn = async function handleCombineVideos(job, c
 
   await commitJobCredits(ctx.usageLogId, ctx.jobId)
   console.log(`[worker] Job ${ctx.jobId} completed: ${r2Url}`)
+}
+
+/** Parse a JSON string, returning undefined (never throwing) on bad input —
+ *  an unparseable wired transcript degrades to "no remap", not a failed render. */
+function safeParseJson(s: string): unknown {
+  try {
+    return JSON.parse(s)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * apply-edl: render the (already effective + validated) EDL into ONE media
+ * file, and — when a transcript was wired — the transcript remapped through the
+ * cut. Dual output_data: the media URL on `videoUrl`/`audioUrl`, the remapped
+ * Transcript on `json`. `completeFfmpegAudioJob` has no extra-output slot, so
+ * this handler writes its own `markJobCompleted` to carry `json` on both
+ * output modes.
+ */
+const handleApplyEdl: HandlerFn = async function handleApplyEdl(job, ctx) {
+  const { edl, transcript, output, quality } = job.data as {
+    jobId: string
+    edl: Edl
+    /** Optional upstream Transcript (JSON string OR object) to remap through
+     *  the cut for the `json` output handle. */
+    transcript?: unknown
+    output?: "video" | "audio"
+    quality?: "proxy" | "final"
+  }
+  const outputKind = output === "audio" ? "audio" : "video"
+  console.log(`[worker] apply-edl ${ctx.jobId}: ${edl.segments.length} segments, output=${outputKind}, quality=${quality ?? "final"}`)
+
+  const { outputPath } = await applyEdl({
+    edl,
+    output: outputKind,
+    quality: quality === "proxy" ? "proxy" : "final",
+    jobId: ctx.jobId,
+    jobUserId: ctx.jobUserId,
+    onProgress: (f) => {
+      void setJobProgress(job, ctx.jobId, Math.round(5 + f * 80)).catch(() => {})
+    },
+  })
+  await setJobProgress(job, ctx.jobId, 90)
+
+  // Remap the transcript through the SAME EDL the media was rendered from, so
+  // captions built downstream align to the cut (±80 ms under D17).
+  let remapped: Transcript | undefined
+  if (transcript !== undefined && transcript !== null) {
+    const raw = typeof transcript === "string" ? safeParseJson(transcript) : transcript
+    if (raw !== undefined) remapped = remapTranscriptThroughEdl(edl, normalizeTranscript(raw))
+  }
+
+  const mediaUrl = await uploadFileToR2(outputPath, ctx.jobId, outputKind, ctx.jobUserId)
+  await fs.rm(dirname(outputPath), { recursive: true, force: true }).catch(() => {})
+  await setJobProgress(job, ctx.jobId, 100)
+
+  const thumbUrl = outputKind === "video"
+    ? await generateAndUploadThumbnail(mediaUrl, ctx.jobId, ctx.jobUserId)
+    : undefined
+
+  if (!await shouldSaveJobResult(ctx.jobId)) return
+
+  const output_data: Record<string, unknown> = outputKind === "video"
+    ? { videoUrl: mediaUrl, ...(thumbUrl ? { thumbnailUrl: thumbUrl } : {}) }
+    : { audioUrl: mediaUrl }
+  if (remapped) output_data.json = remapped
+
+  const ok = await markJobCompleted(ctx.jobId, { output_data })
+  if (!ok) return
+
+  await commitJobCredits(ctx.usageLogId, ctx.jobId)
+  console.log(`[worker] Job ${ctx.jobId} completed: ${mediaUrl}${remapped ? " (+ remapped transcript)" : ""}`)
 }
 
 const handleAssembleNarratedVideo: HandlerFn = async function handleAssembleNarratedVideo(job, ctx) {
@@ -1139,6 +1213,7 @@ const handleSlideshow: HandlerFn = async function handleSlideshow(job, ctx) {
 
 export const ffmpegHandlers: Record<string, HandlerFn> = {
   "combine-videos": handleCombineVideos,
+  "apply-edl": handleApplyEdl,
   "assemble-narrated-video": handleAssembleNarratedVideo,
   "image-collage": handleImageCollage,
   "image-overlay": handleImageOverlay,

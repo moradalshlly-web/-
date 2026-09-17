@@ -1009,6 +1009,14 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     { key: "trimStartFrames", type: "number" },
     { key: "trimEndFrames", type: "number" },
   ] } },
+  { type: "apply-edl", label: "Apply EDL", category: "processing", description: "Render an edit decision list (EDL) into ONE media file (video OR audio, per `output`). The EDL's segment order is the output timeline; each segment names a source time-window on the master clock. Hard-cut boundaries abut, crossfade boundaries overlap (the rendered length is the overlap-compressed duration). When a transcript is wired, it is remapped through the cut on the `json` output handle so downstream captions stay aligned. Media resolves from each EdlSource.url; `sources` positionally overrides those URLs. Priced per minute of rendered output. Local ffmpeg, keyless.", outputType: "video", creditCost: "per-minute", inputSchema: { fields: [
+    { key: "edl", type: "json", required: true },
+    { key: "transcript", type: "json" },
+    { key: "sources", type: "video-url-array" },
+    { key: "output", type: "select", options: ["video", "audio"] },
+    { key: "quality", type: "select", options: ["proxy", "final"] },
+    { key: "crossfadeMs", type: "number" },
+  ] } },
   {
     type: "assemble-narrated-video",
     label: "Assemble Narrated Video",

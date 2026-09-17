@@ -1,4 +1,5 @@
 import { projectDubbingCreditOverride } from "../../lib/dubbing-pricing.js"
+import { applyEdlCreditOverride } from "../../lib/apply-edl-plan.js"
 import { assertCanvasExecutionAllowed, imageOverlayCredits } from "@nodaro/shared"
 /**
  * Node executor — dispatches node execution based on type category.
@@ -1617,6 +1618,7 @@ async function executeWorkerNode(
       // is safe and short-circuits any later (unneeded) dynamic import +
       // pricing call once an earlier one already applies.
       const creditOverride =
+        await applyEdlCreditOverride(jobName, payload) ??
         await projectDubbingCreditOverride(jobName, payload) ??
         computeImageOverlayCreditOverride(payload) ??
         (await computeGenerateVideoProCreditOverride(payload, modelIdentifier))?.override ??

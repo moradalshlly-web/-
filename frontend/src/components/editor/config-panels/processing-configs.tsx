@@ -25,6 +25,7 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { WaveformAudioPlayer } from "@/components/audio-player"
 import type {
   CombineVideosData,
+  ApplyEdlData,
   ImageCollageData,
   AddCaptionsData,
   ResizeVideoData,
@@ -490,6 +491,50 @@ export function TrimAudioConfig({ data, onUpdate }: ConfigProps<TrimAudioData>) 
           value={(data.endTime as number | undefined) ?? ""}
           onChange={(e) => onUpdate({ endTime: e.target.value ? parseFloat(e.target.value) : undefined })}
         />
+      </div>
+    </div>
+  )
+}
+
+export function ApplyEdlConfig({ data, onUpdate }: ConfigProps<ApplyEdlData>) {
+  const t = useT()
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] text-muted-foreground">
+        {t("proccfg.applyEdlHint")}
+      </p>
+      <div>
+        <Label>{t("proccfg.applyEdlOutput")}</Label>
+        <Select value={data.output ?? "video"} onValueChange={(v) => onUpdate({ output: v as "video" | "audio" })}>
+          <SelectTrigger aria-label={t("proccfg.applyEdlOutputMedium")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="video">{t("proccfg.applyEdlVideo")}</SelectItem>
+            <SelectItem value="audio">{t("proccfg.applyEdlAudioOnly")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>{t("proccfg.applyEdlQuality")}</Label>
+        <Select value={data.quality ?? "final"} onValueChange={(v) => onUpdate({ quality: v as "proxy" | "final" })}>
+          <SelectTrigger aria-label={t("proccfg.applyEdlRenderQuality")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="final">{t("proccfg.applyEdlFinal")}</SelectItem>
+            <SelectItem value="proxy">{t("proccfg.applyEdlProxy")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="apply-edl-crossfade">{t("proccfg.applyEdlCrossfade")}</Label>
+        <Input
+          id="apply-edl-crossfade"
+          type="number"
+          min={0}
+          max={5000}
+          step={50}
+          value={data.crossfadeMs ?? 0}
+          onChange={(e) => onUpdate({ crossfadeMs: Math.max(0, Math.min(5000, parseInt(e.target.value) || 0)) })}
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">{t("proccfg.applyEdlCrossfadeHint")}</p>
       </div>
     </div>
   )

@@ -16,6 +16,7 @@ import {
   generateScriptApi,
   generateMotionGraphics,
   combineVideos,
+  applyEdl,
   cancelJob,
 } from "@/lib/api";
 import type {
@@ -792,5 +793,28 @@ export function runCombineVideos(
     "generatedVideoUrl",
     "Combine videos",
     ctx,
+  );
+}
+
+/**
+ * apply-edl single-node Run. The output is video OR audio (per `output`), so
+ * BOTH result keys are listed — pollJobWithNodeUpdate stores whichever
+ * output_data URL the job returned (and clears the other so a video result can't
+ * survive into an audio run). The remapped Transcript rides `output_data.json`
+ * into `generatedJson`, so the `json` output handle resolves on a single-node
+ * Run exactly as it does on a server DAG run (audit-dag parity).
+ */
+export function runApplyEdl(
+  nodeId: string,
+  params: { edl: unknown; output?: "video" | "audio"; quality?: "proxy" | "final"; crossfadeMs?: number; sources?: string[]; transcript?: unknown },
+  ctx: ExecutionContext,
+): Promise<string> {
+  return pollJobWithNodeUpdate(
+    nodeId,
+    () => applyEdl({ ...params, userId: ctx.userId }),
+    ["generatedVideoUrl", "generatedAudioUrl"],
+    "Apply EDL",
+    ctx,
+    (od) => (od.json !== undefined ? { generatedJson: od.json } : {}),
   );
 }

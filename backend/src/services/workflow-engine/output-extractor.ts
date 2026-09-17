@@ -818,6 +818,19 @@ export function getPrimaryOutput(
     return output.videoUrl || output.audioUrl
   }
 
+  // apply-edl: dual-handle. The `json` handle carries the remapped Transcript
+  // (stringify for generic consumers; Extract Field reads state.output.json
+  // directly). The DEFAULT (media) handle is the rendered cut — video OR audio
+  // per the node's `output` setting. Without this branch the json edge resolves
+  // to the video URL via the generic tail (the C4 audit-dag parity break).
+  // Mirrors the frontend extractNodeOutput apply-edl branch.
+  if (sourceType === "apply-edl") {
+    if (sourceHandle === "json") {
+      return output.json === undefined ? undefined : JSON.stringify(output.json)
+    }
+    return output.videoUrl || output.audioUrl
+  }
+
   // Social-media-format: prefer video, fall back to image (matches frontend)
   if (sourceType === "social-media-format") {
     return output.videoUrl || output.imageUrl
@@ -1157,6 +1170,27 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
     const audioUrl =
       (data.generatedAudioUrl as string | undefined) ?? getActiveResultUrl(data)
     return audioUrl ? { audioUrl } : undefined
+  }
+
+  // apply-edl (dual-handle): expose the rendered media (video OR audio per the
+  // node's `output` setting) AND the remapped Transcript (data.generatedJson)
+  // so a skipped / "Run from here" apply-edl hydrates BOTH handles from saved
+  // node data without re-running. getPrimaryOutput then routes the media on the
+  // default handle and the transcript on `json`. Mirrors the frontend
+  // extractNodeOutput apply-edl branch and the live getPrimaryOutput branch.
+  if (type === "apply-edl") {
+    const out: NodeOutput = {}
+    const videoUrl = data.generatedVideoUrl as string | undefined
+    const audioUrl = data.generatedAudioUrl as string | undefined
+    if (videoUrl) out.videoUrl = videoUrl
+    else if (audioUrl) out.audioUrl = audioUrl
+    else {
+      const fallback = getActiveResultUrl(data)
+      if (fallback) out.videoUrl = fallback
+    }
+    const json = data.generatedJson
+    if (json !== undefined) out.json = json
+    return out.videoUrl || out.audioUrl || out.json !== undefined ? out : undefined
   }
 
   // Voice-changer is dual-mode: audio in → audio out; video in → video out (+

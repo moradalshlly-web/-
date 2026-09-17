@@ -179,6 +179,7 @@ import type {
   CompositeData,
   RenderVideoData,
   CombineVideosData,
+  ApplyEdlData,
   AssembleNarratedVideoData,
   ImageCollageData,
   ImageOverlayData,
@@ -289,6 +290,7 @@ import {
   runScriptGeneration,
   runLottiePlanGeneration,
   runCombineVideos,
+  runApplyEdl,
 } from "./node-executors";
 import {
   runCharacterGeneration,
@@ -6506,6 +6508,35 @@ function executeNodeCore(
       clampSmartCutWindow(combineData.smartCutFramesPrev),
       clampSmartCutWindow(combineData.smartCutFramesNext),
       combineData.smartCutMode,
+    );
+  }
+
+  if (node.type === "apply-edl") {
+    const aeData = node.data as ApplyEdlData;
+    // EDL from the wired `edl` handle (a json string) or an inline node config.
+    const edlRaw = inputs.edl ?? aeData.edl;
+    if (edlRaw === undefined || edlRaw === null || edlRaw === "") {
+      toast.error(`Node "${aeData.label}": connect an EDL to the "EDL" input`);
+      return Promise.reject(new Error("apply-edl requires an EDL"));
+    }
+    const parseMaybe = (v: unknown): unknown => {
+      if (typeof v !== "string") return v;
+      try { return JSON.parse(v); } catch { return undefined; }
+    };
+    const edl = parseMaybe(edlRaw);
+    const transcript = inputs.transcript !== undefined ? parseMaybe(inputs.transcript) : undefined;
+    setUserPromptTemplate(undefined);
+    return runApplyEdl(
+      node.id,
+      {
+        edl,
+        output: aeData.output ?? "video",
+        quality: aeData.quality ?? "final",
+        crossfadeMs: aeData.crossfadeMs,
+        sources: inputs.sources,
+        transcript,
+      },
+      ctx,
     );
   }
 
