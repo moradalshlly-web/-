@@ -737,17 +737,19 @@ describe("gpt-6-astra exposure", () => {
     expect(buildLlmCreditIdentifier("llm-chat", "gpt-6-astra", "xhigh")).toBe("llm-chat:premium")
   })
 
-  it("is the ONLY model declaring kieCollapseStream — the condition is per model, not per lane", () => {
+  it("names EXACTLY the models KIE's non-stream responses lane fails for — the condition is per model, not per lane", () => {
     // KIE's non-stream responses endpoint 500s ~2 calls in 3 for astra
-    // (measured 2026-09-06: 2/6 non-stream vs 5/6 streaming) while serving
-    // gpt-5.4/5.5/5.6 fine, so llm-client collapses the streaming wire for
-    // THIS model only. If a second model ever legitimately needs it, add it
-    // here deliberately — a flag that spreads by copy-paste would quietly move
-    // every affected model's provider cost onto the rate-table estimate,
-    // because SSE does not reliably carry `credits_consumed`.
+    // (measured 2026-09-06: 2/6 non-stream vs 5/6 streaming), and on
+    // 2026-09-17 a live gpt-5.6-sol call returned the same `server_error`,
+    // retiring the 2026-07-14 "the GPT-5.6 family is fine non-stream" reading.
+    // So llm-client collapses the streaming wire for THESE models only. Adding
+    // a third is a deliberate act, never copy-paste: the flag moves a model's
+    // provider cost onto the rate-table estimate, because SSE does not reliably
+    // carry `credits_consumed`.
+    const collapsed = LLM_MODELS.filter((m) => m.kieCollapseStream !== undefined).map((m) => m.id)
+    expect(collapsed.sort()).toEqual(["gpt-5.6-sol", "gpt-6-astra"])
     expect(getLlmModel("gpt-6-astra")?.kieCollapseStream).toBe(true)
-    const others = LLM_MODELS.filter((m) => m.id !== "gpt-6-astra")
-    expect(others.filter((m) => m.kieCollapseStream !== undefined).map((m) => m.id)).toEqual([])
+    expect(getLlmModel("gpt-5.6-sol")?.kieCollapseStream).toBe(true)
   })
 })
 
