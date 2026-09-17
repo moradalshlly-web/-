@@ -1208,6 +1208,8 @@ describe("transcribe", () => {
       "u1",
       undefined,
       undefined,
+      // wordTimestamps: the json handle is not wired here, so it stays off.
+      undefined,
     )
 
     // Advance timer to trigger the poll interval
@@ -1224,6 +1226,41 @@ describe("transcribe", () => {
     )
     expect(mockToastSuccess).toHaveBeenCalledWith("Transcription complete")
 
+    vi.useRealTimers()
+  })
+
+  it("turns wordTimestamps on and stores the transcript when the json handle is wired", async () => {
+    mockResolveNodeInputs.mockReturnValue({ audioUrl: "http://speech.mp3" })
+    mockTranscribeApi.mockResolvedValue({ jobId: "tr-j2" })
+    const transcript = { version: 1, language: "en", words: [{ text: "Hello", startMs: 0, endMs: 500 }] }
+    mockGetJobStatus.mockResolvedValue({
+      status: "completed",
+      output_data: { text: "Hello world", language: "en", json: transcript },
+    })
+    vi.useFakeTimers()
+
+    const transcribeNode = makeNode("transcribe", { provider: "whisper", language: "en" })
+    mockNodes = [transcribeNode]
+    // A consumer wired off the node's json handle.
+    mockEdges = [{ id: "je", source: "n1", sourceHandle: "json", target: "consumer", targetHandle: "in" }]
+
+    const promise = executeNode(transcribeNode, makeCtx())
+    await vi.advanceTimersByTimeAsync(0)
+
+    // 7th arg (wordTimestamps) is true because the json handle is consumed.
+    expect(mockTranscribeApi).toHaveBeenCalledWith(
+      "http://speech.mp3", "whisper", "en", "u1", undefined, undefined, true,
+    )
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await promise
+
+    expect(mockUpdateNodeData).toHaveBeenCalledWith(
+      "n1",
+      expect.objectContaining({ executionStatus: "completed", generatedJson: transcript }),
+    )
+
+    mockEdges = []
     vi.useRealTimers()
   })
 

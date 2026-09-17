@@ -66,6 +66,10 @@ export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
   "deduplicate", "merge-lists", "sort-list",
   "selector",
   "ai-writer", "llm-chat", "generate-script",
+  // Transcribe's `json` handle emits a normalized `Transcript` (its `text`
+  // handle keeps it in DATA_TEXT_PRODUCER_TYPES). Dual producer, like the
+  // analysis pair.
+  "transcribe",
   ...ANALYSIS_PRODUCER_TYPES,
 ])
 

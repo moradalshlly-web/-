@@ -719,8 +719,11 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     type: "transcribe",
     label: "Transcribe",
     category: "ai-text",
-    // outputType: text — input-resolver TEXT_SOURCE_NODE_TYPES.
-    description: "Convert spoken audio to text with optional speaker diarization and audio event tagging.",
+    // outputType: text — the PRIMARY output (input-resolver TEXT_SOURCE_NODE_TYPES;
+    // `{Label}` refs resolve the plain transcript). A second `json` handle emits
+    // the normalized Transcript (word/segment timings); the descriptor carries a
+    // single primary type, same as video-analysis (json+text) declaring "data".
+    description: "Convert spoken audio to text (plain transcript on `text`, a normalized Transcript with word/segment timings on `json`), with optional speaker diarization and audio event tagging.",
     outputType: "text",
   },
   {

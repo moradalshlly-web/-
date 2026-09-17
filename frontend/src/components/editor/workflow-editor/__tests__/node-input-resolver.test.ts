@@ -1280,3 +1280,21 @@ describe("List consumption: llm-chat items handle fans out over ===NEXT=== split
     expect(resolveNodeInputs(target as any, nodes, edges as any, 2).prompt).toBe("p3")
   })
 })
+
+describe("extractNodeOutputAsList — transcribe dual text+json handle (FE/BE list-collector parity)", () => {
+  const transcript = { version: 1, words: [{ text: "hi", startMs: 0, endMs: 100 }] }
+  const node = {
+    id: "t1",
+    type: "transcribe",
+    position: { x: 0, y: 0 },
+    data: { generatedJson: transcript, generatedResults: [{ text: "hi there", transcript }] },
+  } as unknown as WorkflowNode
+
+  it("json handle → one stringified Transcript item (matches backend collectItemsForEdge)", () => {
+    expect(extractNodeOutputAsList(node, "json")).toEqual([JSON.stringify(transcript)])
+  })
+
+  it("text handle → the plain text, NOT the json blob (backend falls through to getPrimaryOutput text)", () => {
+    expect(extractNodeOutputAsList(node, "text")).toEqual(["hi there"])
+  })
+})

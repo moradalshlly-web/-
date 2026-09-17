@@ -1,6 +1,6 @@
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
-import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs } from "@nodaro/shared";
+import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs, type Transcript } from "@nodaro/shared";
 import { getParameterPromptHint } from "@nodaro/prompts"
 import type {
   WorkflowNode,
@@ -14,6 +14,7 @@ import type {
   VideoAnalysisNodeData,
   VideoAuditNodeData,
   DescribeToPickerData,
+  TranscribeData,
 } from "@/types/nodes";
 import { entityActiveImageUrl } from "@/lib/entity-output-url";
 
@@ -476,6 +477,19 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     return data.generatedText as string | undefined;
   }
   if (type === "transcribe") {
+    const d = node.data as TranscribeData;
+    // `json` handle → the normalized Transcript (per-result, falling back to the
+    // bare active-result field). Stringify for generic consumers; Extract Field
+    // / JSON Process read d.generatedJson directly. Mirrors web-scrape's json
+    // branch and the backend output-extractor transcribe branch.
+    if (sourceHandle === "json") {
+      const jsonResults =
+        (d.generatedResults as Array<{ transcript?: Transcript }> | undefined) ?? [];
+      const jsonActive = (d.activeResultIndex as number | undefined) ?? 0;
+      const transcript = jsonResults[jsonActive]?.transcript ?? d.generatedJson;
+      return transcript === undefined ? undefined : JSON.stringify(transcript);
+    }
+    // `text` / no-handle → the plain transcript, UNCHANGED.
     const tResults =
       (data.generatedResults as Array<{ text: string }> | undefined) ?? [];
     const tActiveIndex = (data.activeResultIndex as number | undefined) ?? 0;

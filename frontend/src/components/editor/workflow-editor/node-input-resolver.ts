@@ -879,6 +879,24 @@ export function extractNodeOutputAsList(
     const lines = items.split("\n").filter((l: string) => l.trim().length > 0).map((l: string) => l.trim());
     return lines.length > 0 ? lines : undefined;
   }
+  // Explicit `json` handle of a DUAL text+json producer (transcribe): surface
+  // the structured object as list items — an array spreads, a non-array object
+  // (a Transcript) becomes one stringified item — mirroring the backend
+  // collectItemsForEdge's `output.json` branch. Without this a Transcript OBJECT
+  // skips the Array-gated extractGeneratedJsonAsList below and falls to
+  // extractAllGeneratedResults (the plain .text), so the json handle would
+  // diverge from the backend (which stringifies the object). The `text`/default
+  // handle is deliberately NOT intercepted — it stays scalar-text-honest.
+  if (sourceHandle === "json" && data.generatedJson !== undefined && data.generatedJson !== null) {
+    const gj = data.generatedJson;
+    if (Array.isArray(gj)) {
+      const items = gj
+        .filter((e) => e !== undefined && e !== null)
+        .map((e) => (typeof e === "string" ? e : JSON.stringify(e)));
+      return items.length > 0 ? items : undefined;
+    }
+    if (typeof gj === "object") return [JSON.stringify(gj)];
+  }
   // JSON array output (e.g. web-scrape generatedJson) — each element is one list item.
   const jsonItems = extractGeneratedJsonAsList(data);
   if (jsonItems) return jsonItems;

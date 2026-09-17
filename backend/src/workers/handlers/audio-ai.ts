@@ -16,6 +16,8 @@ import { textToAudio, type AudioProvider } from "../../providers/audio/text-to-a
 import { KieAudioProvider } from "../../providers/kie/audio.js"
 import { ReplicateAudioSeparationProvider } from "../../providers/replicate/audio-separation.js"
 import { transcribe, type TranscribeProvider } from "../../providers/audio/transcribe.js"
+import { buildTranscriptFromOutput } from "../../providers/audio/transcript-normalize.js"
+import type { Caption } from "@remotion/captions"
 import { extractYouTubeAudio } from "../../providers/audio/youtube-extractor.js"
 import { voiceChangerFromUrl, directVoiceChanger } from "../../providers/elevenlabs/voice-changer.js"
 import { extractAudioTrack } from "../../providers/video/extract-audio-track.js"
@@ -311,6 +313,18 @@ const handleTranscribe: HandlerFn = async function handleTranscribe(job, ctx) {
     actualCost = result.cost
     outputData = { text: result.text, language: result.language, segments: result.segments }
     if (result.words) outputData.words = result.words
+    if (result.json) outputData.json = result.json
+  }
+  // The `json` output handle is a `Transcript`. Both local paths set it; the
+  // cloud relay returns whatever the connected install produced — defensively
+  // rebuild it from the shared shape so a version-skewed cloud can't leave the
+  // json handle empty on a keyless install.
+  if (outputData.json === undefined) {
+    outputData.json = buildTranscriptFromOutput({
+      language: outputData.language as string | undefined,
+      segments: outputData.segments as Array<{ start: number; end: number; text: string }> | undefined,
+      words: outputData.words as Array<Caption & { speaker?: string }> | undefined,
+    })
   }
   await setJobProgress(job, ctx.jobId, 100)
   if (!await shouldSaveJobResult(ctx.jobId)) return
