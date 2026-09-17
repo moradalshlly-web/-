@@ -1,20 +1,20 @@
 {
-  "slug": "character-journey-studio",
-  "name": "Character Journey Studio",
-  "description": "Animal, style and render-quality pickers, a line of notes and your story in; a 15-second narrated film out — the hero designed from the pickers, three scenes in three places, six numbered frames rendered as one continuous take, the hero telling its story in a voice designed for it, and one score added at the end.",
-  "markdownDescription": "## Character Journey Studio\n\nPick the animal, the art style and the render quality, add a line of notes and your story: the hero is designed inside the workflow and becomes a 15-second film of three scenes in three places — one continuous take, told by the hero in its own designed voice, with one score. It teaches two things: picker nodes placed by name in a prompt, and sound added once at the end — never a soundtrack per shot.\n\n1. **Pickers + Notes + Story** — Animal, Style and Render quality pickers, one line of notes (colour, age, what it carries) and the story in your own words; one image node turns them into the character design.\n2. **Story beats** — the hero described from the design, the look, three scenes of two frames each, the narration and the music.\n3. **Character sheet → Frames 1–6** — the sheet fixes the hero once; the six frames copy it.\n4. **Timeline script → one take** — one prompt over the six numbered frames; one Seedance 2.5 node renders the whole 15 seconds in a single generation, silent, with the scene changes cut inside it.\n5. **Voice + score → mix** — sound is added once, at the end: Voice Design speaks the narration in a creature voice; Suno writes one score; Merge lays both under the take.",
-  "category": "video-ads",
+  "slug": "mascot-story-studio",
+  "name": "Mascot Story Studio",
+  "description": "Your brand mascot in a 15-second story for social: animal, style and render-quality pickers fix the mascot, Voice Design fixes its voice, and the story is the only thing you change — three scenes in three places, six numbered frames rendered as one continuous take, one score added at the end.",
+  "markdownDescription": "## Mascot Story Studio\n\nYour brand mascot in a 15-second story for social — the same character, the same voice, a new story every week. Pickers fix the mascot's look, Voice Design fixes its voice, and the story is the only node you change to make the next episode.\n\n**Business use:** a brand with a character (a food brand, a farm, a kids' product, an app) that wants a steady stream of short mascot films for Instagram, TikTok and YouTube Shorts without redrawing the character each time. The demo: a white lion, mascot of a strawberry farm, who loves strawberries.\n\n1. **Pickers + Notes + Story** — Animal, Style and Render quality pickers, one line of notes (colour, age, what it carries) and this week's story; one image node turns the pickers into the mascot's character design.\n2. **Story beats** — the mascot described from the design, the look, three scenes of two frames each, the narration and the music.\n3. **Character sheet → Frames 1–6** — the sheet fixes the mascot once; the six frames copy it.\n4. **Timeline script → one take** — one prompt over the six numbered frames; one Seedance 2.5 node renders the whole 15 seconds in a single generation, silent, with the scene changes cut inside it.\n5. **Voice + score → mix** — sound is added once, at the end: Voice Design speaks the narration in the mascot's voice; Suno writes one score; Merge lays both under the take.",
+  "category": "social-creatives",
   "outputTypes": [
     "video"
   ],
   "tags": [
-    "video-ads",
-    "character",
+    "social-creatives",
+    "mascot",
+    "brand-character",
     "story",
     "pickers",
     "one-take",
     "voice-design",
-    "narration",
     "film"
   ],
   "complexity": "advanced",
