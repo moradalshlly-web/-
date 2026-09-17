@@ -27,29 +27,40 @@ export const mediaImportRecordingBody = z.object({
 })
 
 export async function mediaUrlImportRoutes(app: FastifyInstance) {
-  app.post("/v1/media/import-recording", async (req, reply) => {
-    const userId = req.userId
-    if (!userId) {
-      return reply.status(401).send({
-        error: { code: "unauthorized", message: "Authentication required" },
-      })
-    }
+  app.post(
+    "/v1/media/import-recording",
+    // A server-side multi-GB fetch is expensive; cap request rate on top of the
+    // per-user/global in-flight caps in the lib.
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const userId = req.userId
+      if (!userId) {
+        return reply.status(401).send({
+          error: { code: "unauthorized", message: "Authentication required" },
+        })
+      }
 
-    const parsed = mediaImportRecordingBody.safeParse(req.body)
-    if (!parsed.success) {
-      return reply.status(400).send({
-        error: { code: "validation_error", ...formatZodError(parsed.error) },
-      })
-    }
+      const parsed = mediaImportRecordingBody.safeParse(req.body)
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: { code: "validation_error", ...formatZodError(parsed.error) },
+        })
+      }
 
-    const result = await importRecordingFromUrl(userId, parsed.data.url)
-    if (!result.ok) {
-      return reply.status(result.status).send({
-        error: { code: result.code, message: result.message, ...(result.details ?? {}) },
-      })
-    }
+      // Cancel the server-side download if the client hangs up — a
+      // disconnected request must not keep streaming for 40 minutes.
+      const ac = new AbortController()
+      req.raw.on("close", () => ac.abort())
 
-    const { ok: _ok, ...data } = result
-    return { data }
-  })
+      const result = await importRecordingFromUrl(userId, parsed.data.url, { signal: ac.signal })
+      if (!result.ok) {
+        return reply.status(result.status).send({
+          error: { code: result.code, message: result.message, ...(result.details ?? {}) },
+        })
+      }
+
+      const { ok: _ok, ...data } = result
+      return { data }
+    },
+  )
 }

@@ -7,13 +7,13 @@ vi.mock("../../utils/file-validation.js", () => ({
   refundStorage: vi.fn().mockResolvedValue(undefined),
   checkStorageQuota: vi.fn(),
 }))
-vi.mock("../../providers/video/ffmpeg-utils.js", () => ({ probeMediaDuration: vi.fn() }))
+vi.mock("../../providers/video/ffmpeg-utils.js", () => ({ probeMediaDuration: vi.fn(), probeMediaStreams: vi.fn() }))
 vi.mock("../supabase.js", () => ({ supabase: { from: vi.fn() } }))
 
 import { safeFetch } from "../safe-fetch.js"
 import { uploadLocalFileToR2Key } from "../storage.js"
 import { reserveStorageIfWithinLimit, checkStorageQuota } from "../../utils/file-validation.js"
-import { probeMediaDuration } from "../../providers/video/ffmpeg-utils.js"
+import { probeMediaDuration, probeMediaStreams } from "../../providers/video/ffmpeg-utils.js"
 import { supabase } from "../supabase.js"
 import { clearUploadPolicies, registerUploadPolicy } from "../upload-policy.js"
 import { importRecordingFromUrl, IMPORT_MAX_BYTES } from "../media-url-import.js"
@@ -35,6 +35,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   clearUploadPolicies()
   vi.mocked(probeMediaDuration).mockResolvedValue(120)
+  vi.mocked(probeMediaStreams).mockResolvedValue({ hasVideo: true } as never)
+  vi.mocked(checkStorageQuota).mockResolvedValue({ remainingBytes: 10 ** 12, usedBytes: 0, quotaBytes: 10 ** 12, tier: "pro" } as never)
   vi.mocked(reserveStorageIfWithinLimit).mockResolvedValue(true)
   vi.mocked(uploadLocalFileToR2Key).mockResolvedValue("https://cdn.test/uploads/videos/x.mp4")
   okSupabaseInsert("asset-1")
@@ -129,5 +131,46 @@ describe("importRecordingFromUrl — probe + duration cap + happy path", () => {
     const [, key, ctype] = vi.mocked(uploadLocalFileToR2Key).mock.calls[0]
     expect(key).toMatch(/^uploads\/videos\/[0-9a-f-]+\.mp4$/)
     expect(ctype).toBe("video/mp4")
+  })
+
+  it("uses the PROBED streams for kind, not the (spoofable) Content-Type", async () => {
+    // Served as video/mp4 but the streams have no video → stored as audio.
+    vi.mocked(safeFetch).mockResolvedValue(mediaResponse("bytes", { "content-type": "video/mp4" }))
+    vi.mocked(probeMediaStreams).mockResolvedValue({ hasVideo: false } as never)
+    const r = await importRecordingFromUrl("u1", URL_OK)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.kind).toBe("audio")
+    expect(vi.mocked(uploadLocalFileToR2Key).mock.calls[0][1]).toMatch(/^uploads\/audios\//)
+  })
+
+  it("re-consults the policy after download with the REAL size (not the advisory Content-Length)", async () => {
+    const check = vi.fn().mockReturnValue({ allow: true })
+    registerUploadPolicy({ id: "spy2", check })
+    vi.mocked(safeFetch).mockResolvedValue(mediaResponse("real bytes here", { "content-type": "video/mp4", "content-length": "999999" }))
+    await importRecordingFromUrl("u1", URL_OK)
+    // Two calls: pre-download (advisory 999999) then post-download (real stat size).
+    expect(check).toHaveBeenCalledTimes(2)
+    const postSize = check.mock.calls[1][0].sizeBytes
+    expect(postSize).toBe("real bytes here".length)
+    expect(postSize).not.toBe(999999)
+  })
+})
+
+describe("importRecordingFromUrl — concurrency cap", () => {
+  it("returns 429 once the per-user in-flight cap is exceeded", async () => {
+    let release = () => {}
+    const gate = new Promise<void>((r) => { release = r })
+    vi.mocked(safeFetch).mockImplementation(async () => {
+      await gate
+      return mediaResponse("bytes", { "content-type": "video/mp4" })
+    })
+    // MAX_INFLIGHT_PER_USER = 2 → two hold slots (pending on the gate), the 3rd is refused.
+    const p1 = importRecordingFromUrl("cap-user", URL_OK)
+    const p2 = importRecordingFromUrl("cap-user", URL_OK)
+    const r3 = await importRecordingFromUrl("cap-user", URL_OK)
+    expect(r3).toMatchObject({ ok: false, status: 429, code: "too_many_imports" })
+    release()
+    await Promise.all([p1, p2])
   })
 })
