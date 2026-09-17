@@ -1,8 +1,8 @@
 {
   "slug": "character-journey-studio",
   "name": "Character Journey Studio",
-  "description": "Animal, style and render-quality pickers, a line of notes and your story in; a 15-second narrated film out — the hero designed from the pickers, three scenes in three places, six numbered frames, three shots each driven from a start frame to an end frame in the same place, the hero telling its story in a voice designed for it, a score, and the shots' own sound.",
-  "markdownDescription": "## Character Journey Studio\n\nPick the animal, the art style and the render quality, add a line of notes and your story: the hero is designed inside the workflow and becomes a 15-second film of three scenes in three places — told by the hero in its own designed voice, with a score. It teaches two things: picker nodes placed by name in a prompt, and the second way to drive a video model — every shot gets a **start frame and an end frame** in the same place and lands exactly on the end frame.\n\n1. **Pickers + Notes + Story** — Animal, Style and Render quality pickers, one line of notes (colour, age, what it carries) and the story in your own words; one image node turns them into the character design.\n2. **Story beats** — the hero described from the design, the look, four frames in three places, the narration and the music.\n3. **Character sheet → Frames 1–6** — the sheet fixes the hero once; the six frames copy it.\n4. **Shot scripts → three shots** — each video node receives a scene's start frame and end frame and animates the five seconds between them on Seedance 2.5.\n5. **Combine** — the three scenes joined with plain film cuts.\n6. **Voice + score → mix** — Voice Design builds a creature voice from one line of description and speaks the narration; Suno writes the score; Merge lays both over the shots' own sound.",
+  "description": "Animal, style and render-quality pickers, a line of notes and your story in; a 15-second narrated film out — the hero designed from the pickers, three scenes in three places, six numbered frames rendered as one continuous take, the hero telling its story in a voice designed for it, and one score added at the end.",
+  "markdownDescription": "## Character Journey Studio\n\nPick the animal, the art style and the render quality, add a line of notes and your story: the hero is designed inside the workflow and becomes a 15-second film of three scenes in three places — one continuous take, told by the hero in its own designed voice, with one score. It teaches two things: picker nodes placed by name in a prompt, and sound added once at the end — never a soundtrack per shot.\n\n1. **Pickers + Notes + Story** — Animal, Style and Render quality pickers, one line of notes (colour, age, what it carries) and the story in your own words; one image node turns them into the character design.\n2. **Story beats** — the hero described from the design, the look, three scenes of two frames each, the narration and the music.\n3. **Character sheet → Frames 1–6** — the sheet fixes the hero once; the six frames copy it.\n4. **Timeline script → one take** — one prompt over the six numbered frames; one Seedance 2.5 node renders the whole 15 seconds in a single generation, silent, with the scene changes cut inside it.\n5. **Voice + score → mix** — sound is added once, at the end: Voice Design speaks the narration in a creature voice; Suno writes one score; Merge lays both under the take.",
   "category": "video-ads",
   "outputTypes": [
     "video"
@@ -12,13 +12,13 @@
     "character",
     "story",
     "pickers",
-    "start-end-frame",
+    "one-take",
     "voice-design",
     "narration",
     "film"
   ],
   "complexity": "advanced",
-  "estimatedCredits": 1471,
+  "estimatedCredits": 1429,
   "nodeTypesUsed": [
     "animal",
     "style",
@@ -27,7 +27,6 @@
     "llm-chat",
     "generate-image",
     "generate-video",
-    "combine-videos",
     "voice-design",
     "suno-generate",
     "trim-audio",
@@ -55,12 +54,12 @@
       },
       "data": {
         "bold": false,
-        "text": "Your character and your story become a 15-second film of three scenes in three places — told by the hero in its own designed voice, with a score. The trick is the second way to drive a video model: every shot gets a START frame and an END frame in the same place, and lands exactly on the end frame you composed.\n\n1. Pickers + Notes + Story — pick the animal, the art style and the render quality, add one line of notes (colour, age, what it carries), and write the story in your own words. One image node turns the pickers into the hero's character design.\n2. Story beats — the hero described from the design, the look, three scenes of two frames each, the narration and the music.\n3. Character sheet → Frames 1–6 — the sheet fixes the hero once; the six frames copy it.\n4. Shot scripts → three shots — each video node receives a scene's start frame and end frame and animates the five seconds between them.\n5. Combine — the three scenes joined with plain film cuts.\n6. Voice + score → mix — the hero tells its own story: Voice Design builds a creature voice from a one-line description and speaks the narration; Suno writes the score; Merge lays both over the shots' own sound.",
+        "text": "Your character and your story become a 15-second film of three scenes in three places — one continuous take, told by the hero in its own designed voice, with one score added at the end.\n\n1. Pickers + Notes + Story — pick the animal, the art style and the render quality, add one line of notes (colour, age, what it carries), and write the story in your own words. One image node turns the pickers into the hero's character design.\n2. Story beats — the hero described from the design, the look, three scenes of two frames each, the narration and the music.\n3. Character sheet → Frames 1–6 — the sheet fixes the hero once; the six frames copy it.\n4. Timeline script → one take — one prompt over the six numbered frames; one Seedance 2.5 node renders the whole 15 seconds, silent.\n5. Voice + score → mix — sound is added once, at the end: Voice Design speaks the narration in a creature voice; Suno writes one score; Merge lays both under the take.",
         "color": "#26221a",
         "label": "How it works",
         "title": "Character journey studio — how it works",
         "width": 1180,
-        "height": 860,
+        "height": 730,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -72,7 +71,7 @@
       "type": "sticky-note",
       "position": {
         "x": 0,
-        "y": 1020
+        "y": 890
       },
       "data": {
         "bold": false,
@@ -93,7 +92,7 @@
       "type": "sticky-note",
       "position": {
         "x": 0,
-        "y": 2290
+        "y": 2160
       },
       "data": {
         "bold": false,
@@ -114,7 +113,7 @@
       "type": "sticky-note",
       "position": {
         "x": 1960,
-        "y": 1020
+        "y": 890
       },
       "data": {
         "bold": false,
@@ -135,7 +134,7 @@
       "type": "sticky-note",
       "position": {
         "x": 2680,
-        "y": 1020
+        "y": 890
       },
       "data": {
         "bold": false,
@@ -156,14 +155,14 @@
       "type": "sticky-note",
       "position": {
         "x": 3520,
-        "y": 1020
+        "y": 890
       },
       "data": {
         "bold": false,
-        "text": "Each shot script describes the five seconds between a scene's two frames. Each video node is wired with the scene's first frame on Start Frame and its second on End Frame — Seedance 2.5 animates the movement between them and lands exactly on the end frame. Keep both frames in the same place: give a model two different places and it dissolves between them instead of moving. MiniMax Hailuo 3 and Wan 3 also take start and end frames.",
+        "text": "A director turns the beats into one prompt — \"0-5s: opens on @Image 1 … settles into @Image 2, cut to @Image 3 …\" — and ONE Seedance 2.5 node receives the six frames as references in order and renders the whole 15 seconds in a single generation, silent. The two scene changes are cuts the model makes itself, so grade and light stay matched. Never render scenes as separate clips and glue them: the joins never match, and a per-clip soundtrack jumps at every cut.",
         "color": "#26221a",
         "label": "Step 4",
-        "title": "4 · Shot scripts → Three shots, Start frame to end frame",
+        "title": "4 · Timeline script → One take",
         "width": 1320,
         "height": 310,
         "italic": false,
@@ -177,16 +176,16 @@
       "type": "sticky-note",
       "position": {
         "x": 5080,
-        "y": 1020
+        "y": 890
       },
       "data": {
         "bold": false,
-        "text": "Combine joins the three scenes with plain film cuts and keeps their ambient sound. The narration is lifted from the beats in the hero's own words, and Voice Design speaks it with a creature voice built from one line of description — change the line to change the voice: a growl, a squeak, an old storyteller. A one-sentence brief goes to Suno, and Trim cuts the score to 15 seconds. Merge lays the voice (loud) and the score (quiet) over the shots' own sound.",
+        "text": "Sound is added once, at the end, over the whole film. The narration is lifted from the beats in the hero's own words, and Voice Design speaks it with a creature voice built from one line of description — change the line to change the voice: a growl, a squeak, an old storyteller. A one-sentence brief goes to Suno, and Trim cuts the score to 15 seconds. Merge lays the voice (loud) and one score (quieter) under the take.",
         "color": "#26221a",
         "label": "Step 5–6",
-        "title": "5–6 · Combine → The hero's voice + Score → Mix",
+        "title": "5 · The hero's voice + Score → Mix",
         "width": 1200,
-        "height": 350,
+        "height": 310,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -198,7 +197,7 @@
       "type": "generate-image",
       "position": {
         "x": 700,
-        "y": 1570
+        "y": 1440
       },
       "data": {
         "label": "Character design",
@@ -220,7 +219,7 @@
       "type": "text-prompt",
       "position": {
         "x": 700,
-        "y": 2290
+        "y": 2160
       },
       "data": {
         "text": "The lion who loved strawberries. Every lion in the pride loved meat; this one loved strawberries, and he had only ever tasted one, found by a river. One afternoon he sits apart from the pride with that single strawberry, and decides to find where they grow. One afternoon he sets out — across the savanna, into a forest where the low sun cuts through the trees — following the smell. At sunset he steps out of the trees onto a hill and sees a whole valley of strawberry fields below. He lies down among the strawberries and eats until his muzzle is red, happier than any lion has ever been.",
@@ -236,7 +235,7 @@
       "type": "llm-chat",
       "position": {
         "x": 1960,
-        "y": 1530
+        "y": 1400
       },
       "data": {
         "label": "Story beats",
@@ -257,7 +256,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 1530
+        "y": 1400
       },
       "data": {
         "label": "Character sheet",
@@ -279,7 +278,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 2100
+        "y": 1970
       },
       "data": {
         "label": "Frame 1",
@@ -301,7 +300,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 2558
+        "y": 2428
       },
       "data": {
         "label": "Frame 2",
@@ -323,7 +322,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 3016
+        "y": 2886
       },
       "data": {
         "label": "Frame 3",
@@ -345,7 +344,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 3474
+        "y": 3344
       },
       "data": {
         "label": "Frame 4",
@@ -363,167 +362,11 @@
       "className": "rf-resized"
     },
     {
-      "id": "shot-1",
-      "type": "llm-chat",
-      "position": {
-        "x": 3520,
-        "y": 1530
-      },
-      "data": {
-        "label": "Shot 1 script",
-        "llmModel": "claude-sonnet-4.6",
-        "maxTokens": 400,
-        "userInput": "Story beats: {Story beats || a six-frame story.} Write the prompt for this shot.",
-        "templateId": "custom",
-        "temperature": 0.3,
-        "systemPrompt": "You write the prompt for a video model that animates ONE five-second shot from a START frame to an END frame — both are attached: the first image is the start (Frame 1), the second is the end (Frame 2); both are in the same place. You get the story beats: this is Scene 1. Write ONE prompt of 60 to 100 words, plain prose, no headings: first the hero and the place as they appear in the start image (one sentence); then what happens in the five seconds — the one thing the hero does that carries it from the start pose to the end pose, one gentle camera move, the ambient sound of the place; end with the sentence \"The shot ends exactly on the end frame.\" Constraints, as one sentence: the hero keeps its exact look, it is the only character, the place and the light never change, no dissolve, no cuts, no text, no logo. Output only the prompt.",
-        "fieldMappings": {}
-      },
-      "width": 480,
-      "height": 240,
-      "className": "rf-resized"
-    },
-    {
-      "id": "take-1",
-      "type": "generate-video",
-      "position": {
-        "x": 4240,
-        "y": 1530
-      },
-      "data": {
-        "label": "Shot 1",
-        "prompt": "{Shot 1 script || Five seconds of continuous motion from the start frame to the end frame; the hero keeps its exact look; the shot ends exactly on the end frame.}",
-        "duration": 5,
-        "provider": "seedance-2-5",
-        "resolution": "480p",
-        "aspectRatio": "16:9",
-        "fieldMappings": {},
-        "generateAudio": true,
-        "negativePrompt": "",
-        "presentationOutput": false
-      },
-      "width": 600,
-      "height": 338,
-      "className": "rf-resized"
-    },
-    {
-      "id": "shot-2",
-      "type": "llm-chat",
-      "position": {
-        "x": 3520,
-        "y": 1988
-      },
-      "data": {
-        "label": "Shot 2 script",
-        "llmModel": "claude-sonnet-4.6",
-        "maxTokens": 400,
-        "userInput": "Story beats: {Story beats || a six-frame story.} Write the prompt for this shot.",
-        "templateId": "custom",
-        "temperature": 0.3,
-        "systemPrompt": "You write the prompt for a video model that animates ONE five-second shot from a START frame to an END frame — both are attached: the first image is the start (Frame 3), the second is the end (Frame 4); both are in the same place. You get the story beats: this is Scene 2. Write ONE prompt of 60 to 100 words, plain prose, no headings: first the hero and the place as they appear in the start image (one sentence); then what happens in the five seconds — the one thing the hero does that carries it from the start pose to the end pose, one gentle camera move, the ambient sound of the place; end with the sentence \"The shot ends exactly on the end frame.\" Constraints, as one sentence: the hero keeps its exact look, it is the only character, the place and the light never change, no dissolve, no cuts, no text, no logo. Output only the prompt.",
-        "fieldMappings": {}
-      },
-      "width": 480,
-      "height": 240,
-      "className": "rf-resized"
-    },
-    {
-      "id": "take-2",
-      "type": "generate-video",
-      "position": {
-        "x": 4240,
-        "y": 1988
-      },
-      "data": {
-        "label": "Shot 2",
-        "prompt": "{Shot 2 script || Five seconds of continuous motion from the start frame to the end frame; the hero keeps its exact look; the shot ends exactly on the end frame.}",
-        "duration": 5,
-        "provider": "seedance-2-5",
-        "resolution": "480p",
-        "aspectRatio": "16:9",
-        "fieldMappings": {},
-        "generateAudio": true,
-        "negativePrompt": "",
-        "presentationOutput": false
-      },
-      "width": 600,
-      "height": 338,
-      "className": "rf-resized"
-    },
-    {
-      "id": "shot-3",
-      "type": "llm-chat",
-      "position": {
-        "x": 3520,
-        "y": 2446
-      },
-      "data": {
-        "label": "Shot 3 script",
-        "llmModel": "claude-sonnet-4.6",
-        "maxTokens": 400,
-        "userInput": "Story beats: {Story beats || a six-frame story.} Write the prompt for this shot.",
-        "templateId": "custom",
-        "temperature": 0.3,
-        "systemPrompt": "You write the prompt for a video model that animates ONE five-second shot from a START frame to an END frame — both are attached: the first image is the start (Frame 5), the second is the end (Frame 6); both are in the same place. You get the story beats: this is Scene 3. Write ONE prompt of 60 to 100 words, plain prose, no headings: first the hero and the place as they appear in the start image (one sentence); then what happens in the five seconds — the one thing the hero does that carries it from the start pose to the end pose, one gentle camera move, the ambient sound of the place; end with the sentence \"The shot ends exactly on the end frame.\" Constraints, as one sentence: the hero keeps its exact look, it is the only character, the place and the light never change, no dissolve, no cuts, no text, no logo. Output only the prompt.",
-        "fieldMappings": {}
-      },
-      "width": 480,
-      "height": 240,
-      "className": "rf-resized"
-    },
-    {
-      "id": "take-3",
-      "type": "generate-video",
-      "position": {
-        "x": 4240,
-        "y": 2446
-      },
-      "data": {
-        "label": "Shot 3",
-        "prompt": "{Shot 3 script || Five seconds of continuous motion from the start frame to the end frame; the hero keeps its exact look; the shot ends exactly on the end frame.}",
-        "duration": 5,
-        "provider": "seedance-2-5",
-        "resolution": "480p",
-        "aspectRatio": "16:9",
-        "fieldMappings": {},
-        "generateAudio": true,
-        "negativePrompt": "",
-        "presentationOutput": false
-      },
-      "width": 600,
-      "height": 338,
-      "className": "rf-resized"
-    },
-    {
-      "id": "combine",
-      "type": "combine-videos",
-      "position": {
-        "x": 5080,
-        "y": 1530
-      },
-      "data": {
-        "label": "The film",
-        "audioMode": "keep",
-        "clipOrder": [
-          "take-1",
-          "take-2",
-          "take-3"
-        ],
-        "transition": "cut",
-        "fieldMappings": {},
-        "presentationOutput": false,
-        "transitionDuration": 0
-      },
-      "width": 600,
-      "height": 338,
-      "className": "rf-resized"
-    },
-    {
       "id": "narration",
       "type": "llm-chat",
       "position": {
         "x": 5080,
-        "y": 1988
+        "y": 1858
       },
       "data": {
         "label": "Narration",
@@ -544,7 +387,7 @@
       "type": "llm-chat",
       "position": {
         "x": 5080,
-        "y": 2348
+        "y": 2218
       },
       "data": {
         "label": "Score brief",
@@ -565,7 +408,7 @@
       "type": "suno-generate",
       "position": {
         "x": 5800,
-        "y": 2348
+        "y": 2218
       },
       "data": {
         "label": "Score",
@@ -589,7 +432,7 @@
       "type": "trim-audio",
       "position": {
         "x": 5800,
-        "y": 2708
+        "y": 2578
       },
       "data": {
         "label": "Trim to 15 s",
@@ -608,7 +451,7 @@
       "type": "merge-video-audio",
       "position": {
         "x": 5800,
-        "y": 1530
+        "y": 1400
       },
       "data": {
         "label": "Narrated film",
@@ -617,7 +460,7 @@
         "trackSettings": {
           "trim": {
             "role": "background",
-            "volume": 50
+            "volume": 70
           },
           "voice": {
             "role": "voiceover",
@@ -625,11 +468,11 @@
           }
         },
         "voiceoverVolume": 200,
-        "backgroundVolume": 50,
-        "keepOriginalAudio": true,
+        "backgroundVolume": 70,
+        "keepOriginalAudio": false,
         "originalAudioRole": "background",
         "presentationOutput": true,
-        "originalAudioVolume": 100
+        "originalAudioVolume": 0
       },
       "width": 600,
       "height": 338,
@@ -640,7 +483,7 @@
       "type": "voice-design",
       "position": {
         "x": 5800,
-        "y": 1988
+        "y": 1858
       },
       "data": {
         "text": "",
@@ -659,7 +502,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 3932
+        "y": 3802
       },
       "data": {
         "label": "Frame 5",
@@ -681,7 +524,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 4390
+        "y": 4260
       },
       "data": {
         "label": "Frame 6",
@@ -703,7 +546,7 @@
       "type": "animal",
       "position": {
         "x": 700,
-        "y": 1020
+        "y": 890
       },
       "data": {
         "label": "Animal",
@@ -716,7 +559,7 @@
       "type": "style",
       "position": {
         "x": 1060,
-        "y": 1020
+        "y": 890
       },
       "data": {
         "label": "Style",
@@ -729,7 +572,7 @@
       "type": "render-quality",
       "position": {
         "x": 1420,
-        "y": 1020
+        "y": 890
       },
       "data": {
         "label": "Render quality",
@@ -742,7 +585,7 @@
       "type": "text-prompt",
       "position": {
         "x": 0,
-        "y": 1570
+        "y": 1440
       },
       "data": {
         "text": "A young white lion — snow-white fur, an ice-pale mane with a faint silver shimmer, big sky-blue eyes, a pink nose; gentle and wondering. He holds one ripe red strawberry in his paws, and his muzzle is faintly pink with its juice.",
@@ -752,6 +595,50 @@
         "variables": {},
         "presentationInput": true
       }
+    },
+    {
+      "id": "timeline",
+      "type": "llm-chat",
+      "position": {
+        "x": 3520,
+        "y": 1400
+      },
+      "data": {
+        "label": "Timeline script",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Story beats: {Story beats || a six-frame story.} Write the video prompt.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the single prompt for a video model that animates one continuous 15-second film from SIX reference images attached in this order: @Image 1 and @Image 2 are the start and end of Scene 1, @Image 3 and @Image 4 of Scene 2, @Image 5 and @Image 6 of Scene 3 — the same hero, three places. You get the story beats. Write ONE prompt of 160 to 230 words in this order, plain prose, no headings:\nFirst one sentence: the medium and look, taken from the beats' Look, and the hero once as it appears in @Image 1.\nThen three gap-free timed intervals, exactly: \"0-5s: …\" \"5-10s: …\" \"10-15s: …\". Each interval opens by naming its start image (\"opens on @Image 1\"), describes the one thing the hero does in these five seconds so that the picture arrives at its end image (\"and settles into @Image 2\"), names one gentle camera move, and passes to the next scene with a clean, matched cut (\"cut to @Image 3\") — same grade, same light, the hero in the same mood. The 10-15s interval ends with: \"The picture settles and holds on @Image 6 until the end.\"\nThen the constraints as one sentence: the hero keeps its exact look from the images; it is the only character; no dissolves, no morphing between places — cuts only at the two scene changes; no on-screen text, no logo; silent — no music, no voice.\nOutput only the prompt.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "take",
+      "type": "generate-video",
+      "position": {
+        "x": 4240,
+        "y": 1400
+      },
+      "data": {
+        "label": "The film",
+        "prompt": "{Timeline script || One continuous 15-second film: opens on @Image 1 and settles into @Image 2, cut to @Image 3 and settles into @Image 4, cut to @Image 5 and holds on @Image 6; the hero keeps its exact look; silent.}",
+        "duration": 15,
+        "provider": "seedance-2-5",
+        "resolution": "480p",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
     }
   ],
   "edges": [
@@ -809,13 +696,6 @@
       "source": "music",
       "target": "trim",
       "sourceHandle": "audio",
-      "targetHandle": "in"
-    },
-    {
-      "id": "e-combine-mix",
-      "source": "combine",
-      "target": "mix",
-      "sourceHandle": "video",
       "targetHandle": "in"
     },
     {
@@ -910,104 +790,6 @@
       "targetHandle": "references"
     },
     {
-      "id": "e-beats-shot-1",
-      "source": "beats",
-      "target": "shot-1",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-frame-1-shot-1",
-      "source": "frame-1",
-      "target": "shot-1",
-      "sourceHandle": "image",
-      "targetHandle": "references"
-    },
-    {
-      "id": "e-frame-2-shot-1",
-      "source": "frame-2",
-      "target": "shot-1",
-      "sourceHandle": "image",
-      "targetHandle": "references"
-    },
-    {
-      "id": "e-shot-1-take-1",
-      "source": "shot-1",
-      "target": "take-1",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-frame-1-take-1-start",
-      "source": "frame-1",
-      "target": "take-1",
-      "sourceHandle": "image",
-      "targetHandle": "startFrame"
-    },
-    {
-      "id": "e-frame-2-take-1-end",
-      "source": "frame-2",
-      "target": "take-1",
-      "sourceHandle": "image",
-      "targetHandle": "endFrame"
-    },
-    {
-      "id": "e-take-1-combine",
-      "source": "take-1",
-      "target": "combine",
-      "sourceHandle": "video",
-      "targetHandle": "in"
-    },
-    {
-      "id": "e-beats-shot-2",
-      "source": "beats",
-      "target": "shot-2",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-frame-3-shot-2",
-      "source": "frame-3",
-      "target": "shot-2",
-      "sourceHandle": "image",
-      "targetHandle": "references"
-    },
-    {
-      "id": "e-shot-2-take-2",
-      "source": "shot-2",
-      "target": "take-2",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-take-2-combine",
-      "source": "take-2",
-      "target": "combine",
-      "sourceHandle": "video",
-      "targetHandle": "in"
-    },
-    {
-      "id": "e-beats-shot-3",
-      "source": "beats",
-      "target": "shot-3",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-shot-3-take-3",
-      "source": "shot-3",
-      "target": "take-3",
-      "sourceHandle": "text",
-      "targetHandle": "prompt"
-    },
-    {
-      "id": "e-take-3-combine",
-      "source": "take-3",
-      "target": "combine",
-      "sourceHandle": "video",
-      "targetHandle": "in"
-    },
-    {
       "id": "e-narration-voice",
       "source": "narration",
       "target": "voice",
@@ -1064,55 +846,6 @@
       "targetHandle": "references"
     },
     {
-      "id": "e-frame-4-shot-2",
-      "source": "frame-4",
-      "target": "shot-2",
-      "sourceHandle": "image",
-      "targetHandle": "references"
-    },
-    {
-      "id": "e-frame-3-take-2-start",
-      "source": "frame-3",
-      "target": "take-2",
-      "sourceHandle": "image",
-      "targetHandle": "startFrame"
-    },
-    {
-      "id": "e-frame-4-take-2-end",
-      "source": "frame-4",
-      "target": "take-2",
-      "sourceHandle": "image",
-      "targetHandle": "endFrame"
-    },
-    {
-      "id": "e-frame-5-shot-3",
-      "source": "frame-5",
-      "target": "shot-3",
-      "sourceHandle": "image",
-      "targetHandle": "references"
-    },
-    {
-      "id": "e-frame-6-shot-3",
-      "source": "frame-6",
-      "target": "shot-3",
-      "sourceHandle": "image",
-      "targetHandle": "references"
-    },
-    {
-      "id": "e-frame-5-take-3-start",
-      "source": "frame-5",
-      "target": "take-3",
-      "sourceHandle": "image",
-      "targetHandle": "startFrame"
-    },
-    {
-      "id": "e-frame-6-take-3-end",
-      "source": "frame-6",
-      "target": "take-3",
-      "sourceHandle": "image",
-      "targetHandle": "endFrame"
-    },
-    {
       "id": "e-animal-character",
       "source": "animal",
       "target": "character",
@@ -1139,13 +872,76 @@
       "target": "character",
       "sourceHandle": "prompt",
       "targetHandle": "prompt"
+    },
+    {
+      "id": "e-beats-timeline",
+      "source": "beats",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-timeline-take",
+      "source": "timeline",
+      "target": "take",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-take-mix",
+      "source": "take",
+      "target": "mix",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-frame-1-take",
+      "source": "frame-1",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-frame-2-take",
+      "source": "frame-2",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-frame-3-take",
+      "source": "frame-3",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-frame-4-take",
+      "source": "frame-4",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-frame-5-take",
+      "source": "frame-5",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-frame-6-take",
+      "source": "frame-6",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
     }
   ],
   "settings": {
     "viewport": {
       "x": 80,
       "y": 60,
-      "zoom": 0.169
+      "zoom": 0.174
     },
     "flowPromptTemplates": {},
     "characterDefinitions": [],
