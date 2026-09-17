@@ -96,6 +96,50 @@ describe("addCaptionsBody — look levers gate on kinetic style", () => {
   })
 })
 
+describe("addCaptionsBody — Transcript input + wordLevel", () => {
+  const TRANSCRIPT = { version: 1, words: [{ text: "hello", startMs: 0, endMs: 300 }] }
+
+  it("accepts a transcript on a kinetic style, with wordLevel", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "karaoke",
+      transcript: TRANSCRIPT,
+      wordLevel: true,
+    })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.wordLevel).toBe(true)
+  })
+
+  it("a transcript is a caption source on its own (auto_transcribe:false, no text)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "word-pop",
+      auto_transcribe: false,
+      transcript: TRANSCRIPT,
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("rejects a transcript on the static subtitle style (timed captions need Remotion)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      // style omitted → defaults to "subtitle" (non-kinetic)
+      transcript: TRANSCRIPT,
+    })
+    expect(r.success).toBe(false)
+    expect(issuePaths(r)).toContain("transcript")
+  })
+
+  it("accepts a transcript alongside segments regardless of top-level style (all-Remotion render)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      transcript: TRANSCRIPT,
+      segments: [{ startMs: 0, endMs: 3000 }],
+    })
+    expect(r.success).toBe(true)
+  })
+})
+
 describe("addCaptionsBody — per-segment captions", () => {
   it("accepts non-overlapping segments with per-segment style/position/look + own text", () => {
     const r = addCaptionsBody.safeParse({
