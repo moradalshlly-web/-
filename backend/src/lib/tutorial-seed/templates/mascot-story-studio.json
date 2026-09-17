@@ -1,8 +1,8 @@
 {
   "slug": "mascot-story-studio",
   "name": "Mascot Story Studio",
-  "description": "Your brand mascot in a 15-second story for social: animal, style and render-quality pickers fix the mascot, Voice Design fixes its voice, and the story is the only thing you change — three scenes in three places, six numbered frames rendered as one continuous take, one score added at the end.",
-  "markdownDescription": "## Mascot Story Studio\n\nYour brand mascot in a 15-second story for social — the same character, the same voice, a new story every week. Pickers fix the mascot's look, Voice Design fixes its voice, and the story is the only node you change to make the next episode.\n\n**Business use:** a brand with a character (a food brand, a farm, a kids' product, an app) that wants a steady stream of short mascot films for Instagram, TikTok and YouTube Shorts without redrawing the character each time. The demo: a white lion, mascot of a strawberry farm, who loves strawberries.\n\n1. **Pickers + Notes + Story** — Animal, Style and Render quality pickers, one line of notes (colour, age, what it carries) and this week's story; one image node turns the pickers into the mascot's character design.\n2. **Story beats** — the mascot described from the design, the look, three scenes of two frames each, the narration and the music.\n3. **Character sheet → Frames 1–6** — the sheet fixes the mascot once; the six frames copy it.\n4. **Timeline script → one take** — one prompt over the six numbered frames; one Seedance 2.5 node renders the whole 15 seconds in a single generation, silent, with the scene changes cut inside it.\n5. **Voice + score → mix** — sound is added once, at the end: Voice Design speaks the narration in the mascot's voice; Suno writes one score; Merge lays both under the take.",
+  "description": "Your brand mascot in a 15-second story for social that ends on your product: animal, style and render-quality pickers fix the mascot, Voice Design fixes its voice, a product photo closes the story, and the story is the only thing you change — three scenes in three places, six numbered frames rendered as one continuous take, one score added at the end.",
+  "markdownDescription": "## Mascot Story Studio\n\nYour brand mascot in a 15-second story for social — the same character, the same voice, a new story every week. Pickers fix the mascot's look, Voice Design fixes its voice, a product photo closes every episode, and the story is the only node you change to make the next one.\n\n**Business use:** a brand with a character (a food brand, a farm, a kids' product, an app) that wants a steady stream of short mascot films for Instagram, TikTok and YouTube Shorts without redrawing the character each time. The demo: a white lion, mascot of a strawberry farm, who loves strawberries — and finds the farm's crate at the end.\n\n1. **Pickers + Notes + Product + Story** — Animal, Style and Render quality pickers, one line of notes (colour, age, what it carries), a photo of the product the story ends on, and this week's story; one image node turns the pickers into the mascot's character design.\n2. **Story beats** — the mascot described from the design, the look, three scenes of two frames each — the last frame shows the mascot with the product exactly as photographed — the narration and the music.\n3. **Character sheet → Frames 1–6** — the sheet fixes the mascot once; the six frames copy it.\n4. **Timeline script → one take** — one prompt over the six numbered frames; one Seedance 2.5 node renders the whole 15 seconds in a single generation, silent, with the scene changes cut inside it.\n5. **Voice + score → mix** — sound is added once, at the end: Voice Design speaks the narration in the mascot's voice; Suno writes one score; Merge lays both under the take.",
   "category": "social-creatives",
   "outputTypes": [
     "video"
@@ -11,6 +11,7 @@
     "social-creatives",
     "mascot",
     "brand-character",
+    "product",
     "story",
     "pickers",
     "one-take",
@@ -23,6 +24,7 @@
     "animal",
     "style",
     "render-quality",
+    "upload-image",
     "text-prompt",
     "llm-chat",
     "generate-image",
@@ -40,7 +42,7 @@
     "elevenlabs",
     "suno"
   ],
-  "previewMediaUrl": "https://cdn.nodaro.ai/templates/ea279904-aefc-45c7-a81f-895752226c9d/preview-7d5c20d691ed.png",
+  "previewMediaUrl": "https://cdn.nodaro.ai/templates/ea279904-aefc-45c7-a81f-895752226c9d/preview-8f48e4b43d65.png",
   "previewMediaType": "image",
   "tutorialCategorySlug": "workflows",
   "tutorialSortOrder": 40,
@@ -54,12 +56,12 @@
       },
       "data": {
         "bold": false,
-        "text": "Your character and your story become a 15-second film of three scenes in three places — one continuous take, told by the hero in its own designed voice, with one score added at the end.\n\n1. Pickers + Notes + Story — pick the animal, the art style and the render quality, add one line of notes (colour, age, what it carries), and write the story in your own words. One image node turns the pickers into the hero's character design.\n2. Story beats — the hero described from the design, the look, three scenes of two frames each, the narration and the music.\n3. Character sheet → Frames 1–6 — the sheet fixes the hero once; the six frames copy it.\n4. Timeline script → one take — one prompt over the six numbered frames; one Seedance 2.5 node renders the whole 15 seconds, silent.\n5. Voice + score → mix — sound is added once, at the end: Voice Design speaks the narration in a creature voice; Suno writes one score; Merge lays both under the take.",
+        "text": "Your brand mascot in a 15-second story for social — the same character, the same voice, a new story every week. Pickers fix the mascot's look, Voice Design fixes its voice, and the story is the only thing you change: three scenes in three places, one continuous take, one score added at the end.\n\n1. Pickers + Notes + Product + Story — pick the animal, the art style and the render quality, add one line of notes (colour, age, what it carries), upload the product the story ends on, and write this week's story. One image node turns the pickers into the mascot's character design.\n2. Story beats — the mascot described from the design, the look, three scenes of two frames each — the last one ends on the product — the narration and the music.\n3. Character sheet → Frames 1–6 — the sheet fixes the hero once; the six frames copy it.\n4. Timeline script → one take — one prompt over the six numbered frames; one Seedance 2.5 node renders the whole 15 seconds, silent.\n5. Voice + score → mix — sound is added once, at the end: Voice Design speaks the narration in a creature voice; Suno writes one score; Merge lays both under the take.",
         "color": "#26221a",
         "label": "How it works",
-        "title": "Character journey studio — how it works",
+        "title": "Mascot story studio — how it works",
         "width": 1180,
-        "height": 730,
+        "height": 810,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -71,16 +73,16 @@
       "type": "sticky-note",
       "position": {
         "x": 0,
-        "y": 890
+        "y": 970
       },
       "data": {
         "bold": false,
-        "text": "Animal, Style and Render quality are picker nodes: the Character design prompt places each one by name — {Animal}, {Style}, {Render quality} — and every tile you pick becomes a line of prompt. Swap a tile — lion to fox, 3D to watercolour — and the whole film follows. The notes add what pickers can't: colour, age, what it carries.",
+        "text": "Animal, Style and Render quality are picker nodes: the Character design prompt places each one by name — {Animal}, {Style}, {Render quality} — and every tile you pick becomes a line of prompt. Pick once, and every story keeps the same mascot; swap a tile — lion to fox, 3D to watercolour — and the whole series follows. The notes add what pickers can't: colour, age, what it carries.",
         "color": "#26221a",
         "label": "Step 1",
-        "title": "1 · Design the hero with pickers",
+        "title": "1 · Design the mascot with pickers",
         "width": 640,
-        "height": 430,
+        "height": 480,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -92,16 +94,16 @@
       "type": "sticky-note",
       "position": {
         "x": 0,
-        "y": 2160
+        "y": 3010
       },
       "data": {
         "bold": false,
-        "text": "The story in a few lines: who wants what, where the journey goes, how it ends. The beats keep your events and your ending.",
+        "text": "The story in a few lines: what the mascot wants, where it goes, how it ends — usually with what you sell. The beats keep your events and your ending. Change only this node to make the next episode.",
         "color": "#26221a",
         "label": "Step 1",
-        "title": "1 · Your story",
+        "title": "1 · This week's story",
         "width": 640,
-        "height": 220,
+        "height": 310,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -113,7 +115,7 @@
       "type": "sticky-note",
       "position": {
         "x": 1960,
-        "y": 890
+        "y": 970
       },
       "data": {
         "bold": false,
@@ -134,7 +136,7 @@
       "type": "sticky-note",
       "position": {
         "x": 2680,
-        "y": 890
+        "y": 970
       },
       "data": {
         "bold": false,
@@ -155,7 +157,7 @@
       "type": "sticky-note",
       "position": {
         "x": 3520,
-        "y": 890
+        "y": 970
       },
       "data": {
         "bold": false,
@@ -176,7 +178,7 @@
       "type": "sticky-note",
       "position": {
         "x": 5080,
-        "y": 890
+        "y": 970
       },
       "data": {
         "bold": false,
@@ -197,7 +199,7 @@
       "type": "generate-image",
       "position": {
         "x": 700,
-        "y": 1440
+        "y": 1570
       },
       "data": {
         "label": "Character design",
@@ -219,10 +221,10 @@
       "type": "text-prompt",
       "position": {
         "x": 700,
-        "y": 2160
+        "y": 3010
       },
       "data": {
-        "text": "The lion who loved strawberries. Every lion in the pride loved meat; this one loved strawberries, and he had only ever tasted one, found by a river. One afternoon he sits apart from the pride with that single strawberry, and decides to find where they grow. One afternoon he sets out — across the savanna, into a forest where the low sun cuts through the trees — following the smell. At sunset he steps out of the trees onto a hill and sees a whole valley of strawberry fields below. He lies down among the strawberries and eats until his muzzle is red, happier than any lion has ever been.",
+        "text": "The lion who loved strawberries. Every lion in the pride loved meat; this one loved strawberries, and he had only ever tasted one, found by a river. One afternoon he sits apart from the pride with that single strawberry, and decides to find where they grow. One afternoon he sets out — across the savanna, into a forest where the low sun cuts through the trees — following the smell. At sunset he steps out of the trees onto a hill and sees a whole valley of strawberry fields below. He lies down among the strawberries and eats until his muzzle is red, happier than any lion has ever been — and there, at the edge of the field, stands the farmer's wooden crate of strawberries, the best he has ever tasted.",
         "label": "Your story",
         "width": 640,
         "height": 360,
@@ -235,16 +237,16 @@
       "type": "llm-chat",
       "position": {
         "x": 1960,
-        "y": 1400
+        "y": 1480
       },
       "data": {
         "label": "Story beats",
         "llmModel": "claude-sonnet-4.6",
         "maxTokens": 1400,
-        "userInput": "Story: {Your story || a small hero sets out to find the one thing it loves.} The reference image is the hero's character design. Write the story beats.",
+        "userInput": "Story: {Your story || a small hero sets out to find the one thing it loves.} The first reference image is the hero's character design; the second is the product the story ends on. Write the story beats.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You turn a short story and a character design image of its hero into a 15-second film of three scenes in three places. Each scene is ONE five-second shot built from two still frames in the SAME place: the shot starts on its first frame and lands exactly on its second — Scene 1 runs from Frame 1 to Frame 2, Scene 2 from Frame 3 to Frame 4, Scene 3 from Frame 5 to Frame 6. Between scenes the film cuts. Write in exactly this shape, plain English, nothing else:\nCharacter: <60 to 90 words describing the hero exactly as the design image shows it — species or kind, colours, markings, eyes, any object it carries, how it moves; this description is copied into every frame>\nLook: <one paragraph of 40 to 60 words: the rendering style of the design image (illustrated, painterly, 3D animation — name it as you see it), the light, the palette, the lens — one look every frame follows>\nScene 1 — <place, time of day>:\nFrame 1 — start: Image: <40 to 60 words: the still — the hero, its pose and expression, the place, the light, the camera>\nFrame 2 — end: Image: <40 to 60 words: the same place and camera set-up five seconds later — the hero has done one thing (stood up, walked a few steps, turned, lain down)>\nScene 2 — <place, time of day>:\nFrame 3 — start: Image: <…>\nFrame 4 — end: Image: <…>\nScene 3 — <place, time of day>:\nFrame 5 — start: Image: <…>\nFrame 6 — end: Image: <…>\nNarration: <three short sentences, one per scene, between 18 and 24 words in all and at least 100 characters — the HERO tells its own story in the first person (I), past tense, warm, simple words a child would follow; it must be spoken comfortably inside 13 seconds>\nMusic: <one sentence: genre, mood, tempo, instruments of the instrumental score>\nRules: the three scenes are three different places — beginning, journey, arrival; within a scene the two frames share the place, the light and the camera set-up, and differ only by what the hero does in five seconds (a few steps, a turn, standing up, lying down) — never a different spot, never a different hour; the whole story happens in ONE continuous stretch of light — the light may deepen from afternoon to sunset, but never jumps from night to day; the hero is the only character, nothing else has a face; describe any mess from food as juice or crumbs of that food, never as red smears or stains; no text, no logo; the story is the user's — keep its events and its ending.",
+        "systemPrompt": "You turn a short story, a character design image of its hero (the first reference image) and a product photo (the second reference image) into a 15-second film of three scenes in three places. The film is a brand story: it ENDS on the product. Each scene is ONE five-second shot built from two still frames in the SAME place: the shot starts on its first frame and lands exactly on its second — Scene 1 runs from Frame 1 to Frame 2, Scene 2 from Frame 3 to Frame 4, Scene 3 from Frame 5 to Frame 6. Between scenes the film cuts. Write in exactly this shape, plain English, nothing else:\nCharacter: <60 to 90 words describing the hero exactly as the design image shows it — species or kind, colours, markings, eyes, any object it carries, how it moves; this description is copied into every frame>\nLook: <one paragraph of 40 to 60 words: the rendering style of the design image (illustrated, painterly, 3D animation — name it as you see it), the light, the palette, the lens — one look every frame follows>\nScene 1 — <place, time of day>:\nFrame 1 — start: Image: <40 to 60 words: the still — the hero, its pose and expression, the place, the light, the camera>\nFrame 2 — end: Image: <40 to 60 words: the same place and camera set-up five seconds later — the hero has done one thing (stood up, walked a few steps, turned, lain down)>\nScene 2 — <place, time of day>:\nFrame 3 — start: Image: <…>\nFrame 4 — end: Image: <…>\nScene 3 — <place, time of day>:\nFrame 5 — start: Image: <…>\nFrame 6 — end: Image: <the hero WITH the product, exactly as the product photo shows it — the same crate, box or pack, its colours and label — placed naturally in the scene; this is the film's last picture>\nNarration: <three short sentences, one per scene, between 18 and 21 words in all and at least 100 characters — the HERO tells its own story in the first person (I), past tense, warm, simple words a child would follow; it must be spoken comfortably inside 11 seconds>\nMusic: <one sentence: genre, mood, tempo, instruments of the instrumental score>\nRules: the three scenes are three different places — beginning, journey, arrival at the product; the product appears only in Scene 3, and Frame 6 must show it clearly next to the hero; within a scene the two frames share the place, the light and the camera set-up, and differ only by what the hero does in five seconds (a few steps, a turn, standing up, lying down) — never a different spot, never a different hour; the whole story happens in ONE continuous stretch of light — the light may deepen from afternoon to sunset, but never jumps from night to day; the hero is the only character, nothing else has a face; describe any mess from food as juice or crumbs of that food, never as red smears or stains; no text, no logo; the story is the user's — keep its events and its ending.",
         "fieldMappings": {}
       },
       "width": 480,
@@ -256,7 +258,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 1400
+        "y": 1480
       },
       "data": {
         "label": "Character sheet",
@@ -278,7 +280,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 1970
+        "y": 2050
       },
       "data": {
         "label": "Frame 1",
@@ -300,7 +302,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 2428
+        "y": 2508
       },
       "data": {
         "label": "Frame 2",
@@ -322,7 +324,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 2886
+        "y": 2966
       },
       "data": {
         "label": "Frame 3",
@@ -344,7 +346,7 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 3344
+        "y": 3424
       },
       "data": {
         "label": "Frame 4",
@@ -366,7 +368,7 @@
       "type": "llm-chat",
       "position": {
         "x": 5080,
-        "y": 1858
+        "y": 1938
       },
       "data": {
         "label": "Narration",
@@ -375,7 +377,7 @@
         "userInput": "Story beats: {Story beats || a six-frame story.} Output the narration.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "From the story beats, output the Narration only — the exact words the hero speaks, three short sentences in the first person, between 18 and 24 words in all and at least 100 characters (the film is 15 seconds; the voice model needs 100 characters) — if the beats' narration is longer, tighten it without losing a beat — nothing else: no title, no quotes, no labels, no commentary.",
+        "systemPrompt": "From the story beats, output the Narration only — the exact words the hero speaks: three sentences in the first person, EACH AT MOST SEVEN WORDS, one per scene, at least 100 characters in all (the film is 15 seconds and the creature voice speaks slowly; the voice model needs 100 characters). Rewrite the beats' narration to fit — count the words of every sentence before you answer. Output nothing else: no title, no quotes, no labels, no commentary.",
         "fieldMappings": {}
       },
       "width": 480,
@@ -387,7 +389,7 @@
       "type": "llm-chat",
       "position": {
         "x": 5080,
-        "y": 2218
+        "y": 2298
       },
       "data": {
         "label": "Score brief",
@@ -408,7 +410,7 @@
       "type": "suno-generate",
       "position": {
         "x": 5800,
-        "y": 2218
+        "y": 2298
       },
       "data": {
         "label": "Score",
@@ -432,7 +434,7 @@
       "type": "trim-audio",
       "position": {
         "x": 5800,
-        "y": 2578
+        "y": 2658
       },
       "data": {
         "label": "Trim to 15 s",
@@ -451,7 +453,7 @@
       "type": "merge-video-audio",
       "position": {
         "x": 5800,
-        "y": 1400
+        "y": 1480
       },
       "data": {
         "label": "Narrated film",
@@ -483,7 +485,7 @@
       "type": "voice-design",
       "position": {
         "x": 5800,
-        "y": 1858
+        "y": 1938
       },
       "data": {
         "text": "",
@@ -502,12 +504,12 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 3802
+        "y": 3882
       },
       "data": {
         "label": "Frame 5",
         "style": "",
-        "prompt": "FRAME 5 ONLY. Render the still described under \"Frame 5\" in the story beats below, in the place and hour named by the Scene heading directly above it — the other five frames are other places and must not appear; if Frame 5 belongs to a forest scene, the picture is a forest, not grassland. Single 16:9 frame in the beats' Look. Story beats: {Story beats || a six-frame story.} The first reference image is the character sheet — copy the hero from it exactly (species, colours, markings, eyes, anything it carries); the second reference image is the hero's character design — its rendering style is the style of the whole frame. Objects in this frame: exactly one hero; nothing else has a face. Any red on the hero is glossy strawberry juice from the fruit it eats — clearly fruit, with seeds and leaves in view, never a wound. No text, no logo, no watermark.",
+        "prompt": "FRAME 5 ONLY. Render the still described under \"Frame 5\" in the story beats below, in the place and hour named by the Scene heading directly above it — the other five frames are other places and must not appear; if Frame 5 belongs to a forest scene, the picture is a forest, not grassland. Single 16:9 frame in the beats' Look. Story beats: {Story beats || a six-frame story.} The first reference image is the character sheet — copy the hero from it exactly (species, colours, markings, eyes, anything it carries); the second reference image is the hero's character design — its rendering style is the style of the whole frame; the third reference image is the product — when this frame's description names it, it appears exactly as photographed: same crate, box or pack, same colours and label, rendered in the frame's style. Objects in this frame: exactly one hero; nothing else has a face. Any red on the hero is glossy strawberry juice from the fruit it eats — clearly fruit, with seeds and leaves in view, never a wound. No text, no logo, no watermark.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "16:9",
@@ -524,12 +526,12 @@
       "type": "generate-image",
       "position": {
         "x": 2680,
-        "y": 4260
+        "y": 4340
       },
       "data": {
         "label": "Frame 6",
         "style": "",
-        "prompt": "FRAME 6 ONLY. Render the still described under \"Frame 6\" in the story beats below, in the place and hour named by the Scene heading directly above it — the other five frames are other places and must not appear; if Frame 6 belongs to a forest scene, the picture is a forest, not grassland. Single 16:9 frame in the beats' Look. Story beats: {Story beats || a six-frame story.} The first reference image is the character sheet — copy the hero from it exactly (species, colours, markings, eyes, anything it carries); the second reference image is the hero's character design — its rendering style is the style of the whole frame. Objects in this frame: exactly one hero; nothing else has a face. Any red on the hero is glossy strawberry juice from the fruit it eats — clearly fruit, with seeds and leaves in view, never a wound. No text, no logo, no watermark.",
+        "prompt": "FRAME 6 ONLY. Render the still described under \"Frame 6\" in the story beats below, in the place and hour named by the Scene heading directly above it — the other five frames are other places and must not appear; if Frame 6 belongs to a forest scene, the picture is a forest, not grassland. Single 16:9 frame in the beats' Look. Story beats: {Story beats || a six-frame story.} The first reference image is the character sheet — copy the hero from it exactly (species, colours, markings, eyes, anything it carries); the second reference image is the hero's character design — its rendering style is the style of the whole frame; the third reference image is the product — when this frame's description names it, it appears exactly as photographed: same crate, box or pack, same colours and label, rendered in the frame's style. Objects in this frame: exactly one hero; nothing else has a face. Any red on the hero is glossy strawberry juice from the fruit it eats — clearly fruit, with seeds and leaves in view, never a wound. No text, no logo, no watermark.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "16:9",
@@ -546,7 +548,7 @@
       "type": "animal",
       "position": {
         "x": 700,
-        "y": 890
+        "y": 970
       },
       "data": {
         "label": "Animal",
@@ -559,7 +561,7 @@
       "type": "style",
       "position": {
         "x": 1060,
-        "y": 890
+        "y": 970
       },
       "data": {
         "label": "Style",
@@ -572,7 +574,7 @@
       "type": "render-quality",
       "position": {
         "x": 1420,
-        "y": 890
+        "y": 970
       },
       "data": {
         "label": "Render quality",
@@ -585,7 +587,7 @@
       "type": "text-prompt",
       "position": {
         "x": 0,
-        "y": 1440
+        "y": 1570
       },
       "data": {
         "text": "A young white lion — snow-white fur, an ice-pale mane with a faint silver shimmer, big sky-blue eyes, a pink nose; gentle and wondering. He holds one ripe red strawberry in his paws, and his muzzle is faintly pink with its juice.",
@@ -601,7 +603,7 @@
       "type": "llm-chat",
       "position": {
         "x": 3520,
-        "y": 1400
+        "y": 1480
       },
       "data": {
         "label": "Timeline script",
@@ -610,7 +612,7 @@
         "userInput": "Story beats: {Story beats || a six-frame story.} Write the video prompt.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You write the single prompt for a video model that animates one continuous 15-second film from SIX reference images attached in this order: @Image 1 and @Image 2 are the start and end of Scene 1, @Image 3 and @Image 4 of Scene 2, @Image 5 and @Image 6 of Scene 3 — the same hero, three places. You get the story beats. Write ONE prompt of 160 to 230 words in this order, plain prose, no headings:\nFirst one sentence: the medium and look, taken from the beats' Look, and the hero once as it appears in @Image 1.\nThen three gap-free timed intervals, exactly: \"0-5s: …\" \"5-10s: …\" \"10-15s: …\". Each interval opens by naming its start image (\"opens on @Image 1\"), describes the one thing the hero does in these five seconds so that the picture arrives at its end image (\"and settles into @Image 2\"), names one gentle camera move, and passes to the next scene with a clean, matched cut (\"cut to @Image 3\") — same grade, same light, the hero in the same mood. The 10-15s interval ends with: \"The picture settles and holds on @Image 6 until the end.\"\nThen the constraints as one sentence: the hero keeps its exact look from the images; it is the only character; no dissolves, no morphing between places — cuts only at the two scene changes; no on-screen text, no logo; silent — no music, no voice.\nOutput only the prompt.",
+        "systemPrompt": "You write the single prompt for a video model that animates one continuous 15-second film from SIX reference images attached in this order: @Image 1 and @Image 2 are the start and end of Scene 1, @Image 3 and @Image 4 of Scene 2, @Image 5 and @Image 6 of Scene 3 — the same hero, three places. You get the story beats. Write ONE prompt of 160 to 230 words in this order, plain prose, no headings:\nFirst one sentence: the medium and look, taken from the beats' Look, and the hero once as it appears in @Image 1.\nThen three gap-free timed intervals, exactly: \"0-5s: …\" \"5-10s: …\" \"10-15s: …\". Each interval opens by naming its start image (\"opens on @Image 1\"), describes the one thing the hero does in these five seconds so that the picture arrives at its end image (\"and settles into @Image 2\"), names one gentle camera move, and passes to the next scene with a clean, matched cut (\"cut to @Image 3\") — same grade, same light, the hero in the same mood. The 10-15s interval ends with: \"The picture settles and holds on @Image 6 — the hero with the product, exactly as in @Image 6 — until the end.\"\nThen the constraints as one sentence: the hero keeps its exact look from the images; it is the only character; no dissolves, no morphing between places — cuts only at the two scene changes; no on-screen text, no logo; silent — no music, no voice.\nOutput only the prompt.",
         "fieldMappings": {}
       },
       "width": 480,
@@ -622,7 +624,7 @@
       "type": "generate-video",
       "position": {
         "x": 4240,
-        "y": 1400
+        "y": 1480
       },
       "data": {
         "label": "The film",
@@ -638,6 +640,48 @@
       },
       "width": 600,
       "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2290
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean photo of what you sell — a crate, a box, a pack. The story ends on it: Frame 6 shows the mascot with the product exactly as photographed, in the film's style.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Your product",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 2290
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/41708ab2-3454-4f21-81c5-6eef5eb1e18b.png",
+        "label": "Your product",
+        "r2Url": "https://cdn.nodaro.ai/images/41708ab2-3454-4f21-81c5-6eef5eb1e18b.png",
+        "assetId": "41708ab2-3454-4f21-81c5-6eef5eb1e18b",
+        "filename": "farm-strawberries-crate-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/41708ab2-3454-4f21-81c5-6eef5eb1e18b.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
       "className": "rf-resized"
     }
   ],
@@ -935,29 +979,50 @@
       "target": "take",
       "sourceHandle": "image",
       "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-product-beats",
+      "source": "product",
+      "target": "beats",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-frame-5",
+      "source": "product",
+      "target": "frame-5",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-frame-6",
+      "source": "product",
+      "target": "frame-6",
+      "sourceHandle": "image",
+      "targetHandle": "references"
     }
   ],
   "settings": {
     "viewport": {
       "x": 80,
       "y": 60,
-      "zoom": 0.174
+      "zoom": 0.171
     },
     "flowPromptTemplates": {},
     "characterDefinitions": [],
     "presentationSettings": {
       "cardMeta": {
         "mix": {
-          "title": "Narrated film",
-          "description": "The finished 15-second film: three shots, the hero's own voice and a score."
+          "title": "Mascot story",
+          "description": "The finished 15-second episode: one take, the mascot's own voice and a score."
         },
         "notes": {
           "title": "Character notes",
           "description": "Colour, age, what it carries — what pickers can't say."
         },
         "story": {
-          "title": "Your story",
-          "description": "Who wants what, where the journey goes, how it ends."
+          "title": "This week's story",
+          "description": "What the mascot wants, where it goes, how it ends."
         },
         "animal": {
           "title": "Animal",
@@ -966,6 +1031,10 @@
         "render": {
           "title": "Render quality",
           "description": "The rendering look."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean photo of what you sell — the story ends on it."
         },
         "artstyle": {
           "title": "Style",
@@ -978,6 +1047,7 @@
         "artstyle",
         "render",
         "notes",
+        "product",
         "story"
       ],
       "outputOrder": [
