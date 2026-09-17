@@ -112,7 +112,7 @@ import {
   collectScene3DLayoutReferences,
   scene3DLayoutVideoCaptions,
 } from "@/lib/scene3d/reference-scoping"
-import type { CharacterDef, ConnectedReference, ReferenceSource, ExtraRefCharacterContext } from "@nodaro/shared"
+import type { CharacterDef, ConnectedReference, ReferenceSource, ExtraRefCharacterContext, Transcript } from "@nodaro/shared"
 import { scene3DAdvancedEngines } from "@/lib/scene3d-pro-availability"
 import { ANALYZABLE_PICKER_HINT } from "@/lib/picker-labels";
 import { getGenerateTextTemplate } from "@/lib/generate-text-templates";
@@ -4698,6 +4698,12 @@ function executeNodeCore(
           setForcePrivate(forcePrivate);
           setCurrentNodeId(node.id);
           setUserPromptTemplate(undefined);
+          // Word timings only matter when the `json` (Transcript) handle is
+          // consumed; the two whisper providers omit them otherwise. Graph-aware
+          // default, mirroring payload-builder's server-side check.
+          const jsonWired = useWorkflowStore
+            .getState()
+            .edges.some((e) => e.source === node.id && e.sourceHandle === "json");
           return transcribeApi(
             audioUrl,
             d.provider || undefined,
@@ -4705,6 +4711,7 @@ function executeNodeCore(
             ctx.userId,
             d.diarize,
             d.tagAudioEvents,
+            jsonWired || d.wordTimestamps,
           );
         })
         .then(({ jobId }) => {
@@ -4772,15 +4779,23 @@ function executeNodeCore(
                           timestamp: string;
                         }>
                       | undefined) ?? [];
+                  // The `json` output handle: the normalized Transcript the
+                  // worker wrote onto output_data.json. Stored per-result (so
+                  // switching the active result carries its own transcript) and
+                  // as the bare active-result field `generatedJson` — the field
+                  // name every json producer/consumer uses. Parity with `text`.
+                  const transcript = job.output_data?.json as Transcript | undefined;
                   const newResult = {
                     text,
                     language,
                     jobId,
                     timestamp: new Date().toISOString(),
+                    ...(transcript !== undefined ? { transcript } : {}),
                   };
                   updateNodeData(node.id, {
                     executionStatus: "completed",
                     generatedText: text,
+                    generatedJson: transcript,
                     generatedResults: [newResult, ...existingResults],
                     activeResultIndex: 0,
                     currentJobId: undefined,

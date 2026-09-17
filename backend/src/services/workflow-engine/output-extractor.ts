@@ -16,7 +16,7 @@ import {
 } from "./execution-graph.js"
 import {
   pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs } from "@nodaro/shared"
-import type { SceneData } from "@nodaro/shared"
+import type { SceneData, Transcript } from "@nodaro/shared"
 import { buildScenePrompt } from "@nodaro/prompts"
 export { extractVideoDurationFromNode } from "@nodaro/shared"
 export { extractAllGeneratedResults }
@@ -712,6 +712,16 @@ export function getPrimaryOutput(
     return output.json === undefined ? undefined : JSON.stringify(output.json)
   }
 
+  // Transcribe: dual output. `json` handle → the normalized `Transcript`
+  // (stringified for generic consumers; Extract Field reads state.output.json
+  // directly). `text` / no-handle fall through to TEXT_SOURCE_TYPES below and
+  // return output.text UNCHANGED — the `text` handle and `{Label}` refs keep
+  // resolving the plain transcript exactly as before. Mirrors web-scrape's json
+  // branch and the frontend execution-graph.ts transcribe branch.
+  if (sourceType === "transcribe" && sourceHandle === "json") {
+    return output.json === undefined ? undefined : JSON.stringify(output.json)
+  }
+
   // Extract Field: single `text` output.
   if (sourceType === "extract-field") {
     return output.extractedText
@@ -1388,7 +1398,26 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
     return { text: listResults[0], listResults }
   }
 
-  if (type === "transcribe" || type === "image-to-text") {
+  // Transcribe: `text` (the transcript) + `json` (the normalized `Transcript`).
+  // The transcript is stored per-result on `generatedResults[i].transcript` (so
+  // switching the active result carries its own json, exactly like `text`);
+  // `generatedJson` is the bare active-result field (the name every json
+  // producer uses). Mirrors web-scrape's saved-json branch and the frontend
+  // extractNodeOutput transcribe branch.
+  if (type === "transcribe") {
+    const text =
+      getActiveResultText(data) ??
+      (data.generatedText as string | undefined)
+    const results = (data.generatedResults as Array<{ transcript?: Transcript }> | undefined) ?? []
+    const activeIndex = (data.activeResultIndex as number | undefined) ?? 0
+    const transcript = results[activeIndex]?.transcript ?? (data.generatedJson as Transcript | undefined)
+    const out: NodeOutput = {}
+    if (text) out.text = text
+    if (transcript !== undefined) out.json = transcript
+    return out.text !== undefined || out.json !== undefined ? out : undefined
+  }
+
+  if (type === "image-to-text") {
     const text =
       getActiveResultText(data) ??
       (data.generatedText as string | undefined)

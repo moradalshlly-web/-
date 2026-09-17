@@ -622,7 +622,13 @@ describe("transcribe — provider: elevenlabs-stt", () => {
     })
 
     // No metered provider cost on the direct path — the reserved tier commits.
-    expect(result).toEqual({ text: "scribe says hello", language: "en" })
+    // The `json` (Transcript) handle is always populated — Scribe is word-level,
+    // so with no words this run it is an empty-word transcript.
+    expect(result).toEqual({
+      text: "scribe says hello",
+      language: "en",
+      json: { version: 1, language: "en", words: [] },
+    })
     expect(mocks.directStt).toHaveBeenCalledWith("https://audio.mp3", {
       languageCode: "en",
       diarize: true,

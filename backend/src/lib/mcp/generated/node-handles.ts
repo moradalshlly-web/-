@@ -173,7 +173,7 @@ export const NODE_HANDLES: Readonly<Record<string, NodeHandleSpec>> = {
   "tiktok-post": { inputs: ["in"], outputs: [] },
   "tone": { inputs: ["in"], outputs: ["tone"] },
   "transcode-video": { inputs: ["in"], outputs: ["video"] },
-  "transcribe": { inputs: ["audio"], outputs: ["text"] },
+  "transcribe": { inputs: ["audio"], outputs: ["json", "text"] },
   "transition": { inputs: ["in"], outputs: ["out"] },
   "trim-audio": { inputs: ["in"], outputs: ["audio"] },
   "trim-video": { inputs: ["in"], outputs: ["video"] },

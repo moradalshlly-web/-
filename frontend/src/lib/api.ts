@@ -4669,13 +4669,16 @@ export async function sunoVoiceRecordInfoApi(taskId: string): Promise<SunoVoiceR
   })
 }
 
-export async function transcribeApi(audioUrl: string, provider?: string, language?: string, userId?: string, diarize?: boolean, tagAudioEvents?: boolean): Promise<{ jobId: string }> {
+export async function transcribeApi(audioUrl: string, provider?: string, language?: string, userId?: string, diarize?: boolean, tagAudioEvents?: boolean, wordTimestamps?: boolean): Promise<{ jobId: string }> {
   const body: Record<string, unknown> = { audioUrl }
   if (provider) body.provider = provider
   if (language) body.language = language
   if (userId) body.userId = userId
   if (diarize != null) body.diarize = diarize
   if (tagAudioEvents != null) body.tagAudioEvents = tagAudioEvents
+  // Word timings feed the `json` (Transcript) handle; the two whisper providers
+  // omit them unless asked. Only sent when the json handle is wired.
+  if (wordTimestamps) body.wordTimestamps = wordTimestamps
   return apiJson("/v1/transcribe", {
     body,
     workflowId: true,

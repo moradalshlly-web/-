@@ -5398,6 +5398,14 @@ export function buildPayload(
         }
       }
 
+      // Word timings only make the `json` (Transcript) handle useful, and the
+      // two whisper providers omit them unless asked (elevenlabs-stt is always
+      // word-level). Turn them on when — and only when — the json handle is
+      // actually consumed, so text-only runs stay byte-identical. Data-driven
+      // off the graph, never a hardcoded default.
+      const jsonWired = Boolean(
+        buildCtx?.edges?.some((e) => e.source === node.id && e.sourceHandle === "json"),
+      )
       return {
         jobName: "transcribe",
         queueName: "video-generation",
@@ -5409,6 +5417,7 @@ export function buildPayload(
           language: data.language,
           diarize: data.diarize,
           tagAudioEvents: data.tagAudioEvents,
+          wordTimestamps: jsonWired || Boolean(data.wordTimestamps),
           usageLogId,
         },
       }

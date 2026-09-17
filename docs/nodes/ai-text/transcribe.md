@@ -3,7 +3,9 @@
 
 ## Overview
 
-The Transcribe node converts audio into a text transcript. Three engines are selectable: ElevenLabs Speech-to-Text (the default), Whisper, and Incredibly Fast Whisper (both Replicate-hosted). It supports automatic language detection or explicit language selection, speaker diarization (identifying who said what), and audio event tagging (labeling non-speech sounds like music, laughter, or applause). The output includes the full transcript text as well as per-segment results with timestamps.
+The Transcribe node converts audio into a text transcript. Three engines are selectable: ElevenLabs Speech-to-Text (the default), Whisper, and Incredibly Fast Whisper (both Replicate-hosted). It supports automatic language detection or explicit language selection, speaker diarization (identifying who said what), and audio event tagging (labeling non-speech sounds like music, laughter, or applause).
+
+The node has two output handles: a **`text`** handle carrying the plain transcript, and a **`json`** handle carrying a normalized **Transcript** object with word- and segment-level timings. The `json` handle is the structured form the caption and editing nodes consume; the `text` handle is unchanged from earlier versions, so existing wires keep working.
 
 On a self-hosted install the chosen engine runs on your own key (`ELEVENLABS_API_KEY` for ElevenLabs STT, `REPLICATE_API_TOKEN` for the Whisper engines). With no key for the chosen engine and a connected nodaro.ai account, the transcription runs through the connection instead; with neither, the node fails with a message naming the key to add.
 
@@ -18,19 +20,47 @@ On a self-hosted install the chosen engine runs on your own key (`ELEVENLABS_API
 
 ## Inputs & Outputs
 
-- **Input**: `in` -- audio file to transcribe
+- **Input**: `audio` -- audio file to transcribe
 - **Output**: `text` -- full transcript text string
+- **Output**: `json` -- a normalized `Transcript` object (word/segment timings)
 
-### Output Details
+### The `json` output: `Transcript`
 
-The node produces both a simple text output and structured result data:
+The `json` handle emits a `Transcript` — the shared, versioned shape the caption and editing nodes read:
+
+```ts
+Transcript {
+  version: 1
+  sourceId?: string        // set when the transcript is bound to an editing source
+  language?: string
+  words: Array<{
+    text: string
+    startMs: number        // milliseconds
+    endMs: number          // milliseconds
+    speaker?: string       // present on diarized runs
+    confidence?: number
+  }>
+  segments?: Array<{
+    startMs: number
+    endMs: number
+    text: string
+    speaker?: string
+  }>
+}
+```
+
+All timings are integer **milliseconds**. `words` is populated whenever word-level timing is available — always for the default ElevenLabs engine (it is word-level), and for the two Whisper engines when the `json` handle is connected (the node then requests word timestamps automatically). `segments` carries the coarser sentence/chunk breakdown when the engine provides one.
+
+### Text output details
+
+The `text` handle and `{Label}` references resolve the plain transcript, exactly as before:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | generatedText | `string` | The full transcript as plain text |
-| generatedResults | `array` | Array of result objects, each containing `text`, `language`, `jobId`, and `timestamp` |
+| generatedResults | `array` | Array of result objects, each containing `text`, `language`, `jobId`, `timestamp`, and the per-result `transcript` |
 
-When Speaker Diarization is enabled, the transcript includes speaker labels (e.g., "Speaker 1:", "Speaker 2:") before each segment.
+When Speaker Diarization is enabled, the transcript includes speaker labels (e.g., "Speaker 1:", "Speaker 2:") before each segment, and each word in the `Transcript` carries its `speaker`.
 
 When Tag Audio Events is enabled, non-speech sounds are annotated inline (e.g., "[music]", "[laughter]").
 ## Best Practices
@@ -51,8 +81,9 @@ When Tag Audio Events is enabled, non-speech sounds are annotated inline (e.g., 
 
 ## Tips
 
-- The output connects to any text-consuming node. Common downstream connections include Generate Text (for summarization), Combine Text (for assembly), and Add Captions (for subtitle generation).
+- The `text` output connects to any text-consuming node. Common downstream connections include Generate Text (for summarization), Combine Text (for assembly), and Add Captions (for subtitle generation).
+- The `json` output connects to nodes that read a structured `Transcript` — for example Add Captions (for word-aligned subtitles) and the editing nodes. Because it carries per-word timings, it does not need a separate alignment pass.
 - Speaker diarization and audio event tagging are independent options -- you can enable one, both, or neither.
 - The transcription is processed asynchronously via the backend worker queue. Progress is shown in the node during execution.
 - Language auto-detection works across the full set of supported languages. The explicit language dropdown provides 20+ language options matching the ElevenLabs STT model's capabilities.
-- For word-level timestamps (rather than segment-level), use the Forced Alignment node with the transcript output of this node.
+- For word-level timestamps, connect the `json` output — it already carries per-word timings. The Forced Alignment node remains available for realigning an externally supplied transcript to audio.

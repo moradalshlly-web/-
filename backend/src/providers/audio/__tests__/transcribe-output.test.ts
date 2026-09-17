@@ -15,11 +15,22 @@ describe("mapWhisperOutput", () => {
       text: "hello world",
       language: "english",
       segments: [{ start: 0, end: 1.5, text: "hello world" }],
+      // The `json` (Transcript) handle — segments carried through in MS, no words.
+      json: {
+        version: 1,
+        language: "english",
+        words: [],
+        segments: [{ startMs: 0, endMs: 1500, text: "hello world" }],
+      },
     })
   })
 
   it("falls back to 'unknown' language and an empty transcript", () => {
-    expect(mapWhisperOutput({} as never, {})).toEqual({ text: "", language: "unknown" })
+    expect(mapWhisperOutput({} as never, {})).toEqual({
+      text: "",
+      language: "unknown",
+      json: { version: 1, language: "unknown", words: [] },
+    })
   })
 })
 

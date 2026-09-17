@@ -3,13 +3,14 @@
 import { useT } from "@/lib/i18n"
 import { memo, useState } from "react"
 import { Position, type NodeProps } from "@xyflow/react"
-import { FileText, Loader2, AlertCircle, X, Type, AudioWaveform, Copy, Download } from "lucide-react"
+import { FileText, Loader2, AlertCircle, X, Type, AudioWaveform, Copy, Download, Braces } from "lucide-react"
 import { createPortal } from "react-dom"
 import { computeDeleteResultUpdates, copyToClipboard, downloadTextFile } from "@/lib/utils"
 import { BaseNode } from "./base-node"
 import { NodeQuickStrip } from "./node-quick-strip"
 import { EditableNodeLabel } from "./editable-node-label"
 import { HandleWithPopover, HANDLE_COLORS, TEXT_HANDLE_COLOR } from "./handle-with-popover"
+import { DATA_HANDLE_COLORS } from "@/lib/data-handles"
 import { isValidTranscribeConnection } from "@/lib/audio-text-handles"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
@@ -84,7 +85,13 @@ function TranscribeNodeComponent({ id, data, selected }: NodeProps) {
   const credits = useModelCredits(nodeData.provider ?? "whisper", 4)
 
   function handleDeleteResult(indexToDelete: number) {
-    updateNodeData(id, computeDeleteResultUpdates(results, activeIndex, indexToDelete, "generatedText", "text"))
+    const updates = computeDeleteResultUpdates(results, activeIndex, indexToDelete, "generatedText", "text")
+    // Keep the bare `generatedJson` (the json handle's field) in sync with the
+    // new active result, exactly as computeDeleteResultUpdates does for text.
+    const nextResults = updates.generatedResults as typeof results
+    const nextActive = updates.activeResultIndex as number
+    updates.generatedJson = nextResults[nextActive]?.transcript
+    updateNodeData(id, updates)
   }
 
   return (
@@ -111,7 +118,8 @@ function TranscribeNodeComponent({ id, data, selected }: NodeProps) {
           }
           handles={[
             { id: "audio", type: "target", position: Position.Left,  customStyle: { top: 'calc(100% - 24px)', left: '-29px' }, external: true },
-            { id: "text",  type: "source", position: Position.Right, customStyle: { top: '24px',              right: '-29px' }, external: true },
+            { id: "json",  type: "source", position: Position.Right, customStyle: { top: '24px',              right: '-29px' }, external: true },
+            { id: "text",  type: "source", position: Position.Right, customStyle: { top: '52px',              right: '-29px' }, external: true },
           ]}
         >
           <div className="flex flex-col gap-1 h-full">
@@ -213,7 +221,7 @@ function TranscribeNodeComponent({ id, data, selected }: NodeProps) {
                       }`}
                       onClick={(e) => {
                         e.stopPropagation()
-                        updateNodeData(id, { activeResultIndex: i, generatedText: r.text })
+                        updateNodeData(id, { activeResultIndex: i, generatedText: r.text, generatedJson: r.transcript })
                       }}
                     >
                       <FileText className="w-4 h-4" />
@@ -236,7 +244,10 @@ function TranscribeNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         </BaseNode>
         <HandleWithPopover nodeId={id} nodeType="transcribe" handleId="audio" type="target" position={Position.Left}  label="Audio" color={HANDLE_COLORS.audio} icon={<AudioWaveform />} side="left"  top="calc(100% - 24px)" accepts={ACCEPTS_AUDIO} />
-        <HandleWithPopover nodeId={id} nodeType="transcribe" handleId="text"  type="source" position={Position.Right} label="Text"  color={TEXT_HANDLE_COLOR} icon={<Type />}          side="right" top="24px" />
+        <HandleWithPopover nodeId={id} nodeType="transcribe" handleId="json"  type="source" position={Position.Right} label={t("audiocfg.transcript")} color={DATA_HANDLE_COLORS.json} icon={<Braces />} side="right" top="24px" />
+        {/* Same transcript payload, typed as TEXT — wires straight into prompt/
+            text inputs (extractNodeOutput returns the plain transcript here). */}
+        <HandleWithPopover nodeId={id} nodeType="transcribe" handleId="text"  type="source" position={Position.Right} label="Text"  color={TEXT_HANDLE_COLOR} icon={<Type />}          side="right" top="52px" />
         <DeleteConfirmationDialog
           isOpen={deleteConfirm !== null}
           onClose={() => setDeleteConfirm(null)}

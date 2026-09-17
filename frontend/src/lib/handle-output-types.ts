@@ -134,7 +134,7 @@ export const HANDLE_OUTPUT_TYPES: Record<string, Partial<Record<string, HandleCo
   "text-to-dialogue": { audio: "audio" },
   "text-to-speech": { audio: "audio" },
   "transcode-video": { video: "video" },
-  "transcribe": { text: "text" },
+  "transcribe": { json: "look", text: "text" },
   "trim-audio": { audio: "audio" },
   "trim-video": { "video-out": "video" },
   "upload-audio": { audio: "audio" },
