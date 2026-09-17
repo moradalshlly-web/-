@@ -2,7 +2,7 @@
   "slug": "talking-product-studio",
   "name": "Talking Product Studio",
   "description": "A product photo, a style reference, a campaign angle and brand notes in; a 12-second vertical ad out — the product as a 3D animated cartoon character that speaks to the viewer, three numbered frames rendered as one unbroken take with the character's own voice, and word-highlight captions.",
-  "markdownDescription": "## Talking Product Studio\n\nYour product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice.\n\n1. **Product + Style + Angle + Brand notes** — the packshot, an example of the cartoon-face style, what the ad should push, and the facts you can stand behind.\n2. **Concept** — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action.\n3. **Character sheet** — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. **Frames 1–3** — one vertical still per frame, the same character in the same setting.\n5. **Timeline script → the take** — one prompt over the three numbered stills with the lines quoted per interval; one MiniMax Hailuo 3 node renders the 12 seconds as one unbroken shot with the character's own voice.\n6. **Captions** — Add Captions transcribes the voice into word-highlight captions.",
+  "markdownDescription": "## Talking Product Studio\n\nYour product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice.\n\n1. **Product + Style + Angle + Brand notes** — the packshot, an example of the cartoon-face style, what the ad should push, and the facts you can stand behind.\n2. **Concept** — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action.\n3. **Character sheet** — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. **Frames 1–3** — one vertical still per frame, the same character in the same setting.\n5. **Timeline script → the take** — one prompt over the three numbered stills with the lines quoted per interval; one Seedance 2.5 node renders the 12 seconds as one unbroken shot with the character's own voice.\n6. **Captions** — Add Captions transcribes the voice into word-highlight captions.",
   "category": "video-ads",
   "outputTypes": [
     "video"
@@ -17,7 +17,7 @@
     "brand-notes"
   ],
   "complexity": "advanced",
-  "estimatedCredits": 856,
+  "estimatedCredits": 1032,
   "nodeTypesUsed": [
     "upload-image",
     "text-prompt",
@@ -30,7 +30,7 @@
   "providersUsed": [
     "claude-sonnet-4.6",
     "gpt-image-2",
-    "minimax-h3",
+    "seedance-2-5",
     "elevenlabs-stt"
   ],
   "previewMediaUrl": "https://cdn.nodaro.ai/templates/4b417b8a-ea1c-4129-abda-86bc28676ba7/preview-086e725aeac7.png",
@@ -47,7 +47,7 @@
       },
       "data": {
         "bold": false,
-        "text": "Your product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice. A product photo, a style reference, a campaign angle and brand notes go in; one take with the character's own voice and captions comes out.\n\n1. Product + Style + Angle + Brand notes — the packshot, an example of the cartoon-face style, what the ad should push, and the facts you can stand behind.\n2. Concept — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action.\n3. Character sheet — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. Frames 1–3 — one vertical still per frame, the same character in the same setting.\n5. Timeline script → the take — one prompt over the three numbered stills, the lines quoted per interval; one MiniMax Hailuo 3 node renders the 12 seconds as one unbroken shot with the character's voice.\n6. Captions — word-highlight captions transcribed from the voice.",
+        "text": "Your product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice. A product photo, a style reference, a campaign angle and brand notes go in; one take with the character's own voice and captions comes out.\n\n1. Product + Style + Angle + Brand notes — the packshot, an example of the cartoon-face style, what the ad should push, and the facts you can stand behind.\n2. Concept — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action.\n3. Character sheet — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. Frames 1–3 — one vertical still per frame, the same character in the same setting.\n5. Timeline script → the take — one prompt over the three numbered stills, the lines quoted per interval; one Seedance 2.5 node renders the 12 seconds as one unbroken shot with the character's voice.\n6. Captions — word-highlight captions transcribed from the voice.",
         "color": "#26221a",
         "label": "How it works",
         "title": "Talking product studio — how it works",
@@ -173,7 +173,7 @@
       },
       "data": {
         "bold": false,
-        "text": "A director turns the concept into one prompt — \"0-4s: shows @Image 1 … says \\\"…\\\" … drifts to @Image 2\" — and one MiniMax Hailuo 3 node receives the three stills as references in order and renders a single 12-second unbroken shot with the character's voice. Add Captions transcribes it. Want another model? Gemini Omni Flash (up to 10 s) or Seedance 2.5 also take references and speak.",
+        "text": "A director turns the concept into one prompt — \"0-4s: shows @Image 1 … says \\\"…\\\" … drifts to @Image 2\" — and one Seedance 2.5 node receives the three stills as references in order and renders a single 12-second unbroken shot with the character's voice. Add Captions transcribes it. Want another model? MiniMax Hailuo 3 or Gemini Omni Flash (up to 10 s) also take references and speak.",
         "color": "#26221a",
         "label": "Step 5–6",
         "title": "5–6 · Timeline script → The take → Captions",
@@ -384,8 +384,8 @@
         "label": "The take",
         "prompt": "{Timeline script || One continuous 12-second vertical take with no cuts: shows @Image 1, moves continuously into @Image 2, then into @Image 3; the product character speaks its lines; photoreal object with a cartoon face, cinematic lighting.}",
         "duration": 12,
-        "provider": "minimax-h3",
-        "resolution": "768P",
+        "provider": "seedance-2-5",
+        "resolution": "480p",
         "aspectRatio": "9:16",
         "fieldMappings": {},
         "generateAudio": true,

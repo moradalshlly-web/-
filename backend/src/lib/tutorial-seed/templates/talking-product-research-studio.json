@@ -2,7 +2,7 @@
   "slug": "talking-product-research-studio",
   "name": "Talking Product Research Studio",
   "description": "A product photo, a style reference, a campaign angle and a web search in; a 12-second vertical ad out — the product as a 3D animated cartoon character that speaks to the viewer, with its facts pulled from the web by Web Scrape, three numbered frames rendered as one unbroken take with the character's own voice, and word-highlight captions.",
-  "markdownDescription": "## Talking Product Research Studio\n\nYour product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice — and the facts it quotes come from a web search, not from your notes.\n\n1. **Product + Style + Angle + Research** — the packshot, an example of the cartoon-face style, what the ad should push, and a Web Scrape search that supplies the facts.\n2. **Concept** — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action — with one specific fact from the research.\n3. **Character sheet** — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. **Frames 1–3** — one vertical still per frame, the same character in the same setting.\n5. **Timeline script → the take** — one prompt over the three numbered stills with the lines quoted per interval; one MiniMax Hailuo 3 node renders the 12 seconds as one unbroken shot with the character's own voice.\n6. **Captions** — Add Captions transcribes the voice into word-highlight captions.\n\nPrefer to write the facts yourself? Use the sister template, Talking Product Studio.",
+  "markdownDescription": "## Talking Product Research Studio\n\nYour product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice — and the facts it quotes come from a web search, not from your notes.\n\n1. **Product + Style + Angle + Research** — the packshot, an example of the cartoon-face style, what the ad should push, and a Web Scrape search that supplies the facts.\n2. **Concept** — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action — with one specific fact from the research.\n3. **Character sheet** — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. **Frames 1–3** — one vertical still per frame, the same character in the same setting.\n5. **Timeline script → the take** — one prompt over the three numbered stills with the lines quoted per interval; one Seedance 2.5 node renders the 12 seconds as one unbroken shot with the character's own voice.\n6. **Captions** — Add Captions transcribes the voice into word-highlight captions.\n\nPrefer to write the facts yourself? Use the sister template, Talking Product Studio.",
   "category": "video-ads",
   "outputTypes": [
     "video"
@@ -17,7 +17,7 @@
     "web-research"
   ],
   "complexity": "advanced",
-  "estimatedCredits": 889,
+  "estimatedCredits": 1065,
   "nodeTypesUsed": [
     "upload-image",
     "text-prompt",
@@ -31,7 +31,7 @@
   "providersUsed": [
     "claude-sonnet-4.6",
     "gpt-image-2",
-    "minimax-h3",
+    "seedance-2-5",
     "elevenlabs-stt"
   ],
   "previewMediaUrl": "https://cdn.nodaro.ai/templates/78003dcc-ba6f-4098-9f81-7acb949e1efd/preview-d5f53b28ff6f.png",
@@ -48,7 +48,7 @@
       },
       "data": {
         "bold": false,
-        "text": "Your product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice. A product photo, a style reference, a campaign angle and a web search go in; one take with the character's own voice and captions comes out.\n\n1. Product + Style + Angle + Research — the packshot, an example of the cartoon-face style, what the ad should push, and a web search that supplies the facts.\n2. Concept — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action.\n3. Character sheet — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. Frames 1–3 — one vertical still per frame, the same character in the same setting.\n5. Timeline script → the take — one prompt over the three numbered stills, the lines quoted per interval; one MiniMax Hailuo 3 node renders the 12 seconds as one unbroken shot with the character's voice.\n6. Captions — word-highlight captions transcribed from the voice.",
+        "text": "Your product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice. A product photo, a style reference, a campaign angle and a web search go in; one take with the character's own voice and captions comes out.\n\n1. Product + Style + Angle + Research — the packshot, an example of the cartoon-face style, what the ad should push, and a web search that supplies the facts.\n2. Concept — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action.\n3. Character sheet — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. Frames 1–3 — one vertical still per frame, the same character in the same setting.\n5. Timeline script → the take — one prompt over the three numbered stills, the lines quoted per interval; one Seedance 2.5 node renders the 12 seconds as one unbroken shot with the character's voice.\n6. Captions — word-highlight captions transcribed from the voice.",
         "color": "#26221a",
         "label": "How it works",
         "title": "Talking product research studio — how it works",
@@ -195,7 +195,7 @@
       },
       "data": {
         "bold": false,
-        "text": "A director turns the concept into one prompt — \"0-4s: shows @Image 1 … says \\\"…\\\" … drifts to @Image 2\" — and one MiniMax Hailuo 3 node receives the three stills as references in order and renders a single 12-second unbroken shot with the character's voice. Add Captions transcribes it. Want another model? Gemini Omni Flash (up to 10 s) or Seedance 2.5 also take references and speak.",
+        "text": "A director turns the concept into one prompt — \"0-4s: shows @Image 1 … says \\\"…\\\" … drifts to @Image 2\" — and one Seedance 2.5 node receives the three stills as references in order and renders a single 12-second unbroken shot with the character's voice. Add Captions transcribes it. Want another model? MiniMax Hailuo 3 or Gemini Omni Flash (up to 10 s) also take references and speak.",
         "color": "#26221a",
         "label": "Step 5–6",
         "title": "5–6 · Timeline script → The take → Captions",
@@ -278,54 +278,6 @@
         "query": "Dyson V15 Detect cordless vacuum features laser dust detection piezo sensor suction run time",
         "maxResults": 6,
         "fieldMappings": {},
-        "generatedJson": [
-          {
-            "url": "https://www.dyson.com.au/products/vacuum-cleaners/stick-vacuums/dyson-v15-detect/shop-all?srsltid=AU7gw4U0NLULc_tQMKjFM8Dg5-p678_idXKprKCxJjWqs-SsX1FvzDHt",
-            "title": "Shop All Dyson V15 Detect Vacuum Cleaners",
-            "description": "A piezo sensor continuously sizes and counts dust particles – automatically increasing suction power when needed.3. LCD screen showing counts of different sized ...Read more"
-          },
-          {
-            "url": "https://www.dyson.com/discover/innovation/new-machines/v15-detect-launch",
-            "title": "Dyson launches its first vacuum cleaner with laser detect ...",
-            "description": "Dyson's most powerful and intelligent vacuum yet, capable of detecting, removing, sizing and counting microscopic dust for scientific proof ...Read more"
-          },
-          {
-            "url": "https://www.dyson.com.au/products/vacuum-cleaners/stick-vacuums/dyson-v15-detect/owners-guide?srsltid=AU7gw4U3YdsNW6g3x7Exr3gPtxQuUqm_puc8MBOL0MeZ4gEQ5dX7U74f",
-            "title": "Support & How to Guides for your Dyson V15 Detect",
-            "description": "How long does the Dyson V15 battery take to fully charge? A full charge takes up to 4.5 hours. How will I know if the run time is getting ...Read more"
-          },
-          {
-            "url": "https://www.dyson.com.au/products/vacuum-cleaners/stick-vacuums/laser-detect-vacuums?srsltid=AU7gw4VvoZDsUoQw8ESCC7mVwXhgQH7z4vHJhYxJ2f_29Aa9R5WM0W8Y",
-            "title": "Dyson Laser Detect Cordless Vacuums | Buy Now Pay Later",
-            "description": "Power: 230AW ; Run time: Up to 60 minutes ; Weight: 3.1kg ; Bin size: L ; Key features: Laser reveals microscopic dust · Scientific proof of a deep clean · Advanced ...Read more"
-          },
-          {
-            "url": "https://www.youtube.com/watch?v=oXd9REBfaFE",
-            "title": "Dyson V15 Detect Review: Detects Almost Invisible Dust!",
-            "description": "A full review of the Dyson V15 Detect - their latest cordless vacuum and probably the best to date. Find out how well it did in the tests."
-          },
-          {
-            "url": "https://www.nine.com.au/tv-shows/the-block/dysonv15-detect-vacuum-cleaner-what-is-it-everything-to-know-review-20210604-p5r89q.html",
-            "title": "Everything you need to know about Dyson's newest vacuum ...",
-            "description": ""
-          },
-          {
-            "url": "https://www.rtings.com/vacuum/reviews/dyson/v15-detect",
-            "title": "Dyson V15 Detect Vacuum Review",
-            "description": "The V15 features a powerful motor that generates up to 230AW of suction, an onboard particle sensor, and a surface detection system, allowing it to adjust its ...Read more"
-          },
-          {
-            "url": "https://www.thegoodguys.com.au/dyson-v15-detect-absolute-cordless-vacuum-626408-01?srsltid=AU7gw4XtZ4QBsisLGyda9XxUh8cozIlfeSaVX73wm4Ih_ZNpVpOxGFDF",
-            "title": "Dyson V15 Detect Absolute Cordless Vacuum 626408-01",
-            "description": "Its key strengths are powerful suction, laser dust illumination and automatic power adjustment. One limitation is that the advertised 60-minute runtime applies ...Read more"
-          },
-          {
-            "url": "https://smartbuy.alibaba.com/buyingguides/dyson-v15-detect",
-            "title": "How to Choose the Dyson V15 Detect: Ultimate Buying Guide",
-            "description": "Battery Life: Ranges from 12 minutes (boost mode) to 60 minutes (eco mode). Real-world usage typically sees 20–35 minutes under auto mode.Read more"
-          }
-        ],
-        "lastRunOutcome": "success",
         "presentationInput": true
       },
       "width": 640,
@@ -473,8 +425,8 @@
         "label": "The take",
         "prompt": "{Timeline script || One continuous 12-second vertical take with no cuts: shows @Image 1, moves continuously into @Image 2, then into @Image 3; the product character speaks its lines; photoreal object with a cartoon face, cinematic lighting.}",
         "duration": 12,
-        "provider": "minimax-h3",
-        "resolution": "768P",
+        "provider": "seedance-2-5",
+        "resolution": "480p",
         "aspectRatio": "9:16",
         "fieldMappings": {},
         "generateAudio": true,
