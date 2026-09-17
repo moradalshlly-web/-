@@ -85,6 +85,14 @@ describe("transcriptToCaptions — wordLevel:true (one caption per word)", () =>
     expect(out).toEqual([{ text: "hi", startMs: 0, endMs: 200, timestampMs: 0, confidence: 0.9 }])
   })
 
+  it("treats { wordLevel: undefined } (the exact object the worker passes) as word-level", () => {
+    // The worker calls transcriptToCaptions(t, { wordLevel: data.wordLevel }),
+    // and data.wordLevel is undefined for a node that never set the toggle.
+    const words = [w("a", 0, 200), w("b", 200, 400), w("c", 400, 600)]
+    const out = transcriptToCaptions(transcript(words), { wordLevel: undefined })
+    expect(out).toHaveLength(3) // one caption per word, not a grouped line
+  })
+
   it("preserves a token's own leading space (scribe words already carry one)", () => {
     const out = transcriptToCaptions(transcript([w("hi", 0, 200), w(" there", 200, 400)]), { wordLevel: true })
     expect(out.map((c) => c.text)).toEqual(["hi", " there"])
