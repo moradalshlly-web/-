@@ -1,0 +1,831 @@
+{
+  "slug": "explainer-video-studio",
+  "name": "Explainer Video Studio",
+  "description": "A product photo, brand notes and one question in; a 12-second explainer out — documentary motion-graphics style, four beats with on-screen text over numbered keyframes, one continuous take, a voiceover read by text to speech, a music bed, and word-highlight captions.",
+  "markdownDescription": "## Explainer Video Studio\n\nA product photo, your brand notes and the one question to answer become a 12-second explainer — documentary motion-graphics style, four beats with on-screen text, a voiceover, a music bed and captions.\n\n1. **Product + Brand notes + Question** — the packshot, the facts and colours, and what the video explains.\n2. **Script** — four beats (hook, how it works, proof, reveal): on-screen text, the visual, a voice line each; the voiceover paragraph; the music.\n3. **Keyframes 1–4** — one collage still per beat, the product as a clean cut-out, the on-screen text printed big.\n4. **Timeline script → the take** — one prompt over the four numbered stills; one video node renders the 12 seconds.\n5. **Voice + Score** — Text to Speech reads the voiceover; Suno writes the bed, trimmed to 12 seconds.\n6. **Mix + Captions** — Merge lays voice over music under the take; Add Captions transcribes the voice into word-highlight captions.",
+  "category": "video-ads",
+  "outputTypes": [
+    "video"
+  ],
+  "tags": [
+    "video-ads",
+    "explainer",
+    "motion-graphics",
+    "voiceover",
+    "captions",
+    "product"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 2291,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "text-to-speech",
+    "suno-generate",
+    "trim-audio",
+    "merge-video-audio",
+    "add-captions",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance-2-5",
+    "elevenlabs-v3",
+    "suno"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/templates/d4184ccc-64f6-4b66-aa94-1fd39acc7727/preview-3f7d16d43b96.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 37,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A product photo, your brand notes and the one question to answer go in; a 12-second explainer comes out — documentary motion-graphics style, four beats with on-screen text, a voiceover, a music bed and captions.\n\n1. Product + Brand notes + Question — the packshot, the facts and colours, and what the video explains.\n2. Script — four beats (hook, how it works, proof, reveal): on-screen text, the visual, a voice line each; plus the voiceover paragraph and the music.\n3. Keyframes 1–4 — one collage still per beat, the product as a clean cut-out, the on-screen text printed big.\n4. Timeline script → the take — one prompt over the four numbered stills; one video node renders the 12 seconds.\n5. Voice + Score — Text to Speech reads the voiceover; Suno writes the bed, trimmed to 12 seconds.\n6. Mix + Captions — Merge lays voice over music under the take; Add Captions transcribes the voice into on-screen subtitles.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Explainer video studio — how it works",
+        "width": 1180,
+        "height": 770,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. Every frame uses it as a cut-out, exactly as it is.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1650
+      },
+      "data": {
+        "bold": false,
+        "text": "The brand name, what the product is and does, the facts you can stand behind, two or three brand colours, the tone. Nothing outside these notes gets invented.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Brand notes",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-question",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2040
+      },
+      "data": {
+        "bold": false,
+        "text": "The one thing the video explains — \"how does it translate in real time?\" — in one line. The four beats answer it.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · The question",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-script",
+      "type": "sticky-note",
+      "position": {
+        "x": 1540,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "Four beats, each with on-screen text (the label), a visual (the still) and a voice line (the explanation); then the voiceover paragraph and the music line. Edit a beat by hand and rerun its keyframe.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Script",
+        "width": 480,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-frames",
+      "type": "sticky-note",
+      "position": {
+        "x": 2260,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "One collage still per beat, in the script's look: the product cut-out, arrows and labels, the on-screen text printed exactly. Rerun one alone for another take.",
+        "color": "#26221a",
+        "label": "Step 3",
+        "title": "3 · Keyframes 1–4",
+        "width": 600,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-take",
+      "type": "sticky-note",
+      "position": {
+        "x": 3100,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "A director turns the script into one prompt — \"0-3s: shows @Image 1 … hard cut to @Image 2 …\" — and one Seedance 2.5 node receives the four stills as references in order and animates them as motion graphics in a single 12-second take. Prefer a cheaper take? Switch the provider to Wan 3.0.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Timeline script → The take",
+        "width": 1200,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-sound",
+      "type": "sticky-note",
+      "position": {
+        "x": 4540,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "The voiceover text is lifted from the script and read by Text to Speech; a one-sentence brief goes to Suno for the music bed, which Trim cuts to 12 seconds. Change the voice in the speech node; change the mood in the brief.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Voice + Score",
+        "width": 1200,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-finish",
+      "type": "sticky-note",
+      "position": {
+        "x": 5980,
+        "y": 930
+      },
+      "data": {
+        "bold": false,
+        "text": "Merge lays the voice (loud) over the music (quiet) under the take. Add Captions transcribes the voice and burns word-highlight captions at the bottom — the explainer is ready to post with sound off or on.",
+        "color": "#26221a",
+        "label": "Step 6",
+        "title": "6 · Mix + Captions",
+        "width": 1200,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 930
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/fef37e28-7db1-43f6-a700-1b3fc0a774f2.png",
+        "label": "Product",
+        "r2Url": "https://cdn.nodaro.ai/images/fef37e28-7db1-43f6-a700-1b3fc0a774f2.png",
+        "assetId": "fef37e28-7db1-43f6-a700-1b3fc0a774f2",
+        "filename": "earbuds-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/fef37e28-7db1-43f6-a700-1b3fc0a774f2.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1650
+      },
+      "data": {
+        "text": "Brand: PARLA — real-time translation earbuds. Product: PARLA One — earbuds that translate speech in 40 languages with a half-second delay, in both directions, over the phone's connection; 8-hour battery; sage-green case with brass trim. Facts we can stand behind: 40 languages; under half a second; two-way; works offline for 12 languages. Colours: sage green, brass, off-white. Tone: clear, curious, warm.",
+        "label": "Brand notes",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "question",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2040
+      },
+      "data": {
+        "text": "How does PARLA translate a conversation in real time?",
+        "label": "Question",
+        "width": 300,
+        "height": 190,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "script",
+      "type": "llm-chat",
+      "position": {
+        "x": 1540,
+        "y": 1440
+      },
+      "data": {
+        "label": "Script",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 1100,
+        "userInput": "Brand notes: {Brand notes || a consumer product.} The question the video answers: {Question || how it works.} The reference image is the product. Write the script.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write 12-second explainer videos in the documentary motion-graphics style — cut-out collage, bold typography, arrows and annotations, one idea per beat. From the brand notes, the question and the product photo, write the script in exactly this shape, plain English, nothing else:\nTitle: <two to five words>\nLook: <one paragraph of 40 to 70 words: the background paper or colour, the collage textures, the typography (bold, condensed, all-caps or not), the accent colours from the brand notes, how the product cut-out is used — one look every frame follows>\nBeat 1 — Hook: On-screen: \"<at most five words>\" Visual: <one paragraph of 40 to 60 words — the single still image: the product cut-out, the graphic elements, arrows, labels, where the on-screen text sits> Voice: <one sentence of at most five words>\nBeat 2 — How it works: On-screen: \"<…>\" Visual: <…> Voice: <…>\nBeat 3 — Proof: On-screen: \"<…>\" Visual: <…> Voice: <…>\nBeat 4 — Reveal: On-screen: \"<…>\" Visual: <… — the product large and the brand name as the final image> Voice: <…>\nVoiceover: <the four Voice sentences in order, as one paragraph of at most 20 words in total — count them; it must be read aloud comfortably inside 10 seconds>\nMusic: <one sentence — genre, mood, tempo, instruments of the instrumental bed>\nUse only facts from the brand notes; never invent numbers, studies or claims. The on-screen text and the voice lines say different things — the text is the label, the voice is the explanation. No other headings, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2260,
+        "y": 1440
+      },
+      "data": {
+        "label": "Keyframe 1",
+        "style": "",
+        "prompt": "Single 16:9 frame of an explainer video in documentary motion-graphics collage style — the still for Beat 1, exactly as the script describes it under Beat 1: Visual, in the script's Look, no other beat: {Script || a four-beat explainer.} Render Beat 1's On-screen text once, exactly as written — same words, same spelling — big, bold and legible, and no other text except the labels the Visual names. The reference image is the product — it appears exactly as it is, as a clean cut-out with its own shape, materials, markings and colours. Flat paper textures, crisp edges, no photo-real scene, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-2",
+      "type": "generate-image",
+      "position": {
+        "x": 2260,
+        "y": 1898
+      },
+      "data": {
+        "label": "Keyframe 2",
+        "style": "",
+        "prompt": "Single 16:9 frame of an explainer video in documentary motion-graphics collage style — the still for Beat 2, exactly as the script describes it under Beat 2: Visual, in the script's Look, no other beat: {Script || a four-beat explainer.} Render Beat 2's On-screen text once, exactly as written — same words, same spelling — big, bold and legible, and no other text except the labels the Visual names. The reference image is the product — it appears exactly as it is, as a clean cut-out with its own shape, materials, markings and colours. Flat paper textures, crisp edges, no photo-real scene, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-3",
+      "type": "generate-image",
+      "position": {
+        "x": 2260,
+        "y": 2356
+      },
+      "data": {
+        "label": "Keyframe 3",
+        "style": "",
+        "prompt": "Single 16:9 frame of an explainer video in documentary motion-graphics collage style — the still for Beat 3, exactly as the script describes it under Beat 3: Visual, in the script's Look, no other beat: {Script || a four-beat explainer.} Render Beat 3's On-screen text once, exactly as written — same words, same spelling — big, bold and legible, and no other text except the labels the Visual names. The reference image is the product — it appears exactly as it is, as a clean cut-out with its own shape, materials, markings and colours. Flat paper textures, crisp edges, no photo-real scene, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-4",
+      "type": "generate-image",
+      "position": {
+        "x": 2260,
+        "y": 2814
+      },
+      "data": {
+        "label": "Keyframe 4",
+        "style": "",
+        "prompt": "Single 16:9 frame of an explainer video in documentary motion-graphics collage style — the still for Beat 4, exactly as the script describes it under Beat 4: Visual, in the script's Look, no other beat: {Script || a four-beat explainer.} Render Beat 4's On-screen text once, exactly as written — same words, same spelling — big, bold and legible, and no other text except the labels the Visual names. The reference image is the product — it appears exactly as it is, as a clean cut-out with its own shape, materials, markings and colours. Flat paper textures, crisp edges, no photo-real scene, no watermark.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "timeline",
+      "type": "llm-chat",
+      "position": {
+        "x": 3100,
+        "y": 1440
+      },
+      "data": {
+        "label": "Timeline script",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Script: {Script || a four-beat explainer.} Write the prompt.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the single prompt for a video model that animates one continuous 12-second explainer from FOUR reference images attached in this order: @Image 1 is the still of Beat 1, @Image 2 the still of Beat 2, @Image 3 the still of Beat 3, @Image 4 the still of Beat 4. You get the script. Write ONE prompt of 150 to 220 words in this order, plain prose, no headings:\nFirst one sentence that defines the medium — documentary motion-graphics collage, cut-out elements, bold typography — and the product once, as it appears in @Image 1.\nThen four gap-free timed intervals, exactly: \"0-3s: …\" \"3-6s: …\" \"6-9s: …\" \"9-12s: …\". Each interval opens by naming the image it shows (\"shows the composition of @Image 1\"), animates it the way motion graphics move — elements slide, pop and settle, arrows draw themselves — names one camera move, and cuts cleanly to the next image at the boundary (\"hard cut to @Image 2\"). The 9-12s interval ends with: \"At the 11-second mark the picture settles and holds on @Image 4 exactly until the end.\"\nNever retype any on-screen text in the prompt: refer to it only as \"the headline printed in @Image N\" or \"the wordmark printed in @Image N\" — the image is the only source of the letters.\nThen the constraints, as one sentence: every word on screen stays exactly as printed in the images — never redrawn, never added to, never typed on, never animated letter by letter (a headline or wordmark is either already in place or moves as one solid block); the product keeps its exact shape and colours; no new elements; keep it subtitle-free beyond the printed text, do not generate a watermark or a logo; crisp, stable picture.\nOutput only the prompt.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "take",
+      "type": "generate-video",
+      "position": {
+        "x": 3820,
+        "y": 1440
+      },
+      "data": {
+        "label": "The take",
+        "prompt": "{Timeline script || 0-3s: shows the composition of @Image 1, elements pop and settle; hard cut to @Image 2. 3-6s: shows @Image 2, arrows draw themselves; hard cut to @Image 3. 6-9s: shows @Image 3; hard cut to @Image 4. 9-12s: shows @Image 4; at the 11-second mark the picture settles and holds on @Image 4 exactly until the end. Every word on screen stays exactly as printed; no watermark; crisp, stable picture.}",
+        "duration": 12,
+        "provider": "seedance-2-5",
+        "resolution": "720p",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "generateAudio": true,
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "voice",
+      "type": "llm-chat",
+      "position": {
+        "x": 4540,
+        "y": 1440
+      },
+      "data": {
+        "label": "Voiceover text",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 200,
+        "userInput": "Script: {Script || a four-beat explainer.} Output the voiceover.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "From the script, output the Voiceover paragraph only — the exact words to be spoken. The video is 12 seconds long and speech runs about two words per second, so the paragraph must be 20 words or fewer. Count the words. If the script's paragraph is longer, cut whole clauses until it fits — keep the four beats in order and the product name. Right length, for reference: \"No translator in the room. Both ways, under half a second. Twelve languages, offline. PARLA One. Hear every language.\" (19 words). Output the paragraph only: no title, no quotes, no labels, no commentary, no word count.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "tts",
+      "type": "text-to-speech",
+      "position": {
+        "x": 5260,
+        "y": 1440
+      },
+      "data": {
+        "label": "Voiceover",
+        "speed": 1,
+        "style": 0,
+        "voiceId": "Rachel",
+        "language": "en",
+        "provider": "elevenlabs-v3",
+        "stability": 0.5,
+        "voiceType": "premade",
+        "directText": "",
+        "textSource": "connected",
+        "languageCode": "",
+        "fieldMappings": {},
+        "similarityBoost": 0.75,
+        "voiceDisplayName": "Rachel",
+        "presentationOutput": false
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "score",
+      "type": "llm-chat",
+      "position": {
+        "x": 4540,
+        "y": 1800
+      },
+      "data": {
+        "label": "Score brief",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 120,
+        "userInput": "Script: {Script || a four-beat explainer.} Write the score brief.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You brief a composer. From the script, write ONE sentence of at most 40 words describing the instrumental music bed for the explainer: genre, mood, tempo and instruments, following the script's Music line and quiet enough to sit under a voice. Output only the sentence — no title, no quotes, no commentary.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "music",
+      "type": "suno-generate",
+      "position": {
+        "x": 5260,
+        "y": 1800
+      },
+      "data": {
+        "label": "Music bed",
+        "model": "V6",
+        "style": "",
+        "title": "",
+        "lyrics": "",
+        "prompt": "Instrumental music bed for a 12-second explainer video, no vocals, sitting under a voiceover: {Score brief || light, curious, upbeat, plucked strings and soft percussion.} A clear beginning, a lift in the middle and a clean ending at twelve seconds.",
+        "customMode": false,
+        "instrumental": true,
+        "fieldMappings": {},
+        "negativeStyle": "",
+        "presentationOutput": false
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "trim",
+      "type": "trim-audio",
+      "position": {
+        "x": 5260,
+        "y": 2160
+      },
+      "data": {
+        "label": "Trim to 12 s",
+        "endTime": 12,
+        "startTime": 0,
+        "audioFormat": "wav",
+        "fieldMappings": {},
+        "presentationOutput": false
+      },
+      "width": 480,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "mix",
+      "type": "merge-video-audio",
+      "position": {
+        "x": 5980,
+        "y": 1440
+      },
+      "data": {
+        "label": "Voice over music",
+        "audioType": "both",
+        "fieldMappings": {},
+        "trackSettings": {
+          "tts": {
+            "role": "voiceover",
+            "volume": 100
+          },
+          "trim": {
+            "role": "background",
+            "volume": 25
+          }
+        },
+        "voiceoverVolume": 100,
+        "backgroundVolume": 25,
+        "keepOriginalAudio": false,
+        "originalAudioRole": "background",
+        "presentationOutput": false,
+        "originalAudioVolume": 0
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    },
+    {
+      "id": "captions",
+      "type": "add-captions",
+      "position": {
+        "x": 6820,
+        "y": 1440
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Explainer",
+        "style": "word-highlight",
+        "fontSize": 48,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#1f2a1f",
+        "presentationOutput": true,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 600,
+      "height": 338,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-brand-script",
+      "source": "brand",
+      "target": "script",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-question-script",
+      "source": "question",
+      "target": "script",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-script",
+      "source": "product",
+      "target": "script",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-script-timeline",
+      "source": "script",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-script-voice",
+      "source": "script",
+      "target": "voice",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-script-score",
+      "source": "script",
+      "target": "score",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-voice-tts",
+      "source": "voice",
+      "target": "tts",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-score-music",
+      "source": "score",
+      "target": "music",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-music-trim",
+      "source": "music",
+      "target": "trim",
+      "sourceHandle": "audio",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-timeline-take",
+      "source": "timeline",
+      "target": "take",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-take-mix",
+      "source": "take",
+      "target": "mix",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-tts-mix",
+      "source": "tts",
+      "target": "mix",
+      "sourceHandle": "audio",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-trim-mix",
+      "source": "trim",
+      "target": "mix",
+      "sourceHandle": "audio",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-mix-captions",
+      "source": "mix",
+      "target": "captions",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-script-frame-1",
+      "source": "script",
+      "target": "frame-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-1",
+      "source": "product",
+      "target": "frame-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-1-take",
+      "source": "frame-1",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-script-frame-2",
+      "source": "script",
+      "target": "frame-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-2",
+      "source": "product",
+      "target": "frame-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-2-take",
+      "source": "frame-2",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-script-frame-3",
+      "source": "script",
+      "target": "frame-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-3",
+      "source": "product",
+      "target": "frame-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-3-take",
+      "source": "frame-3",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-script-frame-4",
+      "source": "script",
+      "target": "frame-4",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-frame-4",
+      "source": "product",
+      "target": "frame-4",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-4-take",
+      "source": "frame-4",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.189
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "brand": {
+          "title": "Brand notes",
+          "description": "Facts, colours and tone — in plain words."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean packshot. It appears exactly as it is, as a cut-out."
+        },
+        "captions": {
+          "title": "Explainer",
+          "description": "The finished 12-second explainer with voiceover, music and captions."
+        },
+        "question": {
+          "title": "The question",
+          "description": "The one thing the video explains."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "brand",
+        "question"
+      ],
+      "outputOrder": [
+        "captions"
+      ]
+    }
+  }
+}
