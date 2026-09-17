@@ -521,7 +521,7 @@ export function isValidWorkflowConnection(
     }
     return isValidLoopCoarse(imageSourceType, isVisualPickerType)
   }
-  if (targetType === "web-scrape" && connection.targetHandle) {
+  if ((targetType === "web-scrape" || targetType === "meta-ads-scrape") && connection.targetHandle) {
     return isValidWebScrapeConnection(
       connection.targetHandle,
       imageSourceType,

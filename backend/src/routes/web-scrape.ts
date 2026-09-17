@@ -10,6 +10,7 @@ import { resolveScraperCreditId } from "@nodaro/shared"
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
 import { safeUrlSchema } from "../lib/url-validator.js"
+import { normalizeWebUrlInput } from "../lib/web-url-input.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { config } from "../lib/config.js"
@@ -28,9 +29,14 @@ async function scrapeViaConnection(body: Record<string, unknown>): Promise<Recor
   return result
 }
 
+// People type addresses the way the address bar shows them ("pletor.ai",
+// "www.pletor.ai/products"); the missing scheme is inferred BEFORE the strict
+// URL check so every usual spelling runs instead of failing "Invalid URL".
+const webAddress = z.preprocess(normalizeWebUrlInput, z.string().url().max(2048))
+
 const contentCrawlerBody = z.object({
   actor: z.literal("content-crawler"),
-  url: z.string().url().max(2048),
+  url: webAddress,
   mode: z.enum(["page", "site"]).default("page"),
 })
 const googleSearchBody = z.object({
@@ -41,19 +47,19 @@ const googleSearchBody = z.object({
 })
 const instagramBody = z.object({
   actor: z.literal("instagram"),
-  target: z.string().url().max(2048),
+  target: webAddress,
   resultsLimit: z.number().int().min(1).max(20).optional(),
 })
 const tiktokBody = z.object({
   actor: z.literal("tiktok"),
-  target: z.string().url().max(2048),
+  target: webAddress,
   resultsLimit: z.number().int().min(1).max(20).optional(),
 })
 // RSS is the only actor that doesn't go through Apify — we fetch + parse
 // directly on this server, so the URL needs SSRF protection via safeUrlSchema.
 const rssBody = z.object({
   actor: z.literal("rss"),
-  url: safeUrlSchema,
+  url: z.preprocess(normalizeWebUrlInput, safeUrlSchema),
   resultsLimit: z.number().int().min(1).max(50).optional(),
 })
 const webScrapeBody = z.discriminatedUnion("actor", [

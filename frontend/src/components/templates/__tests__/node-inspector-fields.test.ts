@@ -37,6 +37,27 @@ describe("inspectorFields", () => {
     ])
   })
 
+  it("shows a Web Scrape's search query and its structured result as pretty JSON", () => {
+    const results = [{ title: "Dyson V15 Detect", description: "A piezo sensor counts dust particles" }]
+    const fields = inspectorFields({
+      id: "research",
+      type: "web-scrape",
+      data: { label: "Research", actor: "google-search", query: "Dyson V15 Detect features", maxResults: 6, generatedJson: results, lastRunOutcome: "success" },
+    })
+    expect(fields.map((f) => f.key)).toEqual(["query", "generatedJson"])
+    expect(fields[0]).toEqual({ key: "query", label: "Search query", value: "Dyson V15 Detect features" })
+    expect(fields[1].label).toBe("Result")
+    expect(JSON.parse(fields[1].value)).toEqual(results)
+    expect(fields[1].value).toContain("\n") // pretty-printed, not one line
+  })
+
+  it("shows a content crawl's address as an input, but never a media node's result url", () => {
+    expect(inspectorFields({ id: "c", type: "web-scrape", data: { actor: "content-crawler", url: "https://example.com/page", mode: "page" } })).toEqual([
+      { key: "url", label: "Address", value: "https://example.com/page" },
+    ])
+    expect(inspectorFields({ id: "u", type: "upload-image", data: { url: "https://cdn/x.png", assetId: "a" } })).toEqual([])
+  })
+
   it("never exposes a result URL, a job id or a non-string as a field", () => {
     const fields = inspectorFields({
       id: "x",

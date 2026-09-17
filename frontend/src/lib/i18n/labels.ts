@@ -47,6 +47,7 @@ const NODE_LABELS_HE: Record<string, string> = {
   "RSS Feed": "פיד RSS",
   "Video URL": "כתובת וידאו",
   "Web Scrape": "גריפת אתר",
+  "Meta Ads": "מודעות Meta",
   "Video Analysis": "ניתוח וידאו",
   "Reference Audio": "אודיו ייחוס",
   // Parameter pickers (Look / Camera / Subject)
@@ -143,6 +144,7 @@ const NODE_LABELS_HE: Record<string, string> = {
   "Describe Image": "תיאור תמונה",
   "Describe to Picker": "תיאור לבורר",
   "Generate Text": "יצירת טקסט",
+  "Prompt": "פרומפט",
   // Processing
   "Combine Videos": "שילוב סרטונים",
   "Assemble Narrated Video": "הרכבת וידאו מוקרן",
@@ -252,6 +254,7 @@ const HANDLE_LABELS_HE: Record<string, string> = {
   "Partner": "דמות שנייה",
   "Text": "טקסט",
   "URL / Query": "כתובת / שאילתה",
+  "Keyword / Page URLs": "מילת חיפוש / כתובות עמודים",
   "Variables": "משתנים",
   "Video": "וידאו",
   "Video + Audio": "וידאו ושמע",

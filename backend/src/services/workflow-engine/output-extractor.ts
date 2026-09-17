@@ -676,6 +676,12 @@ export function getPrimaryOutput(
     return output.json === undefined ? undefined : JSON.stringify(output.json)
   }
 
+  // Meta Ads scraper: single `json` output handle (an array of normalized
+  // ads). Mirrors the web-scrape json branch.
+  if (sourceType === "meta-ads-scrape" && sourceHandle === "json") {
+    return output.json === undefined ? undefined : JSON.stringify(output.json)
+  }
+
   // Video-analysis / video-audit: `json` + `text` output handles carry the SAME
   // stringified scene-segmented analysis (text is the prompt-typed alias).
   // Mirrors the web-scrape json branch — stringify for generic text consumers;
@@ -1276,6 +1282,14 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
 
   // Web-scrape: single `json` output (object/array from the actor).
   if (type === "web-scrape") {
+    const json = data.generatedJson
+    return json === undefined ? undefined : { json }
+  }
+
+  // Meta Ads scraper: single `json` output (the normalized ad array persisted
+  // on data.generatedJson). Mirrors web-scrape's json branch so a skipped /
+  // "Run from here" node hydrates the handle from saved data without re-running.
+  if (type === "meta-ads-scrape") {
     const json = data.generatedJson
     return json === undefined ? undefined : { json }
   }

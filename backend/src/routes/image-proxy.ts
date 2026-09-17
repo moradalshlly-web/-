@@ -9,7 +9,15 @@ import { isOurCdnUrl } from "../lib/cdn-host.js"
 const proxyQuery = z.object({
   url: safeUrlSchema,
   download: z.string().optional(),
+  /** `video`: stream a video instead of an image (Meta Ad Library creatives —
+   *  the CDN blocks direct cross-origin loads, same as its images). Forwards
+   *  the browser's Range request so the player can seek, and passes the
+   *  upstream 206 / Content-Range straight through. */
+  media: z.enum(["video"]).optional(),
 })
+
+/** Response headers a ranged video reply must carry for the browser player to seek. */
+const RANGE_HEADERS = ["content-range", "accept-ranges"] as const
 
 function sanitizeFilename(rawUrl: string): string {
   const pathname = new URL(rawUrl).pathname
@@ -35,6 +43,7 @@ export async function imageProxyRoutes(app: FastifyInstance) {
 
     const { url } = parsed.data
     const isDownload = parsed.data.download === '1'
+    const isVideo = parsed.data.media === "video"
 
     // Restrict download mode to Nodaro media. Without this, any user can pass
     // ?url=<arbitrary>&download=1 and the route emits a forced attachment of
@@ -51,9 +60,12 @@ export async function imageProxyRoutes(app: FastifyInstance) {
     // request boundary; safeFetch rejects DNS resolutions to private IP ranges
     // at connect time (catches hostnames that resolve to internal targets).
     // Content-type is checked below (rejects non-images unless download mode).
+    // A video player fetches in ranges; forward the browser's Range header so
+    // the upstream answers 206 for exactly the bytes the player wants.
+    const range = isVideo && typeof req.headers.range === "string" ? req.headers.range : undefined
     let response: Response
     try {
-      response = await safeFetch(url, { timeoutMs: 120_000 })
+      response = await safeFetch(url, { timeoutMs: 120_000, ...(range ? { headers: { range } } : {}) })
     } catch (error) {
       req.log.warn({ err: error, url }, "[image-proxy] upstream fetch failed")
       if (isBlockedUpstreamUrlError(error)) {
@@ -72,8 +84,13 @@ export async function imageProxyRoutes(app: FastifyInstance) {
       })
     }
 
-    const contentType = response.headers.get("content-type") ?? "image/png"
-    if (!isDownload && !contentType.startsWith("image/")) {
+    const contentType = response.headers.get("content-type") ?? (isVideo ? "video/mp4" : "image/png")
+    if (!isDownload && isVideo && !contentType.startsWith("video/")) {
+      return reply.status(400).send({
+        error: { code: "validation_error", message: "URL does not point to a video" },
+      })
+    }
+    if (!isDownload && !isVideo && !contentType.startsWith("image/")) {
       return reply.status(400).send({
         error: { code: "validation_error", message: "URL does not point to an image" },
       })
@@ -83,13 +100,19 @@ export async function imageProxyRoutes(app: FastifyInstance) {
       ? { "Content-Disposition": `attachment; filename="${sanitizeFilename(url)}"` }
       : {}
 
-    // Stream response directly without buffering in memory
+    // Stream response directly without buffering in memory. A ranged video
+    // reply keeps the upstream's 206 + Content-Range so the player can seek;
+    // signed CDN video urls expire, so they are cached briefly, not forever.
     const contentLength = response.headers.get("content-length")
-    reply.raw.writeHead(200, {
+    const rangeHeaders = isVideo
+      ? Object.fromEntries(RANGE_HEADERS.flatMap((h) => { const v = response.headers.get(h); return v ? [[h, v]] : [] }))
+      : {}
+    reply.raw.writeHead(isVideo && response.status === 206 ? 206 : 200, {
       "Content-Type": contentType,
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": isVideo ? "public, max-age=3600" : "public, max-age=31536000, immutable",
       "Access-Control-Allow-Origin": req.headers.origin ?? "*",
       ...(contentLength ? { "Content-Length": contentLength } : {}),
+      ...rangeHeaders,
       ...disposition,
     })
     const nodeStream = Readable.fromWeb(response.body as import("stream/web").ReadableStream)

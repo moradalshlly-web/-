@@ -2639,7 +2639,7 @@ export function resolveNodeInputs(
       }
     } else if (src.type === "schedule-trigger") {
       inputs.prompt = output;
-    } else if (src.type === "web-scrape") {
+    } else if (src.type === "web-scrape" || src.type === "meta-ads-scrape") {
       // json handle output arrives pre-stringified from extractNodeOutput
       inputs.prompt = output;
     } else if (src.type === "video-analysis" || src.type === "video-audit") {

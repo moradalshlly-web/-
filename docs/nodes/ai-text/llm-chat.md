@@ -1,17 +1,17 @@
-# Generate Text
+# Prompt
 > LLM text generation from a prompt, with optional image/video/audio reference inputs, real-time streaming, and a built-in fan-out item list.
 
 ## Overview
 
-The Generate Text node (`llm-chat`, labeled "Generate Text" on the canvas) generates text from a prompt using a selectable LLM, with optional system instructions. It supports real-time token streaming and can reference upstream node outputs in its prompt via field mappings, making it a flexible text-generation and transformation step in any workflow.
+The Prompt node (`llm-chat`, labeled "Prompt" on the canvas; called "Generate Text" until September 2026) generates text from a prompt using a selectable LLM, with optional system instructions. It supports real-time token streaming and can reference upstream node outputs in its prompt via field mappings, making it a flexible text-generation and transformation step in any workflow.
 
 It can also accept **reference inputs** on the multi-modal **References** handle (its own fuchsia pip) — an image, video, audio clip, **or text** — for multimodal prompting (e.g. "describe this image", "summarize this clip"). Image/video/audio references are routed to the model as reference media (video and audio require a Gemini model — see [Multimodal inputs](#multimodal-inputs)); a **text** reference is merged into the prompt as added context.
 
-This node is the result of merging the former **AI Agent** (image-prompt fan-out) and **LLM Chat** nodes into one. Existing AI Agent / LLM Chat nodes are auto-migrated to Generate Text on workflow load. The legacy `/v1/ai-writer/*` routes remain available for back-compat; the node itself now runs on `/v1/llm-chat/*`.
+This node is the result of merging the former **AI Agent** (image-prompt fan-out) and **LLM Chat** nodes into one. Existing AI Agent / LLM Chat nodes are auto-migrated to Prompt on workflow load. The legacy `/v1/ai-writer/*` routes remain available for back-compat; the node itself now runs on `/v1/llm-chat/*`.
 
 ## Two outputs
 
-Generate Text exposes **two** outputs:
+Prompt exposes **two** outputs:
 
 | Output | Contents | Use it to |
 |--------|----------|-----------|
@@ -123,7 +123,7 @@ User presets are also managed in **Settings** and appear in the Preset dropdown 
 
 ## Fan-out
 
-Generate Text is built for fan-out — turning one generation into N downstream operations:
+Prompt is built for fan-out — turning one generation into N downstream operations:
 
 - **`items` output (composable)** — split on `===NEXT===` and feed into a Loop or a Generate Image node to run N× automatically as part of a workflow.
 - **"Create N Image Nodes"** — a canvas action that spawns one Generate Image node per generated item, laid out in a grid and pre-wired with edges, each pre-filled with its prompt.

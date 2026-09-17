@@ -45,7 +45,7 @@ export function handleCreateNodesFromWriter(writerNodeId: string): void {
   const items = writerData.generatedItems;
   if (!items || items.length === 0) {
     toast.error(
-      "No generated prompts to create nodes from. Run the Generate Text node first.",
+      "No generated prompts to create nodes from. Run the Prompt node first.",
     );
     return;
   }

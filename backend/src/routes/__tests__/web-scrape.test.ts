@@ -190,3 +190,52 @@ describe("POST /v1/web-scrape", () => {
     expect(res.json().error.code).toBe("scrape_error")
   })
 })
+
+describe("POST /v1/web-scrape — address spelling", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    cloudMocks.shouldRunOnCloud.mockResolvedValue(false)
+  })
+
+  it.each([
+    ["pletor.ai", "https://pletor.ai"],
+    ["www.pletor.ai/products", "https://www.pletor.ai/products"],
+    ["  http://pletor.ai  ", "http://pletor.ai"],
+  ])("runs a content crawl typed as %s (the scraper gets %s)", async (typed, expected) => {
+    const { runScraper } = await import("../../providers/apify/scraper.js")
+    vi.mocked(runScraper).mockResolvedValue({ json: [{ url: expected }] } as never)
+    const app = await buildTestApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/web-scrape",
+      payload: { actor: "content-crawler", url: typed, mode: "page" },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(vi.mocked(runScraper)).toHaveBeenCalledWith(expect.objectContaining({ url: expected }))
+  })
+
+  it("runs an Instagram target typed without a scheme", async () => {
+    const { runScraper } = await import("../../providers/apify/scraper.js")
+    vi.mocked(runScraper).mockResolvedValue({ json: [] } as never)
+    const app = await buildTestApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/web-scrape",
+      payload: { actor: "instagram", target: "instagram.com/nike" },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(vi.mocked(runScraper)).toHaveBeenCalledWith(expect.objectContaining({ target: "https://instagram.com/nike" }))
+  })
+
+  it("still refuses a value that is not an address at all", async () => {
+    const { runScraper } = await import("../../providers/apify/scraper.js")
+    const app = await buildTestApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/web-scrape",
+      payload: { actor: "content-crawler", url: "not a website", mode: "page" },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(vi.mocked(runScraper)).not.toHaveBeenCalled()
+  })
+})

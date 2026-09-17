@@ -37,8 +37,33 @@ const TEXT_FIELDS: ReadonlyArray<readonly [key: string, label: string]> = [
   ["systemPrompt", "System prompt"],
   ["userInput", "User prompt"],
   ["text", "Text"],
+  // Web Scrape: the search query, or the page address it crawled.
+  ["query", "Search query"],
   ["generatedText", "Result"],
 ]
+
+/** Node types whose `url` is an input the reader types (a page to crawl),
+ *  not a media result — for every other node `url` is bookkeeping. */
+const URL_IS_AN_INPUT = new Set(["web-scrape"])
+
+/** A structured result (Web Scrape, video analysis) is shown as pretty JSON —
+ *  it is the node's output exactly as a downstream Prompt node receives it. */
+const JSON_RESULT_KEY = "generatedJson"
+const JSON_RESULT_MAX = 20_000
+
+function jsonResultField(node: InspectorNode): InspectorField[] {
+  const value = node.data[JSON_RESULT_KEY]
+  if (value === undefined || value === null) return []
+  let text: string
+  try {
+    text = typeof value === "string" ? value : JSON.stringify(value, null, 2)
+  } catch {
+    return []
+  }
+  if (!nonEmptyString(text)) return []
+  const shown = text.length > JSON_RESULT_MAX ? `${text.slice(0, JSON_RESULT_MAX)}\n…` : text
+  return [{ key: JSON_RESULT_KEY, label: "Result", value: shown }]
+}
 
 /** Short settings worth a chip, in display order. */
 const SETTING_FIELDS: ReadonlyArray<readonly [key: string, label: string]> = [
@@ -64,12 +89,16 @@ const SHORT_VALUE_MAX = 40
 const nonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0
 
 export function inspectorFields(node: InspectorNode): InspectorField[] {
-  return TEXT_FIELDS.flatMap(([key, label]) => {
+  const texts = TEXT_FIELDS.flatMap(([key, label]) => {
     const value = node.data[key]
     if (!nonEmptyString(value)) return []
     const shown = key === "text" && node.type === "sticky-note" ? "Note" : label
     return [{ key, label: shown, value }]
   })
+  const address = URL_IS_AN_INPUT.has(node.type ?? "") && nonEmptyString(node.data.url)
+    ? [{ key: "url", label: "Address", value: node.data.url }]
+    : []
+  return [...address, ...texts, ...jsonResultField(node)]
 }
 
 /**

@@ -32,7 +32,7 @@ export const DATA_TEXT_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
  *  output structured items via `__listResults`. */
 export const LIST_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
   "list",
-  "web-scrape", "extract-field", "filter-list",
+  "web-scrape", "meta-ads-scrape", "extract-field", "filter-list",
   "deduplicate", "merge-lists", "sort-list",
   "selector",
   "ai-writer", "llm-chat", "generate-script",
@@ -61,7 +61,7 @@ export const ACCEPTS_ANALYSIS = (sourceType: string): boolean => ANALYSIS_PRODUC
 /** Producers of JSON/dict-shaped data — web-scrape returns json arrays,
  *  extract-field has a `json` outputType, etc. */
 export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
-  "web-scrape", "extract-field",
+  "web-scrape", "meta-ads-scrape", "extract-field",
   "list", "filter-list",
   "deduplicate", "merge-lists", "sort-list",
   "selector",

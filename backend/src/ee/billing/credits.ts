@@ -15,7 +15,7 @@ import { hasCredits } from "../../lib/config.js"
 import { getAppSettings } from "../../lib/app-settings.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
 import { FREE_TIER_RESTRICTIONS, TIER_STORAGE_LIMITS } from "./stripe-config.js"
-import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits } from "@nodaro/shared"
+import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, buildMetaAdsScrapeCreditId, splitMetaAdsPageUrls, META_ADS_SCRAPE_DEFAULT_COUNT } from "@nodaro/shared"
 // Provider-$ cost formulas — CORE lib (not @nodaro/shared, an irrevocably
 // published Apache package). See the 2026-07-06 public-flip IP audit, S5.
 import { flux2BaseCredits } from "../../lib/pricing/flux2-cost.js"
@@ -1428,6 +1428,16 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   "web-scrape:instagram": 10,
   "web-scrape:tiktok": 10,
   "web-scrape:rss": 10,
+  // Meta Ads scraper: 1 credit per REQUESTED ad, rounded up to a tier of
+  // count × sources (packages/shared/src/meta-ads-scrape.ts is the formula;
+  // the bare id is the pre-Zod guard fallback). Migration 428.
+  "meta-ads-scrape": 20,
+  "meta-ads-scrape:10": 10,
+  "meta-ads-scrape:20": 20,
+  "meta-ads-scrape:50": 50,
+  "meta-ads-scrape:100": 100,
+  "meta-ads-scrape:200": 200,
+  "meta-ads-scrape:500": 500,
   "qa-check": 10,
   "qa-check:economy": 1,
   "qa-check:premium": 10,
@@ -3258,6 +3268,16 @@ function getNodeModelIdentifier(node: { type: string; data?: Record<string, unkn
   // Audio separation (Demucs): "best" quality costs more
   if (nodeType === "audio-separation") {
     return (data.quality as string) === "best" ? "audio-separation:best" : "audio-separation"
+  }
+
+  // Meta Ads scraper: 1 credit per requested ad, tiered on count × sources —
+  // the same builder the route's guard + reservation use, so the pre-run
+  // estimate never under-quotes a multi-page scrape (page urls are stored one
+  // per line on the node).
+  if (nodeType === "meta-ads-scrape") {
+    const count = typeof data.count === "number" ? data.count : META_ADS_SCRAPE_DEFAULT_COUNT
+    const sources = data.mode === "pages" ? Math.max(1, splitMetaAdsPageUrls(data.pageUrls).length) : 1
+    return buildMetaAdsScrapeCreditId({ count, sources })
   }
 
   // AI Audit: the credit FAMILY is a GRAPH fact (is an analysis wired into the

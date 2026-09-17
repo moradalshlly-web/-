@@ -30,7 +30,7 @@ import { resolveFieldMappings, NODE_MAPPABLE_FIELDS } from "./resolve-field-mapp
 
 import { executeCombineText, executeSplitText, executeComposite, executeWebhookOutput, executePreview, executeTeleporterPassthrough, executeRouter, executeExtractField, executeJsonProcess, executeFilterList, executeDeduplicateList, executeMergeLists, executeSortList, executeSelector } from "./inline-executor.js"
 import { executeSubWorkflow } from "./sub-workflow-handler.js"
-import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER } from "@nodaro/shared"
+import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER, splitMetaAdsPageUrls } from "@nodaro/shared"
 import { computeLlmChatFields, computeNodePrompt, pickerFanoutTargets, applyPromptAffixes } from "@nodaro/prompts"
 import type { ComponentMetadata } from "@nodaro/shared"
 import { getAppSettings } from "../../lib/app-settings.js"
@@ -82,6 +82,7 @@ const SYNC_HTTP_NODES = new Set([
   "image-critic",
   "save-to-storage",
   "web-scrape",
+  "meta-ads-scrape",
   "reduce",
 ])
 
@@ -108,6 +109,7 @@ export const SYNC_HTTP_ROUTES: Record<string, string> = {
   "image-critic": "/v1/image-critic",
   "save-to-storage": "/v1/save-to-storage",
   "web-scrape": "/v1/web-scrape",
+  "meta-ads-scrape": "/v1/meta-ads-scrape",
   "instagram-post": "/v1/social/publish",
   "tiktok-post": "/v1/social/publish",
   "youtube-upload": "/v1/social/publish",
@@ -265,6 +267,8 @@ export function extractUserPromptTemplate(node: SimpleNode): string | undefined 
       return pick("prompt")
     case "web-scrape":
       return pick("query", "url", "target")
+    case "meta-ads-scrape":
+      return pick("query", "pageUrls")
 
     // --- Social posts ---
     case "instagram-post":
@@ -1053,6 +1057,30 @@ export function buildSyncHttpBody(
       } else {
         body.target = (data.target as string) || upstreamText
         body.resultsLimit = data.resultsLimit
+      }
+      return withUserPrompt(body)
+    }
+
+    case "meta-ads-scrape": {
+      // Mirrors the editor's buildMetaAdsScrapeParams: the keyword (search)
+      // or the page list (pages) falls back to the upstream text so a Prompt
+      // / list node can drive the scrape. Page urls are typed one per line.
+      const mode = data.mode === "pages" ? "pages" : "search"
+      const upstreamText = resolvedInputs.prompt
+      const body: Record<string, unknown> = {
+        mode,
+        count: data.count,
+        period: data.period,
+        activeStatus: data.activeStatus,
+        countryCode: data.countryCode,
+        platforms: Array.isArray(data.platforms) ? data.platforms : undefined,
+        userId: ctx.userId,
+      }
+      if (mode === "pages") {
+        const own = splitMetaAdsPageUrls(data.pageUrls)
+        body.pageUrls = own.length > 0 ? own : splitMetaAdsPageUrls(upstreamText)
+      } else {
+        body.query = (data.query as string) || upstreamText
       }
       return withUserPrompt(body)
     }

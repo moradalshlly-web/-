@@ -3797,6 +3797,11 @@ export function getImageProxyUrl(url: string): string {
   return `${API_BASE_URL}/v1/image-proxy?url=${encodeURIComponent(url)}`
 }
 
+/** Stream an external video (e.g. a Meta Ad Library creative) through our proxy — the CDN blocks direct cross-origin loads, and the proxy forwards Range requests so the player can seek. */
+export function getVideoProxyUrl(url: string): string {
+  return `${API_BASE_URL}/v1/image-proxy?url=${encodeURIComponent(url)}&media=video`
+}
+
 export async function uploadImage(file: File | Blob, userId?: string, filename?: string): Promise<{ url: string }> {
   const resolvedUserId = userId ?? await getCurrentUserId()
   const asFile = file instanceof File
@@ -4241,6 +4246,24 @@ export async function webScrape(params: {
     body: params,
     workflowId: true,
     label: "Web scrape failed",
+  })
+}
+
+export async function metaAdsScrape(params: {
+  mode: import("@nodaro/shared").MetaAdsScrapeMode
+  query?: string
+  pageUrls?: string[]
+  count?: number
+  period?: import("@nodaro/shared").MetaAdsScrapePeriod
+  activeStatus?: import("@nodaro/shared").MetaAdsScrapeStatus
+  countryCode?: string
+  platforms?: string[]
+  workflowId?: string
+}): Promise<{ jobId: string; json: unknown }> {
+  return apiJson("/v1/meta-ads-scrape", {
+    body: params,
+    workflowId: true,
+    label: "Meta Ads scrape failed",
   })
 }
 

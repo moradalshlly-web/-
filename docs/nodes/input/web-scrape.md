@@ -37,21 +37,21 @@ The Web Scrape node retrieves data from external sources using configurable acto
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| Start URL | text | — | URL of the page or site root. Use `{}` to inject upstream |
+| Start URL | text | — | Address of the page or site root, as typed in a browser: `https://` is optional, so `pletor.ai` and `www.pletor.ai/products` both work. Use `{}` to inject upstream |
 | Crawl mode | select | `page` | `Single page` (1 CR) — one URL; `Site crawl, up to 20 pages` (5 CR) |
 
 ### RSS fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| Feed URL | text | — | URL of the RSS or Atom feed |
+| Feed URL | text | — | Address of the RSS or Atom feed (`https://` optional) |
 | Results limit | number | 10 | Maximum items to return (1–50). Emits `{ title, url, description, pubDate, guid }` per item |
 
 ### Instagram / TikTok fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| Profile or post URL | text | — | Full URL of the profile or post. Use `{}` to inject upstream |
+| Profile or post URL | text | — | Address of the profile or post, with or without `https://` (`instagram.com/nike` works). Use `{}` to inject upstream |
 | Results limit | number | 10 | Maximum posts to return (1–20) |
 
 ## Results

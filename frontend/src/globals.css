@@ -197,6 +197,36 @@
   --pill-border: #e4e2db;
   --pill-fg: #161513;
   --pill-fg-muted: #4a4843;
+  /* Meta Ads node + panel (design handoff 2026-09-17) — light values.
+     Inner surfaces only; the card frame stays on --node-card / --node-border. */
+  --meta-ads-surface-2: #f7f6fa;
+  --meta-ads-surface-3: #f3f2f7;
+  --meta-ads-segment-active: #ffffff;
+  --meta-ads-border: #e5e3ec;
+  --meta-ads-divider: #eeecf3;
+  --meta-ads-text: #16131f;
+  --meta-ads-text-2: #3d3950;
+  --meta-ads-muted: #6e6a80;
+  --meta-ads-faint: #a19db3;
+  --meta-ads-info: #1a8fd8;
+  --meta-ads-info-tint: rgba(26, 143, 216, 0.1);
+  --meta-ads-info-card: rgba(26, 143, 216, 0.06);
+  --meta-ads-info-card-border: rgba(26, 143, 216, 0.2);
+  --meta-ads-success: #17b877;
+  --meta-ads-success-text: #0f8f5c;
+  --meta-ads-success-tint: rgba(23, 184, 119, 0.12);
+  --meta-ads-success-glow: none;
+  --meta-ads-chip: #ebe9f1;
+  --meta-ads-stripe-a: #e9e7f0;
+  --meta-ads-stripe-b: #f0eef5;
+  --meta-ads-empty-bg: #fbfbfd;
+  --meta-ads-empty-border: #d9d6e3;
+  --meta-ads-accent-tint: rgba(255, 0, 115, 0.08);
+  --meta-ads-accent-border: rgba(255, 0, 115, 0.3);
+  --meta-ads-cta-bg: #16131f;
+  --meta-ads-cta-fg: #ffffff;
+  --meta-ads-thumb-dim: 0.65;
+  --meta-ads-dot-idle: #c6c3d1;
   /* Workflow Copilot panel (ee) — the panel sits between chrome and card, so it
      needs its own step in the surface ramp. Values come from the design system,
      not from --card/--muted, which do not have a matching step. */
@@ -267,6 +297,35 @@
   --pill-border: #22222b;
   --pill-fg: #ffffff;
   --pill-fg-muted: #b6b6c4;
+  /* Meta Ads node + panel — dark values (see the light block for the roles). */
+  --meta-ads-surface-2: #1a1626;
+  --meta-ads-surface-3: #0c0a14;
+  --meta-ads-segment-active: #1f1a2e;
+  --meta-ads-border: rgba(255, 255, 255, 0.08);
+  --meta-ads-divider: rgba(255, 255, 255, 0.06);
+  --meta-ads-text: #f3f1f8;
+  --meta-ads-text-2: #c9c6d6;
+  --meta-ads-muted: #8f8ba3;
+  --meta-ads-faint: #5d5972;
+  --meta-ads-info: #62c6ff;
+  --meta-ads-info-tint: rgba(98, 198, 255, 0.12);
+  --meta-ads-info-card: rgba(98, 198, 255, 0.07);
+  --meta-ads-info-card-border: rgba(98, 198, 255, 0.2);
+  --meta-ads-success: #2ee59d;
+  --meta-ads-success-text: #2ee59d;
+  --meta-ads-success-tint: rgba(46, 229, 157, 0.12);
+  --meta-ads-success-glow: 0 0 8px #2ee59d;
+  --meta-ads-chip: rgba(255, 255, 255, 0.06);
+  --meta-ads-stripe-a: #221c33;
+  --meta-ads-stripe-b: #1c1729;
+  --meta-ads-empty-bg: transparent;
+  --meta-ads-empty-border: rgba(255, 255, 255, 0.12);
+  --meta-ads-accent-tint: rgba(255, 0, 115, 0.14);
+  --meta-ads-accent-border: rgba(255, 0, 115, 0.35);
+  --meta-ads-cta-bg: #f3f1f8;
+  --meta-ads-cta-fg: #0c0a14;
+  --meta-ads-thumb-dim: 0.6;
+  --meta-ads-dot-idle: #5d5972;
   --copilot-panel: #171718;
   --copilot-card: #1E1E1E;
   --copilot-surface: #242426;

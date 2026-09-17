@@ -622,6 +622,35 @@ export {
   type ScraperActorId,
 } from "./scraper-actors.js"
 
+export {
+  META_ADS_SCRAPE_NODE_TYPE,
+  META_ADS_SCRAPE_MODES,
+  META_ADS_SCRAPE_PERIODS,
+  META_ADS_SCRAPE_STATUSES,
+  META_ADS_PLATFORMS,
+  isMetaAdsPlatform,
+  type MetaAdsPlatform,
+  META_ADS_SCRAPE_COUNT_OPTIONS,
+  META_ADS_SCRAPE_DEFAULT_COUNT,
+  META_ADS_SCRAPE_MAX_COUNT,
+  META_ADS_SCRAPE_MAX_SOURCES,
+  META_ADS_SCRAPE_MAX_QUERY_LENGTH,
+  META_ADS_SCRAPE_DEFAULT_COUNTRY,
+  META_ADS_SCRAPE_TIERS,
+  META_ADS_SCRAPE_CREDIT_COSTS,
+  META_ADS_SCRAPE_FALLBACK_CREDIT_ID,
+  splitMetaAdsPageUrls,
+  isMetaAdsScrapeMode,
+  isMetaAdsScrapeCount,
+  metaAdsScrapeTier,
+  buildMetaAdsScrapeCreditId,
+  resolveMetaAdsScrapeCreditId,
+  type MetaAdsScrapeMode,
+  type MetaAdsScrapePeriod,
+  type MetaAdsScrapeStatus,
+  type MetaAdsScrapeTier,
+} from "./meta-ads-scrape.js"
+
 export { VARIABLES_HANDLE_ID, buildConditionVariables } from "./condition-variables.js"
 
 export { extractAllGeneratedResults, extractGeneratedJsonAsList, spreadJsonArrayIfSingleton } from "./generated-results.js"

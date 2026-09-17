@@ -228,4 +228,70 @@ describe("GET /v1/image-proxy", () => {
     expect(res.statusCode).toBe(502)
     expect(res.json().error.code).toBe("proxy_error")
   })
+
+  describe("media=video (Meta Ad Library creatives)", () => {
+    function videoResponse(status: 200 | 206, headers: Record<string, string>): Response {
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(Buffer.from("mp4"))
+          controller.close()
+        },
+      })
+      return { ok: true, status, headers: new Headers(headers), body: stream } as unknown as Response
+    }
+
+    it("forwards the browser's Range header upstream and passes the 206 + Content-Range back", async () => {
+      vi.mocked(safeFetch).mockResolvedValue(
+        videoResponse(206, {
+          "content-type": "video/mp4",
+          "content-range": "bytes 0-99/1000",
+          "accept-ranges": "bytes",
+          "content-length": "100",
+        }),
+      )
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/v1/image-proxy?url=https://video.example.com/ad.mp4&media=video",
+        headers: { range: "bytes=0-99" },
+      })
+
+      expect(res.statusCode).toBe(206)
+      expect(res.headers["content-type"]).toBe("video/mp4")
+      expect(res.headers["content-range"]).toBe("bytes 0-99/1000")
+      expect(res.headers["accept-ranges"]).toBe("bytes")
+      // Signed CDN urls expire — never cached as immutable.
+      expect(res.headers["cache-control"]).toBe("public, max-age=3600")
+      expect(vi.mocked(safeFetch)).toHaveBeenCalledWith(
+        "https://video.example.com/ad.mp4",
+        expect.objectContaining({ headers: { range: "bytes=0-99" } }),
+      )
+    })
+
+    it("streams a whole video (200) when the player sends no Range", async () => {
+      vi.mocked(safeFetch).mockResolvedValue(videoResponse(200, { "content-type": "video/mp4" }))
+
+      const res = await app.inject({ method: "GET", url: "/v1/image-proxy?url=https://video.example.com/ad.mp4&media=video" })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.headers["content-type"]).toBe("video/mp4")
+      expect(vi.mocked(safeFetch)).toHaveBeenCalledWith("https://video.example.com/ad.mp4", expect.not.objectContaining({ headers: expect.anything() }))
+    })
+
+    it("rejects a non-video in video mode, and a video in the default image mode", async () => {
+      vi.mocked(safeFetch).mockResolvedValue(videoResponse(200, { "content-type": "text/html" }))
+      const html = await app.inject({ method: "GET", url: "/v1/image-proxy?url=https://video.example.com/page&media=video" })
+      expect(html.statusCode).toBe(400)
+
+      vi.mocked(safeFetch).mockResolvedValue(videoResponse(200, { "content-type": "video/mp4" }))
+      const asImage = await app.inject({ method: "GET", url: "/v1/image-proxy?url=https://video.example.com/ad.mp4" })
+      expect(asImage.statusCode).toBe(400)
+    })
+
+    it("download mode stays R2-only even for video", async () => {
+      const res = await app.inject({ method: "GET", url: "/v1/image-proxy?url=https://video.example.com/ad.mp4&media=video&download=1" })
+      expect(res.statusCode).toBe(403)
+      expect(vi.mocked(safeFetch)).not.toHaveBeenCalled()
+    })
+  })
 })
