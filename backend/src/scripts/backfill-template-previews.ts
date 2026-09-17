@@ -1,6 +1,6 @@
 /**
  * Backfill: copy existing workflow_templates.preview_media_url values into the
- * durable templates/<id>/preview.<ext> R2 location.
+ * durable templates/<id>/preview-<stamp>.<ext> R2 location.
  *
  * Why: the routes/workflow-templates.ts publish flow now copies on every
  * publish, so any template published or re-published after the fix landed is
@@ -11,10 +11,10 @@
  * For each candidate row:
  *   - HEAD the existing preview_media_url. Dead (404/410/403) → log for
  *     manual triage, do nothing.
- *   - Alive → copyToTemplatePreview() to templates/<id>/preview.<ext> and
+ *   - Alive → copyToTemplatePreview() to templates/<id>/preview-<stamp>.<ext> and
  *     UPDATE the row to the durable URL.
  *
- * Idempotent: rows already pointing at templates/<id>/preview.* are skipped
+ * Idempotent: rows already pointing at templates/<id>/preview* (fixed or stamped) are skipped
  * up front, so a second run is a no-op.
  *
  * Usage:
@@ -25,6 +25,7 @@
  */
 import { supabase } from "../lib/supabase.js"
 import { copyToTemplatePreview } from "../lib/storage.js"
+import { templatePreviewPrefix } from "../lib/template-preview-key.js"
 import { config } from "../lib/config.js"
 import { safeFetch } from "../lib/safe-fetch.js"
 
@@ -76,7 +77,7 @@ function detectMediaType(
 
 function isAlreadyMigrated(row: TemplateRow): boolean {
   if (!config.R2_PUBLIC_URL) return false
-  const prefix = `${config.R2_PUBLIC_URL.replace(/\/$/, "")}/templates/${row.id}/preview.`
+  const prefix = `${config.R2_PUBLIC_URL.replace(/\/$/, "")}/${templatePreviewPrefix(row.id)}`
   return row.preview_media_url.startsWith(prefix)
 }
 
@@ -151,7 +152,7 @@ async function processRow(row: TemplateRow, dryRun: boolean): Promise<RowOutcome
   if (dryRun) {
     return {
       kind: "migrated",
-      newUrl: `(dry-run) would copy ${row.preview_media_url} → templates/${row.id}/preview.<ext>`,
+      newUrl: `(dry-run) would copy ${row.preview_media_url} → templates/${row.id}/preview-<stamp>.<ext>`,
     }
   }
 

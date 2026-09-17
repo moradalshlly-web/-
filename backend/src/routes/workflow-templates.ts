@@ -457,7 +457,7 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
     //   2. workflows.thumbnail_url — what the user clicked "Set as Thumbnail" on
     //   3. derivePreviewMedia(nodes) — first node with a result, fallback only
     // This is just the SOURCE; the actual preview_media_url written to the
-    // template row is a durable COPY at templates/<id>/preview.<ext> below.
+    // template row is a durable COPY at templates/<id>/preview-<stamp>.<ext> below.
     let sourcePreviewUrl: string | null = previewMediaUrl ?? null
     let sourcePreviewType: "image" | "video" | null = previewMediaType ?? null
     if (!sourcePreviewUrl) {
@@ -558,7 +558,7 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
     }
 
     // Pre-generate the template ID so the durable preview copy can land at a
-    // stable R2 key (templates/<id>/preview.<ext>) BEFORE the row exists.
+    // stamped R2 key (templates/<id>/preview-<stamp>.<ext>) BEFORE the row exists.
     // The retry loop below only varies the slug — the UUID is fixed.
     const newTemplateId = randomUUID()
 

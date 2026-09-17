@@ -38,4 +38,25 @@ describe("CaptionOverlay", () => {
       expect(html.length).toBeGreaterThan(0)
     },
   )
+  // The @remotion/captions word delimiter is a LEADING SPACE on the word's
+  // text. A per-word <span> rendered as inline-block starts its own line box,
+  // and CSS removes a collapsible space at the start of a line — so every
+  // inline-block word span must also carry white-space: pre, or the words
+  // burn in glued together ("Twopeopletalking"). Pins the pair for every
+  // style, so a new overlay that copies the inline-block span inherits the rule.
+  it.each(["word-highlight", "karaoke", "bouncy"] as const)(
+    "style %s keeps the leading-space delimiter on inline-block word spans",
+    (style) => {
+      const html = renderToStaticMarkup(
+        <CaptionOverlay captions={fixture} style={style} position="bottom" fontSize={32} color="#ffffff" />,
+      )
+      const spans = html.match(/<span[^>]*>[^<]*<\/span>/g) ?? []
+      const wordSpans = spans.filter((s) => s.endsWith("> world</span>"))
+      expect(wordSpans.length).toBeGreaterThan(0)
+      for (const span of wordSpans) {
+        if (span.includes("display:inline-block")) expect(span).toContain("white-space:pre")
+      }
+    },
+  )
+
 })

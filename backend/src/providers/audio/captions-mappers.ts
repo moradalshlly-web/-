@@ -57,6 +57,26 @@ export function whisperWordsToCaptions(out: WhisperOutput): Caption[] {
   return captions
 }
 
+/**
+ * Convert direct ElevenLabs Scribe words to Caption[]. Scribe emits bare word
+ * tokens (its `spacing` entries are dropped by the client), so every word after
+ * the first gets the leading space the @remotion/captions spec uses as the word
+ * delimiter — the kinetic overlays and createTikTokStyleCaptions concatenate
+ * `text` verbatim, and bare tokens rendered as "Twopeopletalking".
+ */
+export function scribeWordsToCaptions(
+  words: ReadonlyArray<{ text: string; start: number; end: number; speaker?: string }>,
+): Array<Caption & { speaker?: string }> {
+  return words.map((w, i) => ({
+    text: i === 0 || /^\s/.test(w.text) ? w.text : ` ${w.text}`,
+    startMs: Math.round(w.start * 1000),
+    endMs: Math.round(w.end * 1000),
+    timestampMs: null,
+    confidence: null,
+    ...(w.speaker ? { speaker: w.speaker } : {}),
+  }))
+}
+
 /** Fallback: split a sentence by whitespace and evenly slice the duration. */
 export function syntheticCaptionsFromText(
   text: string,

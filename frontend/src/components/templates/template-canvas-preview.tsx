@@ -9,6 +9,7 @@ import { useAppDir } from "@/lib/locale-store"
 import { ReadOnlyCanvas } from "./read-only-canvas"
 import { templateCreatorName } from "./template-facts"
 import { TemplateCover } from "./template-marketplace-card"
+import { TemplateResultsRail } from "./template-results-rail"
 import { useCloneTemplate } from "./use-clone-template"
 
 const PILL = "flex items-center gap-2 rounded-[10px] border border-[var(--home-line)] bg-[var(--home-panel)]"
@@ -101,6 +102,14 @@ export function TemplateCanvasPreview({ slug, open, fallback, onBack }: Template
             </button>
           </div>
         </div>
+
+        {/* The results, playable with sound — the canvas behind is inert by design. */}
+        {detail && (
+          <TemplateResultsRail
+            snapshotNodes={detail.snapshotNodes}
+            className="absolute bottom-[18px] start-[18px] z-10 max-w-[min(760px,calc(100%-400px))] @max-[900px]:hidden"
+          />
+        )}
 
         {/* Clone panel */}
         {summary && (

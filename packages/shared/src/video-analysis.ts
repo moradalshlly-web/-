@@ -282,8 +282,23 @@ export const entitySlotSchema = z.object({
   refRejectedReason: z.string().optional(),
   /** NON-default looks only; present only when at least one exists. */
   variations: z.array(slotVariationSchema).max(VIDEO_ANALYSIS_MAX_VARIATIONS).optional(),
+  /**
+   * WHOSE THIS OBJECT IS (2026-09-17). An object slot that is worn, held,
+   * carried, driven or ridden by a cast person or creature names that slot
+   * here, with the relation as a short passive phrase ending in "by" ("worn
+   * by", "held by", "driven by"). The link says the object slot IS the one on
+   * that person — not a second one: a recast that saw "Man in Blue Silk
+   * Shirt" AND "Blue Silk Shirt" as unrelated slots rendered two shirts.
+   * Object slots only; a free-standing prop, the product on a table, a place
+   * or a person never carries it. Optional/additive: producers may omit it.
+   */
+  owner: z.object({
+    slotId: z.string().min(1).regex(/^[a-z0-9-]+$/),
+    relation: z.string().min(1),
+  }).optional(),
 })
 export type EntitySlot = z.infer<typeof entitySlotSchema>
+export type EntitySlotOwner = NonNullable<EntitySlot["owner"]>
 
 /**
  * The sound LAYER vocabulary — what kind of thing this layer is.
