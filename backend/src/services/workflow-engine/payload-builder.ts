@@ -1873,6 +1873,13 @@ export function buildNodeRefMap(
         output = state.output.videoUrl
       } else if (state?.output?.audioUrl) {
         output = state.output.audioUrl
+      } else if (state?.output?.json !== undefined && state.output.json !== null) {
+        // Structured producers (web-scrape, video-analysis / video-audit) carry
+        // their result on `json` only. Stringified so {Label} in a prompt gets
+        // the data — the same text getPrimaryOutput hands a wired consumer.
+        // Without this the ref fell through to the fallback text ({Research ||
+        // …}) while the editor's own builder resolved it (extractNodeOutput).
+        output = JSON.stringify(state.output.json)
       } else if (PARAMETER_NODE_TYPES.has(node.type)) {
         // Parameter nodes (Animal, Setting, Style, etc.) don't have job outputs —
         // derive a text hint from their picker state so {Label} refs resolve to a
@@ -1885,6 +1892,7 @@ export function buildNodeRefMap(
         const saved = extractSavedNodeOutput(node)
         if (saved) {
           output = saved.text ?? saved.imageUrl ?? saved.videoUrl ?? saved.audioUrl
+            ?? (saved.json !== undefined && saved.json !== null ? JSON.stringify(saved.json) : undefined)
         }
       }
     }
