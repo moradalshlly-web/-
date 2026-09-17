@@ -158,6 +158,7 @@ const NODE_LABELS_HE: Record<string, string> = {
   "Split into Chunks": "פיצול למקטעים",
   "Extract Audio": "חילוץ אודיו",
   "Silence Detect": "זיהוי שקט",
+  "Apply EDL": "החלת רשימת עריכה",
   "Remove Audio": "הסרת אודיו",
   "Mix Audio": "מיקס אודיו",
   "Combine Audio": "שילוב אודיו",

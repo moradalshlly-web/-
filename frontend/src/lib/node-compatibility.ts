@@ -233,6 +233,10 @@ export const TYPED_HANDLE_IDS: ReadonlySet<string> = new Set([
   //   - scene: Edit 3D Scene's upstream-plan input (accepts only the two
   //     3D-scene authoring nodes, never a Parameter picker).
   "scene",
+  //   - apply-edl typed inputs (registered in TARGET_HANDLE_ACCEPTS): `edl` +
+  //     `transcript` accept only JSON producers (transcript already listed
+  //     above), `sources` accepts media producers. Drift mirror of the registry.
+  "edl", "sources",
 ])
 /** Subset that requires consumer-type dispatch — the dev-time warning in
  *  getCompatibleNodes triggers when one of these is passed without a
