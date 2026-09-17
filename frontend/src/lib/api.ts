@@ -4249,6 +4249,11 @@ export async function webScrape(params: {
   })
 }
 
+/** Advertiser lookup for the Meta Ads node's advertiser mode — a name → the Facebook Pages that match it (no credits, rate-limited). */
+export async function metaAdsAdvertisers(query: string): Promise<{ advertisers: import("@nodaro/shared").MetaAdsAdvertiser[] }> {
+  return apiJson("/v1/meta-ads-scrape/advertisers", { body: { query }, label: "Meta Ads advertiser lookup" })
+}
+
 export async function metaAdsScrape(params: {
   mode: import("@nodaro/shared").MetaAdsScrapeMode
   query?: string

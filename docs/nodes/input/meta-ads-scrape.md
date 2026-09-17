@@ -19,8 +19,11 @@ The Meta Ads node searches Meta's public Ad Library — the same archive you can
 
 | Mode | Input | Description |
 |------|-------|-------------|
-| `search` (Keyword) | Keyword | Full-text search across the Ad Library (up to 100 characters). Use `{}` to inject an upstream text value |
-| `pages` (Facebook pages) | Facebook Page URLs | One Page address per line, up to 5 (`https://www.facebook.com/nike`; `https://` is optional). Use `{}` to inject an upstream list |
+| `search` (Keyword) | Keyword | Full-text search across the Ad Library — words **inside** the ads, not the advertiser (up to 100 characters). Use `{}` to inject an upstream text value |
+| `advertiser` (Advertiser) | Advertiser picks | Type an advertiser's name, press **Find**, and pick the right Facebook Page from the matches (avatar, name, verified badge — the verified one is usually it), up to 5. The run pulls only those advertisers' ads. The lookup itself costs no credits (10 per minute) |
+| `pages` (Facebook pages) | Facebook Page URLs | One Page address per line, up to 5 (`https://www.facebook.com/nike`; `https://` is optional). An advertiser's Ad Library link works here too. Use `{}` to inject an upstream list |
+
+Advertiser picks run exactly like Facebook Pages — each pick is one source for pricing (below), and the API only knows `search` and `pages`: the editor sends a pick as its Page URL.
 
 ### Fields
 
@@ -51,7 +54,7 @@ Creatives that could not be copied into your library (storage full, or an instal
 
 ## Inputs & Outputs
 
-**Inputs:** `in` (optional) — upstream text: a keyword in `search` mode, or Page URLs (one per line) in `pages` mode.
+**Inputs:** `in` (optional) — upstream text: a keyword in `search` mode, or Page URLs (one per line) in `pages` mode. Advertiser picks are explicit (the `in` text is ignored in `advertiser` mode).
 
 **Outputs:**
 
@@ -105,6 +108,7 @@ Worked examples:
 
 - Keyword search, 20 ads per source → total 20 → **20 CR**
 - 2 Facebook Pages, 30 ads per Page → total 60 → **100 CR**
+- 2 advertisers picked by name, 30 ads each → total 60 → **100 CR** (a pick is a source, like a Page)
 - 5 Facebook Pages, 100 ads per Page → total 500 → **500 CR**
 
 Credits are charged for the requested batch; a narrow period or a quiet keyword may return fewer ads than requested.

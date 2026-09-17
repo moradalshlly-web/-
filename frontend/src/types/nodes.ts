@@ -5248,12 +5248,14 @@ export type WebScrapeNodeData = {
 export type MetaAdsScrapeNodeData = {
   [key: string]: unknown
   label: string
-  /** "search" = keyword search (default); "pages" = Facebook Page URLs */
-  mode?: import("@nodaro/shared").MetaAdsScrapeMode
+  /** "search" = keyword search (default); "pages" = Facebook Page URLs; "advertiser" = advertisers picked by name (runs as their Page URLs) */
+  mode?: import("@nodaro/shared").MetaAdsNodeMode
   // search
   query?: string
   // pages — one Facebook Page URL per line
   pageUrls?: string
+  /** advertiser — the picks from the name lookup (page id, name, Page URL, avatar, verified); up to 5 */
+  advertisers?: import("@nodaro/shared").MetaAdsAdvertiser[]
   /** Ads per source, 1..100 */
   count?: number
   period?: import("@nodaro/shared").MetaAdsScrapePeriod

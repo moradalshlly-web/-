@@ -243,7 +243,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     label: "Meta Ads",
     category: "input",
     // outputType: data — emits a JSON array of Ad Library ads via the `json` handle (creditCost auto-filled from STATIC_CREDIT_COSTS).
-    description: "Pull public Facebook and Instagram ads from Meta's Ad Library by keyword or Facebook Page and emit structured JSON (copy, CTA, images, videos).",
+    description: "Pull public Facebook and Instagram ads from Meta's Ad Library by keyword, advertiser or Facebook Page and emit structured JSON (copy, CTA, images, videos).",
     outputType: "data",
   },
   {

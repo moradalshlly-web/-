@@ -127,6 +127,18 @@ describe("meta-ads-scrape run state", () => {
     expect(applyMetaAdsScrapeResult([])).not.toHaveProperty("viewFormat")
   })
 
+  it("the fingerprint tracks advertiser picks by page id (order-insensitive)", () => {
+    const nike = { pageId: "1", name: "Nike", url: "https://www.facebook.com/nike" }
+    const adidas = { pageId: "2", name: "Adidas", url: "https://www.facebook.com/adidas" }
+    const a = metaAdsScrapeFingerprint({ ...base, mode: "advertiser", advertisers: [nike, adidas] })
+    const b = metaAdsScrapeFingerprint({ ...base, mode: "advertiser", advertisers: [adidas, nike] })
+    const c = metaAdsScrapeFingerprint({ ...base, mode: "advertiser", advertisers: [nike] })
+    expect(a).toBe(b)
+    expect(a).not.toBe(c)
+    // A renamed pick (same page) is the same run.
+    expect(metaAdsScrapeFingerprint({ ...base, mode: "advertiser", advertisers: [{ ...nike, name: "NIKE" }] })).toBe(c)
+  })
+
   it("the fingerprint tracks the platform filter (order-insensitive)", () => {
     const a = metaAdsScrapeFingerprint({ ...base, platforms: ["INSTAGRAM", "FACEBOOK"] })
     const b = metaAdsScrapeFingerprint({ ...base, platforms: ["FACEBOOK", "INSTAGRAM"] })

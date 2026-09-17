@@ -4,6 +4,12 @@ import Fastify from "fastify"
 vi.mock("../../providers/apify/meta-ads.js", () => ({
   runMetaAdsScrape: vi.fn(),
 }))
+const advertiserMocks = vi.hoisted(() => ({
+  searchMetaAdvertisers: vi.fn(),
+}))
+vi.mock("../../providers/apify/meta-ads-advertisers.js", () => ({
+  searchMetaAdvertisers: advertiserMocks.searchMetaAdvertisers,
+}))
 // Media classify/store is a separate, deadlined step (lib/meta-ads-media);
 // here it is a pass-through that tags every ad so the route's assembly can
 // be asserted without sharp / R2.
@@ -301,6 +307,95 @@ describe("POST /v1/meta-ads-scrape", () => {
     expect(res.statusCode).toBe(409)
     expect(res.json().error.code).toBe("job_cancelled")
     expect(commitReservedCreditsForJob).not.toHaveBeenCalled()
+  })
+
+  describe("POST /v1/meta-ads-scrape/advertisers (name → Pages, no credits)", () => {
+    const OPENART = { pageId: "61562658466287", name: "OpenArt AI", url: "https://www.facebook.com/people/OpenArt-AI/61562658466287/", verified: true }
+
+    beforeEach(async () => {
+      const { _resetAdvertiserLookupMeterForTests } = await import("../meta-ads-scrape.js")
+      _resetAdvertiserLookupMeterForTests()
+    })
+
+    it("returns the provider's matches for a trimmed query", async () => {
+      advertiserMocks.searchMetaAdvertisers.mockResolvedValueOnce({ items: [OPENART], cached: false })
+      const app = await buildTestApp()
+      const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape/advertisers", payload: { query: "  OpenArt AI " } })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ advertisers: [OPENART] })
+      expect(advertiserMocks.searchMetaAdvertisers).toHaveBeenCalledWith("OpenArt AI")
+      expect(creditMocks.reserveCreditsForJob).not.toHaveBeenCalled()
+    })
+
+    it("meters lookups per USER per day (the route limiter is per credential), 429 past the allowance", async () => {
+      const { META_ADS_ADVERTISER_LOOKUPS_PER_DAY, takeAdvertiserLookup } = await import("../meta-ads-scrape.js")
+      let clock = Date.UTC(2026, 8, 17, 12)
+      const now = () => clock
+      for (let i = 0; i < META_ADS_ADVERTISER_LOOKUPS_PER_DAY; i += 1) expect(takeAdvertiserLookup("u-meter", now)).toBe(true)
+      expect(takeAdvertiserLookup("u-meter", now)).toBe(false)
+      expect(takeAdvertiserLookup("someone-else", now)).toBe(true)
+      clock += 24 * 60 * 60 * 1000 // a new day resets it
+      expect(takeAdvertiserLookup("u-meter", now)).toBe(true)
+
+      advertiserMocks.searchMetaAdvertisers.mockResolvedValue({ items: [OPENART], cached: true })
+      const app = await buildTestApp()
+      for (let i = 0; i < META_ADS_ADVERTISER_LOOKUPS_PER_DAY; i += 1) {
+        await app.inject({ method: "POST", url: "/v1/meta-ads-scrape/advertisers", payload: { query: `brand ${i}` } })
+      }
+      const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape/advertisers", payload: { query: "one more" } })
+      expect(res.statusCode).toBe(429)
+      expect(res.json().error.code).toBe("rate_limit_exceeded")
+      expect(advertiserMocks.searchMetaAdvertisers).toHaveBeenCalledTimes(META_ADS_ADVERTISER_LOOKUPS_PER_DAY)
+    })
+
+    it("503 provider_key_missing with the ACTIONABLE message when the install has no key and no connection", async () => {
+      const { MissingProviderKeyError } = await import("../../providers/provider-keys.js")
+      advertiserMocks.searchMetaAdvertisers.mockRejectedValueOnce(new MissingProviderKeyError("apify" as never))
+      const app = await buildTestApp()
+      const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape/advertisers", payload: { query: "OpenArt AI" } })
+      expect(res.statusCode).toBe(503)
+      expect(res.json().error.code).toBe("provider_key_missing")
+      expect(res.json().error.message).toMatch(/APIFY_API_TOKEN|nodaro\.ai/i)
+    })
+
+    it("400 on a one-letter or missing query, before any lookup", async () => {
+      const app = await buildTestApp()
+      for (const payload of [{ query: "x" }, {}, { query: "a".repeat(101) }]) {
+        const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape/advertisers", payload })
+        expect(res.statusCode).toBe(400)
+      }
+      expect(advertiserMocks.searchMetaAdvertisers).not.toHaveBeenCalled()
+    })
+
+    it("a pick's Page url on any facebook.com host is accepted by the scrape route (one predicate, shared)", async () => {
+      const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
+      vi.mocked(runMetaAdsScrape).mockResolvedValue({ json: [] } as never)
+      const app = await buildTestApp()
+      for (const url of ["https://web.facebook.com/nike", "https://de-de.facebook.com/nike", "https://www.facebook.com/people/OpenArt-AI/61562658466287/"]) {
+        const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape", payload: { mode: "pages", pageUrls: [url] } })
+        expect(res.statusCode, url).toBe(200)
+      }
+    })
+
+    it("relays to the nodaro.ai connection on a keyless install and re-sanitizes the answer", async () => {
+      cloudMocks.shouldRunOnCloud.mockResolvedValue(true)
+      cloudMocks.callCloudRoute.mockResolvedValue({ advertisers: [OPENART, { pageId: "x", name: "Off-site", url: "https://instagram.com/x" }] })
+      const app = await buildTestApp()
+      const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape/advertisers", payload: { query: "OpenArt AI" } })
+      expect(res.statusCode).toBe(200)
+      expect(cloudMocks.callCloudRoute).toHaveBeenCalledWith("/v1/meta-ads-scrape/advertisers", { query: "OpenArt AI" })
+      expect(res.json().advertisers).toEqual([OPENART])
+      expect(advertiserMocks.searchMetaAdvertisers).not.toHaveBeenCalled()
+    })
+
+    it("502 lookup_error with a FIXED message when the provider fails (the detail is logged, never shown)", async () => {
+      advertiserMocks.searchMetaAdvertisers.mockRejectedValueOnce(new Error("timeout: actor run still RUNNING after 60s"))
+      const app = await buildTestApp()
+      const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape/advertisers", payload: { query: "OpenArt AI" } })
+      expect(res.statusCode).toBe(502)
+      expect(res.json().error.code).toBe("lookup_error")
+      expect(res.json().error.message).not.toMatch(/actor|RUNNING/)
+    })
   })
 
   it("skips commit/refund entirely when nothing was reserved (community edition)", async () => {

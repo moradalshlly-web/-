@@ -18,7 +18,9 @@ import {
   META_ADS_SCRAPE_MAX_SOURCES,
   META_ADS_SCRAPE_PERIODS,
   META_ADS_SCRAPE_STATUSES,
-  type MetaAdsScrapeMode,
+  metaAdsAdvertisersFrom,
+  metaAdsNodeMode,
+  type MetaAdsNodeMode,
   type MetaAdsScrapePeriod,
   type MetaAdsScrapeStatus,
 } from "@nodaro/shared"
@@ -50,6 +52,7 @@ import {
   metaAdsVisibleIndexes,
 } from "@/components/nodes/meta-ads-scrape-run-state"
 import { MappableField } from "./mappable-field"
+import { MetaAdsAdvertiserPicker } from "./meta-ads-advertiser-picker"
 import type { ConfigProps } from "./types"
 
 /** Section label — 11/800, .12em, uppercase, muted (design handoff). */
@@ -120,7 +123,7 @@ export function MetaAdsScrapeConfig(props: ConfigProps<MetaAdsScrapeNodeData>) {
 
 function MetaAdsScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapField }: ConfigProps<MetaAdsScrapeNodeData>) {
   const t = useT()
-  const mode: MetaAdsScrapeMode = data.mode === "pages" ? "pages" : "search"
+  const mode: MetaAdsNodeMode = metaAdsNodeMode(data.mode)
   const count = typeof data.count === "number" ? data.count : META_ADS_SCRAPE_DEFAULT_COUNT
   const selectedPlatforms = Array.isArray(data.platforms) ? data.platforms.filter((p): p is string => typeof p === "string") : []
   const selectedFormats = Array.isArray(data.formats) ? data.formats.filter((f): f is string => typeof f === "string") : []
@@ -158,12 +161,21 @@ function MetaAdsScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapF
           onChange={(v) => onUpdate({ mode: v })}
           options={[
             { value: "search", label: t("cfgext.metaAdsModeSearch") },
+            { value: "advertiser", label: t("cfgext.metaAdsModeAdvertiser") },
             { value: "pages", label: t("cfgext.metaAdsModePages") },
           ]}
         />
       </div>
 
-      {mode === "search" ? (
+      {mode === "advertiser" ? (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>{t("cfgext.metaAdsAdvertisers")}</SectionLabel>
+          <MetaAdsAdvertiserPicker
+            selected={metaAdsAdvertisersFrom(data.advertisers)}
+            onChange={(advertisers) => onUpdate({ advertisers })}
+          />
+        </div>
+      ) : mode === "search" ? (
         <MappableField field="query" label={t("cfgext.metaAdsQuery")} sources={sources} fieldMappings={fieldMappings} onMapField={onMapField}>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2.5 rounded-xl border border-[var(--meta-ads-border)] bg-[var(--meta-ads-surface-3)] px-3.5 py-1">

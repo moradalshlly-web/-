@@ -7,6 +7,11 @@
  * frontend credit badge and the docs formula must agree on lives here so the
  * three cannot drift apart.
  *
+ * The editor has a third, node-only mode — "advertiser": pick advertisers by
+ * name (a page lookup) and run as their Page urls. The wire contract stays
+ * search / pages; `metaAdsScrapeWireSources` is the ONE mapping both engines
+ * call, and `metaAdsScrapeSources` the ONE source count every quote reads.
+ *
  * Pricing shape: 1 credit per REQUESTED ad, rounded UP to a fixed tier. The
  * requested total is `count × sources` (search = 1 source; pages = one per
  * URL). The route's Zod bounds `count ≤ 100` and `sources ≤ 5`, so the total
@@ -15,8 +20,77 @@
  */
 export const META_ADS_SCRAPE_NODE_TYPE = "meta-ads-scrape" as const
 
+/** The WIRE modes — what `POST /v1/meta-ads-scrape` accepts. */
 export const META_ADS_SCRAPE_MODES = ["search", "pages"] as const
 export type MetaAdsScrapeMode = (typeof META_ADS_SCRAPE_MODES)[number]
+
+/** The NODE modes — the wire modes plus the editor-only advertiser picker (runs as pages). */
+export const META_ADS_NODE_MODES = [...META_ADS_SCRAPE_MODES, "advertiser"] as const
+export type MetaAdsNodeMode = (typeof META_ADS_NODE_MODES)[number]
+
+/** Coerce stored node data to a node mode; anything unknown is the default keyword search. */
+export function metaAdsNodeMode(value: unknown): MetaAdsNodeMode {
+  return typeof value === "string" && (META_ADS_NODE_MODES as readonly string[]).includes(value) ? (value as MetaAdsNodeMode) : "search"
+}
+
+/** An advertiser the user picked by name — stored on the node, run as its Page url. */
+export interface MetaAdsAdvertiser {
+  readonly pageId: string
+  readonly name: string
+  /** The Facebook Page url. The actor resolves it to the Ad Library advertiser itself — the Page id and the advertiser id are NOT the same number. */
+  readonly url: string
+  readonly imageUrl?: string
+  readonly verified?: boolean
+}
+
+/** How many matches an advertiser lookup returns — more than the pick cap, so a same-name brand can be told apart by its badge / avatar. */
+export const META_ADS_ADVERTISER_MAX_RESULTS = 8
+const META_ADS_URL_MAX_LENGTH = 2048
+
+function httpUrlOnHost(value: unknown, host: RegExp): value is string {
+  if (typeof value !== "string" || value.length > META_ADS_URL_MAX_LENGTH) return false
+  try {
+    const url = new URL(value)
+    return (url.protocol === "https:" || url.protocol === "http:") && host.test(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+/** http(s) url on facebook.com (any subdomain) — the ONE predicate for a Page address, on the route's Zod and on stored picks alike. */
+export function isFacebookPageUrl(value: unknown): value is string {
+  return httpUrlOnHost(value, /(^|\.)facebook\.com$/i)
+}
+
+/** A Page avatar lives on Meta's CDN; anything else is not stored (it would be fetched by every viewer's browser and our image proxy). */
+export function isMetaCdnImageUrl(value: unknown): value is string {
+  return httpUrlOnHost(value, /(^|\.)(fbcdn\.net|facebook\.com)$/i)
+}
+
+/** Stored / relayed advertisers, sanitized: a page id, a name, a facebook.com url, a Meta-CDN avatar; deduped by page id; at most `limit` (the pick cap by default). */
+export function metaAdsAdvertisersFrom(raw: unknown, limit: number = META_ADS_SCRAPE_MAX_SOURCES): MetaAdsAdvertiser[] {
+  if (!Array.isArray(raw) || limit < 1) return []
+  const seen = new Set<string>()
+  const out: MetaAdsAdvertiser[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue
+    const r = item as Record<string, unknown>
+    const pageId =
+      typeof r.pageId === "string" ? r.pageId.trim() : typeof r.pageId === "number" && Number.isFinite(r.pageId) ? String(r.pageId) : ""
+    const name = typeof r.name === "string" ? r.name.trim().slice(0, 120) : ""
+    if (!pageId || !name || !isFacebookPageUrl(r.url) || seen.has(pageId)) continue
+    seen.add(pageId)
+    out.push({
+      pageId,
+      name,
+      url: r.url,
+      ...(isMetaCdnImageUrl(r.imageUrl) ? { imageUrl: r.imageUrl } : {}),
+      ...(r.verified === true ? { verified: true } : {}),
+    })
+    if (out.length >= limit) break
+  }
+  return out
+}
 
 export const META_ADS_SCRAPE_PERIODS = ["24h", "7d", "30d", "all"] as const
 export type MetaAdsScrapePeriod = (typeof META_ADS_SCRAPE_PERIODS)[number]
@@ -144,6 +218,60 @@ export function splitMetaAdsPageUrls(value: unknown): string[] {
 
 export function isMetaAdsScrapeMode(value: unknown): value is MetaAdsScrapeMode {
   return typeof value === "string" && (META_ADS_SCRAPE_MODES as readonly string[]).includes(value)
+}
+
+/** The node-data fields that decide what a run scrapes (and therefore what it costs). Index-signature so any node-data bag is accepted as-is. */
+export interface MetaAdsNodeSourceFields {
+  readonly [key: string]: unknown
+  readonly mode?: unknown
+  readonly query?: unknown
+  readonly pageUrls?: unknown
+  readonly advertisers?: unknown
+}
+
+/**
+ * How many sources a run bills — the number the card badge, the run total,
+ * the pre-run estimator and the backend quote must all read, so an advertiser
+ * pick can never be quoted as one source while the server reserves five. An
+ * empty page list / no picks counts as one (the run then fails validation
+ * before anything is reserved).
+ */
+export function metaAdsScrapeSources(data: MetaAdsNodeSourceFields): number {
+  switch (metaAdsNodeMode(data.mode)) {
+    case "pages":
+      return Math.max(1, Math.min(splitMetaAdsPageUrls(data.pageUrls).length, META_ADS_SCRAPE_MAX_SOURCES))
+    case "advertiser":
+      return Math.max(1, metaAdsAdvertisersFrom(data.advertisers).length)
+    default:
+      return 1
+  }
+}
+
+export type MetaAdsWireSources =
+  | { readonly mode: "search"; readonly query: string | undefined }
+  | { readonly mode: "pages"; readonly pageUrls: string[] }
+
+/**
+ * The wire half of a request from node data — ONE mapping for the editor's
+ * executor and the orchestrator's payload builder. The keyword / page list
+ * falls back to the upstream text so a Prompt or List node can drive the
+ * scrape; advertiser picks are explicit (no upstream fallback) and run as
+ * their Page urls, which is why the route never sees "advertiser".
+ */
+export function metaAdsScrapeWireSources(data: MetaAdsNodeSourceFields, upstream?: unknown): MetaAdsWireSources {
+  const upstreamText = typeof upstream === "string" ? upstream : undefined
+  switch (metaAdsNodeMode(data.mode)) {
+    case "pages": {
+      const own = splitMetaAdsPageUrls(data.pageUrls)
+      return { mode: "pages", pageUrls: own.length > 0 ? own : splitMetaAdsPageUrls(upstreamText) }
+    }
+    case "advertiser":
+      return { mode: "pages", pageUrls: metaAdsAdvertisersFrom(data.advertisers).map((a) => a.url) }
+    default: {
+      const own = typeof data.query === "string" ? data.query : ""
+      return { mode: "search", query: own || upstreamText }
+    }
+  }
 }
 
 export function isMetaAdsScrapeCount(value: unknown): value is number {

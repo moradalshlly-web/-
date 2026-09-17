@@ -1,5 +1,5 @@
 import type { MetaAdsScrapeNodeData } from "@/types/nodes"
-import { META_ADS_FORMATS, clampMetaAdsFeaturedIndex, type MetaAdsCreativeFormat } from "@nodaro/shared"
+import { META_ADS_FORMATS, clampMetaAdsFeaturedIndex, metaAdsAdvertisersFrom, type MetaAdsCreativeFormat } from "@nodaro/shared"
 import {
   applyWebScrapeFailure,
   applyWebScrapeResult,
@@ -232,6 +232,8 @@ export function metaAdsScrapeFingerprint(d: MetaAdsScrapeNodeData): string {
     d.countryCode ?? "",
     Array.isArray(d.platforms) ? [...d.platforms].sort() : [],
     Array.isArray(d.formats) ? [...d.formats].sort() : [],
+    // Advertiser picks by page id (order-insensitive) — a different pick set is a different run.
+    metaAdsAdvertisersFrom(d.advertisers).map((a) => a.pageId).sort(),
   ])
 }
 

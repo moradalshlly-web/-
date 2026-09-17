@@ -40,6 +40,38 @@ describe("buildSyncHttpBody — a node-data key named workflowId is NEVER a paye
   })
 })
 
+describe("buildSyncHttpBody — meta-ads-scrape goes through the ONE shared source mapping", () => {
+  it("advertiser picks run as their Page urls in pages mode; the route never sees 'advertiser'", () => {
+    const body = buildSyncHttpBody(
+      node("meta-ads-scrape", {
+        mode: "advertiser",
+        advertisers: [
+          { pageId: "61562658466287", name: "OpenArt AI", url: "https://www.facebook.com/people/OpenArt-AI/61562658466287/" },
+          { pageId: "15087023444", name: "Nike", url: "https://www.facebook.com/nike" },
+        ],
+        count: 30,
+        period: "7d",
+      }),
+      { prompt: "ignored upstream text" },
+      CTX,
+    )
+    expect(body.mode).toBe("pages")
+    expect(body.pageUrls).toEqual(["https://www.facebook.com/people/OpenArt-AI/61562658466287/", "https://www.facebook.com/nike"])
+    expect(body).not.toHaveProperty("advertisers")
+    expect(body).not.toHaveProperty("query")
+    expect(body.count).toBe(30)
+    expect(body.userId).toBe("user-1")
+  })
+
+  it("keyword and page list fall back to the upstream text", () => {
+    const search = buildSyncHttpBody(node("meta-ads-scrape", { mode: "search", query: "" }), { prompt: "running shoes" }, CTX)
+    expect(search.mode).toBe("search")
+    expect(search.query).toBe("running shoes")
+    const pages = buildSyncHttpBody(node("meta-ads-scrape", { mode: "pages", pageUrls: "" }), { prompt: "facebook.com/nike\nfacebook.com/adidas" }, CTX)
+    expect(pages.pageUrls).toEqual(["facebook.com/nike", "facebook.com/adidas"])
+  })
+})
+
 describe("buildSyncHttpBody — field shape matches route Zod schemas", () => {
   describe("after-effects", () => {
     it("sends inputVideoUrl (not videoUrl) per route schema", () => {

@@ -102,7 +102,8 @@ import {
 } from "@/lib/api";
 import { applyWebScrapeFailure, applyWebScrapeResult, webScrapeRunStartPatch } from "@/components/nodes/web-scrape-run-state";
 import { applyMetaAdsScrapeFailure, applyMetaAdsScrapeResult, metaAdsScrapeRunStartPatch } from "@/components/nodes/meta-ads-scrape-run-state";
-import { splitMetaAdsPageUrls } from "@nodaro/shared";
+import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources } from "@nodaro/shared";
+import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
   readPromptAffixes, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN } from "@nodaro/shared"
@@ -415,9 +416,11 @@ export function buildMetaAdsScrapeParams(
   upstream: string | undefined,
   opts: { readonly videoWired?: boolean } = {},
 ): Parameters<typeof metaAdsScrape>[0] {
-  const mode = data.mode === "pages" ? "pages" : "search";
+  // ONE shared mapping with the orchestrator's payload builder: keyword /
+  // page list fall back to the upstream text; advertiser picks run as their
+  // Page urls (the route knows only search / pages).
   const params: Parameters<typeof metaAdsScrape>[0] = {
-    mode,
+    ...metaAdsScrapeWireSources(data, upstream),
     count: data.count,
     period: data.period,
     activeStatus: data.activeStatus,
@@ -429,12 +432,6 @@ export function buildMetaAdsScrapeParams(
     // only when something downstream will actually consume it.
     ingestVideo: opts.videoWired === true,
   };
-  if (mode === "pages") {
-    const own = splitMetaAdsPageUrls(data.pageUrls);
-    params.pageUrls = own.length > 0 ? own : splitMetaAdsPageUrls(upstream);
-  } else {
-    params.query = data.query || upstream;
-  }
   return params;
 }
 
@@ -5108,6 +5105,15 @@ function executeNodeCore(
   if (node.type === "meta-ads-scrape") {
     const d = node.data as MetaAdsScrapeNodeData;
     const { updateNodeData, edges: liveEdges } = useWorkflowStore.getState();
+    // Advertiser mode with nothing picked would reach the route as an empty
+    // page list — a 400 about a field the user never saw (and an admin
+    // validation-reject report). Say the real thing here, before any request.
+    if (metaAdsNodeMode(d.mode) === "advertiser" && metaAdsAdvertisersFrom(d.advertisers).length === 0) {
+      const message = tx("cfgext.metaAdsAdvertiserNeeded");
+      updateNodeData(node.id, applyMetaAdsScrapeFailure(message));
+      guardedToast.error(message);
+      throw new Error(message);
+    }
     const videoWired = liveEdges.some((e) => e.source === node.id && e.sourceHandle === "video");
     const params = buildMetaAdsScrapeParams(d, inputs.prompt, { videoWired });
 

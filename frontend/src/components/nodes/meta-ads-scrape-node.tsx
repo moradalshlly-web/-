@@ -11,7 +11,7 @@ import { HandleWithPopover } from "./handle-with-popover"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { estimateNodeCredits } from "@/components/editor/workflow-editor/types"
 import { getVideoProxyUrl } from "@/lib/api"
-import { META_ADS_PLATFORMS, META_ADS_SCRAPE_DEFAULT_COUNT, splitMetaAdsPageUrls } from "@nodaro/shared"
+import { META_ADS_PLATFORMS, META_ADS_SCRAPE_DEFAULT_COUNT, metaAdsAdvertisersFrom, metaAdsNodeMode, splitMetaAdsPageUrls, type MetaAdsNodeMode } from "@nodaro/shared"
 import type { MetaAdsScrapeNodeData } from "@/types/nodes"
 import { isValidWebScrapeConnection, DATA_HANDLE_COLORS } from "@/lib/data-handles"
 import { HANDLE_COLORS } from "@/lib/handle-colors"
@@ -87,15 +87,20 @@ function Dot({ color, glow }: { readonly color: string; readonly glow?: boolean 
 }
 
 /** `META ADS · KEYWORD` on the left, run status on the right. */
-function HeaderRow({ mode, right }: { readonly mode: "search" | "pages"; readonly right: ReactNode }) {
+function HeaderRow({ mode, right }: { readonly mode: MetaAdsNodeMode; readonly right: ReactNode }) {
   const t = useT()
+  const modeLabel: Record<MetaAdsNodeMode, string> = {
+    search: t("cfgext.metaAdsModeSearch"),
+    pages: t("cfgext.metaAdsModePages"),
+    advertiser: t("cfgext.metaAdsModeAdvertiser"),
+  }
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-extrabold uppercase tracking-[.14em] text-[var(--meta-ads-info)]">{t("cfgext.metaAdsTitle")}</span>
         <span className="text-[11px] text-[var(--meta-ads-faint)]">·</span>
         <span className="rounded-full bg-[var(--meta-ads-info-tint)] px-2 py-[3px] text-[11px] font-bold uppercase tracking-[.06em] text-[var(--meta-ads-info)]">
-          {mode === "pages" ? t("cfgext.metaAdsModePages") : t("cfgext.metaAdsModeSearch")}
+          {modeLabel[mode]}
         </span>
       </div>
       <div className="flex items-center gap-2 text-[12px] font-semibold text-[var(--meta-ads-muted)]">{right}</div>
@@ -103,11 +108,15 @@ function HeaderRow({ mode, right }: { readonly mode: "search" | "pages"; readonl
   )
 }
 
-/** The keyword / page list the run used, in the design's search field. */
+/** The keyword / page list / advertiser picks the run used, in the design's search field. */
 function QueryField({ data }: { readonly data: MetaAdsScrapeNodeData }) {
   const t = useT()
+  const mode = metaAdsNodeMode(data.mode)
   let text: string
-  if (data.mode === "pages") {
+  if (mode === "advertiser") {
+    const names = metaAdsAdvertisersFrom(data.advertisers).map((a) => a.name)
+    text = names.length === 0 ? t("cfgext.metaAdsAdvertisersEmpty") : names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`
+  } else if (mode === "pages") {
     const urls = splitMetaAdsPageUrls(data.pageUrls)
     text = urls.length === 0 ? t("cfgext.metaAdsPageUrlsEmpty") : urls.length === 1 ? urls[0] : `${urls[0]} +${urls.length - 1}`
   } else {
@@ -135,7 +144,11 @@ function EmptyState({ data }: { readonly data: MetaAdsScrapeNodeData }) {
       </div>
       <div className="text-[15px] font-extrabold text-[var(--meta-ads-text)]">{t("cfgext.metaAdsEmptyTitle")}</div>
       <div className="max-w-[340px] text-[12.5px] leading-normal text-[var(--meta-ads-muted)]">
-        {data.mode === "pages" ? t("cfgext.metaAdsEmptyCopyPages") : t("cfgext.metaAdsEmptyCopySearch")}
+        {metaAdsNodeMode(data.mode) === "advertiser"
+          ? t("cfgext.metaAdsEmptyCopyAdvertiser")
+          : metaAdsNodeMode(data.mode) === "pages"
+            ? t("cfgext.metaAdsEmptyCopyPages")
+            : t("cfgext.metaAdsEmptyCopySearch")}
       </div>
       <div className="flex flex-wrap justify-center gap-1.5">
         {META_ADS_PLATFORMS.slice(0, EMPTY_STATE_CHIPS).map((code) => (
@@ -354,7 +367,7 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
   const runSingleNode = useWorkflowStore((s) => s.runSingleNode)
   const selectNode = useWorkflowStore((s) => s.selectNode)
 
-  const mode = nodeData.mode === "pages" ? "pages" : "search"
+  const mode = metaAdsNodeMode(nodeData.mode)
   const credits = estimateNodeCredits({ type: "meta-ads-scrape", data: nodeData })
   const state = deriveMetaAdsScrapeCardState(nodeData)
   const running = state.kind === "running"
