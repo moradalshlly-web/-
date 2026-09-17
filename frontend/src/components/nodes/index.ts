@@ -118,6 +118,7 @@ import { SocialMediaFormatNode } from "./social-media-format-node";
 import { TrimAudioNode } from "./trim-audio-node";
 import { SplitMediaNode } from "./split-media-node";
 import { ExtractAudioNode } from "./extract-audio-node";
+import { SilenceDetectNode } from "./silence-detect-node";
 import { RemoveAudioNode } from "./remove-audio-node";
 import { MixAudioNode } from "./mix-audio-node";
 import { CombineAudioNode } from "./combine-audio-node";
@@ -324,6 +325,7 @@ export const nodeTypes: Record<SceneNodeType, React.ComponentType<any>> = {
   "trim-audio": TrimAudioNode,
   "split-media": SplitMediaNode,
   "extract-audio": ExtractAudioNode,
+  "silence-detect": SilenceDetectNode,
   "remove-audio": RemoveAudioNode,
   "mix-audio": MixAudioNode,
   "combine-audio": CombineAudioNode,

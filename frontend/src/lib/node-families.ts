@@ -158,7 +158,7 @@ export const NODE_FAMILIES: readonly NodeFamily[] = [
     id: "audio-clean-separate",
     label: "Clean & Separate",
     tab: "audio",
-    types: ["audio-isolation", "audio-separation", "suno-separate"],
+    types: ["audio-isolation", "audio-separation", "suno-separate", "silence-detect"],
   },
   {
     id: "audio-edit",

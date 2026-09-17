@@ -600,6 +600,7 @@ export const EXECUTABLE_TYPES = new Set([
   "trim-audio",
   "split-media",
   "extract-audio",
+  "silence-detect",
   "remove-audio",
   "trim-video",
   "extract-frame",

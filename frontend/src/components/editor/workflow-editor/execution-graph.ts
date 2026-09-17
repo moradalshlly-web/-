@@ -11,6 +11,7 @@ import type {
   LoopNodeData,
   SelectorNodeData,
   WebScrapeNodeData,
+  SilenceDetectNodeData,
   VideoAnalysisNodeData,
   VideoAuditNodeData,
   DescribeToPickerData,
@@ -709,6 +710,16 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     }
     return undefined;
   }
+  if (type === "silence-detect") {
+    const d = node.data as SilenceDetectNodeData;
+    // Single json handle carrying { version, ranges, durationMs } — stringify
+    // for text consumers; an EDL/Extract Field consumer reads d.generatedJson
+    // directly (bypasses extractNodeOutput). Mirrors web-scrape's json branch.
+    if (sourceHandle === "json" || !sourceHandle) {
+      return d.generatedJson === undefined ? undefined : JSON.stringify(d.generatedJson);
+    }
+    return undefined;
+  }
   // video-audit shares this branch on purpose: its output IS an analysis (the
   // CORRECTED one), in the same field on the same `json`/`text` handle pair.
   // One branch, so a downstream consumer can never tell an audited analysis
@@ -1096,6 +1107,10 @@ export function detectPreviewItemType(
   // stay paired — video-audit's type string contains "video", so dropping it
   // here would classify an audited analysis as a video by the fallthrough.
   if (nodeType === "video-analysis" || nodeType === "video-audit") return "data"
+  // Silence-detect emits a { version, ranges, durationMs } JSON object, never a
+  // media URL — classify it as data so its preview isn't mis-typed by the URL
+  // fallthrough below.
+  if (nodeType === "silence-detect") return "data"
   if (value) {
     if (IMAGE_URL_RE.test(value)) return "image"
     if (VIDEO_URL_RE.test(value)) return "video"

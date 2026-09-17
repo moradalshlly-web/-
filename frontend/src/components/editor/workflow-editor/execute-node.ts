@@ -65,6 +65,7 @@ import {
   splitMediaApi,
   extractAudioApi,
   removeAudioApi,
+  silenceDetectApi,
   trimVideoApi,
   extractFrameApi,
   transcodeVideoApi,
@@ -186,6 +187,7 @@ import type {
   SplitMediaData,
   ExtractAudioData,
   RemoveAudioData,
+  SilenceDetectNodeData,
   TrimVideoData,
   ExtractFrameData,
   TranscodeVideoData,
@@ -6656,6 +6658,112 @@ function executeNodeCore(
       "Remove Audio",
       ctx,
     );
+  }
+
+  if (node.type === "silence-detect") {
+    const d = node.data as SilenceDetectNodeData;
+    // Accepts an audio OR a video source (the worker reads the shared audio
+    // proxy either way).
+    const sourceUrl = overrideMediaUrl ?? inputs.audioUrl ?? inputs.videoUrl;
+    if (!sourceUrl) {
+      toast.error(`Node "${d.label}": connect an audio or video source`);
+      return Promise.reject(new Error("No audio/video source"));
+    }
+    const { updateNodeData } = useWorkflowStore.getState();
+    // Clear any stale result so a prior range table can't co-render with a
+    // fresh running/failed state (mirrors video-analysis).
+    updateNodeData(node.id, { ...RUN_START_RESET, generatedJson: undefined, currentJobProgress: undefined });
+    setUserPromptTemplate(undefined);
+    return new Promise<string>((resolve, reject) => {
+      silenceDetectApi({
+        audioUrl: sourceUrl,
+        thresholdDb: d.thresholdDb,
+        minSilenceMs: d.minSilenceMs,
+        padMs: d.padMs,
+        userId: ctx.userId,
+      })
+        .then(({ jobId }) => {
+          guardedToast.info("Silence detect started", { description: `Job ID: ${jobId}` });
+          updateNodeData(node.id, { currentJobId: jobId });
+
+          let pollFailures = 0;
+          const poll = ctx.trackInterval(
+            setInterval(async () => {
+              if (ctx.isWorkflowStale()) {
+                ctx.untrackInterval(poll);
+                reject(new WorkflowStaleError());
+                return;
+              }
+              try {
+                const job = await getJobStatusLeanForNode(jobId, node.id);
+                pollFailures = 0;
+                if (job.status === "processing" && job.progress != null) {
+                  updateProgressIfChanged(node.id, job.progress, updateNodeData);
+                }
+                if (job.status === "completed" || job.status === "failed") {
+                  if (shouldAbandonNode(node.id, jobId)) {
+                    ctx.untrackInterval(poll);
+                    resolve("");
+                    return;
+                  }
+                }
+                if (job.status === "completed") {
+                  ctx.untrackInterval(poll);
+                  const json = (job.output_data as Record<string, unknown> | undefined)?.json;
+                  updateNodeData(node.id, {
+                    executionStatus: "completed",
+                    generatedJson: json,
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.success("Silence detect complete");
+                  resolve(json === undefined ? "" : JSON.stringify(json));
+                } else if (job.status === "failed") {
+                  ctx.untrackInterval(poll);
+                  const errMsg = job.error_message ?? "Silence detect failed";
+                  updateNodeData(node.id, {
+                    executionStatus: "failed",
+                    errorMessage: errMsg,
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.error("Silence detect failed", { description: errMsg });
+                  reject(new Error(errMsg));
+                }
+              } catch (err) {
+                pollFailures++;
+                if (pollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+                  ctx.untrackInterval(poll);
+                  if (shouldAbandonNode(node.id, jobId)) {
+                    resolve("");
+                    return;
+                  }
+                  updateNodeData(node.id, {
+                    executionStatus: "failed",
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.error("Failed to check silence detect status");
+                  reject(err);
+                }
+              }
+            }, 2000),
+          );
+        })
+        .catch((err) => {
+          updateNodeData(node.id, {
+            executionStatus: "failed",
+            currentJobId: undefined,
+            currentJobProgress: undefined,
+          });
+          if (!checkStorageError(err, ctx)) {
+            guardedToast.error("Failed to start silence detect", {
+              description: err instanceof Error ? err.message : "Unknown error",
+            });
+          }
+          reject(err);
+        });
+    });
   }
 
   if (node.type === "split-media") {

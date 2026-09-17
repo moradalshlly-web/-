@@ -17,7 +17,7 @@ import type { SimpleNode, ResolvedInputs } from "../types.js"
 /** Measured on frontend/src/components/editor/workflow-editor/execute-node.ts
  *  @ origin/dev d7815542 with the window+regex in the last test below. Bump it
  *  ONLY together with a new table row or a justified PARITY_EXEMPT entry. */
-const FRONTEND_MEDIA_REFUSAL_COUNT = 81 // +2 image-overlay: base image (table row) + overlay layers (the case throws its own)
+const FRONTEND_MEDIA_REFUSAL_COUNT = 82 // +2 image-overlay: base image (table row) + overlay layers (the case throws its own); +1 silence-detect (audio/video source, table row)
 
 const JOB = "job-media-required"
 const ctx = (n: SimpleNode) => ({ nodes: [n], edges: [], nodeStates: {} })
@@ -324,6 +324,7 @@ describe("required media inputs", () => {
       "merge-video-audio",       // :6078 no video input / :6084 no audio input
       "trim-audio",              // :6125 no video input
       "extract-audio",           // :6150 no video input
+      "silence-detect",          // connect an audio or video source
       "remove-audio",            // :6166 no video input
       "split-media",             // :6184 no video or audio input found
       "trim-video",              // :6287 no video input

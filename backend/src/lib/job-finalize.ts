@@ -249,6 +249,9 @@ export const NOT_GENERIC_RECOVERABLE: ReadonlySet<string> = new Set<string>([
   "audio-fx", "add-captions", "mix-audio", "combine-audio",
   "transcode-video", "social-media-format", "split-media",
   "extract-audio", "remove-audio",
+  // silence-detect — a SYNC local-ffmpeg analysis (no provider_task_id, its own
+  // markJobCompleted with output_data.json); never finalizeJobWithMedia.
+  "silence-detect",
 
   // suno.ts — all 12 keys of workers/handlers/suno.ts:580-593. None call
   // finalizeJobWithMedia (own markJobCompleted per handler); the async

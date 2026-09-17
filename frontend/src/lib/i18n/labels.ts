@@ -157,6 +157,7 @@ const NODE_LABELS_HE: Record<string, string> = {
   "Trim Audio": "קיצוץ אודיו",
   "Split into Chunks": "פיצול למקטעים",
   "Extract Audio": "חילוץ אודיו",
+  "Silence Detect": "זיהוי שקט",
   "Remove Audio": "הסרת אודיו",
   "Mix Audio": "מיקס אודיו",
   "Combine Audio": "שילוב אודיו",
@@ -260,6 +261,7 @@ const HANDLE_LABELS_HE: Record<string, string> = {
   "Video + Audio": "וידאו ושמע",
   "Video Refs": "ייחוסי וידאו",
   "Video or Audio": "וידאו או שמע",
+  "Audio or Video": "שמע או וידאו",
   "Voices": "קולות",
   // Consumer input/output pips
   "Look": "מראה",

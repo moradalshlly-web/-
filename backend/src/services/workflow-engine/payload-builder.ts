@@ -199,6 +199,7 @@ export const REQUIRED_MEDIA_INPUTS: Readonly<Record<string, RequiredMediaInput |
   "audio-fx": { anyOf: ["audioUrl"], kind: "audio", noun: "an audio track" },
   "forced-alignment": { anyOf: ["audioUrl"], kind: "audio", noun: "an audio track" },
   "trim-audio": { anyOf: ["videoUrl", "audioUrl"], kind: "audio", noun: "an audio or video track" },
+  "silence-detect": { anyOf: ["audioUrl", "videoUrl"], kind: "audio", noun: "an audio or video track" },
   "adjust-volume": { anyOf: ["audioUrl", "videoUrl"], kind: "audio", noun: "an audio or video track" },
   "voice-changer": { anyOf: ["audioUrl", "videoUrl"], kind: "audio", noun: "an audio or video track" },
   "voice-changer-pro": { anyOf: ["audioUrl", "videoUrl"], kind: "audio", noun: "an audio or video track" },
@@ -5718,6 +5719,18 @@ export function buildPayload(
       return ffmpegResult("extract-audio", {
         jobId,
         videoUrl: resolvedInputs.videoUrl || data.videoUrl,
+        usageLogId,
+      })
+
+    case "silence-detect":
+      // Accepts an audio OR video source; the worker reads the shared audio
+      // proxy either way. `audioUrl` carries whichever url the edge resolved.
+      return ffmpegResult("silence-detect", {
+        jobId,
+        audioUrl: resolvedInputs.audioUrl || resolvedInputs.videoUrl || data.audioUrl,
+        thresholdDb: data.thresholdDb,
+        minSilenceMs: data.minSilenceMs,
+        padMs: data.padMs,
         usageLogId,
       })
 
