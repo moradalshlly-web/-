@@ -14,10 +14,12 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { useEstimatedCredits } from "@/hooks/use-estimated-credits"
 import { useResultAspectRatio } from "@/hooks/use-result-aspect-ratio"
 import { videoNodeSizing } from "./video-node-defaults"
+import { useT } from "@/lib/i18n"
 import type { ApplyEdlData } from "@/types/nodes"
 
 function ApplyEdlNodeComponent({ id, data, selected }: NodeProps) {
   const nodeData = data as ApplyEdlData
+  const t = useT()
   const credits = useEstimatedCredits({ id, type: "apply-edl", data: nodeData } as never)
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData)
   const runSingleNode = useWorkflowStore((s) => s.runSingleNode)
@@ -87,7 +89,7 @@ function ApplyEdlNodeComponent({ id, data, selected }: NodeProps) {
 
           {status === "failed" && !activeUrl && (
             <div className="flex flex-col items-center justify-center gap-1 flex-1 rounded-md bg-red-500/5 text-red-500 p-2">
-              <div className="flex items-center gap-1.5"><AlertCircle className="w-4 h-4 shrink-0" /><span className="font-medium">Failed</span></div>
+              <div className="flex items-center gap-1.5"><AlertCircle className="w-4 h-4 shrink-0" /><span className="font-medium">{t("node.failed")}</span></div>
               {nodeData.errorMessage && (
                 <p className="text-[10px] text-center text-red-400 line-clamp-2" title={nodeData.errorMessage}>{nodeData.errorMessage}</p>
               )}
