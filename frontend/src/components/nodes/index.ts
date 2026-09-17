@@ -7,6 +7,7 @@ import { UploadAudioNode } from "./upload-audio-node";
 import { RSSFeedNode } from "./rss-feed-node";
 import { YouTubeVideoNode } from "./youtube-video-node";
 import { WebScrapeNode } from "./web-scrape-node";
+import { MetaAdsScrapeNode } from "./meta-ads-scrape-node";
 import { ToneNode } from "./tone-node";
 import { StyleGuideNode } from "./style-guide-node";
 import { ProviderNode } from "./provider-node";
@@ -199,6 +200,7 @@ export const nodeTypes: Record<SceneNodeType, React.ComponentType<any>> = {
   "rss-feed": RSSFeedNode,
   "youtube-video": YouTubeVideoNode,
   "web-scrape": WebScrapeNode,
+  "meta-ads-scrape": MetaAdsScrapeNode,
   "webhook-trigger": WebhookTriggerNode,
   "schedule-trigger": ScheduleTriggerNode,
   // Parameter

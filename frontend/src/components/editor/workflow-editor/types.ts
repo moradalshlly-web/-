@@ -1,7 +1,7 @@
 import type { WorkflowNode, WorkflowEdge, GenerateVideoProNodeData, EditVideoProNodeData } from "@/types/nodes";
 import { StorageExceededError, SubscriptionRequiredError } from "@/lib/api";
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
-import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListItems, type SelectorFields, getEffectiveRepeatCount, buildScraperCreditId, isScraperActor, SCRAPER_CREDIT_COSTS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, bucketSecondsFromCreditId, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAuditCreditId, VIDEO_AUDIT_BUCKET_CREDITS, FAN_OUT_EACH_TYPES, buildVideoCreditModelIdentifier, SEEDANCE_2_CONTINUATION_REF_SEC, isSeedance2Provider, isMinimaxH3Provider, maxSegmentSecFor, normalizeMinimaxH3Resolution, PRO3D_RENDER_CREDIT_ID } from "@nodaro/shared"
+import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListItems, type SelectorFields, getEffectiveRepeatCount, buildScraperCreditId, isScraperActor, SCRAPER_CREDIT_COSTS, buildMetaAdsScrapeCreditId, META_ADS_SCRAPE_CREDIT_COSTS, META_ADS_SCRAPE_DEFAULT_COUNT, splitMetaAdsPageUrls, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, bucketSecondsFromCreditId, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAuditCreditId, VIDEO_AUDIT_BUCKET_CREDITS, FAN_OUT_EACH_TYPES, buildVideoCreditModelIdentifier, SEEDANCE_2_CONTINUATION_REF_SEC, isSeedance2Provider, isMinimaxH3Provider, maxSegmentSecFor, normalizeMinimaxH3Resolution, PRO3D_RENDER_CREDIT_ID } from "@nodaro/shared"
 // getCachedCredits reads the live React-Query model-cost cache (an `ee/`
 // concern — credits are enterprise-only). Allowlisted in
 // tools/check-ee-imports.mjs (same coupling as ./run-handlers.ts).
@@ -114,6 +114,7 @@ export const NODE_CREDIT_COSTS: Record<string, number> = {
   "qa-check": 10,
   "image-critic": 5,
   "web-scrape": 20,
+  "meta-ads-scrape": 20,
   // Flash floor — the real per-run cost is duration/model-bucketed (see
   // estimateNodeCredits below + the node's live useModelCredits estimate).
   // Kept equal to VIDEO_ANALYSIS_BUCKET_CREDITS' table-wide ceiling
@@ -475,6 +476,14 @@ export function estimateNodeCredits(
     const modelId = buildScraperCreditId({ actor, mode })
     return SCRAPER_CREDIT_COSTS[modelId] ?? NODE_CREDIT_COSTS["web-scrape"] ?? 0
   }
+  if (nodeType === "meta-ads-scrape" && node.data) {
+    // 1 credit per requested ad, tiered on count × sources — the same
+    // builder the backend guard + reservation use (packages/shared).
+    const count = typeof node.data.count === "number" ? node.data.count : META_ADS_SCRAPE_DEFAULT_COUNT
+    const sources = node.data.mode === "pages" ? Math.max(1, splitMetaAdsPageUrls(node.data.pageUrls).length) : 1
+    const modelId = buildMetaAdsScrapeCreditId({ count, sources })
+    return META_ADS_SCRAPE_CREDIT_COSTS[modelId] ?? NODE_CREDIT_COSTS["meta-ads-scrape"] ?? 0
+  }
   if (nodeType === "video-analysis" && node.data) {
     // data.llmModel stores the TIER string ("fast"/"pro"/"mixed"/"mixed-fast") —
     // resolve it to the engine id first (audit fix: the raw tier built
@@ -649,6 +658,7 @@ export const EXECUTABLE_TYPES = new Set([
   "qa-check",
   "image-critic",
   "web-scrape",
+  "meta-ads-scrape",
   "video-analysis",
   // AI Audit — re-watches a clip against an analysis and emits the CORRECTED
   // analysis (same payload shape as video-analysis, so it chains anywhere an

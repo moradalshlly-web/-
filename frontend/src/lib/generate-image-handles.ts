@@ -121,7 +121,7 @@ export const TEXT_PRODUCER_TYPES: ReadonlySet<string> = new Set([
  *  where the resolvers route by handle into media-URL arrays or verbatim
  *  text fields that a JSON blob would break. Kept apart from
  *  TEXT_PRODUCER_TYPES on purpose: that set widens every text handle at once. */
-export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set(["web-scrape"])
+export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set(["web-scrape", "meta-ads-scrape"])
 
 /** Source node types whose output image feeds References (mirrors backend
  *  `imageSourceTypes` in payload-builder.ts:1328). */

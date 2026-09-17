@@ -21,7 +21,7 @@ const VOICE_TARGET_TYPES: ReadonlySet<string> = new Set<string>([...VOICE_PERSON
  *  paths in sync prevents the add-node popup from suggesting targets the
  *  drop-time validator then rejects. */
 const TYPED_SOURCE_NODE_TYPES: ReadonlySet<string> = new Set([
-  "list", "web-scrape", "extract-field", "filter-list",
+  "list", "web-scrape", "meta-ads-scrape", "extract-field", "filter-list",
   "deduplicate", "merge-lists", "sort-list",
   // video-analysis emits scene-breakdown JSON on its `json` source handle;
   // its source-direction popover must consult TARGET_HANDLE_ACCEPTS (same as

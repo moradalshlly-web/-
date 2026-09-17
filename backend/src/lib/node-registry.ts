@@ -239,6 +239,14 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     outputType: "data",
   },
   {
+    type: "meta-ads-scrape",
+    label: "Meta Ads",
+    category: "input",
+    // outputType: data — emits a JSON array of Ad Library ads via the `json` handle (creditCost auto-filled from STATIC_CREDIT_COSTS).
+    description: "Pull public Facebook and Instagram ads from Meta's Ad Library by keyword or Facebook Page and emit structured JSON (copy, CTA, images, videos).",
+    outputType: "data",
+  },
+  {
     type: "video-analysis",
     label: "Video Analysis",
     category: "processing",

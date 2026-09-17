@@ -16,6 +16,7 @@ const NODE_TYPE_DISPLAY_NAMES: Record<string, string> = {
   "rss-feed": "RSS Feed",
   "youtube-video": "Video URL",
   "web-scrape": "Web Scrape",
+  "meta-ads-scrape": "Meta Ads",
   "video-analysis": "Video Analysis",
   "video-audit": "AI Audit",
   "reference-audio": "Reference Audio",

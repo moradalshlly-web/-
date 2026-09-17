@@ -5243,6 +5243,41 @@ export type WebScrapeNodeData = {
   lastGoodCount?: number
 }
 
+// --- Meta Ads Scrape Node Data ---
+
+export type MetaAdsScrapeNodeData = {
+  [key: string]: unknown
+  label: string
+  /** "search" = keyword search (default); "pages" = Facebook Page URLs */
+  mode?: import("@nodaro/shared").MetaAdsScrapeMode
+  // search
+  query?: string
+  // pages — one Facebook Page URL per line
+  pageUrls?: string
+  /** Ads per source, 1..100 */
+  count?: number
+  period?: import("@nodaro/shared").MetaAdsScrapePeriod
+  activeStatus?: import("@nodaro/shared").MetaAdsScrapeStatus
+  /** ISO alpha-2 or "ALL" */
+  countryCode?: string
+  /** Meta `publisher_platform` codes to keep; empty/absent = every platform */
+  platforms?: string[]
+  /** Which ad the card features (thumb strip / ‹ › / Results row click); clamped at read time */
+  featuredIndex?: number
+  // execution state — same #765 contract as WebScrapeNodeData
+  executionStatus?: "idle" | "running" | "completed" | "failed"
+  errorMessage?: string
+  /** Last GOOD payload (the normalized ad array); never overwritten by a failed/empty run. */
+  generatedJson?: unknown
+  lastRunOutcome?: "success" | "empty" | "failed"
+  lastRunAt?: number
+  lastRunCount?: number
+  lastRunStartedAt?: number
+  lastRunFingerprint?: string
+  lastGoodAt?: number
+  lastGoodCount?: number
+}
+
 // --- Video Analysis Node Data ---
 
 export type VideoAnalysisNodeData = PromptAffixFields & {
@@ -6122,6 +6157,7 @@ export type SceneNodeData =
   | FaceNodeData
   | LLMChatData
   | WebScrapeNodeData
+  | MetaAdsScrapeNodeData
   | VideoAnalysisNodeData
   | VideoAuditNodeData
   | ListNodeData
@@ -6170,6 +6206,7 @@ export type SceneNodeType =
   | "rss-feed"
   | "youtube-video"
   | "web-scrape"
+  | "meta-ads-scrape"
   | "reference-audio"
   | "tone"
   | "style-guide"
@@ -6448,6 +6485,15 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     inputs: ["in"],
     outputs: ["json"],
     defaultData: { label: "Web Scrape", actor: "google-search", query: "" } as WebScrapeNodeData,
+  },
+  {
+    type: "meta-ads-scrape",
+    label: "Meta Ads",
+    category: "input",
+    creditCost: 20,
+    inputs: ["in"],
+    outputs: ["json"],
+    defaultData: { label: "Meta Ads", mode: "search", query: "", count: 20, period: "30d", activeStatus: "active", countryCode: "ALL" } as MetaAdsScrapeNodeData,
   },
   {
     type: "reference-audio",

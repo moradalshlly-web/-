@@ -95,11 +95,14 @@ import {
   imageCriticApi,
   saveToStorageApi,
   webScrape,
+  metaAdsScrape,
   startVideoAnalysis,
   runVideoAudit,
   executeReduce,
 } from "@/lib/api";
 import { applyWebScrapeFailure, applyWebScrapeResult, webScrapeRunStartPatch } from "@/components/nodes/web-scrape-run-state";
+import { applyMetaAdsScrapeFailure, applyMetaAdsScrapeResult, metaAdsScrapeRunStartPatch } from "@/components/nodes/meta-ads-scrape-run-state";
+import { splitMetaAdsPageUrls } from "@nodaro/shared";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
   readPromptAffixes, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN } from "@nodaro/shared"
@@ -223,6 +226,7 @@ import type {
   ImageCriticData,
   GeneratedResult,
   WebScrapeNodeData,
+  MetaAdsScrapeNodeData,
   TelegramChannelFeedData,
   ExtractFieldNodeData,
   JsonProcessNodeData,
@@ -397,6 +401,35 @@ function runProcessingNode(
   ) => Record<string, unknown>,
 ): Promise<string> {
   return pollJobWithNodeUpdate(nodeId, apiCall, outputKey, label, ctx, extraOutputFields);
+}
+
+/**
+ * Build the request params for the /v1/meta-ads-scrape endpoint from node
+ * data. Pure + exported for tests (same rationale as buildWebScrapeParams).
+ * The keyword (search) or the page list (pages) falls back to the upstream
+ * text so a Text Prompt / List node can drive the scrape; page urls are
+ * typed one per line and the route wants an array.
+ */
+export function buildMetaAdsScrapeParams(
+  data: MetaAdsScrapeNodeData,
+  upstream: string | undefined,
+): Parameters<typeof metaAdsScrape>[0] {
+  const mode = data.mode === "pages" ? "pages" : "search";
+  const params: Parameters<typeof metaAdsScrape>[0] = {
+    mode,
+    count: data.count,
+    period: data.period,
+    activeStatus: data.activeStatus,
+    countryCode: data.countryCode,
+    platforms: Array.isArray(data.platforms) ? data.platforms : undefined,
+  };
+  if (mode === "pages") {
+    const own = splitMetaAdsPageUrls(data.pageUrls);
+    params.pageUrls = own.length > 0 ? own : splitMetaAdsPageUrls(upstream);
+  } else {
+    params.query = data.query || upstream;
+  }
+  return params;
 }
 
 /**
@@ -5064,6 +5097,32 @@ function executeNodeCore(
           throw err;
         }),
     );
+  }
+
+  if (node.type === "meta-ads-scrape") {
+    const d = node.data as MetaAdsScrapeNodeData;
+    const { updateNodeData } = useWorkflowStore.getState();
+    const params = buildMetaAdsScrapeParams(d, inputs.prompt);
+
+    updateNodeData(node.id, metaAdsScrapeRunStartPatch(d));
+
+    setUserPromptTemplate(undefined);
+    return metaAdsScrape(params)
+      .then((res) => {
+        // Same #765 contract as Web Scrape: an empty run records the outcome
+        // and KEEPS the previous good payload; the chain gets THIS run's output.
+        const patch = applyMetaAdsScrapeResult(res.json);
+        updateNodeData(node.id, patch);
+        guardedToast.success(
+          patch.lastRunOutcome === "empty" ? "Meta Ads completed — 0 ads" : "Meta Ads completed",
+        );
+        return res.json === undefined ? "" : JSON.stringify(res.json);
+      })
+      .catch((err: Error) => {
+        updateNodeData(node.id, applyMetaAdsScrapeFailure(err.message || "Scrape failed"));
+        guardedToast.error(`Meta Ads failed: ${err.message}`);
+        throw err;
+      });
   }
 
   if (node.type === "web-scrape") {

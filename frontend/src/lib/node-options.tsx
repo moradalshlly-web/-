@@ -123,6 +123,7 @@ import {
   Youtube,
   Zap,
   ZoomIn,
+  Megaphone,
 } from "lucide-react"
 import { hasCredits } from "@/lib/edition"
 import { CLOUD_ONLY_NODE_TYPES } from "@/lib/cloud-only-nodes"
@@ -227,6 +228,13 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
     type: "web-scrape",
     label: "Web Scrape",
     icon: <Globe className="h-4 w-4" />,
+    category: "Data",
+    group: "automate-get-content",
+  },
+  {
+    type: "meta-ads-scrape",
+    label: "Meta Ads",
+    icon: <Megaphone className="h-4 w-4" />,
     category: "Data",
     group: "automate-get-content",
   },

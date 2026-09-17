@@ -190,6 +190,7 @@ import {
   LocationConfig,
   LLMChatConfig,
   WebScrapeConfig,
+  MetaAdsScrapeConfig,
   VideoAnalysisConfig,
   VideoAuditConfig,
   CombineTextConfig,
@@ -254,7 +255,7 @@ export const GENERATE_BUTTON_TYPES = new Set([
   "video-upscale", "extend-video", "video-retake", "face-swap", "video-sfx", "ai-avatar", "cinematic-avatar", "suno-generate", "suno-cover", "suno-extend",
   "suno-lyrics", "suno-separate", "suno-music-video",
   "suno-mashup", "suno-replace-section", "suno-style-boost", "suno-add-instrumental", "suno-add-vocals", "suno-convert-wav", "suno-upload-extend",
-  "llm-chat", "web-scrape", "video-analysis", "video-audit",
+  "llm-chat", "web-scrape", "meta-ads-scrape", "video-analysis", "video-audit",
   "video-composer", "after-effects", "lottie-overlay", "3d-title", "motion-graphics",
   "generate-3d-scene", "edit-3d-scene", "pro-3d-render",
   "image-to-text", "qa-check", "transcribe", "describe-to-picker",
@@ -329,6 +330,7 @@ function NodeTypeConfig({ nodeType, nodeData, configProps, updateNodeData, onExp
     case "rss-feed": return <RSSFeedConfig {...configProps} />
     case "youtube-video": return <YouTubeVideoConfig {...configProps} />
     case "web-scrape": return <WebScrapeConfig {...configProps} />
+    case "meta-ads-scrape": return <MetaAdsScrapeConfig {...configProps} />
     case "video-analysis": return <VideoAnalysisConfig {...configProps} />
     case "video-audit": return <VideoAuditConfig {...configProps} />
     case "reference-audio": return <ReferenceAudioConfig {...configProps} />

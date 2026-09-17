@@ -672,6 +672,14 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
   if ((type as string) === "ai-writer" || type === "llm-chat") {
     return data.generatedText as string | undefined;
   }
+  if (type === "meta-ads-scrape") {
+    // Single json handle (the normalized ad array) — mirrors web-scrape below.
+    const d = node.data as { generatedJson?: unknown };
+    if (sourceHandle === "json" || !sourceHandle) {
+      return d.generatedJson === undefined ? undefined : JSON.stringify(d.generatedJson);
+    }
+    return undefined;
+  }
   if (type === "web-scrape") {
     const d = node.data as WebScrapeNodeData;
     // Single json handle — stringify for text consumers; Extract Field reads
