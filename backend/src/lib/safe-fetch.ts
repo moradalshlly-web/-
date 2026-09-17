@@ -94,9 +94,23 @@ export function isPrivateOrReservedIP(ip: string): boolean {
     // Unrecognisable mapped form — fail closed, treat as reserved.
     return true
   }
-  if (lower.startsWith("::") && /^::[0-9a-f]+\.[0-9]+\.[0-9]+\.[0-9]+$/.test(lower)) {
-    // IPv4-compatible IPv6 (deprecated but still defined).
-    return isPrivateOrReservedIP(lower.replace(/^::/, ""))
+  if (lower.startsWith("::") && lower !== "::" && lower !== "::1") {
+    // IPv4-compatible IPv6 (deprecated ::/96): the low 32 bits are an IPv4.
+    // WHATWG URL parsing presents `::127.0.0.1` as EITHER a dotted tail or two
+    // hex quads (`::7f00:1`), exactly like the ::ffff: case above — handle both,
+    // or the canonical hex form silently fails open.
+    const tail = lower.slice(2)
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(tail)) {
+      return isPrivateOrReservedIP(tail)
+    }
+    const parts = tail.split(":")
+    if (parts.length === 2 && /^[0-9a-f]{1,4}$/.test(parts[0]) && /^[0-9a-f]{1,4}$/.test(parts[1])) {
+      const hi = parseInt(parts[0], 16)
+      const lo = parseInt(parts[1], 16)
+      if (Number.isFinite(hi) && Number.isFinite(lo)) {
+        return isPrivateOrReservedIP(`${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`)
+      }
+    }
   }
   return false
 }
@@ -272,6 +286,17 @@ export function assertSafeRedirectTarget(rawUrl: string): void {
   }
 }
 
+/** Headers that must not survive a cross-origin redirect (matches undici's own
+ *  RedirectHandler). No safeFetch caller sends these today; this keeps a future
+ *  credentialed caller from silently leaking them to an attacker-controlled 302. */
+const CREDENTIAL_HEADERS = ["authorization", "cookie", "proxy-authorization"] as const
+
+function stripCredentialHeaders(headers: SafeFetchInit["headers"]): Headers {
+  const out = new Headers(headers as HeadersInit)
+  for (const h of CREDENTIAL_HEADERS) out.delete(h)
+  return out
+}
+
 export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<Response> {
   // NAME what was rejected. `new URL()` throws a bare "Invalid URL" — no value,
   // no context — and that string is what reached /admin/app-reports as the
@@ -326,6 +351,9 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
   // (the agent's lookup gate never sees an IP-literal hop — see
   // assertSafeRedirectTarget). Verified: undici's redirect:"manual" returns the
   // real 3xx response with a readable Location header (it does NOT opaque it).
+  const initialOrigin = parsed.origin
+  let hopHeaders = forward.headers
+  let credentialsStripped = false
   let currentUrl = url
   for (let hop = 0; ; hop++) {
     if (hop > MAX_REDIRECTS) {
@@ -334,6 +362,7 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
     if (hop > 0) assertSafeRedirectTarget(currentUrl)
     const response = await undiciFetch(currentUrl, {
       ...forward,
+      headers: hopHeaders,
       redirect: "manual" as const,
       signal,
       dispatcher: safeAgent,
@@ -342,7 +371,13 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
     if (response.status >= 300 && response.status < 400 && location) {
       // Free the socket before the next hop; a redirect body is never surfaced.
       await (response.body as ReadableStream | null)?.cancel().catch(() => {})
-      currentUrl = new URL(location, currentUrl).toString()
+      const next = new URL(location, currentUrl)
+      // Drop credential headers once a hop leaves the initial origin.
+      if (!credentialsStripped && hopHeaders && next.origin !== initialOrigin) {
+        hopHeaders = stripCredentialHeaders(hopHeaders)
+        credentialsStripped = true
+      }
+      currentUrl = next.toString()
       continue
     }
     // undici's Response is a structural superset of the global one — the cast

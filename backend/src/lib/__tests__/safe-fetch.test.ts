@@ -61,6 +61,15 @@ describe("isPrivateOrReservedIP", () => {
     expect(isPrivateOrReservedIP("::ffff:c0a8:1")).toBe(true)       // 192.168.0.1
   })
 
+  it("blocks IPv4-compatible IPv6 (::/96) in both dotted and normalised hex forms", () => {
+    // Deprecated ::/96 — WHATWG presents ::127.0.0.1 as ::7f00:1 (hex quads).
+    // The dotted-only branch used to miss the canonical hex form (fail-open).
+    expect(isPrivateOrReservedIP("::127.0.0.1")).toBe(true)
+    expect(isPrivateOrReservedIP("::7f00:1")).toBe(true)            // 127.0.0.1
+    expect(isPrivateOrReservedIP("::a9fe:a9fe")).toBe(true)         // 169.254.169.254
+    expect(isPrivateOrReservedIP("::a00:1")).toBe(true)            // 10.0.0.1
+  })
+
   it("accepts public IPv6 addresses", () => {
     expect(isPrivateOrReservedIP("2606:4700:4700::1111")).toBe(false) // cloudflare DNS
   })
@@ -180,6 +189,22 @@ describe("safeFetch — redirect-hop SSRF gate (assertSafeRedirectTarget)", () =
 
   it("blocks a redirect to an unparseable Location", () => {
     expect(() => assertSafeRedirectTarget("::::not a url")).toThrow(/invalid URL/)
+  })
+
+  it("blocks a redirect to an ENCODED/obfuscated internal IP (WHATWG normalizes, classifier flags)", () => {
+    // Decimal, hex, octal, short-form, and IPv6-mapped encodings all canonicalize
+    // to a private/reserved dotted-quad via `new URL()` and are then blocked.
+    for (const u of [
+      "http://2130706433/",        // 127.0.0.1
+      "http://0x7f000001/",        // 127.0.0.1
+      "http://0177.0.0.1/",        // 127.0.0.1
+      "http://127.1/",             // 127.0.0.1
+      "http://127.0.0.1./",        // trailing dot
+      "http://2852039166/",        // 169.254.169.254 (metadata)
+      "http://[::ffff:127.0.0.1]/", // IPv4-mapped IPv6
+    ]) {
+      expect(() => assertSafeRedirectTarget(u), u).toThrow()
+    }
   })
 
   it("allows a redirect to a public host (hostname DNS is still gated at connect time)", () => {
