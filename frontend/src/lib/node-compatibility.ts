@@ -23,6 +23,10 @@ const VOICE_TARGET_TYPES: ReadonlySet<string> = new Set<string>([...VOICE_PERSON
 const TYPED_SOURCE_NODE_TYPES: ReadonlySet<string> = new Set([
   "list", "web-scrape", "meta-ads-scrape", "extract-field", "filter-list",
   "deduplicate", "merge-lists", "sort-list",
+  // silence-detect emits { version, ranges, durationMs } JSON on its `json`
+  // source handle; its source-direction popover consults TARGET_HANDLE_ACCEPTS
+  // (like web-scrape) so data consumers surface as candidates.
+  "silence-detect",
   // video-analysis emits scene-breakdown JSON on its `json` source handle;
   // its source-direction popover must consult TARGET_HANDLE_ACCEPTS (same as
   // web-scrape) so data consumers surface as candidates.

@@ -1085,6 +1085,8 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
   { type: "mix-audio", label: "Mix Audio", category: "processing", description: "Blend multiple audio tracks with individual volume control.", outputType: "audio" },
   { type: "combine-audio", label: "Combine Audio", category: "processing", description: "Concatenate audio tracks end-to-end in order, with optional per-segment trim. (Mix Audio layers tracks; this joins them sequentially.)", outputType: "audio" },
   { type: "extract-audio", label: "Extract Audio", category: "processing", description: "Demux the audio track from a video to a standalone MP3.", outputType: "audio" },
+  // outputType: data — emits { version, ranges:[{startMs,endMs}], durationMs } JSON on the `json` handle (creditCost auto-filled from STATIC_CREDIT_COSTS = 1).
+  { type: "silence-detect", label: "Silence Detect", category: "processing", description: "Detect silent spans in an audio or video track (local FFmpeg silencedetect) and emit them as source-clock ranges.", outputType: "data" },
   { type: "adjust-volume", label: "Adjust Volume", category: "processing", description: "Change audio volume with optional normalize and fade-in / fade-out transitions (FFmpeg). (creditCost auto-filled from STATIC_CREDIT_COSTS = 1)", outputType: "audio" },
   {
     type: "audio-fx",

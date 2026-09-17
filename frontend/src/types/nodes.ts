@@ -5255,6 +5255,28 @@ export type WebScrapeNodeData = {
   lastGoodCount?: number
 }
 
+// --- Silence Detect Node Data ---
+
+export type SilenceDetectNodeData = {
+  [key: string]: unknown
+  label: string
+  /** dBFS threshold below which a span counts as silence (<= 0). Default -35. */
+  thresholdDb?: number
+  /** Minimum silence length to report, ms. Default 700. */
+  minSilenceMs?: number
+  /** Padding kept around speech, ms — shrinks each reported range inward. Default 120. */
+  padMs?: number
+  // execution state
+  executionStatus?: "idle" | "running" | "completed" | "failed"
+  errorMessage?: string
+  currentJobId?: string
+  currentJobProgress?: number
+  // execution result — single structured json output { version, ranges, durationMs }.
+  // Mirrors WebScrapeNodeData.generatedJson so the DAG extractors read it uniformly.
+  generatedJson?: unknown
+  fieldMappings?: Record<string, unknown>
+}
+
 // --- Meta Ads Scrape Node Data ---
 
 export type MetaAdsScrapeNodeData = {
@@ -6181,6 +6203,7 @@ export type SceneNodeData =
   | FaceNodeData
   | LLMChatData
   | WebScrapeNodeData
+  | SilenceDetectNodeData
   | MetaAdsScrapeNodeData
   | VideoAnalysisNodeData
   | VideoAuditNodeData
@@ -6333,6 +6356,7 @@ export type SceneNodeType =
   | "trim-audio"
   | "split-media"
   | "extract-audio"
+  | "silence-detect"
   | "remove-audio"
   | "mix-audio"
   | "combine-audio"
@@ -8063,6 +8087,15 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     inputs: ["in"],
     outputs: ["audio"],
     defaultData: { label: "Extract Audio", fieldMappings: {} },
+  },
+  {
+    type: "silence-detect",
+    label: "Silence Detect",
+    category: "processing",
+    creditCost: 1,
+    inputs: ["in"],
+    outputs: ["json"],
+    defaultData: { label: "Silence Detect", thresholdDb: -35, minSilenceMs: 700, padMs: 120, fieldMappings: {} } as SilenceDetectNodeData,
   },
   {
     type: "remove-audio",

@@ -676,6 +676,14 @@ export function getPrimaryOutput(
     return output.json === undefined ? undefined : JSON.stringify(output.json)
   }
 
+  // Silence-detect: single `json` output handle carrying { version, ranges,
+  // durationMs }. Stringify for generic text consumers; Extract Field / an EDL
+  // consumer read state.output.json directly (bypassing getPrimaryOutput).
+  // Mirrors the web-scrape json branch.
+  if (sourceType === "silence-detect") {
+    return output.json === undefined ? undefined : JSON.stringify(output.json)
+  }
+
   // Meta Ads scraper: `json` (the whole ad array, stringified for text
   // consumers) plus the FEATURED ad's `text` / `image` / `video` — the route
   // writes those three onto output_data, and extractSavedNodeOutput re-derives
@@ -1301,6 +1309,15 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
 
   // Web-scrape: single `json` output (object/array from the actor).
   if (type === "web-scrape") {
+    const json = data.generatedJson
+    return json === undefined ? undefined : { json }
+  }
+
+  // Silence-detect: single `json` output (the { version, ranges, durationMs }
+  // object, persisted on data.generatedJson). Mirrors web-scrape's json branch
+  // so a skipped / "Run from here" node hydrates the json handle from saved
+  // node data without re-running the ffmpeg pass.
+  if (type === "silence-detect") {
     const json = data.generatedJson
     return json === undefined ? undefined : { json }
   }

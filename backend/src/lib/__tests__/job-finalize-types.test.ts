@@ -91,8 +91,8 @@ describe("NOT_GENERIC_RECOVERABLE", () => {
   // discarding a finished provider result and refunding the user 90 minutes
   // later. `finalize-job-type-coverage.test.ts` is what keeps the three sets
   // total and pairwise disjoint; this pin is only the ratchet.
-  it("has exactly 58 members", () => {
-    expect(NOT_GENERIC_RECOVERABLE.size).toBe(58)
+  it("has exactly 59 members", () => {
+    expect(NOT_GENERIC_RECOVERABLE.size).toBe(59)
   })
 
   it("denies generate-script and no other entity handler key", () => {

@@ -183,6 +183,7 @@ const ALLOWLIST = new Set([
   "frontend/src/components/nodes/reference-sheet-node.tsx",
   "frontend/src/components/nodes/remove-audio-node.tsx",
   "frontend/src/components/nodes/remove-background-node.tsx",
+  "frontend/src/components/nodes/silence-detect-node.tsx",
   "frontend/src/components/nodes/render-video-node.tsx",
   "frontend/src/components/nodes/resize-video-node.tsx",
   "frontend/src/components/nodes/scene-node.tsx",

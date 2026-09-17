@@ -94,6 +94,7 @@ import { mixAudioRoutes } from "./routes/mix-audio.js"
 import { combineAudioRoutes } from "./routes/combine-audio.js"
 import { splitMediaRoutes } from "./routes/split-media.js"
 import { extractAudioRoutes } from "./routes/extract-audio.js"
+import { silenceDetectRoutes } from "./routes/silence-detect.js"
 import { removeAudioRoutes } from "./routes/remove-audio.js"
 import { generateMusicRoutes } from "./routes/generate-music.js"
 import { uploadRoutes } from "./routes/upload.js"
@@ -525,6 +526,7 @@ export async function buildApp() {
   await app.register(combineAudioRoutes)
   await app.register(splitMediaRoutes)
   await app.register(extractAudioRoutes)
+  await app.register(silenceDetectRoutes)
   await app.register(removeAudioRoutes)
   await app.register(generateMusicRoutes)
   await app.register(uploadRoutes)

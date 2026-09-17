@@ -1468,6 +1468,9 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   "add-captions:kinetic": 50,
   "resize-video": 20,
   "trim-audio": 10,
+  // Silence Detect — one local ffmpeg `silencedetect` pass over the audio
+  // proxy, no external provider. Flat 1cr (keyless; community works).
+  "silence-detect": 1,
   "split-media": 20,
   "extract-audio": 10,
   "remove-audio": 20,

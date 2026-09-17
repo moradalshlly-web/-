@@ -129,6 +129,7 @@ export const NODE_HANDLES: Readonly<Record<string, NodeHandleSpec>> = {
   "schedule-trigger": { inputs: [], outputs: ["payload"] },
   "selector": { inputs: ["in"], outputs: ["picked", "rest"] },
   "setting": { inputs: ["in"], outputs: ["out"] },
+  "silence-detect": { inputs: ["in"], outputs: ["json"] },
   "slideshow": { inputs: ["images", "audio", "transition"], outputs: ["video"] },
   "social-media-format": { inputs: ["media", "text"], outputs: ["media", "text"] },
   "sort-list": { inputs: ["in"], outputs: ["out"] },

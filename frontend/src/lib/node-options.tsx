@@ -894,6 +894,13 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
     group: "audio-clean-separate",
   },
   {
+    type: "silence-detect",
+    label: "Silence Detect",
+    icon: <VolumeX className="h-4 w-4" />,
+    category: "AI",
+    group: "audio-clean-separate",
+  },
+  {
     type: "text-to-dialogue",
     label: "Text to Dialogue",
     icon: <Users className="h-4 w-4" />,

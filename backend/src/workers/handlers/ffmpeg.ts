@@ -33,6 +33,7 @@ import { stillToVideo } from "../../providers/video/still-to-video.js"
 import { gifToVideo } from "../../providers/video/gif-to-video.js"
 import { slideshow } from "../../providers/video/slideshow.js"
 import { transcribe, type TranscribeProvider } from "../../providers/audio/transcribe.js"
+import { detectSilence } from "../../providers/audio/silence-detect.js"
 import { config } from "../../lib/config.js"
 import { syntheticCaptionsFromText } from "../../providers/audio/captions-mappers.js"
 import {
@@ -811,6 +812,34 @@ const handleSplitMedia: HandlerFn = async function handleSplitMedia(job, ctx) {
   console.log(`[worker] Job ${ctx.jobId} completed: ${videoUrls.length} video chunks, ${audioUrls.length} audio chunks`)
 }
 
+const handleSilenceDetect: HandlerFn = async function handleSilenceDetect(job, ctx) {
+  const { audioUrl, thresholdDb, minSilenceMs, padMs } = job.data as {
+    jobId: string
+    audioUrl: string
+    thresholdDb?: number
+    minSilenceMs?: number
+    padMs?: number
+  }
+  console.log(`[worker] silence-detect ${ctx.jobId} (threshold=${thresholdDb ?? -35}dB, minSilence=${minSilenceMs ?? 700}ms, pad=${padMs ?? 120}ms)`)
+
+  const result = await detectSilence(audioUrl, {
+    thresholdDb: thresholdDb ?? -35,
+    minSilenceMs: minSilenceMs ?? 700,
+    padMs: padMs ?? 120,
+  })
+  await setJobProgress(job, ctx.jobId, 100)
+
+  if (!await shouldSaveJobResult(ctx.jobId)) return
+  // Stored under `json` so the DAG extractors (getPrimaryOutput / the frontend
+  // extractNodeOutput) read + stringify it exactly like web-scrape/video-analysis.
+  const ok = await markJobCompleted(ctx.jobId, {
+    output_data: { json: result },
+  })
+  if (!ok) return
+  await commitJobCredits(ctx.usageLogId, ctx.jobId)
+  console.log(`[worker] Job ${ctx.jobId} completed: ${result.ranges.length} silence range(s)`)
+}
+
 const handleExtractAudio: HandlerFn = async function handleExtractAudio(job, ctx) {
   const { videoUrl } = job.data as { jobId: string; videoUrl: string }
   console.log(`[worker] extract-audio ${ctx.jobId}`)
@@ -1090,4 +1119,5 @@ export const ffmpegHandlers: Record<string, HandlerFn> = {
   "split-media": handleSplitMedia,
   "extract-audio": handleExtractAudio,
   "remove-audio": handleRemoveAudio,
+  "silence-detect": handleSilenceDetect,
 }

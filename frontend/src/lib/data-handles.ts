@@ -61,7 +61,7 @@ export const ACCEPTS_ANALYSIS = (sourceType: string): boolean => ANALYSIS_PRODUC
 /** Producers of JSON/dict-shaped data — web-scrape returns json arrays,
  *  extract-field has a `json` outputType, etc. */
 export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
-  "web-scrape", "meta-ads-scrape", "extract-field",
+  "web-scrape", "meta-ads-scrape", "extract-field", "silence-detect",
   "list", "filter-list",
   "deduplicate", "merge-lists", "sort-list",
   "selector",
