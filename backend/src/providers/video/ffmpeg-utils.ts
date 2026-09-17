@@ -937,3 +937,40 @@ export async function remuxToMp4(inputPath: string, outputPath: string): Promise
   const audioCodec = await probeFirstAudioCodec(inputPath)
   await runFfmpeg(buildRemuxArgs(inputPath, outputPath, audioCodec))
 }
+
+/**
+ * ffmpeg args to lay the audio of `audioSource` onto the video of `video`,
+ * without re-encoding the picture. Used to restore sound onto a Remotion
+ * render whose input video was transcoded audio-less (`-an`) for fast frame
+ * seeking — the composition therefore has no audio, and its own (silent)
+ * track is dropped in favour of the source's. `-shortest` guards a source
+ * whose audio runs a hair longer than the render.
+ */
+export function buildAudioOntoVideoArgs(video: string, audioSource: string, output: string, audioCodec: string): string[] {
+  const muxerSafe = audioCodec === "aac" || audioCodec === "mp3"
+  return [
+    "-y",
+    "-i", video,
+    "-i", audioSource,
+    "-map", "0:v:0",
+    "-map", "1:a:0",
+    "-c:v", "copy",
+    "-c:a", muxerSafe ? "copy" : "aac",
+    "-shortest",
+    "-movflags", "+faststart",
+    output,
+  ]
+}
+
+/**
+ * Restore audio onto a captioned (or otherwise re-rendered) video by copying
+ * the first audio stream of `audioSource` over it. No-op returning false when
+ * the source has no audio stream, so a genuinely silent input stays silent
+ * and the caller keeps the original file. Local files only.
+ */
+export async function restoreVideoAudioFromSource(video: string, audioSource: string, output: string): Promise<boolean> {
+  const audioCodec = await probeFirstAudioCodec(audioSource)
+  if (audioCodec === null) return false
+  await runFfmpeg(buildAudioOntoVideoArgs(video, audioSource, output, audioCodec))
+  return true
+}
