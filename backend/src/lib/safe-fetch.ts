@@ -94,9 +94,23 @@ export function isPrivateOrReservedIP(ip: string): boolean {
     // Unrecognisable mapped form — fail closed, treat as reserved.
     return true
   }
-  if (lower.startsWith("::") && /^::[0-9a-f]+\.[0-9]+\.[0-9]+\.[0-9]+$/.test(lower)) {
-    // IPv4-compatible IPv6 (deprecated but still defined).
-    return isPrivateOrReservedIP(lower.replace(/^::/, ""))
+  if (lower.startsWith("::") && lower !== "::" && lower !== "::1") {
+    // IPv4-compatible IPv6 (deprecated ::/96): the low 32 bits are an IPv4.
+    // WHATWG URL parsing presents `::127.0.0.1` as EITHER a dotted tail or two
+    // hex quads (`::7f00:1`), exactly like the ::ffff: case above — handle both,
+    // or the canonical hex form silently fails open.
+    const tail = lower.slice(2)
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(tail)) {
+      return isPrivateOrReservedIP(tail)
+    }
+    const parts = tail.split(":")
+    if (parts.length === 2 && /^[0-9a-f]{1,4}$/.test(parts[0]) && /^[0-9a-f]{1,4}$/.test(parts[1])) {
+      const hi = parseInt(parts[0], 16)
+      const lo = parseInt(parts[1], 16)
+      if (Number.isFinite(hi) && Number.isFinite(lo)) {
+        return isPrivateOrReservedIP(`${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`)
+      }
+    }
   }
   return false
 }
@@ -172,8 +186,9 @@ export async function resolvesOnlyToPublicAddresses(hostname: string): Promise<b
  * Shared agent — a single instance across all safeFetch calls so the undici
  * connection pool is reused. The `connect.lookup` hook resolves the hostname
  * with `all: true` so multi-record answers are fully inspected; any private
- * IP among the results fails the connection before a socket is opened.
- * Redirects flow through the same agent, so each hop is re-validated.
+ * IP among the results fails the connection before a socket is opened. This
+ * gate does NOT fire for IP-literal hosts (Node skips options.lookup then), so
+ * safeFetch validates redirect hops itself (see assertSafeRedirectTarget).
  */
 /**
  * Plain agent for fetches inside the configured own-storage subtree (see
@@ -233,10 +248,55 @@ export interface SafeFetchInit extends Omit<UndiciRequestInit, "dispatcher"> {
  *   - Literal private/reserved IPs in the URL are rejected synchronously.
  *   - DNS is resolved at connection time; any resolved IP in the private /
  *     reserved / cloud-metadata ranges refuses the connection.
- *   - Redirects are followed (fetch's default) but each hop is revalidated
- *     because the agent's `lookup` fires for every new socket.
+ *   - Redirects are followed MANUALLY (up to MAX_REDIRECTS): each hop's target
+ *     is re-validated for protocol AND a private/reserved IP-literal host before
+ *     it is followed. The agent's `lookup` gate covers DNS answers for hostname
+ *     hops but is SKIPPED by Node for IP-literal hosts, so a redirect to
+ *     `http://127.0.0.1/` would otherwise bypass every gate — the manual per-hop
+ *     `assertSafeRedirectTarget` closes that.
  *   - Non-http(s) protocols are rejected.
  */
+/** How many redirect hops safeFetch will follow before giving up. */
+const MAX_REDIRECTS = 5
+
+/**
+ * Re-validate a REDIRECT target before following it: http(s) only, and a
+ * literal private/reserved IP host is refused. This is load-bearing —
+ * `safeAgent`'s `connect.lookup` gate validates DNS answers for HOSTNAME hops,
+ * but Node's `net.connect` skips `options.lookup` when the host is already an IP
+ * literal, so a `Location: http://127.0.0.1/` (or 169.254.169.254, ::1, 0.0.0.0)
+ * would otherwise reach an internal target unchecked (SSRF). We follow redirects
+ * manually so this runs on every hop. Never own-storage: a redirect off the
+ * own-storage subtree is not own-storage.
+ */
+export function assertSafeRedirectTarget(rawUrl: string): void {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    const shown = String(rawUrl ?? "").replace(/\s+/g, " ").trim().slice(0, 120)
+    throw new Error(`safeFetch: blocked — redirect to an invalid URL: "${shown}"`)
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`safeFetch: blocked — redirect to protocol ${parsed.protocol}`)
+  }
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "")
+  if (isIP(hostname) && isPrivateOrReservedIP(hostname)) {
+    throw new Error(`safeFetch: blocked — redirect to ${hostname} (private/reserved IP)`)
+  }
+}
+
+/** Headers that must not survive a cross-origin redirect (matches undici's own
+ *  RedirectHandler). No safeFetch caller sends these today; this keeps a future
+ *  credentialed caller from silently leaking them to an attacker-controlled 302. */
+const CREDENTIAL_HEADERS = ["authorization", "cookie", "proxy-authorization"] as const
+
+function stripCredentialHeaders(headers: SafeFetchInit["headers"]): Headers {
+  const out = new Headers(headers as HeadersInit)
+  for (const h of CREDENTIAL_HEADERS) out.delete(h)
+  return out
+}
+
 export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<Response> {
   // NAME what was rejected. `new URL()` throws a bare "Invalid URL" — no value,
   // no context — and that string is what reached /admin/app-reports as the
@@ -271,17 +331,58 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
   const outer = init.signal
   const signal = outer ? AbortSignal.any([outer as AbortSignal, timer]) : timer
 
-  // Drop our own option before forwarding.
-  const { timeoutMs: _, ...forward } = init
+  // Drop our own option, and NEVER let a caller override redirect handling —
+  // safe redirect following is the whole point of this function.
+  const { timeoutMs: _t, redirect: _r, ...forward } = init
 
-  const response = await undiciFetch(url, {
-    ...forward,
-    ...(ownStorage ? { redirect: "error" as const } : {}),
-    signal,
-    dispatcher: ownStorage ? ownStorageAgent : safeAgent,
-  })
-  // undici's Response is a structural superset of the global one — the cast
-  // keeps callers typed against globalThis.Response without pulling undici's
-  // types into their signatures.
-  return response as unknown as Response
+  // Own-storage refuses redirects outright; the subtree exemption can't be
+  // parlayed into a fetch off the subtree.
+  if (ownStorage) {
+    const response = await undiciFetch(url, {
+      ...forward,
+      redirect: "error" as const,
+      signal,
+      dispatcher: ownStorageAgent,
+    })
+    return response as unknown as Response
+  }
+
+  // General fetch: follow redirects MANUALLY so every hop is re-validated
+  // (the agent's lookup gate never sees an IP-literal hop — see
+  // assertSafeRedirectTarget). Verified: undici's redirect:"manual" returns the
+  // real 3xx response with a readable Location header (it does NOT opaque it).
+  const initialOrigin = parsed.origin
+  let hopHeaders = forward.headers
+  let credentialsStripped = false
+  let currentUrl = url
+  for (let hop = 0; ; hop++) {
+    if (hop > MAX_REDIRECTS) {
+      throw new Error(`safeFetch: blocked — more than ${MAX_REDIRECTS} redirects`)
+    }
+    if (hop > 0) assertSafeRedirectTarget(currentUrl)
+    const response = await undiciFetch(currentUrl, {
+      ...forward,
+      headers: hopHeaders,
+      redirect: "manual" as const,
+      signal,
+      dispatcher: safeAgent,
+    })
+    const location = response.headers.get("location")
+    if (response.status >= 300 && response.status < 400 && location) {
+      // Free the socket before the next hop; a redirect body is never surfaced.
+      await (response.body as ReadableStream | null)?.cancel().catch(() => {})
+      const next = new URL(location, currentUrl)
+      // Drop credential headers once a hop leaves the initial origin.
+      if (!credentialsStripped && hopHeaders && next.origin !== initialOrigin) {
+        hopHeaders = stripCredentialHeaders(hopHeaders)
+        credentialsStripped = true
+      }
+      currentUrl = next.toString()
+      continue
+    }
+    // undici's Response is a structural superset of the global one — the cast
+    // keeps callers typed against globalThis.Response without pulling undici's
+    // types into their signatures.
+    return response as unknown as Response
+  }
 }
