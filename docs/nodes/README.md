@@ -91,7 +91,7 @@ the foot of the list.
 |---|---|
 | **Triggers** | Schedule Trigger · Webhook Trigger · Telegram Trigger |
 | **Get Content** | Web Scrape · Video URL · Telegram Channel Feed |
-| **Text** | Text · Combine Text · Split Text · Generate Text |
+| **Text** | Text · Combine Text · Split Text · Prompt |
 | **Lists & Batching** | List · Collect · Selector · Filter List · Sort List · Remove Duplicates · Merge Lists · Choose Best |
 | **Logic & Data** | Router · Extract Field · QA Check |
 | **Workflows** | Sub-Workflow · Component · Sub-Workflow Input · Sub-Workflow Output |
@@ -271,7 +271,7 @@ Generate, transform, or extract text using AI models.
 | Node | Description | When to Use |
 |------|-------------|-------------|
 | [Generate Script](./ai-text/generate-script.md) | AI multi-scene script with cinematography | Create structured video scripts with scene descriptions and camera directions |
-| [Generate Text](./ai-text/llm-chat.md) | LLM text generation from a prompt (selectable model, optional image/video/audio refs). Two outputs: full `text` and a `===NEXT===`-split `items` fan-out list. Built-in + user templates; "Create N Image Nodes" fan-out | Rewrite/transform text, caption media, brainstorm, or fan out N image prompts |
+| [Prompt](./ai-text/llm-chat.md) | LLM text generation from a prompt (formerly "Generate Text") (selectable model, optional image/video/audio refs). Two outputs: full `text` and a `===NEXT===`-split `items` fan-out list. Built-in + user templates; "Create N Image Nodes" fan-out | Rewrite/transform text, caption media, brainstorm, or fan out N image prompts |
 | [QA Check](./ai-text/qa-check.md) | LLM quality gate — scores text 0.0-1.0, returns pass/fail + reason | Validate generated scripts or captions before they continue downstream |
 | [Transcribe](./ai-text/transcribe.md) | Speech-to-text with diarization | Convert audio to text with speaker identification and timestamps |
 

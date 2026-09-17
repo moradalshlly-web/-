@@ -1,6 +1,6 @@
 ---
-generated_at: 2026-09-15T17:56:51.409Z
-generated_from: 59f72b270
+generated_at: 2026-09-17T08:03:14.687Z
+generated_from: 3c6f8cfbf
 ---
 
 # Nodaro Workflow Editor — General Patterns
@@ -147,7 +147,7 @@ Call `get_node_skill(<type>)` for the full schema of any node type:
 - `linkedin-post` — LinkedIn Post
 - `lip-sync` — Lip Sync
 - `list` — List
-- `llm-chat` — Generate Text
+- `llm-chat` — Prompt
 - `location` — Location Asset
 - `loop-subject` — Loop Subject
 - `loop-video` — Loop Video

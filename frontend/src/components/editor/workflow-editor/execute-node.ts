@@ -5016,7 +5016,7 @@ function executeNodeCore(
           lastSystemPrompt: systemPrompt || "",
           lastUserPrompt: userInput,
         });
-        guardedToast.success("Generate Text completed");
+        guardedToast.success("Prompt completed");
         return result.generatedText ?? "";
       })
       .catch((err: Error) => {
@@ -5028,9 +5028,9 @@ function executeNodeCore(
         }
         updateNodeData(node.id, {
           executionStatus: "failed",
-          errorMessage: err.message || "Generate Text failed",
+          errorMessage: err.message || "Prompt failed",
         });
-        guardedToast.error(`Generate Text failed: ${err.message}`);
+        guardedToast.error(`Prompt failed: ${err.message}`);
         throw err;
       });
   }

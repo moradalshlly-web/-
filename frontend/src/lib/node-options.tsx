@@ -652,10 +652,13 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
   },
   {
     type: "llm-chat",
-    label: "Generate Text",
+    label: "Prompt",
     icon: <MessageSquare className="h-4 w-4" />,
     category: "AI",
     group: "automate-text",
+    // The node was called "Generate Text" until Sept 2026 — keep the old
+    // name and the model-family words searchable.
+    keywords: ["generate text", "llm", "ai text", "chat", "gpt", "claude", "gemini", "writer"],
   },
   {
     type: "transcribe",

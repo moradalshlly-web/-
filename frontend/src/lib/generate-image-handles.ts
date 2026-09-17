@@ -111,6 +111,11 @@ export const TEXT_PRODUCER_TYPES: ReadonlySet<string> = new Set([
   "telegram-trigger",
   // telegram-channel-feed emits the recent posts' text (generatedText).
   "telegram-channel-feed",
+  // web-scrape's `json` handle: both engines already stringify the JSON into
+  // the consumer's prompt (backend output-extractor `web-scrape` branch,
+  // frontend node-input-resolver `web-scrape` branch) — only this validator
+  // refused the wire, so a scrape could not feed a Prompt node at all.
+  "web-scrape",
 ])
 
 /** Source node types whose output image feeds References (mirrors backend

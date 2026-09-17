@@ -1,7 +1,7 @@
 ---
 node_type: llm-chat
-generated_at: 2026-08-29T19:02:39.432Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-17T08:03:17.018Z
+generated_from: 3c6f8cfbf
 ---
 
 # LLM Chat
@@ -45,7 +45,7 @@ generated_from: 7dbf4818b
 **Default data:**
 ```json
 {
-  "label": "Generate Text",
+  "label": "Prompt",
   "systemPrompt": "",
   "userInput": "",
   "temperature": 0.7,
@@ -79,7 +79,7 @@ generated_from: 7dbf4818b
     "y": 0
   },
   "data": {
-    "label": "Generate Text",
+    "label": "Prompt",
     "systemPrompt": "",
     "userInput": "",
     "temperature": 0.7,
