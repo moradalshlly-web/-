@@ -1,0 +1,652 @@
+{
+  "slug": "talking-product-studio",
+  "name": "Talking Product Studio",
+  "description": "A product photo, a style reference, a campaign angle and brand notes in; a 12-second vertical ad out — the product as a 3D animated cartoon character that speaks to the viewer, three numbered frames rendered as one unbroken take with the character's own voice, and word-highlight captions.",
+  "markdownDescription": "## Talking Product Studio\n\nYour product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice.\n\n1. **Product + Style + Angle + Brand notes** — the packshot, an example of the cartoon-face style, what the ad should push, and the facts you can stand behind.\n2. **Concept** — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action.\n3. **Character sheet** — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. **Frames 1–3** — one vertical still per frame, the same character in the same setting.\n5. **Timeline script → the take** — one prompt over the three numbered stills with the lines quoted per interval; one MiniMax Hailuo 3 node renders the 12 seconds as one unbroken shot with the character's own voice.\n6. **Captions** — Add Captions transcribes the voice into word-highlight captions.",
+  "category": "video-ads",
+  "outputTypes": [
+    "video"
+  ],
+  "tags": [
+    "video-ads",
+    "character",
+    "mascot",
+    "talking-product",
+    "vertical",
+    "captions",
+    "brand-notes"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 856,
+  "nodeTypesUsed": [
+    "upload-image",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "add-captions",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "minimax-h3",
+    "elevenlabs-stt"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/templates/4b417b8a-ea1c-4129-abda-86bc28676ba7/preview-086e725aeac7.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 38,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "Your product becomes a 3D animated cartoon character that speaks straight to the viewer — a 12-second vertical ad: cute picture, blunt voice. A product photo, a style reference, a campaign angle and brand notes go in; one take with the character's own voice and captions comes out.\n\n1. Product + Style + Angle + Brand notes — the packshot, an example of the cartoon-face style, what the ad should push, and the facts you can stand behind.\n2. Concept — the character (where the face sits, its voice) and three frames: a still and a spoken line each — hook, pain and fix, call to action.\n3. Character sheet — front, three-quarter and face close-up, built from the product and the style reference; every frame copies it.\n4. Frames 1–3 — one vertical still per frame, the same character in the same setting.\n5. Timeline script → the take — one prompt over the three numbered stills, the lines quoted per interval; one MiniMax Hailuo 3 node renders the 12 seconds as one unbroken shot with the character's voice.\n6. Captions — word-highlight captions transcribed from the voice.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Talking product studio — how it works",
+        "width": 1180,
+        "height": 810,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-product",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "A clean packshot on a plain background. The character keeps its exact shape, materials and colours — only the face and limbs are added.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Product",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-style",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1690
+      },
+      "data": {
+        "bold": false,
+        "text": "An example of the cartoon-face style you want: any object with the oversized eyes, thick eyebrows and cut-out mouth. Swap it to change the look of every frame.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Style reference",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-angle",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2410
+      },
+      "data": {
+        "bold": false,
+        "text": "What the ad pushes and to whom, in two or three lines — the more specific the angle, the sharper the script.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Campaign angle",
+        "width": 640,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-concept",
+      "type": "sticky-note",
+      "position": {
+        "x": 1580,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "The character in words and three frames — a still and a spoken line each. Edit a line by hand and rerun from the timeline.",
+        "color": "#26221a",
+        "label": "Step 2",
+        "title": "2 · Concept",
+        "width": 480,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-frames",
+      "type": "sticky-note",
+      "position": {
+        "x": 2300,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "The sheet fixes the face once; the three frames copy it. Rerun one frame alone for another take.",
+        "color": "#26221a",
+        "label": "Step 3–4",
+        "title": "3–4 · Character sheet + Frames",
+        "width": 600,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-take",
+      "type": "sticky-note",
+      "position": {
+        "x": 3140,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "A director turns the concept into one prompt — \"0-4s: shows @Image 1 … says \\\"…\\\" … drifts to @Image 2\" — and one MiniMax Hailuo 3 node receives the three stills as references in order and renders a single 12-second unbroken shot with the character's voice. Add Captions transcribes it. Want another model? Gemini Omni Flash (up to 10 s) or Seedance 2.5 also take references and speak.",
+        "color": "#26221a",
+        "label": "Step 5–6",
+        "title": "5–6 · Timeline script → The take → Captions",
+        "width": 1200,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "product",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 970
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/b3c062dd-f61d-42d9-a59d-582e6a6da60d.png",
+        "label": "Product",
+        "r2Url": "https://cdn.nodaro.ai/images/b3c062dd-f61d-42d9-a59d-582e6a6da60d.png",
+        "assetId": "b3c062dd-f61d-42d9-a59d-582e6a6da60d",
+        "filename": "suitcase-packshot-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/b3c062dd-f61d-42d9-a59d-582e6a6da60d.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "style",
+      "type": "upload-image",
+      "position": {
+        "x": 700,
+        "y": 1690
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/images/0aa7d6f6-f681-40e5-8374-7562e24b034a.png",
+        "label": "Style reference",
+        "r2Url": "https://cdn.nodaro.ai/images/0aa7d6f6-f681-40e5-8374-7562e24b034a.png",
+        "assetId": "0aa7d6f6-f681-40e5-8374-7562e24b034a",
+        "filename": "cartoon-face-style-demo.png",
+        "mimeType": "image/png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/0aa7d6f6-f681-40e5-8374-7562e24b034a.png",
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "angle",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2410
+      },
+      "data": {
+        "text": "The aluminium cabin suitcase talks to frequent flyers who keep buying cheap luggage that cracks, wobbles and gets lost. It has seen more airports than they have. Confident, dry, a little smug; it never insults the viewer, only their old suitcase.",
+        "label": "Campaign angle",
+        "width": 640,
+        "height": 260,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "concept",
+      "type": "llm-chat",
+      "position": {
+        "x": 1580,
+        "y": 1360
+      },
+      "data": {
+        "label": "Concept",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 900,
+        "userInput": "Campaign angle: {Campaign angle || the product speaks to the viewer about the problem it solves.} Brand notes: {Brand notes || no brand notes — use only the campaign angle.} The reference image is the product photo. Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write 12-second vertical video ads in which the product itself is a 3D animated cartoon character — a photoreal object with oversized expressive eyes, thick floating eyebrows and a deep cut-out mouth with white teeth — speaking straight to the viewer. The pattern is cute but serious: the picture is adorable, the voice is blunt. From the campaign angle, the brand notes and the product photo, write in exactly this shape, plain English, nothing else:\nCharacter: <60 to 90 words: the product as the character — where the face sits on the object, the eyes, the mouth, whether it grows thin noodle limbs or uses its own parts (wheels, handle, latches), its attitude, and its voice in five words (for example: confident, fast, deep, dry, male); one sentence on the single setting the whole ad happens in>\nFrame 1 — Hook: Image: <40 to 60 words: the still — the character, its pose and expression, the setting, camera and lighting; the product looks exactly like the photo apart from the face and limbs> Says: \"<at most 10 words — a bold, slightly alarming statement aimed at you>\"\nFrame 2 — Pain and fix: Image: <40 to 60 words> Says: \"<at most 12 words — the pain in one breath, then what I do about it, with one specific fact from the brand notes>\"\nFrame 3 — Call to action: Image: <40 to 60 words> Says: \"<at most 8 words>\"\nRules: first person (I), addressing you; short, punchy, zero fluff; every fact comes from the brand notes or the angle — never invent numbers; the three Says lines together are at most 28 words; the three frames happen in the same setting so one take can travel through them; the object is the only character — nothing else has a face; no on-screen text or logo is needed anywhere.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "sheet",
+      "type": "generate-image",
+      "position": {
+        "x": 2300,
+        "y": 1400
+      },
+      "data": {
+        "label": "Character sheet",
+        "style": "",
+        "prompt": "Character sheet on a plain light-grey studio background, 4:3, three views of the same character side by side: front view, three-quarter view, and a close-up of the face. The character: {Concept || the product as a cartoon-faced character.} The first reference image shows the face style to copy — oversized bold eyes with bright white scleras, thick floating black eyebrows, a deeply embedded cut-out mouth with white teeth and a dark interior, cinematic photoreal lighting that grounds the cartoon features onto the real surface. The second reference image is the real product: keep its exact shape, materials, grooves, wheels, handles and colours, and add only the face and limbs described under Character. Identical face in all three views. Objects: one product, three times; nothing else with a face. No text, no labels, no logo.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "4:3",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 600,
+      "height": 450,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-1",
+      "type": "generate-image",
+      "position": {
+        "x": 2300,
+        "y": 1970
+      },
+      "data": {
+        "label": "Frame 1",
+        "style": "",
+        "prompt": "Single 9:16 vertical frame — Frame 1 of a talking-product ad, exactly as the concept describes under Frame 1: Image, and no other frame: {Concept || a talking product ad.} The first reference image is the character sheet — copy the face, eyebrows, mouth, expression style and limbs from it exactly; the second reference image is the real product — its shape, materials, grooves and colours are exact, only the face and limbs are added. Photoreal object and setting, cinematic lighting, the cartoon face seamlessly integrated into the real surface. Objects in this frame: exactly one product character; nothing else has a face. No text, no logo, no watermark, no subtitles.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 338,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-2",
+      "type": "generate-image",
+      "position": {
+        "x": 2698,
+        "y": 1970
+      },
+      "data": {
+        "label": "Frame 2",
+        "style": "",
+        "prompt": "Single 9:16 vertical frame — Frame 2 of a talking-product ad, exactly as the concept describes under Frame 2: Image, and no other frame: {Concept || a talking product ad.} The first reference image is the character sheet — copy the face, eyebrows, mouth, expression style and limbs from it exactly; the second reference image is the real product — its shape, materials, grooves and colours are exact, only the face and limbs are added. Photoreal object and setting, cinematic lighting, the cartoon face seamlessly integrated into the real surface. Objects in this frame: exactly one product character; nothing else has a face. No text, no logo, no watermark, no subtitles.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 338,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "frame-3",
+      "type": "generate-image",
+      "position": {
+        "x": 2300,
+        "y": 2690
+      },
+      "data": {
+        "label": "Frame 3",
+        "style": "",
+        "prompt": "Single 9:16 vertical frame — Frame 3 of a talking-product ad, exactly as the concept describes under Frame 3: Image, and no other frame: {Concept || a talking product ad.} The first reference image is the character sheet — copy the face, eyebrows, mouth, expression style and limbs from it exactly; the second reference image is the real product — its shape, materials, grooves and colours are exact, only the face and limbs are added. Photoreal object and setting, cinematic lighting, the cartoon face seamlessly integrated into the real surface. Objects in this frame: exactly one product character; nothing else has a face. No text, no logo, no watermark, no subtitles.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 338,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "timeline",
+      "type": "llm-chat",
+      "position": {
+        "x": 3140,
+        "y": 1400
+      },
+      "data": {
+        "label": "Timeline script",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 600,
+        "userInput": "Concept: {Concept || a three-frame talking product ad.} Write the video prompt.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the single prompt for a video model that animates one continuous 12-second vertical ad from THREE reference images attached in this order: @Image 1 is Frame 1, @Image 2 is Frame 2, @Image 3 is Frame 3 — the same character in the same setting, three moments of ONE unbroken shot — the camera never cuts. The character SPEAKS: the model generates its voice and lip movement from the lines you quote. You get the concept. Write ONE prompt of 140 to 200 words in this order, plain prose, no headings:\nFirst one sentence: the medium — a photoreal object with a 3D cartoon face, cinematic lighting — the character once as it appears in @Image 1, and its voice, taken from the concept's Character line.\nThen three gap-free timed intervals, exactly: \"0-4s: …\" \"4-8s: …\" \"8-12s: …\". Each interval opens by naming the image it shows (\"shows @Image 1\"), describes the character's small physical acting — eyebrows, a lean, a tap of a wheel — then the line it says in quotes, copied EXACTLY from the concept's Says line for that frame, never reworded, never extended, and names one gentle camera move; it reaches the next image by continuous motion — the character rolls, turns or leans into the next pose while the camera drifts — never a cut, never a jump: write the movement that carries from one image to the next. The 8-12s interval ends with: \"The character holds its final look on @Image 3 until the end.\"\nThen the constraints as one sentence: the face and limbs stay exactly as in the images; the product keeps its exact shape and colours; only one character; one continuous shot with no cuts, no jump cuts and no scene changes; the mouth moves in sync with the quoted lines; no on-screen text, no captions, no logo, natural room tone.\nOutput only the prompt.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "take",
+      "type": "generate-video",
+      "position": {
+        "x": 3860,
+        "y": 1400
+      },
+      "data": {
+        "label": "The take",
+        "prompt": "{Timeline script || One continuous 12-second vertical take with no cuts: shows @Image 1, moves continuously into @Image 2, then into @Image 3; the product character speaks its lines; photoreal object with a cartoon face, cinematic lighting.}",
+        "duration": 12,
+        "provider": "minimax-h3",
+        "resolution": "768P",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": true,
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 338,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "captions",
+      "type": "add-captions",
+      "position": {
+        "x": 4438,
+        "y": 1400
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Talking product ad",
+        "style": "word-highlight",
+        "fontSize": 56,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#111111",
+        "presentationOutput": true,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 338,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 2790
+      },
+      "data": {
+        "bold": false,
+        "text": "The brand, the product and the facts you can stand behind — the concept invents nothing outside them. Want the facts pulled from the web instead? See the sister template with Web Scrape.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Brand notes",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "brand",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 2790
+      },
+      "data": {
+        "text": "Brand: RIMOWA. Product: Original Cabin — a carry-on with a full aluminium shell and the signature horizontal grooves, four spinner wheels, leather handles and two latches. Facts we can stand behind: the shell is solid aluminium, so there is no plastic to crack and no zip to split; it rolls on four wheels; it is built to last a lifetime of travel. Tone: confident, dry, a little smug.",
+        "label": "Brand notes",
+        "width": 640,
+        "height": 300,
+        "variables": {},
+        "presentationInput": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-angle-concept",
+      "source": "angle",
+      "target": "concept",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-product-concept",
+      "source": "product",
+      "target": "concept",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-sheet",
+      "source": "concept",
+      "target": "sheet",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-style-sheet",
+      "source": "style",
+      "target": "sheet",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-sheet",
+      "source": "product",
+      "target": "sheet",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-concept-timeline",
+      "source": "concept",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-timeline-take",
+      "source": "timeline",
+      "target": "take",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-take-captions",
+      "source": "take",
+      "target": "captions",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-concept-frame-1",
+      "source": "concept",
+      "target": "frame-1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-sheet-frame-1",
+      "source": "sheet",
+      "target": "frame-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-frame-1",
+      "source": "product",
+      "target": "frame-1",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-1-take",
+      "source": "frame-1",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-concept-frame-2",
+      "source": "concept",
+      "target": "frame-2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-sheet-frame-2",
+      "source": "sheet",
+      "target": "frame-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-frame-2",
+      "source": "product",
+      "target": "frame-2",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-2-take",
+      "source": "frame-2",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-concept-frame-3",
+      "source": "concept",
+      "target": "frame-3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-sheet-frame-3",
+      "source": "sheet",
+      "target": "frame-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-product-frame-3",
+      "source": "product",
+      "target": "frame-3",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "e-frame-3-take",
+      "source": "frame-3",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "imageReferences"
+    },
+    {
+      "id": "e-brand-concept",
+      "source": "brand",
+      "target": "concept",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.243
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "angle": {
+          "title": "Campaign angle",
+          "description": "What the ad pushes and to whom, in plain words."
+        },
+        "brand": {
+          "title": "Brand notes",
+          "description": "The brand, the product and the facts you can stand behind."
+        },
+        "style": {
+          "title": "Style reference",
+          "description": "Any object with the cartoon-face style you want — eyes, eyebrows, mouth."
+        },
+        "product": {
+          "title": "Your product",
+          "description": "A clean packshot. It keeps its exact shape and colours; only the face and limbs are added."
+        },
+        "captions": {
+          "title": "Talking product ad",
+          "description": "The finished 12-second vertical ad with the character's voice and captions."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "product",
+        "style",
+        "angle",
+        "brand"
+      ],
+      "outputOrder": [
+        "captions"
+      ]
+    }
+  }
+}
