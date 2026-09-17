@@ -1,5 +1,23 @@
 # @nodaro/shared
 
+## 3.11.0
+
+### Minor Changes
+
+- e5a3719: Correct character motion catalog copy, add everyday and accessible movements, bind animal and object recipients, preserve literal reference names, and expose authored sequence diagnostics and discovery metadata. Existing motion IDs remain resolvable.
+- d552b19: Transition and Character FX now read the nodes wired into them when their text is injected into a prompt, on every path — not just in the editor preview.
+
+  Wire a Setting, Tone or Lighting picker into a Transition node's **Start state** / **End state** and the generated prompt now says what the shot starts from and ends at ("…, starting from warm golden morning light, ending at deep blue moonlit night"). Wire a Character, Face, Object or Location into a Character FX node's **Target** and the effect is written about that subject by name ("Aria Voss transforms into a werewolf…") instead of "the subject".
+
+  This is the text the node's own injection preview and canvas card already showed. Until now the two executors dropped it, so a run disagreed with the preview; both now compose it, whether the picker feeds a consumer's cinematography handle directly or is placed by `{Label}`.
+
+  **Existing workflows that wire those handles will produce different prompts** — that is the point of the change, and the new text is what the preview promised. A Transition or Character FX node with nothing wired into its own handles is byte-identical to before.
+
+  `EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES` (exported from `@nodaro/shared`) gains `transition` and `character-fx`.
+
+- 56249e3: `entitySlotSchema` gains an optional `owner: { slotId, relation }` — whose an object slot is (worn by, held by, driven by a cast person or creature), so a shirt described on the man and wired as its own slot is one shirt, not two.
+- 14ef0be: Add the measured video output-canvas table and the start/end frame fit math: `VIDEO_OUTPUT_CANVAS` / `resolveOutputCanvas` (real pixel sizes per model, resolution and ratio, harvested from production renders), plus `computeFrameFitPlan`, `resolveFrameFitAspect` and `resolveFrameDelivery` with the `FrameFit` / `FrameDelivery` vocabularies.
+
 ## 3.10.0
 
 ### Minor Changes

@@ -1,5 +1,23 @@
 # @nodaro/prompts
 
+## 1.21.0
+
+### Minor Changes
+
+- e5a3719: Correct character motion catalog copy, add everyday and accessible movements, bind animal and object recipients, preserve literal reference names, and expose authored sequence diagnostics and discovery metadata. Existing motion IDs remain resolvable.
+
+### Patch Changes
+
+- ed142b9: Character Motion: an unwired Partner is one person, not several. `composeCharacterMotionHintFromConnections` used to substitute the fallback at every occurrence, so a hint that names the partner up to five times read as several different referents ("dips another person backward, one arm supporting another person's back as another person arches the spine"). The fallback is now introduced once per TARGET and referred back to afterwards ("that same person"), across all three picks of that target's sequence and in compact mode alike; possessives follow ("that same person's back"). Multiple targets keep performing a separate copy of the sequence, so each copy introduces its own partner — sharing one across the "; separately, " clauses would have described two performers bridal-carrying the same person at once. Animal and object `counterpart` recipients get the same treatment, per referent, so two picks naming different animals keep their own introductions; a definite recipient noun ("the held object", "the ducks") repeats verbatim because it already names one referent. A wired Partner name is unchanged — every occurrence is still the name, byte for byte.
+
+  Five moves whose own text ends with the subject out of view — `dragged-out-of-frame`, `dash-across-frame`, `walk-off-waving`, `walk-past-camera`, `lean-into-frame` — now declare `endVisibility: "out-of-frame"`, so the advisory sequence diagnostic can warn when another move follows them. `shuffle-cutting-shapes` shows "dances the Melbourne shuffle" as its short term instead of "shuffles and cuts shapes", and `scratch-at-door` presses the fingertips rather than flat palms to the door so the fingernails can rake it.
+
+- Updated dependencies [e5a3719]
+- Updated dependencies [d552b19]
+- Updated dependencies [56249e3]
+- Updated dependencies [14ef0be]
+  - @nodaro/shared@3.11.0
+
 ## 1.20.0
 
 ### Minor Changes

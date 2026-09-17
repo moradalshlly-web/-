@@ -1,5 +1,22 @@
 # @nodaro/sdk
 
+## 2.12.0
+
+### Minor Changes
+
+- e5a3719: Correct character motion catalog copy, add everyday and accessible movements, bind animal and object recipients, preserve literal reference names, and expose authored sequence diagnostics and discovery metadata. Existing motion IDs remain resolvable.
+- 14ef0be: `nodes.run("generate-video", …)` gains typed `frameFit`, `frameDelivery` and `endFrameUrl` fields. `frameFit` resizes a start/end frame to the model's measured output canvas before dispatch (default), and `frameDelivery` chooses frame vs bound-reference delivery (default auto, per model).
+
+### Patch Changes
+
+- Updated dependencies [ed142b9]
+- Updated dependencies [e5a3719]
+- Updated dependencies [d552b19]
+- Updated dependencies [56249e3]
+- Updated dependencies [14ef0be]
+  - @nodaro/prompts@1.21.0
+  - @nodaro/shared@3.11.0
+
 ## 2.11.0
 
 ### Minor Changes
