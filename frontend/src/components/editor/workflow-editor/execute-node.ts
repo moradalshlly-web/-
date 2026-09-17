@@ -413,6 +413,7 @@ function runProcessingNode(
 export function buildMetaAdsScrapeParams(
   data: MetaAdsScrapeNodeData,
   upstream: string | undefined,
+  opts: { readonly videoWired?: boolean } = {},
 ): Parameters<typeof metaAdsScrape>[0] {
   const mode = data.mode === "pages" ? "pages" : "search";
   const params: Parameters<typeof metaAdsScrape>[0] = {
@@ -422,6 +423,11 @@ export function buildMetaAdsScrapeParams(
     activeStatus: data.activeStatus,
     countryCode: data.countryCode,
     platforms: Array.isArray(data.platforms) ? data.platforms : undefined,
+    formats: Array.isArray(data.formats) ? data.formats : undefined,
+    featuredIndex: typeof data.featuredIndex === "number" ? data.featuredIndex : undefined,
+    // The creative video is the expensive bytes — copied into the library
+    // only when something downstream will actually consume it.
+    ingestVideo: opts.videoWired === true,
   };
   if (mode === "pages") {
     const own = splitMetaAdsPageUrls(data.pageUrls);
@@ -5101,8 +5107,9 @@ function executeNodeCore(
 
   if (node.type === "meta-ads-scrape") {
     const d = node.data as MetaAdsScrapeNodeData;
-    const { updateNodeData } = useWorkflowStore.getState();
-    const params = buildMetaAdsScrapeParams(d, inputs.prompt);
+    const { updateNodeData, edges: liveEdges } = useWorkflowStore.getState();
+    const videoWired = liveEdges.some((e) => e.source === node.id && e.sourceHandle === "video");
+    const params = buildMetaAdsScrapeParams(d, inputs.prompt, { videoWired });
 
     updateNodeData(node.id, metaAdsScrapeRunStartPatch(d));
 

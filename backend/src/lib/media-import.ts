@@ -57,6 +57,9 @@ export type MediaImportResult =
       mimeType: string
       sizeBytes: number
       filename: string
+      /** Decoded pixel size (0 when sharp could not read it). */
+      width: number
+      height: number
     }
   | { ok: false; status: 400 | 413 | 422; code: string; message: string; details?: Record<string, unknown> }
 
@@ -156,6 +159,16 @@ export async function storeImportedImageBuffer(args: {
   sourceUrl?: string
   /** Display filename; falls back to `imported-<fileId>.<ext>`. */
   filename?: string
+  /** Which surface fetched this on the user's behalf (migration 285
+   *  `assets.source` / `source_detail`) — e.g. a scraper node. */
+  source?: string
+  sourceDetail?: string
+  /** `in_library: true` shows the row in the in-editor media picker; a bulk
+   *  import (competitor creatives from a scrape) should stay OUT of the picker
+   *  until the user explicitly saves it, so it defaults to false. */
+  inLibrary?: boolean
+  /** The job that produced the bytes, for traceability + cleanup. */
+  jobId?: string
 }): Promise<MediaImportResult> {
   const { userId, body } = args
 
@@ -254,6 +267,10 @@ export async function storeImportedImageBuffer(args: {
       r2_key: r2Key,
       r2_url: publicUrl,
       upload_source: args.uploadSource,
+      ...(args.source ? { source: args.source } : {}),
+      ...(args.sourceDetail ? { source_detail: args.sourceDetail } : {}),
+      ...(args.inLibrary !== undefined ? { in_library: args.inLibrary } : {}),
+      ...(args.jobId ? { job_id: args.jobId } : {}),
       metadata: {
         ...metadata,
         thumbnail_url: thumbnailUrl,
@@ -287,5 +304,7 @@ export async function storeImportedImageBuffer(args: {
     mimeType,
     sizeBytes: buffer.length,
     filename,
+    width: typeof metadata.width === "number" ? metadata.width : 0,
+    height: typeof metadata.height === "number" ? metadata.height : 0,
   }
 }

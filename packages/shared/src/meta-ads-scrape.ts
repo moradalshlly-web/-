@@ -32,6 +32,72 @@ export function isMetaAdsPlatform(value: unknown): value is MetaAdsPlatform {
   return typeof value === "string" && (META_ADS_PLATFORMS as readonly string[]).includes(value)
 }
 
+/**
+ * Creative format, classified from the creative's measured pixels — the
+ * user's "phone vs web" question. `vertical` = Stories / Reels / mobile feed
+ * (9:16, 4:5), `square` = 1:1 (±5 %), `horizontal` = feed / web / banners
+ * (16:9, 1.91:1). One classifier for the route (node setting), the Results
+ * chips and the card, so they can never disagree.
+ */
+export const META_ADS_FORMATS = ["vertical", "square", "horizontal"] as const
+export type MetaAdsFormat = (typeof META_ADS_FORMATS)[number]
+export type MetaAdsCreativeFormat = MetaAdsFormat | "unknown"
+
+export function isMetaAdsFormat(value: unknown): value is MetaAdsFormat {
+  return typeof value === "string" && (META_ADS_FORMATS as readonly string[]).includes(value)
+}
+
+/** The featured ad index, clamped so a rerun that returned fewer ads never indexes past the end. */
+export function clampMetaAdsFeaturedIndex(stored: unknown, count: number): number {
+  if (count <= 0) return 0
+  const n = typeof stored === "number" && Number.isFinite(stored) ? Math.trunc(stored) : 0
+  return Math.min(Math.max(n, 0), count - 1)
+}
+
+export interface FeaturedMetaAdOutputs {
+  readonly text?: string
+  readonly imageUrl?: string
+  readonly videoUrl?: string
+}
+
+function urlStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : []
+}
+
+/**
+ * What the node's typed `text` / `image` / `video` handles carry: the
+ * FEATURED ad's copy (headline + body), first image (else the video poster)
+ * and first video. ONE derivation for the route's output_data, the backend
+ * saved-output hydration and the editor's extractNodeOutput, so a thumb pick
+ * re-hydrates the handles identically everywhere.
+ */
+export function featuredMetaAdOutputs(json: unknown, featuredIndex: unknown): FeaturedMetaAdOutputs {
+  if (!Array.isArray(json) || json.length === 0) return {}
+  const ad = json[clampMetaAdsFeaturedIndex(featuredIndex, json.length)]
+  if (!ad || typeof ad !== "object") return {}
+  const a = ad as Record<string, unknown>
+  const title = typeof a.title === "string" ? a.title.trim() : ""
+  const body = typeof a.text === "string" ? a.text.trim() : ""
+  const text = [title, body].filter((s) => s.length > 0).join("\n\n")
+  const imageUrl = urlStrings(a.images)[0] ?? urlStrings(a.videoPreviews)[0]
+  const videoUrl = urlStrings(a.videos)[0]
+  return {
+    ...(text ? { text } : {}),
+    ...(imageUrl ? { imageUrl } : {}),
+    ...(videoUrl ? { videoUrl } : {}),
+  }
+}
+
+export function classifyCreativeFormat(width: unknown, height: unknown): MetaAdsCreativeFormat {
+  if (typeof width !== "number" || typeof height !== "number" || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return "unknown"
+  }
+  const ratio = width / height
+  if (ratio < 0.95) return "vertical"
+  if (ratio <= 1.05) return "square"
+  return "horizontal"
+}
+
 /** Presets the config panel offers; the route accepts any integer 1..MAX_COUNT. */
 export const META_ADS_SCRAPE_COUNT_OPTIONS = [10, 20, 50, 100] as const
 export const META_ADS_SCRAPE_DEFAULT_COUNT = 20

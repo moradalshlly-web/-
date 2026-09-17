@@ -18,9 +18,10 @@ import type { MetaAdsPlatform, MetaAdsScrapeMode, MetaAdsScrapePeriod, MetaAdsSc
  * The `scrapePageAds.*` keys are literal dotted keys and apply to PAGE urls;
  * a keyword search carries its filters inside the Ad Library url instead.
  */
+/** 480 s leaves the route ~90 s of its 600 s request for classifying + storing the creatives after the scrape. */
 export const META_ADS_ACTOR = {
   apifyActorId: "curious_coder/facebook-ads-library-scraper",
-  timeoutSecs: 540,
+  timeoutSecs: 480,
 } as const
 
 const CONTEXT = "meta-ads-scrape"
@@ -295,14 +296,28 @@ interface ActorRunLike {
   defaultDatasetId: string
 }
 
+/**
+ * The actor refuses to START below this charged-results cap — it logs
+ * `"Maximum charged results" option must be atleast 10 to run this actor`,
+ * then exits SUCCEEDED with an EMPTY dataset, so a small request would come
+ * back as "no ads" with the credits already spent (live-observed 2026-09-17
+ * with count 3). The cap only bounds what the platform may charge for;
+ * `limitPerSource` still decides how many ads the actor actually fetches.
+ */
+export const META_ADS_ACTOR_MIN_CHARGED_RESULTS = 10
+
 export async function runMetaAdsScrape(args: MetaAdsScrapeArgs): Promise<MetaAdsScrapeOutput> {
   const input = buildMetaAdsActorInput(args)
   const sources = metaAdsSourceUrls(args).length
   // The platform's own ceilings, independent of our client-side wait. `timeout`
   // is the real safety: the run is killed there even if the abort below fails.
   // `maxItems` caps the charged dataset items where an actor bills per RESULT;
-  // this actor bills per EVENT, so treat it as belt-and-braces, not a spend cap.
-  const maxItems = actorLimitPerSource(args.count, args.period, args.mode) * sources
+  // this actor bills per EVENT, so treat it as belt-and-braces, not a spend cap
+  // — but never below the actor's own floor (see the constant above).
+  const maxItems = Math.max(
+    META_ADS_ACTOR_MIN_CHARGED_RESULTS,
+    actorLimitPerSource(args.count, args.period, args.mode) * sources,
+  )
 
   try {
     const client = getApifyClient()

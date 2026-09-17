@@ -10,9 +10,13 @@ import { commitReservedCreditsForJob, refundReservedCreditsForJob } from "../lib
 // completion/failure invariants stay in one place.
 import { markJobCompleted } from "../workers/shared.js"
 import { markJobFailed } from "../lib/job-failure.js"
-import { runMetaAdsScrape } from "../providers/apify/meta-ads.js"
+import { runMetaAdsScrape, type MetaAd } from "../providers/apify/meta-ads.js"
+import { classifyAndStoreMetaAdsMedia, metaAdsWithoutMedia } from "../lib/meta-ads-media.js"
 import {
+  META_ADS_FORMATS,
   META_ADS_PLATFORMS,
+  clampMetaAdsFeaturedIndex,
+  featuredMetaAdOutputs,
   META_ADS_SCRAPE_DEFAULT_COUNT,
   META_ADS_SCRAPE_DEFAULT_COUNTRY,
   META_ADS_SCRAPE_MAX_COUNT,
@@ -72,7 +76,16 @@ const commonFields = {
   countryCode,
   /** Empty / every platform = no filter (the provider treats both the same). */
   platforms: z.array(z.enum(META_ADS_PLATFORMS)).max(META_ADS_PLATFORMS.length).optional(),
+  /** Keep only ads whose primary creative has one of these formats (classified from its pixels); empty = all. May return fewer than `count`. */
+  formats: z.array(z.enum(META_ADS_FORMATS)).max(META_ADS_FORMATS.length).optional(),
+  /** Which returned ad feeds the typed text / image / video outputs (clamped). */
+  featuredIndex: z.number().int().min(0).optional(),
+  /** Copy the featured ad's video into the library too (only when its video output is wired — the expensive bytes). */
+  ingestVideo: z.boolean().optional(),
 }
+
+/** The request owns 600 s; the actor may take 480 of them. Media work never starts past this point. */
+const MEDIA_DEADLINE_MS = 570_000
 
 const searchBody = z.object({
   mode: z.literal("search"),
@@ -100,6 +113,7 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     req.raw.setTimeout(600_000)
     reply.raw.setTimeout(600_000)
+    const startedAt = Date.now()
 
     const parsed = metaAdsScrapeBody.safeParse(req.body)
     if (!parsed.success) {
@@ -135,9 +149,38 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
     const usageLogId = reservation?.usageLogId
 
     try {
-      const result = (await shouldRunOnCloud(config.APIFY_API_TOKEN))
+      const viaCloud = await shouldRunOnCloud(config.APIFY_API_TOKEN)
+      const scraped = viaCloud
         ? await scrapeViaConnection(body as Record<string, unknown>)
         : await runMetaAdsScrape(body)
+
+      // Classify every creative's format, apply the format filter, and copy
+      // the kept creatives into the user's library (durable urls) — under
+      // the request deadline, never failing the paid scrape. A cloud relay
+      // already stored them on the connected account, so only classify.
+      const scrapedAds = (Array.isArray(scraped.json) ? scraped.json : []) as MetaAd[]
+      const featuredIndex = clampMetaAdsFeaturedIndex(body.featuredIndex, scrapedAds.length)
+      const media = await classifyAndStoreMetaAdsMedia(scrapedAds, {
+        userId,
+        jobId: job.id,
+        deadlineAt: startedAt + MEDIA_DEADLINE_MS,
+        storeImages: !viaCloud,
+        storeVideoForAdIndex: body.ingestVideo && !viaCloud ? featuredIndex : undefined,
+        formats: body.formats,
+      }).catch((err: unknown) => {
+        // The media step degrades internally; this is the belt to its braces —
+        // a scrape the user already paid for never fails because the library
+        // copy did. Source urls go out instead (they expire; the UI says so).
+        req.log.warn({ err, jobId: job.id }, "[meta-ads-scrape] media step failed; returning the ads with their source urls")
+        return { ads: metaAdsWithoutMedia(scrapedAds), stats: { classified: 0, stored: 0, kept: scrapedAds.length, filteredOut: 0 } }
+      })
+      const result = {
+        json: media.ads,
+        mediaStorage: media.stats,
+        // The featured ad's typed outputs ride on output_data so the
+        // orchestrator's NodeOutput carries them (see output-extractor).
+        ...featuredMetaAdOutputs(media.ads, featuredIndex),
+      }
 
       // false = the user cancelled mid-flight and the cancel path already
       // refunded — returning the data would be a free scrape.

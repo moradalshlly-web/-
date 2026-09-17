@@ -590,6 +590,14 @@ async function executeSyncHttpNode(
     if (cursor !== undefined) body.sinceId = cursor
   }
 
+  // Meta Ads: a creative video is only copied into the user's library when
+  // its `video` output is actually wired — videos are the expensive bytes,
+  // and an unwired one would just sit in the quota. Same rule as the editor's
+  // buildMetaAdsScrapeParams.
+  if (node.type === "meta-ads-scrape" && edges) {
+    body.ingestVideo = edges.some((e) => e.source === node.id && e.sourceHandle === "video")
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     // Authenticate to the auth hook with the shared orchestrator secret — NOT req.ip,
@@ -1074,6 +1082,8 @@ export function buildSyncHttpBody(
         activeStatus: data.activeStatus,
         countryCode: data.countryCode,
         platforms: Array.isArray(data.platforms) ? data.platforms : undefined,
+        formats: Array.isArray(data.formats) ? data.formats : undefined,
+        featuredIndex: typeof data.featuredIndex === "number" ? data.featuredIndex : undefined,
         userId: ctx.userId,
       }
       if (mode === "pages") {

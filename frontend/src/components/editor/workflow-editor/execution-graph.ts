@@ -1,6 +1,6 @@
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
-import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle } from "@nodaro/shared";
+import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs } from "@nodaro/shared";
 import { getParameterPromptHint } from "@nodaro/prompts"
 import type {
   WorkflowNode,
@@ -673,11 +673,17 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     return data.generatedText as string | undefined;
   }
   if (type === "meta-ads-scrape") {
-    // Single json handle (the normalized ad array) — mirrors web-scrape below.
-    const d = node.data as { generatedJson?: unknown };
+    // `json` = the whole ad array (stringified for text consumers, mirrors
+    // web-scrape below); `text` / `image` / `video` = the FEATURED ad's copy
+    // and creatives, derived by the shared helper the backend uses too.
+    const d = node.data as { generatedJson?: unknown; featuredIndex?: unknown };
     if (sourceHandle === "json" || !sourceHandle) {
       return d.generatedJson === undefined ? undefined : JSON.stringify(d.generatedJson);
     }
+    const featured = featuredMetaAdOutputs(d.generatedJson, d.featuredIndex);
+    if (sourceHandle === "text") return featured.text;
+    if (sourceHandle === "image") return featured.imageUrl;
+    if (sourceHandle === "video") return featured.videoUrl;
     return undefined;
   }
   if (type === "web-scrape") {

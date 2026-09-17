@@ -3,7 +3,7 @@
 import { useT } from "@/lib/i18n"
 import { memo, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react"
 import { Position, type NodeProps } from "@xyflow/react"
-import { Braces, ChevronLeft, ChevronRight, ExternalLink, Play, Search } from "lucide-react"
+import { Braces, ChevronLeft, ChevronRight, ExternalLink, Film, Image as ImageIcon, Play, Search, Type } from "lucide-react"
 import { BaseNode } from "./base-node"
 import { RunNodeButton } from "./run-node-button"
 import { EditableNodeLabel } from "./editable-node-label"
@@ -14,6 +14,7 @@ import { getVideoProxyUrl } from "@/lib/api"
 import { META_ADS_PLATFORMS, META_ADS_SCRAPE_DEFAULT_COUNT, splitMetaAdsPageUrls } from "@nodaro/shared"
 import type { MetaAdsScrapeNodeData } from "@/types/nodes"
 import { isValidWebScrapeConnection, DATA_HANDLE_COLORS } from "@/lib/data-handles"
+import { HANDLE_COLORS } from "@/lib/handle-colors"
 import { cn } from "@/lib/utils"
 import { elapsedLabel, relativeTime } from "./web-scrape-run-state"
 import { MetaMark } from "./meta-ads-mark"
@@ -23,6 +24,7 @@ import {
   deriveMetaAdsScrapeCardState,
   metaAdDateRange,
   metaAdDomain,
+  metaAdFormat,
   metaAdHeadline,
   metaAdInitial,
   metaAdLink,
@@ -33,15 +35,23 @@ import {
   metaAdRunDays,
   metaAdVideoUrl,
   metaAdsActiveCount,
+  metaAdsFormatLabelKey,
   metaAdsScrapeItems,
+  metaAdsVisibleIndexes,
 } from "./meta-ads-scrape-run-state"
 
 // Same `in` semantics as Web Scrape: a keyword or a page list arrives as text.
 const ACCEPTS_IN = (t: string) => isValidWebScrapeConnection("in", t)
 
+// Four stacked outputs on the right (28px step, like video-analysis): the
+// whole ad array as JSON, then the FEATURED ad's copy, image and video.
+// Keep this array and the HandleWithPopover set below in lockstep.
 const HANDLES = [
   { id: "in", type: "target" as const, position: Position.Left, customStyle: { top: "calc(100% - 24px)", left: "-29px" }, external: true },
   { id: "json", type: "source" as const, position: Position.Right, customStyle: { top: "24px", right: "-29px" }, external: true },
+  { id: "text", type: "source" as const, position: Position.Right, customStyle: { top: "52px", right: "-29px" }, external: true },
+  { id: "image", type: "source" as const, position: Position.Right, customStyle: { top: "80px", right: "-29px" }, external: true },
+  { id: "video", type: "source" as const, position: Position.Right, customStyle: { top: "108px", right: "-29px" }, external: true },
 ] as const
 
 /** Design handoff: 480 before the first run, 680 once there is a featured ad to show. */
@@ -193,6 +203,7 @@ function FeaturedAd({ ad }: { readonly ad: Record<string, unknown> }) {
       ? counts.videos === 1 ? t("cfgext.metaAdsVideoOne") : t("cfgext.metaAdsVideoCount", { count: counts.videos })
       : counts.images === 1 ? t("cfgext.metaAdsImageOne") : t("cfgext.metaAdsImageCount", { count: counts.images })
   const platforms = metaAdPlatforms(ad)
+  const formatKey = metaAdsFormatLabelKey(metaAdFormat(ad))
   const days = metaAdRunDays(ad)
   const link = metaAdLink(ad)
   const domain = metaAdDomain(ad)
@@ -272,8 +283,13 @@ function FeaturedAd({ ad }: { readonly ad: Record<string, unknown> }) {
         <div className="line-clamp-5 whitespace-pre-line text-[13px] leading-[1.55] text-[var(--meta-ads-muted)]">{body}</div>
 
         <div className="mt-auto flex flex-col gap-2">
-          {platforms.length > 0 && (
+          {(platforms.length > 0 || formatKey) && (
             <div className="flex flex-wrap gap-1.5">
+              {formatKey && (
+                <span className="rounded-md bg-[var(--meta-ads-info-tint)] px-[7px] py-[3px] text-[10.5px] font-bold tracking-[.04em] text-[var(--meta-ads-info)]">
+                  {t(formatKey)}
+                </span>
+              )}
               {platforms.map((p) => (
                 <Chip key={p}>{metaAdPlatformLabel(p)}</Chip>
               ))}
@@ -295,32 +311,38 @@ function FeaturedAd({ ad }: { readonly ad: Record<string, unknown> }) {
 
 function ThumbStrip({
   items,
+  visible,
   featured,
   onPick,
 }: {
   readonly items: ReadonlyArray<Record<string, unknown>>
+  /** Indexes into `items` the view filter shows, in order. */
+  readonly visible: readonly number[]
   readonly featured: number
   readonly onPick: (index: number) => void
 }) {
   return (
     <div className="flex gap-1.5 overflow-hidden">
-      {items.slice(0, MAX_THUMBS).map((ad, i) => (
-        <button
-          key={typeof ad.adArchiveId === "string" ? ad.adArchiveId : i}
-          type="button"
-          className={cn(
-            "nodrag nopan relative h-[52px] min-w-0 flex-1 overflow-hidden rounded-lg transition-opacity",
-            i === featured ? "opacity-100 ring-2 ring-inset ring-[#FF0073]" : "opacity-[var(--meta-ads-thumb-dim)] hover:opacity-90",
-          )}
-          onMouseDown={stop}
-          onClick={(e) => {
-            stop(e)
-            onPick(i)
-          }}
-        >
-          <MetaAdMedia src={metaAdPreviewUrl(ad)} initial={metaAdInitial(ad)} className="h-full w-full" initialClassName="text-[13px]" />
-        </button>
-      ))}
+      {visible.slice(0, MAX_THUMBS).map((i) => {
+        const ad = items[i]
+        return (
+          <button
+            key={typeof ad.adArchiveId === "string" ? ad.adArchiveId : i}
+            type="button"
+            className={cn(
+              "nodrag nopan relative h-[52px] min-w-0 flex-1 overflow-hidden rounded-lg transition-opacity",
+              i === featured ? "opacity-100 ring-2 ring-inset ring-[#FF0073]" : "opacity-[var(--meta-ads-thumb-dim)] hover:opacity-90",
+            )}
+            onMouseDown={stop}
+            onClick={(e) => {
+              stop(e)
+              onPick(i)
+            }}
+          >
+            <MetaAdMedia src={metaAdPreviewUrl(ad)} initial={metaAdInitial(ad)} className="h-full w-full" initialClassName="text-[13px]" />
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -341,7 +363,19 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
 
   const items = metaAdsScrapeItems(nodeData.generatedJson)
   const showResults = state.kind === "success" && items.length > 0
-  const featured = clampFeaturedIndex(nodeData.featuredIndex, items.length)
+  // The Results tab's format chips narrow what the strip and pager walk; the
+  // featured index still addresses the FULL array (it feeds the outputs), so
+  // a featured ad outside the current view falls back to the first visible.
+  const visible = metaAdsVisibleIndexes(items, nodeData.viewFormat)
+  const storedFeatured = clampFeaturedIndex(nodeData.featuredIndex, items.length)
+  const featured = visible.includes(storedFeatured) ? storedFeatured : (visible[0] ?? storedFeatured)
+  const featuredPos = Math.max(0, visible.indexOf(featured))
+  // The outputs read `featuredIndex` without knowing about the view filter,
+  // so whenever the card had to fall back, write the fallback back: the ad on
+  // the card and the ad on the wires are always the same one.
+  useEffect(() => {
+    if (showResults && featured !== storedFeatured) updateNodeData(id, { featuredIndex: featured })
+  }, [showResults, featured, storedFeatured, id, updateNodeData])
 
   // The card has two very different boxes (480px empty state, 680px featured
   // ad). A node keeps whatever width/height React Flow last stored for it, so
@@ -365,6 +399,12 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
   }, [layoutKey, id])
   const featuredAd = showResults ? items[featured] : undefined
   const setFeatured = (index: number) => updateNodeData(id, { featuredIndex: (index + items.length) % items.length })
+  /** ‹ › walk the VISIBLE ads (wrapping), not the raw array. */
+  const stepFeatured = (delta: number) => {
+    if (visible.length === 0) return
+    const next = visible[(featuredPos + delta + visible.length) % visible.length]
+    setFeatured(next)
+  }
   const count = nodeData.count ?? META_ADS_SCRAPE_DEFAULT_COUNT
   const status = nodeData.activeStatus ?? "active"
 
@@ -440,7 +480,7 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
           {showResults && featuredAd && (
             <div className={cn("flex flex-col gap-3", state.kind === "success" && state.stale ? "opacity-60" : "")}>
               <FeaturedAd ad={featuredAd} />
-              {items.length > 1 && <ThumbStrip items={items} featured={featured} onPick={setFeatured} />}
+              {visible.length > 1 && <ThumbStrip items={items} visible={visible} featured={featured} onPick={setFeatured} />}
             </div>
           )}
 
@@ -478,13 +518,13 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
                   onMouseDown={stop}
                   onClick={(e) => {
                     stop(e)
-                    setFeatured(featured - 1)
+                    stepFeatured(-1)
                   }}
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
                 <span className="min-w-[52px] text-center text-[12px] font-bold tabular-nums text-[var(--meta-ads-text-2)]">
-                  {featured + 1} / {items.length}
+                  {featuredPos + 1} / {visible.length}
                 </span>
                 <button
                   type="button"
@@ -493,7 +533,7 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
                   onMouseDown={stop}
                   onClick={(e) => {
                     stop(e)
-                    setFeatured(featured + 1)
+                    stepFeatured(1)
                   }}
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -539,6 +579,9 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
       </BaseNode>
       <HandleWithPopover nodeId={id} nodeType="meta-ads-scrape" handleId="in" type="target" position={Position.Left} label={t("cfgext.metaAdsInHandle")} color={DATA_HANDLE_COLORS.text} icon={<Search />} side="left" top="calc(100% - 24px)" accepts={ACCEPTS_IN} />
       <HandleWithPopover nodeId={id} nodeType="meta-ads-scrape" handleId="json" type="source" position={Position.Right} label="JSON" color={DATA_HANDLE_COLORS.json} icon={<Braces />} side="right" top="24px" />
+      <HandleWithPopover nodeId={id} nodeType="meta-ads-scrape" handleId="text" type="source" position={Position.Right} label={t("cfgext.metaAdsOutText")} color={DATA_HANDLE_COLORS.text} icon={<Type />} side="right" top="52px" />
+      <HandleWithPopover nodeId={id} nodeType="meta-ads-scrape" handleId="image" type="source" position={Position.Right} label={t("cfgext.metaAdsOutImage")} color={HANDLE_COLORS.image} icon={<ImageIcon />} side="right" top="80px" />
+      <HandleWithPopover nodeId={id} nodeType="meta-ads-scrape" handleId="video" type="source" position={Position.Right} label={t("cfgext.metaAdsOutVideo")} color={HANDLE_COLORS.video} icon={<Film />} side="right" top="108px" />
     </div>
   )
 }

@@ -31,8 +31,15 @@ The Meta Ads node searches Meta's public Ad Library — the same archive you can
 | Ad status | select | Active | `Active`, `Inactive` or `All` |
 | Country | select | All countries | `ALL`, or a 2-letter country code (e.g. `US`) to restrict where the ads were delivered |
 | Platforms | toggles | none (no filter) | Keep only ads delivered on the selected platforms — Facebook, Instagram, Audience Network, Messenger, WhatsApp, Threads. No selection (or all six) means no filter |
+| Creative format | toggles | none (no filter) | Keep only ads whose creative is `vertical` (phone — Stories, Reels, mobile feed; width/height below 0.95), `square` (within ±5 % of 1:1) or `horizontal` (web / feed — above 1.05), classified from the creative's actual pixels. Fewer ads than requested may come back |
 
-After a run the node card features one ad — creative preview, advertiser, headline, copy, platforms, run dates and call-to-action — with a thumbnail strip and ‹ › to move between the returned ads; the **Results** tab lists them all (List / Grid / Raw JSON) and clicking a row features it on the card.
+After a run the node card features one ad — creative preview, advertiser, headline, copy, format, platforms, run dates and call-to-action — with a thumbnail strip and ‹ › to move between the returned ads; the **Results** tab lists them all (List / Grid / Raw JSON), filters them by format, and clicking a row features it on the card.
+
+## Creatives in your library
+
+Meta's image and video links are signed and expire within days, so after every run the node copies each returned ad's images and video posters into your library (they count towards your storage; they stay out of the media picker until you press **Save to library** on an ad). The featured ad's video is copied too, but only when the node's **video** output is wired — videos are the expensive bytes. When storage is full, or on an install without media storage, the ads keep their original Meta links instead, and the run still succeeds.
+
+Each ad carries a `format` and a `creatives` array (`kind`, `url`, `sourceUrl`, `width`, `height`, `format`, `assetId`, `stored`) alongside the `images` / `videos` / `videoPreviews` urls, which point at your library once stored.
 
 ## Results
 
@@ -40,13 +47,24 @@ After a run, the node card peeks at the first few ads (advertiser — first word
 
 A run that returns nothing, or fails, keeps the previous good results on the node; changing any input marks those results as stale until the next run.
 
-Image and video URLs point at Meta's CDN and expire after a while — download or generate from them in the same workflow rather than storing the links.
+Creatives that could not be copied into your library (storage full, or an install without media storage) keep their Meta CDN links, which expire after a while — download or generate from them in the same workflow rather than storing those links.
 
 ## Inputs & Outputs
 
 **Inputs:** `in` (optional) — upstream text: a keyword in `search` mode, or Page URLs (one per line) in `pages` mode.
 
-**Outputs:** `json` — an array of ads, each shaped as:
+**Outputs:**
+
+| Handle | Carries |
+|--------|---------|
+| `json` | the whole array of ads (below) — fan out with a List node |
+| `text` | the featured ad's headline + body copy |
+| `image` | the featured ad's first image (or its video poster) |
+| `video` | the featured ad's first video |
+
+The featured ad is the one shown on the card (thumbnail strip, ‹ ›, or a Results row click). A workflow run features the first returned ad; "Run from here" reuses the ad featured on the saved node without scraping again.
+
+The `json` handle emits an array of ads, each shaped as:
 
 ```json
 {

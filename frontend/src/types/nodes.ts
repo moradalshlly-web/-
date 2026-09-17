@@ -5262,8 +5262,12 @@ export type MetaAdsScrapeNodeData = {
   countryCode?: string
   /** Meta `publisher_platform` codes to keep; empty/absent = every platform */
   platforms?: string[]
-  /** Which ad the card features (thumb strip / ‹ › / Results row click); clamped at read time */
+  /** Creative formats to keep (vertical / square / horizontal); empty/absent = every format. Fewer ads than `count` may come back. */
+  formats?: string[]
+  /** Which ad the card features (thumb strip / ‹ › / Results row click); clamped at read time. Feeds the text / image / video outputs. */
   featuredIndex?: number
+  /** Results-side view filter by creative format ("all" or a format); the card's thumb strip follows it */
+  viewFormat?: string
   // execution state — same #765 contract as WebScrapeNodeData
   executionStatus?: "idle" | "running" | "completed" | "failed"
   errorMessage?: string
@@ -6492,7 +6496,7 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     category: "input",
     creditCost: 20,
     inputs: ["in"],
-    outputs: ["json"],
+    outputs: ["json", "text", "image", "video"],
     defaultData: { label: "Meta Ads", mode: "search", query: "", count: 20, period: "30d", activeStatus: "active", countryCode: "ALL" } as MetaAdsScrapeNodeData,
   },
   {

@@ -4258,8 +4258,12 @@ export async function metaAdsScrape(params: {
   activeStatus?: import("@nodaro/shared").MetaAdsScrapeStatus
   countryCode?: string
   platforms?: string[]
+  formats?: string[]
+  featuredIndex?: number
+  /** Copy the featured ad's video into the library too — set only when the node's video output is wired. */
+  ingestVideo?: boolean
   workflowId?: string
-}): Promise<{ jobId: string; json: unknown }> {
+}): Promise<{ jobId: string; json: unknown; text?: string; imageUrl?: string; videoUrl?: string; mediaStorage?: unknown }> {
   return apiJson("/v1/meta-ads-scrape", {
     body: params,
     workflowId: true,

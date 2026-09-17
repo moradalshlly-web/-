@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import {
+  META_ADS_FORMATS,
   META_ADS_PLATFORMS,
   META_ADS_SCRAPE_DEFAULT_COUNT,
   META_ADS_SCRAPE_DEFAULT_COUNTRY,
@@ -27,9 +28,11 @@ import type { MetaAdsScrapeNodeData } from "@/types/nodes"
 import { META_ADS_COUNTRIES } from "@/lib/meta-ads-countries"
 import { relativeTime } from "@/components/nodes/web-scrape-run-state"
 import { MetaAdMedia } from "@/components/nodes/meta-ad-media"
+import { SaveToLibraryButton } from "@/components/editor/save-to-library-button"
 import {
   clampFeaturedIndex,
   metaAdDateRange,
+  metaAdFormat,
   metaAdHeadline,
   metaAdInitial,
   metaAdLink,
@@ -40,8 +43,11 @@ import {
   metaAdPreviewUrl,
   metaAdRunDays,
   metaAdStartLabel,
+  metaAdStoredCreatives,
   metaAdsActiveCount,
+  metaAdsFormatLabelKey,
   metaAdsScrapeItems,
+  metaAdsVisibleIndexes,
 } from "@/components/nodes/meta-ads-scrape-run-state"
 import { MappableField } from "./mappable-field"
 import type { ConfigProps } from "./types"
@@ -117,6 +123,11 @@ function MetaAdsScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapF
   const mode: MetaAdsScrapeMode = data.mode === "pages" ? "pages" : "search"
   const count = typeof data.count === "number" ? data.count : META_ADS_SCRAPE_DEFAULT_COUNT
   const selectedPlatforms = Array.isArray(data.platforms) ? data.platforms.filter((p): p is string => typeof p === "string") : []
+  const selectedFormats = Array.isArray(data.formats) ? data.formats.filter((f): f is string => typeof f === "string") : []
+  const toggleFormat = (code: string) => {
+    const next = selectedFormats.includes(code) ? selectedFormats.filter((f) => f !== code) : [...selectedFormats, code]
+    onUpdate({ formats: next })
+  }
   const periodLabel: Record<MetaAdsScrapePeriod, string> = {
     "24h": t("cfgext.metaAdsPeriod24h"),
     "7d": t("cfgext.metaAdsPeriod7d"),
@@ -290,6 +301,36 @@ function MetaAdsScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapF
         </p>
       </div>
 
+      <div className="flex flex-col gap-2">
+        <SectionLabel>{t("cfgext.metaAdsFormat")}</SectionLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {META_ADS_FORMATS.map((code) => {
+            const on = selectedFormats.includes(code)
+            const key = metaAdsFormatLabelKey(code)
+            return (
+              <button
+                key={code}
+                type="button"
+                onClick={() => toggleFormat(code)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12px] font-bold transition-colors",
+                  on
+                    ? "border border-[var(--meta-ads-accent-border)] bg-[var(--meta-ads-accent-tint)] text-[#FF0073]"
+                    : "border border-dashed border-[var(--meta-ads-empty-border)] text-[var(--meta-ads-muted)] hover:text-[var(--meta-ads-text)]",
+                )}
+              >
+                {on ? null : <span aria-hidden>+</span>}
+                {key ? t(key) : code}
+                {on ? <X className="h-3 w-3" /> : null}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-[11.5px] leading-normal text-[var(--meta-ads-faint)]">{t("cfgext.metaAdsFormatHint")}</p>
+      </div>
+
+      <p className="text-[11.5px] leading-normal text-[var(--meta-ads-faint)]">{t("cfgext.metaAdsOutputsHelp")}</p>
+
       <div className="flex flex-col gap-2 rounded-[14px] border border-[var(--meta-ads-info-card-border)] bg-[var(--meta-ads-info-card)] px-4 py-3.5">
         <span className="text-[13px] font-extrabold text-[var(--meta-ads-info)]">{t("cfgext.metaAdsReturnsTitle")}</span>
         <div className="grid grid-cols-2 gap-x-3.5 gap-y-1.5 text-[12px] font-semibold text-[var(--meta-ads-text-2)]">
@@ -318,7 +359,19 @@ export function MetaAdsScrapeResultsTab({
   const [view, setView] = useState<ResultsView>("list")
   const [openIndex, setOpenIndex] = useState(-1)
   const items = metaAdsScrapeItems(data.generatedJson)
-  const featured = clampFeaturedIndex(data.featuredIndex, items.length)
+  const storedFeatured = clampFeaturedIndex(data.featuredIndex, items.length)
+  // The format chips live on the node (`viewFormat`) so the card's thumb
+  // strip and pager follow the same filter. The featured index addresses the
+  // FULL array (it feeds the outputs), so switching chips snaps it into view.
+  const viewFormat = typeof data.viewFormat === "string" ? data.viewFormat : "all"
+  const visible = metaAdsVisibleIndexes(items, viewFormat)
+  const featured = visible.includes(storedFeatured) ? storedFeatured : (visible[0] ?? storedFeatured)
+  const formatCount = (code: string) => items.filter((a) => metaAdFormat(a) === code).length
+  const pickFormat = (code: string) => {
+    const next = metaAdsVisibleIndexes(items, code)
+    const snap = !next.includes(storedFeatured) && next.length > 0 ? { featuredIndex: next[0] } : {}
+    onUpdate({ viewFormat: code, ...snap })
+  }
   const json = data.generatedJson === undefined ? "" : JSON.stringify(data.generatedJson, null, 2)
   const sizeKb = json ? (new Blob([json]).size / 1024).toFixed(1) : "0"
 
@@ -384,18 +437,46 @@ export function MetaAdsScrapeResultsTab({
         <span>{sizeKb} KB</span>
       </div>
 
+      {/* Creative-format chips: filter what the list / grid / card strip show. */}
+      <div className="flex flex-wrap gap-1.5">
+        {(["all", ...META_ADS_FORMATS] as const).map((code) => {
+          const on = viewFormat === code
+          const key = code === "all" ? "cfgext.metaAdsFormatAll" : metaAdsFormatLabelKey(code)
+          const n = code === "all" ? items.length : formatCount(code)
+          return (
+            <button
+              key={code}
+              type="button"
+              onClick={() => pickFormat(code)}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors",
+                on
+                  ? "border-[var(--meta-ads-accent-border)] bg-[var(--meta-ads-accent-tint)] text-[#FF0073]"
+                  : "border-[var(--meta-ads-border)] text-[var(--meta-ads-muted)] hover:text-[var(--meta-ads-text)]",
+              )}
+            >
+              {key ? t(key) : code} <span className="tabular-nums opacity-70">{n}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {view === "json" && (
         <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted/40 p-2 text-[10px]">{json}</pre>
       )}
 
+      {view !== "json" && visible.length === 0 && (
+        <p className="py-6 text-center text-[12px] font-semibold text-[var(--meta-ads-muted)]">{t("cfgext.metaAdsFormatNoMatch")}</p>
+      )}
+
       {view === "grid" && (
         <div className="grid max-h-[60vh] grid-cols-3 gap-2 overflow-y-auto pe-1">
-          {items.map((ad, i) => (
+          {visible.map((i) => items[i]).map((ad, k) => (
             <button
-              key={typeof ad.adArchiveId === "string" ? ad.adArchiveId : i}
+              key={typeof ad.adArchiveId === "string" ? ad.adArchiveId : visible[k]}
               type="button"
-              onClick={() => onUpdate({ featuredIndex: i })}
-              className={cn("flex flex-col gap-1 rounded-xl p-1 text-start transition-colors hover:bg-[var(--meta-ads-chip)]", i === featured && "ring-2 ring-[#FF0073]")}
+              onClick={() => onUpdate({ featuredIndex: visible[k] })}
+              className={cn("flex flex-col gap-1 rounded-xl p-1 text-start transition-colors hover:bg-[var(--meta-ads-chip)]", visible[k] === featured && "ring-2 ring-[#FF0073]")}
             >
               <MetaAdMedia src={metaAdPreviewUrl(ad)} initial={metaAdInitial(ad)} className="h-[120px] w-full rounded-lg" initialClassName="text-[22px]">
                 {metaAdMediaCounts(ad).videos > 0 && (
@@ -412,12 +493,15 @@ export function MetaAdsScrapeResultsTab({
 
       {view === "list" && (
         <div className="flex max-h-[60vh] flex-col overflow-y-auto pe-1">
-          {items.map((ad, i) => {
+          {visible.map((i) => {
+            const ad = items[i]
             const open = openIndex === i
             const link = metaAdLink(ad)
             const days = metaAdRunDays(ad)
             const cta = typeof ad.ctaText === "string" && ad.ctaText.trim() ? ad.ctaText.trim() : t("cfgext.metaAdsNoCta")
-            const meta = [metaAdStartLabel(ad), mediaLabel(ad), metaAdPlatformsShort(ad)].filter(Boolean)
+            const formatKey = metaAdsFormatLabelKey(metaAdFormat(ad))
+            const stored = metaAdStoredCreatives(ad)
+            const meta = [metaAdStartLabel(ad), formatKey ? t(formatKey) : "", mediaLabel(ad), metaAdPlatformsShort(ad)].filter(Boolean)
             return (
               <div key={typeof ad.adArchiveId === "string" ? ad.adArchiveId : i} className="border-b border-[var(--meta-ads-divider)]">
                 <button
@@ -454,6 +538,19 @@ export function MetaAdsScrapeResultsTab({
                         ))}
                       </div>
                     )}
+                    {/* Creatives already copied into the library can be promoted to the media picker; external ones say so. */}
+                    <div className="flex flex-wrap items-center gap-2 text-[11.5px] font-semibold text-[var(--meta-ads-muted)]">
+                      {stored.length > 0 ? (
+                        stored.map((c) => (
+                          <span key={c.assetId} className="flex items-center gap-1">
+                            <SaveToLibraryButton url={c.url} type={c.kind} compact />
+                            <span>{c.kind === "video" ? t("cfgext.metaAdsOutVideo") : t("cfgext.metaAdsOutImage")}</span>
+                          </span>
+                        ))
+                      ) : (
+                        <span>{t("cfgext.metaAdsNotStored")}</span>
+                      )}
+                    </div>
                     <div className="flex items-center justify-between gap-2 text-[12px] font-bold">
                       <span className="text-[var(--meta-ads-muted)]">
                         {metaAdDateRange(ad)}

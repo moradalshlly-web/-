@@ -1,4 +1,5 @@
 import type { MetaAdsScrapeNodeData } from "@/types/nodes"
+import { META_ADS_FORMATS, clampMetaAdsFeaturedIndex, type MetaAdsCreativeFormat } from "@nodaro/shared"
 import {
   applyWebScrapeFailure,
   applyWebScrapeResult,
@@ -174,11 +175,49 @@ export function metaAdsActiveCount(items: ReadonlyArray<Record<string, unknown>>
   return items.filter((a) => a.isActive === true).length
 }
 
-/** The featured ad index, clamped so a rerun that returned fewer ads never indexes past the end. */
+/** The featured ad index, clamped so a rerun that returned fewer ads never indexes past the end (shared with the backend's saved-output hydration). */
 export function clampFeaturedIndex(stored: unknown, count: number): number {
-  if (count <= 0) return 0
-  const n = typeof stored === "number" && Number.isFinite(stored) ? Math.trunc(stored) : 0
-  return Math.min(Math.max(n, 0), count - 1)
+  return clampMetaAdsFeaturedIndex(stored, count)
+}
+
+/** The ad's creative format as classified by the route; anything else reads as unknown. */
+export function metaAdFormat(item: Record<string, unknown>): MetaAdsCreativeFormat {
+  const f = item.format
+  return typeof f === "string" && (META_ADS_FORMATS as readonly string[]).includes(f) ? (f as MetaAdsCreativeFormat) : "unknown"
+}
+
+/** Indexes (into the full array) of the ads a view filter shows; "all" / unset shows everything. */
+export function metaAdsVisibleIndexes(items: ReadonlyArray<Record<string, unknown>>, viewFormat: unknown): number[] {
+  const all = items.map((_, i) => i)
+  if (typeof viewFormat !== "string" || viewFormat === "all" || !(META_ADS_FORMATS as readonly string[]).includes(viewFormat)) return all
+  return all.filter((i) => metaAdFormat(items[i]) === viewFormat)
+}
+
+export interface MetaAdStoredCreative {
+  readonly kind: "image" | "video"
+  readonly url: string
+  readonly assetId: string
+}
+
+/** Creatives the route copied into the user's library (durable, with an asset row) — the ones a "save to library" can act on. */
+/** Localized creative-format label; "unknown" renders nothing on the card. */
+export function metaAdsFormatLabelKey(
+  format: string,
+): "cfgext.metaAdsFormatVertical" | "cfgext.metaAdsFormatSquare" | "cfgext.metaAdsFormatHorizontal" | null {
+  if (format === "vertical") return "cfgext.metaAdsFormatVertical"
+  if (format === "square") return "cfgext.metaAdsFormatSquare"
+  if (format === "horizontal") return "cfgext.metaAdsFormatHorizontal"
+  return null
+}
+
+export function metaAdStoredCreatives(item: Record<string, unknown>): MetaAdStoredCreative[] {
+  if (!Array.isArray(item.creatives)) return []
+  return item.creatives.flatMap((c) => {
+    if (!c || typeof c !== "object") return []
+    const r = c as Record<string, unknown>
+    if (r.stored !== true || typeof r.assetId !== "string" || typeof r.url !== "string") return []
+    return [{ kind: r.kind === "video" ? "video" : "image", url: r.url, assetId: r.assetId }]
+  })
 }
 
 /** Fingerprint of every field that changes what a run would fetch. */
@@ -192,6 +231,7 @@ export function metaAdsScrapeFingerprint(d: MetaAdsScrapeNodeData): string {
     d.activeStatus ?? "",
     d.countryCode ?? "",
     Array.isArray(d.platforms) ? [...d.platforms].sort() : [],
+    Array.isArray(d.formats) ? [...d.formats].sort() : [],
   ])
 }
 
@@ -207,7 +247,8 @@ export function metaAdsScrapeRunStartPatch(d: MetaAdsScrapeNodeData): Record<str
 /** A fresh payload starts at the first ad (the previous featured index may not exist any more). */
 export function applyMetaAdsScrapeResult(json: unknown): Record<string, unknown> {
   const patch = applyWebScrapeResult(json)
-  return patch.lastRunOutcome === "success" ? { ...patch, featuredIndex: 0 } : patch
+  // A fresh payload starts consistent: first ad featured, no view filter.
+  return patch.lastRunOutcome === "success" ? { ...patch, featuredIndex: 0, viewFormat: "all" } : patch
 }
 export const applyMetaAdsScrapeFailure = applyWebScrapeFailure
 

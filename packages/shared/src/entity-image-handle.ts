@@ -48,11 +48,27 @@ const AGGREGATE_LANE_EFFECTIVE_TYPE: Readonly<Record<string, string>> = {
 }
 
 /**
+ * Meta Ads scraper: besides its `json` handle it emits the FEATURED ad's
+ * copy, creative image and creative video on typed handles. Each behaves as
+ * the canonical single-media producer of that type — `text` maps to
+ * `combine-text` (ONE string, not a list), so it reaches prompt inputs but
+ * not the list consumers.
+ */
+const META_ADS_HANDLE_EFFECTIVE_TYPE: Readonly<Record<string, string>> = {
+  text: "combine-text",
+  image: "upload-image",
+  video: "upload-video",
+}
+
+/**
  * The effective output TYPE a given source handle emits. Returns the raw node
  * type for every `(type, handle)` pair EXCEPT:
  *   - an entity `image` handle → `"upload-image"` (a plain image producer);
  *   - an aggregate (group / collect) lane handle → the plain producer of that
- *     lane's media type (see AGGREGATE_LANE_EFFECTIVE_TYPE).
+ *     lane's media type (see AGGREGATE_LANE_EFFECTIVE_TYPE);
+ *   - a Meta Ads `text` / `image` / `video` handle → the plain producer of
+ *     that type (see META_ADS_HANDLE_EFFECTIVE_TYPE); its `json` handle keeps
+ *     the raw type.
  * Pure — safe for both frontend and backend.
  */
 export function resolveEffectiveSourceType(
@@ -64,6 +80,10 @@ export function resolveEffectiveSourceType(
   }
   if (AGGREGATE_LANE_SOURCE_TYPES.has(rawSourceType ?? "")) {
     const effective = AGGREGATE_LANE_EFFECTIVE_TYPE[sourceHandleId ?? ""]
+    if (effective) return effective
+  }
+  if (rawSourceType === "meta-ads-scrape") {
+    const effective = META_ADS_HANDLE_EFFECTIVE_TYPE[sourceHandleId ?? ""]
     if (effective) return effective
   }
   return rawSourceType ?? ""
