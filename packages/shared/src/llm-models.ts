@@ -413,6 +413,22 @@ export const LLM_MODELS: readonly LlmModelDef[] = [
     maxOutputTokens: 16384,
     reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
     supportsTemperature: false,
+    // SERVED COLLAPSED, on the astra precedent (2026-09-17). The 2026-07-14
+    // verification that KIE's non-stream responses endpoint serves the GPT-5.6
+    // family reliably no longer holds: a live call — a recast continuity
+    // review, ~3k tokens, `reasoning.effort: high`, `text.format: json_schema`
+    // — came back `500 {"error":{"type":"server_error"}}` / "Server exception,
+    // please try again later". Same endpoint family, same dialect and the same
+    // signature astra was measured on (12 calls: non-stream 2/6, streaming
+    // 5/6; a schema-less non-stream call 500'd too, so the lane is the trigger
+    // and not the schema). ONE sighting here rather than a fresh 12-call probe
+    // — the precedent is strong and the flag is cheap to reverse.
+    //
+    // THE COST: SSE does not reliably carry `credits_consumed`, so this model's
+    // provider cost becomes the rate-table estimate instead of the billed
+    // figure. That is the price of a lane that answers, and it is the same
+    // trade astra already makes.
+    kieCollapseStream: true,
   },
   {
     id: "gpt-6-astra",

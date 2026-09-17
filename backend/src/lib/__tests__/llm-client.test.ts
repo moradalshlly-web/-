@@ -490,7 +490,10 @@ describe("reasoningEffort wire mapping + temperature strip", () => {
 
   it("responses format: sends reasoning.effort, never temperature (gpt-5.6-sol)", async () => {
     const { llmComplete } = await import("../llm-client.js")
-    fetchMock.mockResolvedValue(jsonResponse({ output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }], usage: { input_tokens: 1, output_tokens: 1 } }))
+    // SSE, not a JSON body: sol is served collapsed too since 2026-09-17
+    // (`kieCollapseStream` — see its catalog row). The reasoning/temperature
+    // contract under test is unchanged; only the wire it rides is.
+    fetchMock.mockImplementation(() => Promise.resolve(responsesSse("ok", { input_tokens: 1, output_tokens: 1 })))
     await llmComplete({ modelId: "gpt-5.6-sol", system: "s", messages: [{ role: "user", content: "hi" }], temperature: 0.7, reasoningEffort: "max" })
     const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)
     expect(body.reasoning).toEqual({ effort: "max" })
@@ -856,28 +859,30 @@ describe("kieCollapseStream: gpt-6-astra served over the streaming wire", () => 
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it("leaves gpt-5.6-sol on the non-streaming lane — the FLAG drives dispatch, not the format", async () => {
+  it("collapses gpt-5.6-sol, and leaves gpt-5.6-luna non-streaming — the FLAG drives dispatch, not the format", async () => {
     const { llmComplete } = await import("../llm-client.js")
-    fetchMock.mockImplementation(() =>
-      Promise.resolve(
-        jsonResponse({
-          output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }],
-          usage: { input_tokens: 5, output_tokens: 1 },
-        }),
-      ),
-    )
 
-    const res = await llmComplete({ modelId: "gpt-5.6-sol", system: "s", messages: [{ role: "user", content: "hi" }] })
-
-    // Same kieFormat "responses", same /codex path — and still stream:false,
-    // because gpt-5.6-sol does not declare kieCollapseStream. KIE serves the
-    // GPT-5.6 family non-stream reliably (live-verified 2026-07-14); collapsing
-    // it too would trade real `credits_consumed` for a rate-table estimate for
-    // no reliability gain.
+    // SOL: collapsed since 2026-09-17. The 2026-07-14 "the GPT-5.6 family is
+    // fine non-stream" reading was retired by a live 500 (see the catalog row).
+    fetchMock.mockImplementation(() => Promise.resolve(responsesSse("ok", { input_tokens: 5, output_tokens: 1 })))
+    const sol = await llmComplete({ modelId: "gpt-5.6-sol", system: "s", messages: [{ role: "user", content: "hi" }] })
     expect(fetchMock.mock.calls[0][0]).toBe("https://api.kie.ai/codex/v1/responses")
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)
-    expect(body.stream).toBe(false)
-    expect(res.text).toBe("ok")
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body).stream).toBe(true)
+    expect(sol.text).toBe("ok")
+
+    // LUNA: same dialect, same path, still non-stream — which is the half of
+    // this that matters. The flag is per MODEL; a sibling does not inherit it.
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }],
+        usage: { input_tokens: 5, output_tokens: 1 },
+      }),
+    )
+    const luna = await llmComplete({ modelId: "gpt-5.6-luna", system: "s", messages: [{ role: "user", content: "hi" }] })
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.kie.ai/codex/v1/responses")
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body).stream).toBe(false)
+    expect(luna.text).toBe("ok")
   })
 })
 
