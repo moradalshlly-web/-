@@ -8,10 +8,22 @@ import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
-import { ALL_CAPTION_STYLES, isKineticCaptionStyle, SUPPORTED_FONT_NAMES } from "@nodaro/shared"
+import { ALL_CAPTION_STYLES, isKineticCaptionStyle, SUPPORTED_FONT_NAMES, normalizeTranscript } from "@nodaro/shared"
 import { findSegmentOverlap } from "../providers/video/caption-segments.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
+
+/** Parse a stringified Transcript before normalization so this ingress behaves
+ *  identically to the DAG payload-builder (which parses the stringified json
+ *  handle value). A non-string passes through; unparseable → undefined → an
+ *  empty (zero-word) transcript → 400. */
+function safeParseJsonForTranscript(v: string): unknown {
+  try {
+    return JSON.parse(v)
+  } catch {
+    return undefined
+  }
+}
 
 // A text caption source must carry a visible glyph — whitespace-only text
 // synthesises to zero words (splitWithLeadingSpace drops it) and would leave the
@@ -72,6 +84,14 @@ export const addCaptionsBody = z.object({
   videoUrl: safeUrlSchema,
   text: nonBlankText.optional(),
   captions: z.array(captionInputSchema).optional(),
+  // A wired upstream Transcript (from `transcribe` or `apply-edl`'s json
+  // handle) used as the caption source. Object or JSON string — normalized +
+  // word-checked at ingress below. The mapper (captions-mappers.ts) reshapes
+  // its words into the caption list the kinetic burn-in expects.
+  transcript: z.unknown().optional(),
+  // Word-level (one caption per word — karaoke/word-highlight) vs grouped lines.
+  // Only meaningful with a wired `transcript`; defaults to word-level.
+  wordLevel: z.boolean().optional(),
   auto_transcribe: z.boolean().optional(),
   transcribe_provider: z.enum(["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]).optional(),
   style: z.enum(ALL_CAPTION_STYLES).optional().default("subtitle"),
@@ -92,10 +112,11 @@ export const addCaptionsBody = z.object({
   userId: z.string().uuid().optional(),
 }).superRefine((v, ctx) => {
   const hasSegments = !!(v.segments && v.segments.length > 0)
+  const hasTranscript = v.transcript !== undefined && v.transcript !== null
   // Need at least one caption source. auto_transcribe defaults to undefined,
   // which the worker treats as true — so absent flag = transcribe attempted.
   // With segments, a segment that carries its OWN text/captions is self-sourced.
-  const hasTopLevelSource = !!(v.text || (v.captions && v.captions.length > 0) || v.auto_transcribe !== false)
+  const hasTopLevelSource = !!(v.text || (v.captions && v.captions.length > 0) || hasTranscript || v.auto_transcribe !== false)
   const everySegmentSelfSourced = hasSegments && v.segments!.every((s) => s.text || (s.captions && s.captions.length > 0))
   if (!hasTopLevelSource && !everySegmentSelfSourced) {
     ctx.addIssue({
@@ -130,6 +151,18 @@ export const addCaptionsBody = z.object({
         })
       }
     }
+    // A wired Transcript produces TIMED captions — only the Remotion kinetic
+    // path honours per-caption timing. The static `subtitle` (FFmpeg drawtext)
+    // path burns one fixed overlay, so it would silently drop the transcript.
+    // Reject with a clean 400 rather than coerce the style (a silent look
+    // change), mirroring the look-lever rule above.
+    if (hasTranscript) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["transcript"],
+        message: `a wired transcript renders as timed captions and needs a kinetic caption style (word-highlight, karaoke, tiktok-words, word-pop, bouncy); the "${v.style}" style ignores it`,
+      })
+    }
   }
 })
 
@@ -149,6 +182,21 @@ export async function addCaptionsRoutes(app: FastifyInstance) {
       return reply.status(401).send({
         error: { code: "unauthorized", message: "Authentication required" },
       })
+    }
+
+    // A wired transcript that normalizes to zero words has nothing to caption.
+    // Fail at ingress (apply-edl's rule) so we never reserve credits for a
+    // render that would die producing an empty caption plan.
+    if (parsed.data.transcript !== undefined && parsed.data.transcript !== null) {
+      const raw =
+        typeof parsed.data.transcript === "string"
+          ? safeParseJsonForTranscript(parsed.data.transcript)
+          : parsed.data.transcript
+      if (normalizeTranscript(raw).words.length === 0) {
+        return reply.status(400).send({
+          error: { code: "invalid_transcript", message: "transcript has no words to caption" },
+        })
+      }
     }
 
     const modelIdentifier = buildAddCaptionsCreditId(parsed.data)

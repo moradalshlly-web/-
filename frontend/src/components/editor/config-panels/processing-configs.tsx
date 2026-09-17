@@ -1,6 +1,6 @@
 "use client"
 
-import { useLocalizeNodeLabel } from "@/lib/i18n/labels"
+import { useLocalizeNodeLabel, useLocalizeHandleLabel } from "@/lib/i18n/labels"
 import { useT, tx, type MessageKey } from "@/lib/i18n"
 import { useState, useEffect, Suspense } from "react"
 import { lazyWithRetry } from "@/lib/lazy-with-retry"
@@ -339,6 +339,8 @@ export function CombineVideosConfig({ data, onUpdate, sources }: ConfigProps<Com
 
 export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsData>) {
   const t = useT()
+  const localizeHandle = useLocalizeHandleLabel()
+  const isKinetic = data.style !== "subtitle"
   function handleStyleChange(next: AddCaptionsData["style"]) {
     const isKineticNext = next !== "subtitle"
     const update: Partial<AddCaptionsData> = { style: next }
@@ -402,10 +404,30 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
         <Label htmlFor="caption-color">{t("proccfg.color")}</Label>
         <Input id="caption-color" type="color" value={data.color} onChange={(e) => onUpdate({ color: e.target.value })} />
       </div>
-      {data.style !== "subtitle" && (
-        <div className="text-xs text-muted-foreground">
-          {t("proccfg.kineticStylesRenderViaRemotion5", { handle: "captions" })}
-        </div>
+      {isKinetic && (
+        <>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="captions-word-level" className="text-xs font-medium">
+                {t("proccfg.wordLevelCaptions")}
+              </Label>
+              <Switch
+                id="captions-word-level"
+                // Default ON (word-level) — matches the mapper default. Store
+                // `false` only when turned off, so an untouched node stays
+                // byte-identical to a pre-feature workflow.
+                checked={data.wordLevel !== false}
+                onCheckedChange={(v) => onUpdate({ wordLevel: v ? undefined : false })}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {t("proccfg.wordLevelCaptionsHint")}
+            </p>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {t("proccfg.kineticStylesRenderViaRemotion5", { handle: localizeHandle("Transcript") })}
+          </div>
+        </>
       )}
     </div>
   )

@@ -3746,6 +3746,11 @@ export type AddCaptionsData = {
   // NEW
   autoTranscribe?: boolean
   transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
+  // A Transcript wired into the `transcript` json handle is the caption source
+  // (from transcribe or apply-edl's remapped json). wordLevel picks word-level
+  // captions (one per word — karaoke/word-highlight) vs grouped lines; only
+  // meaningful with a kinetic style + a wired transcript.
+  wordLevel?: boolean
 }
 
 export type ResizeVideoData = {
@@ -8074,7 +8079,7 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     label: "Add Captions",
     category: "processing",
     creditCost: 2,
-    inputs: ["in"],
+    inputs: ["in", "transcript"],
     outputs: ["video"],
     defaultData: { label: "Add Captions", style: "subtitle", position: "bottom", fontSize: 24, color: "#ffffff", fieldMappings: {} },
   },

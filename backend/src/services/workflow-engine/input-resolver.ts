@@ -1404,6 +1404,17 @@ function routeOutput(
     }
   }
 
+  // --- add-captions `transcript` (json) input: routed by targetHandle BEFORE
+  // source-type routing. apply-edl is a DYNAMIC media producer, so without this
+  // gate its stringified Transcript would fall into inputs.videoUrl. `output` is
+  // the value getPrimaryOutput narrowed for the json handle (stringified
+  // Transcript). The `in` (video) handle keeps its normal video routing below.
+  // Mirrors the frontend node-input-resolver add-captions branch. ---
+  if (targetType === "add-captions" && edge.targetHandle === "transcript") {
+    inputs.transcript = output
+    return
+  }
+
   // --- Handle-specific routing takes priority for named input slots ---
   // These MUST be checked before source-type routing, otherwise source-type
   // handlers (e.g., generate-image → imageUrl) return early and these are

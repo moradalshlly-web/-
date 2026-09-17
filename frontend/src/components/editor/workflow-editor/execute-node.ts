@@ -7375,7 +7375,14 @@ function executeNodeCore(
           d.color,
           d.backgroundColor as string | undefined,
           ctx.userId,
-          { autoTranscribe: d.autoTranscribe, transcribeProvider: d.transcribeProvider },
+          {
+            autoTranscribe: d.autoTranscribe,
+            transcribeProvider: d.transcribeProvider,
+            // Transcript wired into the `transcript` handle (resolver output);
+            // wordLevel is node data. Matches the DAG payload-builder.
+            transcript: inputs.transcript,
+            wordLevel: d.wordLevel,
+          },
         ),
       "generatedVideoUrl",
       "Add Captions",

@@ -5978,6 +5978,13 @@ export function buildPayload(
         videoUrl: resolvedInputs.videoUrl || data.videoUrl,
         text: !isCaptionArray ? (resolvedInputs.prompt || resolveRefs(data.text as string | undefined, refMap)) : undefined,
         captions: isCaptionArray ? captionsValue : (resolvedInputs.captions ?? undefined),
+        // A Transcript wired into the `transcript` json handle (from transcribe
+        // or apply-edl's remapped json) — the worker reshapes it into the
+        // caption list via captions-mappers.transcriptToCaptions. Stringified on
+        // the handle; falls back to inline node data. wordLevel is a node-data
+        // field (word-level captions vs grouped lines).
+        transcript: resolvedInputs.transcript ?? data.transcript,
+        wordLevel: data.wordLevel as boolean | undefined,
         // Node data stores camelCase (AddCaptionsData.autoTranscribe / .transcribeProvider);
         // the worker payload uses snake_case. Reading data.auto_transcribe (snake) was
         // always undefined → an explicit autoTranscribe:false and any transcribeProvider

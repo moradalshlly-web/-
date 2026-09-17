@@ -235,7 +235,9 @@ export const TYPED_HANDLE_IDS: ReadonlySet<string> = new Set([
   "scene",
   //   - apply-edl typed inputs (registered in TARGET_HANDLE_ACCEPTS): `edl` +
   //     `transcript` accept only JSON producers (transcript already listed
-  //     above), `sources` accepts media producers. Drift mirror of the registry.
+  //     above), `sources` accepts media producers. add-captions also registers a
+  //     `transcript` (JSON) input — same handle id, no new entry needed here.
+  //     Drift mirror of the registry.
   "edl", "sources",
 ])
 /** Subset that requires consumer-type dispatch — the dev-time warning in

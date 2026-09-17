@@ -363,7 +363,12 @@ const BASE_TARGET_HANDLE_ACCEPTS: Record<string, ReadonlyArray<TargetHandleEntry
   "extract-frame":      [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "loop-video":         [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "resize-video":       [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
-  "add-captions":       [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
+  // add-captions: the video to caption, plus an optional Transcript (json) —
+  // from transcribe or apply-edl's remapped json — burned in as timed captions.
+  "add-captions":       [
+    { handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO },
+    { handleId: "transcript", label: "Transcript", accepts: ACCEPTS_JSON },
+  ],
   "extract-audio":      [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "remove-audio":       [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "trim-audio":         [{ handleId: "in", label: "Audio", accepts: ACCEPTS_AUDIO }],

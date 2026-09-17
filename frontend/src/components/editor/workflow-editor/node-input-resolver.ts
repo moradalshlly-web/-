@@ -1642,6 +1642,16 @@ export function resolveNodeInputs(
       }
     }
 
+    // add-captions `transcript` (json) input — routed by targetHandle before the
+    // source-type chain (apply-edl is a dynamic media producer, so its
+    // stringified Transcript would otherwise land in inputs.videoUrl). The `in`
+    // (video) handle keeps its normal video routing below. Mirror of the backend
+    // input-resolver add-captions branch.
+    if (node.type === "add-captions" && srcEdge.targetHandle === "transcript") {
+      inputs.transcript = output;
+      continue;
+    }
+
     // --- Handle-specific routing takes priority (matches backend) ---
     if (node.type === "face-swap") {
       if (srcEdge.targetHandle === "face") {
