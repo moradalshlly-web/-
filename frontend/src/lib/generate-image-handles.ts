@@ -113,6 +113,16 @@ export const TEXT_PRODUCER_TYPES: ReadonlySet<string> = new Set([
   "telegram-channel-feed",
 ])
 
+/** Source node types whose output is structured JSON that both runtimes
+ *  stringify into a consumer's PROMPT (backend output-extractor `web-scrape`
+ *  branch → the "treat as prompt" fallback; frontend node-input-resolver
+ *  `web-scrape` branch). Accepted on prompt-typed slots and the LLM node's
+ *  instructions handle — NOT on `references` / `text` / `transcript` handles,
+ *  where the resolvers route by handle into media-URL arrays or verbatim
+ *  text fields that a JSON blob would break. Kept apart from
+ *  TEXT_PRODUCER_TYPES on purpose: that set widens every text handle at once. */
+export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set(["web-scrape"])
+
 /** Source node types whose output image feeds References (mirrors backend
  *  `imageSourceTypes` in payload-builder.ts:1328). */
 export const IMAGE_PRODUCER_TYPES: ReadonlySet<string> = new Set([

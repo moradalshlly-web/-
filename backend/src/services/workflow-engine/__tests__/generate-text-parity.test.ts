@@ -140,10 +140,10 @@ describe("backend parity net — llm-chat ∈ every backend set the merge touche
     expect(aiWriter.items).toBeUndefined()
   })
 
-  it("node-registry: NODE_REGISTRY exposes llm-chat as 'Generate Text' / text output (and NOT ai-writer)", () => {
+  it("node-registry: NODE_REGISTRY exposes llm-chat as 'Prompt' (renamed from 'Generate Text', Sept 2026) / text output (and NOT ai-writer)", () => {
     const entry = NODE_REGISTRY.find((n) => n.type === NODE)
     expect(entry).toBeDefined()
-    expect(entry?.label).toBe("Generate Text")
+    expect(entry?.label).toBe("Prompt")
     expect(entry?.outputType).toBe("text")
     expect(NODE_REGISTRY.some((n) => n.type === "ai-writer")).toBe(false)
   })

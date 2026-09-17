@@ -8834,13 +8834,13 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
   // LLM Chat
   {
     type: "llm-chat",
-    label: "Generate Text",
+    label: "Prompt",
     category: "ai",
     creditCost: 3,
     inputs: ["prompt", "references", "system-prompt"],
     outputs: ["text", "items"],
     defaultData: {
-      label: "Generate Text",
+      label: "Prompt",
       systemPrompt: "",
       userInput: "",
       temperature: 0.7,
