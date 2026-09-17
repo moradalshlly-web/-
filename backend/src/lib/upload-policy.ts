@@ -39,6 +39,11 @@ export type UploadLane =
   | "upload-handoff"
   | "retained-image"
   | "retained-video"
+  // Server-side import of a user-supplied media URL (streams backend→R2). Like
+  // retained-*, the bytes pass through us — but a multi-GB import streams to
+  // disk rather than buffering, so the policy sees metadata (not a full buffer)
+  // until a streaming-policy variant exists.
+  | "media-import"
 
 export interface UploadCheckInput {
   readonly kind: UploadKind
