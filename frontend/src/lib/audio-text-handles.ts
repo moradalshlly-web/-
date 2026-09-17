@@ -19,7 +19,7 @@
  */
 
 import { AUDIO_PRODUCER_TYPES, VIDEO_PRODUCER_TYPES, DYNAMIC_PRODUCER_TYPES } from "@nodaro/shared"
-import { TEXT_PRODUCER_TYPES, IMAGE_PRODUCER_TYPES } from "./generate-image-handles"
+import { TEXT_PRODUCER_TYPES, IMAGE_PRODUCER_TYPES, JSON_PRODUCER_TYPES } from "./generate-image-handles"
 
 /** Helpers that mirror `ffmpeg-handles.ts`'s ACCEPTS_VIDEO / ACCEPTS_AUDIO:
  *  every typed audio/video/text handle below accepts a producer of the
@@ -72,7 +72,11 @@ const ACCEPTS_PROMPT = (
   sourceType: string,
   isVisualPicker: (t: string) => boolean,
 ): boolean =>
-  ACCEPTS_TEXT_OR_DYN(sourceType) || PICKER_FOR_PROMPT(sourceType, isVisualPicker)
+  ACCEPTS_TEXT_OR_DYN(sourceType) ||
+  // Structured JSON (Web Scrape) arrives stringified in the prompt on both
+  // engines — see JSON_PRODUCER_TYPES.
+  JSON_PRODUCER_TYPES.has(sourceType) ||
+  PICKER_FOR_PROMPT(sourceType, isVisualPicker)
 
 /** Sources accepted on an `audio-style` target handle. The runtime
  *  consumers (`audio-style-hints.ts`, `sound-aggregator.ts`,
@@ -530,7 +534,9 @@ export function isValidLlmChatConnection(
         sourceType === "generate-mask"
       )
     case "system-prompt":
-      return ACCEPTS_TEXT_OR_DYN(sourceType)
+      // Routed by handle into systemPrompt on both engines, so stringified
+      // JSON is as usable here as on the prompt slot.
+      return ACCEPTS_TEXT_OR_DYN(sourceType) || JSON_PRODUCER_TYPES.has(sourceType)
     default:
       return false
   }

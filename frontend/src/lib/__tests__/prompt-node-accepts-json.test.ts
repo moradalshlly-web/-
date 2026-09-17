@@ -15,6 +15,14 @@ describe("Prompt node accepts JSON producers on its prompt handle", () => {
     expect(isValidLlmChatConnection("prompt", "web-scrape", notAPicker)).toBe(true)
   })
 
+  it("web-scrape → system-prompt (Instructions) is a valid connection — routed by handle on both engines", () => {
+    expect(isValidLlmChatConnection("system-prompt", "web-scrape", notAPicker)).toBe(true)
+  })
+
+  it("refuses web-scrape on References: both resolvers push a text-typed reference into referenceImageUrls, which the LLM route rejects", () => {
+    expect(isValidLlmChatConnection("references", "web-scrape", notAPicker)).toBe(false)
+  })
+
   it("still refuses media producers on the prompt handle", () => {
     expect(isValidLlmChatConnection("prompt", "generate-image", notAPicker)).toBe(false)
     expect(isValidLlmChatConnection("prompt", "upload-video", notAPicker)).toBe(false)
