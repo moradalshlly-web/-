@@ -1,7 +1,7 @@
 ---
 node_type: add-captions
-generated_at: 2026-09-17T19:30:13.536Z
-generated_from: 2c2a2252b
+generated_at: 2026-09-17T21:28:25.414Z
+generated_from: 5fbf9f883
 ---
 
 # Add Captions
@@ -69,6 +69,7 @@ generated_from: 2c2a2252b
 - `highlight_color`
 - `uppercase`
 - `position_y`
+- `segments`
 <!-- AUTO-GEN:END mcp-call -->
 
 ## Common gotchas

@@ -5949,6 +5949,17 @@ export function buildPayload(
         fontSize: data.fontSize,
         color: data.color,
         backgroundColor: data.backgroundColor,
+        // Kinetic look levers + per-segment captions — pass through so an
+        // orchestrated (DAG) run matches a single-node run (audit-dag parity).
+        // Undefined for canvas nodes that don't carry them; honoured for
+        // authored/imported node data.
+        fontFamily: data.fontFamily,
+        strokeColor: data.strokeColor,
+        strokeWidth: data.strokeWidth,
+        highlightColor: data.highlightColor,
+        uppercase: data.uppercase,
+        positionY: data.positionY,
+        segments: data.segments,
         usageLogId,
       })
     }

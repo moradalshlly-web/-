@@ -232,6 +232,17 @@ const SCENE3D_REVIEW_UNUSABLE_BYTES = 60
 // base = 1_867 B, which preserves the same 1_287 B of headroom the list had
 // before this raise.
 const CAPTION_LOOK_LEVERS_BYTES = 1_867
+//
+// RAISED 2026-09-18 by the add-captions PER-SEGMENT captions argument and nothing
+// else. `add_captions` gained a `segments[]` argument — a time range plus the
+// full style/look override set plus its own optional text/captions — so one call
+// can apply different caption treatments to different parts of a video (a large
+// top intro, then a one-word bottom body). It is one nested-object argument on
+// one existing tool; no tool was added, so the membership fixture does NOT move,
+// and add_captions is 6_197 B, well under the 8_192 B per-tool budget. Measured
+// by this suite: 352_955 total − 351_005 base = 1_950 B, which preserves the
+// same 941 B of headroom the list had before this raise.
+const CAPTION_SEGMENTS_BYTES = 1_950
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -247,7 +258,8 @@ export const TOOL_WIRE_BUDGET = {
     SCENE3D_RETAINED_FAILURE_BYTES +
     SCENE3D_MECHANICAL_PASSES_BYTES +
     SCENE3D_REVIEW_UNAVAILABLE_BYTES +
-    CAPTION_LOOK_LEVERS_BYTES,
+    CAPTION_LOOK_LEVERS_BYTES +
+    CAPTION_SEGMENTS_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

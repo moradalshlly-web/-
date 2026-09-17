@@ -9,8 +9,15 @@ import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/re
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
 import { ALL_CAPTION_STYLES, isKineticCaptionStyle, SUPPORTED_FONT_NAMES } from "@nodaro/shared"
+import { findSegmentOverlap } from "../providers/video/caption-segments.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
+
+// A text caption source must carry a visible glyph — whitespace-only text
+// synthesises to zero words (splitWithLeadingSpace drops it) and would leave the
+// render with no captions, failing plan validation AFTER credits reserve. Reject
+// it as a clean 400 instead.
+const nonBlankText = z.string().min(1).refine((t) => /\S/.test(t), { message: "text must contain a non-whitespace character" })
 
 const captionInputSchema = z.object({
   text: z.string(),
@@ -24,9 +31,35 @@ const captionInputSchema = z.object({
   confidence: z.number().min(0).max(1).nullable().default(null),
 })
 
+// One caption SEGMENT: a time range with optional style/look overrides (each
+// inherits the top-level value when omitted) and optional own words (`text` or
+// `captions[]`; falls back to the shared transcript filtered to the range).
+// A segmented render is entirely Remotion, so any `style` (incl. subtitle) and
+// any look lever is valid on a segment.
+const captionSegmentInputSchema = z.object({
+  startMs: z.number().min(0),
+  endMs: z.number().min(0),
+  style: z.enum(ALL_CAPTION_STYLES).optional(),
+  position: z.enum(["bottom", "top", "center"]).optional(),
+  fontSize: z.number().min(12).max(200).optional(),
+  color: z.string().optional(),
+  backgroundColor: z.string().optional(),
+  fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+  strokeColor: z.string().optional(),
+  strokeWidth: z.number().min(0).max(40).optional(),
+  highlightColor: z.string().optional(),
+  uppercase: z.boolean().optional(),
+  positionY: z.number().min(0).max(100).optional(),
+  text: nonBlankText.optional(),
+  captions: z.array(captionInputSchema).optional(),
+}).refine((s) => s.endMs > s.startMs, { message: "segment endMs must be greater than startMs" })
+
 function buildAddCaptionsCreditId(body: unknown): string {
   if (!body || typeof body !== "object") return "add-captions"
-  const style = (body as Record<string, unknown>).style
+  const b = body as Record<string, unknown>
+  // Per-segment captions always render via Remotion, same as a kinetic style.
+  if (Array.isArray(b.segments) && b.segments.length > 0) return "add-captions:kinetic"
+  const style = b.style
   if (typeof style === "string" && isKineticCaptionStyle(style)) return "add-captions:kinetic"
   return "add-captions"
 }
@@ -37,7 +70,7 @@ function buildAddCaptionsCreditId(body: unknown): string {
 // dropping them (a silent no-op is the failure this guards against).
 export const addCaptionsBody = z.object({
   videoUrl: safeUrlSchema,
-  text: z.string().min(1).optional(),
+  text: nonBlankText.optional(),
   captions: z.array(captionInputSchema).optional(),
   auto_transcribe: z.boolean().optional(),
   transcribe_provider: z.enum(["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]).optional(),
@@ -53,20 +86,33 @@ export const addCaptionsBody = z.object({
   highlightColor: z.string().optional(),
   uppercase: z.boolean().optional(),
   positionY: z.number().min(0).max(100).optional(),
+  // Optional per-segment captions: apply DIFFERENT treatments to time ranges of
+  // the same video in one call (e.g. a large top intro, then a bottom body).
+  segments: z.array(captionSegmentInputSchema).min(1).optional(),
   userId: z.string().uuid().optional(),
 }).superRefine((v, ctx) => {
+  const hasSegments = !!(v.segments && v.segments.length > 0)
   // Need at least one caption source. auto_transcribe defaults to undefined,
   // which the worker treats as true — so absent flag = transcribe attempted.
-  const hasSource = v.text || (v.captions && v.captions.length > 0) || v.auto_transcribe !== false
-  if (!hasSource) {
+  // With segments, a segment that carries its OWN text/captions is self-sourced.
+  const hasTopLevelSource = !!(v.text || (v.captions && v.captions.length > 0) || v.auto_transcribe !== false)
+  const everySegmentSelfSourced = hasSegments && v.segments!.every((s) => s.text || (s.captions && s.captions.length > 0))
+  if (!hasTopLevelSource && !everySegmentSelfSourced) {
     ctx.addIssue({
       code: "custom",
-      message: "Provide text, captions, or set auto_transcribe (default true for kinetic styles)",
+      message: "Provide text, captions, auto_transcribe, or give each segment its own text/captions",
     })
   }
-  // Look levers only apply to the Remotion kinetic path. `style` is already
-  // defaulted to "subtitle" here, so an unset style rejects a stray look lever.
-  if (!isKineticCaptionStyle(v.style)) {
+  // Segments must be non-overlapping (each renders its own overlay; overlapping
+  // ranges would draw two captions at once).
+  if (hasSegments) {
+    const overlap = findSegmentOverlap(v.segments!)
+    if (overlap) ctx.addIssue({ code: "custom", path: ["segments"], message: overlap })
+  }
+  // Top-level look levers only apply to the Remotion kinetic path. With segments
+  // the whole render is Remotion (so any style + look is fine); without them the
+  // static `subtitle` (FFmpeg) path can't honour a look lever, so reject it.
+  if (!hasSegments && !isKineticCaptionStyle(v.style)) {
     const looks: Array<[string, unknown]> = [
       ["fontFamily", v.fontFamily],
       ["strokeColor", v.strokeColor],

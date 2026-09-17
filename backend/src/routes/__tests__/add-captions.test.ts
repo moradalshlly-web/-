@@ -95,3 +95,85 @@ describe("addCaptionsBody — look levers gate on kinetic style", () => {
     expect(r.success).toBe(false)
   })
 })
+
+describe("addCaptionsBody — per-segment captions", () => {
+  it("accepts non-overlapping segments with per-segment style/position/look + own text", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      auto_transcribe: false,
+      segments: [
+        { startMs: 0, endMs: 3000, style: "subtitle", position: "top", fontSize: 96, uppercase: true, strokeColor: "#000000", strokeWidth: 8, text: "Same face, every shot. No re-prompting." },
+        { startMs: 3000, endMs: 12000, style: "word-pop", position: "bottom", fontSize: 48, uppercase: true, text: "Studio. Drift. Not once." },
+      ],
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("rejects overlapping segments", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      auto_transcribe: false,
+      segments: [
+        { startMs: 0, endMs: 4000, text: "a" },
+        { startMs: 3000, endMs: 8000, text: "b" },
+      ],
+    })
+    expect(r.success).toBe(false)
+    expect(issuePaths(r)).toContain("segments")
+  })
+
+  it("rejects a segment whose endMs is not after startMs", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      auto_transcribe: false,
+      segments: [{ startMs: 3000, endMs: 3000, text: "x" }],
+    })
+    expect(r.success).toBe(false)
+  })
+
+  it("allows a top-level look lever with segments present (segmented render is all Remotion, so no subtitle rejection)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      // style defaults to subtitle; with segments the top-level uppercase is a
+      // default for segments, not a rejected FFmpeg-path lever.
+      uppercase: true,
+      segments: [{ startMs: 0, endMs: 3000, text: "hi" }],
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("requires a source: rejects self-unsourced segments with no shared transcript", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      auto_transcribe: false, // no shared transcript
+      segments: [
+        { startMs: 0, endMs: 3000, text: "has text" },
+        { startMs: 3000, endMs: 6000 }, // no own text/captions AND no shared source
+      ],
+    })
+    expect(r.success).toBe(false)
+  })
+
+  it("accepts self-unsourced segments when a shared transcript is available", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      // auto_transcribe defaults to attempted → shared transcript available.
+      segments: [{ startMs: 0, endMs: 3000 }],
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("rejects whitespace-only segment text (would synthesise to zero words → render fail)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      auto_transcribe: false,
+      segments: [{ startMs: 0, endMs: 3000, text: "   " }],
+    })
+    expect(r.success).toBe(false)
+  })
+
+  it("rejects whitespace-only top-level text", () => {
+    const r = addCaptionsBody.safeParse({ videoUrl: VIDEO, style: "word-pop", text: "\t \n" })
+    expect(r.success).toBe(false)
+  })
+})

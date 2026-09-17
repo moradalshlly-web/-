@@ -51,6 +51,32 @@ Instead of `auto_transcribe`, you can pass a `captions[]` array. For the **kinet
 | `timestampMs` | no (default null) | The word timestamp, used by `tiktok-words` token timing |
 | `confidence` | no (default null) | Transcription confidence — metadata, ignored by rendering |
 
+### Per-segment captions (API / MCP)
+
+Apply **different caption treatments to different time ranges of the same video in one call** — e.g. a large uppercase phrase at the top for the intro, then one word at a time at the bottom for the body — by passing `segments[]`. When `segments` is present the whole render goes through the animated engine (so any `style`, including `subtitle`, and any look lever is valid on a segment).
+
+Each segment:
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `start_ms` / `end_ms` | yes | The time range the segment covers. Segments must **not overlap**. |
+| `style`, `position`, `font_size`, `color`, `background_color`, `font_family`, `stroke_color`, `stroke_width`, `highlight_color`, `uppercase`, `position_y` | no | Style/look overrides; each **inherits the top-level value** when omitted |
+| `text` or `captions[]` | no | The segment's own words. If omitted, it uses the shared `captions[]`/`auto_transcribe` **filtered to its range**. `captions[]` timings are **absolute video-timeline ms** (not relative to the segment) — a word outside the segment's own range is not shown. |
+
+Example — the intro/body split:
+
+```json
+{
+  "video_url": "…",
+  "segments": [
+    { "start_ms": 0,    "end_ms": 3000,  "style": "subtitle", "position": "top",    "font_size": 96, "uppercase": true, "stroke_color": "#000000", "stroke_width": 8, "text": "Same face, every shot. No re-prompting." },
+    { "start_ms": 3000, "end_ms": 20000, "style": "word-pop", "position": "bottom", "font_size": 48, "uppercase": true }
+  ]
+}
+```
+
+Per-segment captions render through the animated engine, so they bill at the kinetic rate.
+
 ### Position Options
 
 - **bottom** — Lower third of the frame (most common)

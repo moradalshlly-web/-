@@ -36,6 +36,7 @@ import { transcribe, type TranscribeProvider } from "../../providers/audio/trans
 import { detectSilence } from "../../providers/audio/silence-detect.js"
 import { config } from "../../lib/config.js"
 import { syntheticCaptionsFromText } from "../../providers/audio/captions-mappers.js"
+import { resolveCaptionSegments, type CaptionSegmentInput } from "../../providers/video/caption-segments.js"
 import {
   commitJobCredits,
   shouldSaveJobResult,
@@ -485,11 +486,14 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
     fontSize?: number
     color?: string
     backgroundColor?: string
+    segments?: CaptionSegmentInput[]
   }
   const style = data.style ?? "subtitle"
-  console.log(`[worker] add-captions ${ctx.jobId} style=${style}`)
+  const hasSegments = !!(data.segments && data.segments.length > 0)
+  console.log(`[worker] add-captions ${ctx.jobId} style=${style}${hasSegments ? ` segments=${data.segments!.length}` : ""}`)
 
-  if (isKineticCaptionStyle(style)) {
+  // Per-segment captions always render via Remotion (each segment its own style).
+  if (hasSegments || isKineticCaptionStyle(style)) {
     return dispatchKineticCaptions(job, ctx, data)
   }
   if (style !== "subtitle") {
@@ -531,6 +535,7 @@ async function dispatchKineticCaptions(
     highlightColor?: string
     uppercase?: boolean
     positionY?: number
+    segments?: CaptionSegmentInput[]
   },
 ): Promise<void> {
   const fps = 30
@@ -538,8 +543,15 @@ async function dispatchKineticCaptions(
   let height = 1080
   let videoDurationSeconds = 0
 
+  // Per-segment captions: the shared transcript is only needed for segments that
+  // don't carry their own text/captions. If every segment is self-sourced, skip
+  // transcription entirely.
+  const hasSegments = !!(data.segments && data.segments.length > 0)
+  const someSegmentNeedsShared =
+    hasSegments && data.segments!.some((s) => !(s.text || (s.captions && s.captions.length > 0)))
   // Probe + transcribe in parallel — both depend only on data.videoUrl
-  const needTranscribe = !data.captions?.length && data.auto_transcribe !== false
+  const needTranscribe =
+    !data.captions?.length && data.auto_transcribe !== false && (!hasSegments || someSegmentNeedsShared)
 
   // THE SAME THREE-WAY LADDER handleTranscribe uses (workers/handlers/audio-ai.ts),
   // for the same reason (#761): transcription calls a vendor client straight
@@ -628,13 +640,41 @@ async function dispatchKineticCaptions(
   } else if (data.text) {
     const fallbackEndMs = videoDurationSeconds > 0 ? videoDurationSeconds * 1000 : 5000
     captions = syntheticCaptionsFromText(data.text, { startMs: 0, endMs: fallbackEndMs })
+  } else if (hasSegments) {
+    // No shared transcript needed — every segment carries its own words.
+    captions = []
   } else {
     throw new Error("Kinetic style requires captions, text, or auto_transcribe")
   }
 
+  // Per-segment captions: resolve each segment to its own words + merged style.
+  // The composition renders these instead of the top-level captions/style.
+  const resolvedSegments = hasSegments
+    ? resolveCaptionSegments(captions, data.segments!, {
+        style: data.style ?? "subtitle",
+        position: (data.position as "top" | "center" | "bottom" | undefined) ?? "bottom",
+        fontSize: data.fontSize ?? 32,
+        color: data.color ?? "#ffffff",
+        backgroundColor: data.backgroundColor,
+        fontFamily: data.fontFamily,
+        strokeColor: data.strokeColor,
+        strokeWidth: data.strokeWidth,
+        highlightColor: data.highlightColor,
+        uppercase: data.uppercase,
+        positionY: data.positionY,
+      })
+    : undefined
+
   await setJobProgress(job, ctx.jobId, 30)
 
-  const lastCaptionEndMs = captions[captions.length - 1]?.endMs ?? 0
+  // burnCaptionsPlanSchema requires a non-empty top-level `captions`; the
+  // composition ignores it when segments are present, so fall back to the
+  // segments' own words when there is no shared transcript.
+  const planCaptions =
+    captions.length > 0 ? captions : (resolvedSegments?.flatMap((s) => s.captions) ?? captions)
+
+  const segmentsLastEndMs = resolvedSegments?.reduce((m, s) => Math.max(m, s.endMs), 0) ?? 0
+  const lastCaptionEndMs = Math.max(captions[captions.length - 1]?.endMs ?? 0, segmentsLastEndMs)
   const captionsDurationSeconds = lastCaptionEndMs / 1000
   const targetDurationSeconds = Math.max(captionsDurationSeconds, videoDurationSeconds)
   const durationInFrames = Math.max(30, Math.ceil(targetDurationSeconds * fps))
@@ -667,8 +707,11 @@ async function dispatchKineticCaptions(
       plan: {
         planType: "burn-captions",
         sourceVideo: data.videoUrl,
-        captions,
-        style: data.style,
+        captions: planCaptions,
+        // The plan's top-level style must be kinetic. With segments it is ignored
+        // (the composition renders segments), so coerce a non-kinetic default to a
+        // valid placeholder rather than fail plan validation.
+        style: isKineticCaptionStyle(data.style) ? data.style : "word-pop",
         position: data.position ?? "bottom",
         fontSize: data.fontSize ?? 32,
         color: data.color ?? "#ffffff",
@@ -679,6 +722,7 @@ async function dispatchKineticCaptions(
         highlightColor: data.highlightColor,
         uppercase: data.uppercase,
         positionY: data.positionY,
+        ...(resolvedSegments ? { segments: resolvedSegments } : {}),
         fps,
         width,
         height,
