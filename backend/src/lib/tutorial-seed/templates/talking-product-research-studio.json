@@ -323,8 +323,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 600,
-      "height": 450,
+      "width": 490.66666666666663,
+      "height": 624,
       "className": "rf-resized"
     },
     {
@@ -345,8 +345,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 338,
-      "height": 600,
+      "width": 255.672113585099,
+      "height": 710.7699722492399,
       "className": "rf-resized"
     },
     {
@@ -367,8 +367,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 338,
-      "height": 600,
+      "width": 255.80807324032648,
+      "height": 710.5282661613453,
       "className": "rf-resized"
     },
     {
@@ -389,8 +389,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 338,
-      "height": 600,
+      "width": 255.80807324032648,
+      "height": 710.5282661613453,
       "className": "rf-resized"
     },
     {
@@ -433,8 +433,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 338,
-      "height": 600,
+      "width": 255.6402624664413,
+      "height": 710.8266336382102,
       "className": "rf-resized"
     },
     {
@@ -614,7 +614,7 @@
     "viewport": {
       "x": 80,
       "y": 60,
-      "zoom": 0.243
+      "zoom": 0.235
     },
     "flowPromptTemplates": {},
     "characterDefinitions": [],
