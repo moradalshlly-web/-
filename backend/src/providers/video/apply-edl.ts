@@ -17,7 +17,9 @@
  * Long edits (> `chunkThreshold` segments) render in chunks split ONLY at
  * hard-cut boundaries (an xfade cannot straddle a chunk), each checkpointed to
  * R2 so a worker restart resumes instead of re-rendering, then joined with a
- * stream-copy concat.
+ * stream-copy concat. The checkpoint cache (`apply-edl-cache/<jobId>/…`) is
+ * internal scratch: uploaded with NO `trackUserId` so it never bills the user's
+ * storage quota, and best-effort deleted once the final concat succeeds.
  */
 import { promises as fs } from "node:fs"
 import { join } from "node:path"
@@ -342,6 +344,7 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       : [edl.segments as EdlSegment[]]
 
     const chunkPaths: string[] = []
+    const checkpointKeys: string[] = []
     for (let c = 0; c < chunks.length; c++) {
       const chunkPath = join(workDir, `chunk-${c}.${ext}`)
       const key = `apply-edl-cache/${jobId}/chunk-${c}.${ext}`
@@ -371,12 +374,15 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
         if (useCheckpoint) {
           try {
             const { uploadFileWithKeyToR2 } = await import("../../lib/storage.js")
-            await uploadFileWithKeyToR2(chunkPath, key, wantVideo ? "video/mp4" : "audio/mp4", jobUserId)
+            // No trackUserId: this is internal render scratch, not a
+            // deliverable, so it must never count against the user's quota.
+            await uploadFileWithKeyToR2(chunkPath, key, wantVideo ? "video/mp4" : "audio/mp4", undefined)
           } catch {
             /* checkpoint upload best-effort — a restart just re-renders */
           }
         }
       }
+      if (useCheckpoint) checkpointKeys.push(key)
       chunkPaths.push(chunkPath)
       onProgress?.(0.2 + 0.7 * ((c + 1) / chunks.length))
     }
@@ -391,6 +397,16 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       const listPath = join(workDir, "chunks.txt")
       await fs.writeFile(listPath, chunkPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"))
       await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outputPath])
+      // The concat succeeded — the checkpoint cache has done its job (resume on
+      // restart). Best-effort delete it so the internal scratch doesn't linger.
+      if (checkpointKeys.length > 0) {
+        try {
+          const { deleteFromR2 } = await import("../../lib/storage.js")
+          await Promise.allSettled(checkpointKeys.map((k) => deleteFromR2(k)))
+        } catch {
+          /* cache cleanup is best-effort — a lifecycle rule / next run is the backstop */
+        }
+      }
     }
 
     onProgress?.(1)

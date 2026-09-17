@@ -11,6 +11,19 @@ import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { buildEffectiveEdl, validateEffectiveEdl, applyEdlBaseCredits } from "../lib/apply-edl-plan.js"
 
+/** An SDK/MCP caller may send the EDL as a JSON string on the `edl` field;
+ *  parse it before `buildEffectiveEdl` so this ingress behaves identically to
+ *  the DAG payload-builder (which parses the stringified `edl` handle value).
+ *  A non-string passes through; unparseable → undefined → an empty EDL → 400. */
+function parseEdlMaybe(v: unknown): unknown {
+  if (typeof v !== "string") return v
+  try {
+    return JSON.parse(v)
+  } catch {
+    return undefined
+  }
+}
+
 const applyEdlBody = z.object({
   /** The edit decision list. Wired (json handle) or hand-written; coerced by
    *  `normalizeEdl` then structurally validated. Media resolves from each
@@ -40,7 +53,7 @@ export async function applyEdlRoutes(app: FastifyInstance) {
       // agree; the DAG reserves the same via applyEdlCreditOverride.
       computeCredits: (body) => {
         const b = body as Record<string, unknown>
-        const eff = buildEffectiveEdl(b.edl, {
+        const eff = buildEffectiveEdl(parseEdlMaybe(b.edl), {
           crossfadeMs: typeof b.crossfadeMs === "number" ? b.crossfadeMs : 0,
           sourceOverrides: Array.isArray(b.sources) ? (b.sources as string[]) : undefined,
         })
@@ -65,7 +78,7 @@ export async function applyEdlRoutes(app: FastifyInstance) {
     // render, transcript remap) and validate it at INGRESS — a bad/unresolvable
     // source id or a video edit with a picture-less segment is a 400 naming it,
     // never a mid-render failure after credits are reserved.
-    const effectiveEdl = buildEffectiveEdl(edl, { crossfadeMs, sourceOverrides: sources })
+    const effectiveEdl = buildEffectiveEdl(parseEdlMaybe(edl), { crossfadeMs, sourceOverrides: sources })
     const validation = validateEffectiveEdl(effectiveEdl, output)
     if (!validation.ok) {
       return reply.status(400).send({
