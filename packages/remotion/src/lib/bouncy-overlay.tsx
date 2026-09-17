@@ -38,6 +38,9 @@ export const BouncyOverlay: React.FC<OverlayCommonProps> = ({
         return (
           <span key={i} style={{
             display: "inline-block",
+            // Same leading-space rule as word-highlight: an inline-block drops
+            // the delimiter space at its line start unless white-space: pre.
+            whiteSpace: "pre",
             transform: `translateY(${dy}px)`,
             ...directionStyle(c.text),
           }}>

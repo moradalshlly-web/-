@@ -33,6 +33,10 @@ export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
             color: isActive ? color : "#aaa",
             transform: isActive ? "scale(1.15)" : "scale(1)",
             display: "inline-block",
+            // An inline-block starts its own line box, so CSS removes the
+            // collapsible leading space that is the @remotion/captions word
+            // delimiter — words rendered glued ("Twopeopletalking"). pre keeps it.
+            whiteSpace: "pre",
             ...(isActive && backgroundColor ? { background: backgroundColor, padding: "0.05em 0.2em", borderRadius: "0.3em" } : {}),
             ...directionStyle(c.text),
           }}>
