@@ -88,6 +88,24 @@ describe("isValidFfmpegConnection switch coverage", () => {
   it("rejects unknown node types via default", () => {
     expect(isValidFfmpegConnection("unknown-ffmpeg-node", "in", "upload-video")).toBe(false)
   })
+
+  // add-captions grew a second target handle: `transcript` (json). Without its
+  // own case it would have fallen through the shared `in`-only branch and every
+  // transcribe/apply-edl → add-captions.transcript drop would be rejected at the
+  // canvas.
+  describe("add-captions transcript handle", () => {
+    it("accepts json producers on `transcript`", () => {
+      expect(isValidFfmpegConnection("add-captions", "transcript", "transcribe")).toBe(true)
+      expect(isValidFfmpegConnection("add-captions", "transcript", "apply-edl")).toBe(true)
+    })
+    it("still accepts video on `in`, and rejects a video source on `transcript`", () => {
+      expect(isValidFfmpegConnection("add-captions", "in", "upload-video")).toBe(true)
+      expect(isValidFfmpegConnection("add-captions", "transcript", "upload-video")).toBe(false)
+    })
+    it("rejects a json source on the video `in` handle", () => {
+      expect(isValidFfmpegConnection("add-captions", "in", "transcribe")).toBe(false)
+    })
+  })
 })
 
 describe("TARGET_HANDLE_ACCEPTS coverage for ffmpeg consumers", () => {
