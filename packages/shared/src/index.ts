@@ -1151,3 +1151,7 @@ export * from "./scene3d-input-assets.js"
 export * from "./video-output-canvas.js"
 export * from "./video-frame-fit.js"
 export type { CharacterMotionMetadata } from "./character-motion-metadata.js"
+
+// --- EDL: the edit decision list contract (podcast editing primitives).
+//     Types + validators + pure remap/duration functions; structural only. ---
+export * from "./edl.js"
