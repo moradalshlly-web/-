@@ -513,6 +513,23 @@ export async function uploadFileToR2(
 }
 
 /**
+ * Upload a local file to an EXPLICIT, caller-chosen R2 key — for DERIVED,
+ * immutable, content-addressed objects (e.g. media proxies) that must not be
+ * job-keyed and must not count against a user's storage quota. Unlike
+ * `uploadFileToR2`, the key is not built from a job id and `trackStorage` is
+ * deliberately NOT called (a proxy is infra, not the user's asset). Reuses the
+ * shared ACL + immutable cache-control via `streamToR2`.
+ */
+export async function uploadLocalFileToR2Key(
+  filePath: string,
+  key: string,
+  contentType: string,
+): Promise<string> {
+  await streamToR2(key, createReadStream(filePath), contentType)
+  return r2Url(key)
+}
+
+/**
  * Stream a local file to R2 with a custom key (no jobId-based naming).
  */
 export async function uploadFileWithKeyToR2(
