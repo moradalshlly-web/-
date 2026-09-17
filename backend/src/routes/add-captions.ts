@@ -14,10 +14,14 @@ import { sendInternalError } from "../lib/http-errors.js"
 
 const captionInputSchema = z.object({
   text: z.string(),
+  // Word-timed entry (one per word for the kinetic styles). startMs/endMs are
+  // the visibility window and drive the highlight; timestampMs is the word
+  // timestamp used by tiktok-words token timing; confidence is metadata,
+  // ignored by rendering. timestampMs/confidence are optional (default null).
   startMs: z.number().min(0),
   endMs: z.number().min(0),
-  timestampMs: z.number().min(0).nullable(),
-  confidence: z.number().min(0).max(1).nullable(),
+  timestampMs: z.number().min(0).nullable().default(null),
+  confidence: z.number().min(0).max(1).nullable().default(null),
 })
 
 function buildAddCaptionsCreditId(body: unknown): string {

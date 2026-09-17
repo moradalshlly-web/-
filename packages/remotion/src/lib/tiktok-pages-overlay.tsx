@@ -2,7 +2,7 @@ import React, { useMemo } from "react"
 import { useCurrentFrame, useVideoConfig, spring } from "remotion"
 import { createTikTokStyleCaptions, type Caption } from "@remotion/captions"
 import type { OverlayCommonProps } from "./subtitle-overlay"
-import { captionTop, captionLookStyle } from "./caption-look"
+import { captionTop, captionLookStyle, captionWord } from "./caption-look"
 import { directionStyle } from "./text-direction"
 
 export interface TikTokPagesOverlayProps extends OverlayCommonProps {
@@ -53,7 +53,7 @@ export const TikTokPagesOverlay: React.FC<TikTokPagesOverlayProps> = ({
           color: i === spokenIdx ? highlightColor : color,
           ...directionStyle(t.text),
         }}>
-          {i === 0 ? t.text.trimStart() : ` ${t.text.trimStart()}`}
+          {captionWord(t.text, i)}
         </span>
       ))}
     </div>

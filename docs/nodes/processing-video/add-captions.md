@@ -40,6 +40,17 @@ When you drive Add Captions through the [API](../../api-integration.md) or an [M
 
 > These levers are available today via the API and MCP; the canvas config panel exposes Style, Position, Font Size, and Color.
 
+### Supplying your own captions (API / MCP)
+
+Instead of `auto_transcribe`, you can pass a `captions[]` array. For the **kinetic** styles this is **word-timed: one entry per word** (a bare word is fine — words are auto-spaced, so `"face"`, `"doesn't"`, `"drift."` render as `face doesn't drift.`). Each entry:
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `text` | yes | The word (or, for `subtitle`, a line) |
+| `startMs` / `endMs` | yes | The word's visibility window; also drives which word is highlighted |
+| `timestampMs` | no (default null) | The word timestamp, used by `tiktok-words` token timing |
+| `confidence` | no (default null) | Transcription confidence — metadata, ignored by rendering |
+
 ### Position Options
 
 - **bottom** — Lower third of the frame (most common)

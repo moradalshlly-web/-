@@ -1,7 +1,7 @@
 import React from "react"
 import { useCurrentFrame, useVideoConfig, interpolate } from "remotion"
 import type { OverlayCommonProps } from "./subtitle-overlay"
-import { captionTop, captionLookStyle } from "./caption-look"
+import { captionTop, captionLookStyle, captionWord } from "./caption-look"
 import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
 
 /** Sentence visible; each word fills with the fill colour over its
@@ -39,9 +39,10 @@ export const KaraokeOverlay: React.FC<OverlayCommonProps> = ({
             background: `linear-gradient(90deg, ${fill} ${t * 100}%, #777 ${t * 100}%)`,
             WebkitBackgroundClip: "text", backgroundClip: "text",
             WebkitTextFillColor: "transparent", color: "transparent",
+            whiteSpace: "pre",
             ...directionStyle(c.text),
           }}>
-            {c.text}
+            {captionWord(c.text, i)}
           </span>
         )
       })}

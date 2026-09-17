@@ -970,9 +970,13 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
           text: z.string(),
           startMs: z.number().min(0),
           endMs: z.number().min(0),
-          timestampMs: z.number().min(0).nullable(),
-          confidence: z.number().min(0).max(1).nullable(),
-        })).optional(),
+          timestampMs: z.number().min(0).nullable().default(null),
+          confidence: z.number().min(0).max(1).nullable().default(null),
+        })).optional().describe(
+          "Word-timed captions for the kinetic styles: ONE entry per WORD (a bare word is fine — words are auto-spaced). " +
+          "`startMs`/`endMs` are the word's visibility window and drive the highlight; `timestampMs` (optional) is the word " +
+          "timestamp used by tiktok-words token timing; `confidence` (optional) is metadata, ignored by rendering.",
+        ),
         auto_transcribe: z.boolean().optional(),
         transcribe_provider: z.enum(["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]).optional(),
         video_url: z.string().url().optional(),

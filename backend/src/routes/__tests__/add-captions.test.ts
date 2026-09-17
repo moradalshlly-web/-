@@ -69,6 +69,23 @@ describe("addCaptionsBody — look levers gate on kinetic style", () => {
     expect(issuePaths(r)).toContain("fontFamily")
   })
 
+  it("accepts word-level captions[] omitting timestampMs/confidence (now optional)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "word-highlight",
+      captions: [
+        { text: "face", startMs: 0, endMs: 300 },
+        { text: "doesn't", startMs: 300, endMs: 700 },
+      ],
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      // Omitted fields default to null (a valid @remotion/captions Caption).
+      expect(r.data.captions?.[0]?.timestampMs).toBeNull()
+      expect(r.data.captions?.[0]?.confidence).toBeNull()
+    }
+  })
+
   it("still requires a caption source", () => {
     const r = addCaptionsBody.safeParse({
       videoUrl: VIDEO,

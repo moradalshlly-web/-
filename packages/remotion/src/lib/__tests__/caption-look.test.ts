@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { captionTop, captionLookStyle } from "../caption-look"
+import { captionTop, captionLookStyle, captionWord } from "../caption-look"
 import { POSITION_Y } from "../overlay-position"
 import { FONT_MAP, withRtlFallback } from "../font-registry"
 
@@ -62,5 +62,28 @@ describe("captionLookStyle", () => {
   })
   it("highlightColor is not a container-level style (it is applied per-word by the overlays)", () => {
     expect(captionLookStyle({ highlightColor: "#ff0000" })).toEqual({})
+  })
+})
+
+describe("captionWord — inter-word spacing (Bug: glued word-level captions)", () => {
+  it("the first word in a row has no leading space", () => {
+    expect(captionWord("face", 0)).toBe("face")
+  })
+  it("bare word-level input (no delimiter) gets a single separating space", () => {
+    // The reported failure: {text:"face"},{text:"doesn't"},{text:"drift."} rendered
+    // as "facedoesn'tdrift." — each non-first word must carry one leading space.
+    expect(captionWord("doesn't", 1)).toBe(" doesn't")
+    expect(captionWord("drift.", 2)).toBe(" drift.")
+  })
+  it("delimited transcription input (leading space) is normalised to exactly one space", () => {
+    expect(captionWord(" word", 1)).toBe(" word")
+    expect(captionWord("  word  ", 3)).toBe(" word")
+  })
+  it("trims a delimiter off the first word too", () => {
+    expect(captionWord(" word", 0)).toBe("word")
+  })
+  it("a full row joins into readable, single-spaced text", () => {
+    const words = ["face", "doesn't", "drift.", "Not", "once."]
+    expect(words.map((w, i) => captionWord(w, i)).join("")).toBe("face doesn't drift. Not once.")
   })
 })

@@ -1,7 +1,7 @@
 import React from "react"
 import { useCurrentFrame, useVideoConfig } from "remotion"
 import type { OverlayCommonProps } from "./subtitle-overlay"
-import { captionTop, captionLookStyle } from "./caption-look"
+import { captionTop, captionLookStyle, captionWord } from "./caption-look"
 import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
 
 /** Renders a window of N adjacent words; the active one is colored/scaled up.
@@ -44,7 +44,7 @@ export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
             ...(isActive && backgroundColor ? { background: backgroundColor, padding: "0.05em 0.2em", borderRadius: "0.3em" } : {}),
             ...directionStyle(c.text),
           }}>
-            {c.text}
+            {captionWord(c.text, i)}
           </span>
         )
       })}

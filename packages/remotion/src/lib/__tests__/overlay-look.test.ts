@@ -39,3 +39,21 @@ describe("every caption overlay consumes the shared look", () => {
     expect(src).not.toContain("POSITION_Y[position]")
   })
 })
+
+// Overlays that render a ROW of separate word <span>s must space the words
+// through captionWord — word-level captions[] arrive as bare words with no
+// delimiter, so rendering `{c.text}` directly glues them ("facedoesn'tdrift.").
+// (subtitle renders one full line; word-pop renders a single word — neither
+// builds a multi-word row, so neither needs it.)
+const WORD_ROW_OVERLAYS = ["word-highlight-overlay", "karaoke-overlay", "bouncy-overlay", "tiktok-pages-overlay"]
+
+describe("word-row overlays space words through captionWord", () => {
+  it.each(WORD_ROW_OVERLAYS)("%s.tsx uses captionWord for per-word text", (name) => {
+    const src = readFileSync(join(__dirname, "..", `${name}.tsx`), "utf8")
+    expect(src).toContain("captionWord(")
+  })
+  it.each(WORD_ROW_OVERLAYS)("%s.tsx does not render a bare {c.text}/{t.text} word (glue regression)", (name) => {
+    const src = readFileSync(join(__dirname, "..", `${name}.tsx`), "utf8")
+    expect(src).not.toMatch(/\{\s*[ct]\.text\s*\}/)
+  })
+})

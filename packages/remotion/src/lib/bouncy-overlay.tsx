@@ -1,7 +1,7 @@
 import React from "react"
 import { useCurrentFrame, useVideoConfig, spring } from "remotion"
 import type { OverlayCommonProps } from "./subtitle-overlay"
-import { captionTop, captionLookStyle } from "./caption-look"
+import { captionTop, captionLookStyle, captionWord } from "./caption-look"
 import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
 
 /** Sentence visible; each word springs vertically when it becomes active. */
@@ -46,7 +46,7 @@ export const BouncyOverlay: React.FC<OverlayCommonProps> = ({
             transform: `translateY(${dy}px)`,
             ...directionStyle(c.text),
           }}>
-            {c.text}
+            {captionWord(c.text, i)}
           </span>
         )
       })}

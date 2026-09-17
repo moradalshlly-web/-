@@ -35,6 +35,21 @@ export function captionTop(position: OverlayPosition, positionY?: number): strin
 }
 
 /**
+ * The visible text for ONE word-span in a multi-word caption row (word-highlight,
+ * karaoke, bouncy, tiktok token highlight). Word-level `captions[]` arrive as
+ * bare words with no delimiter, while `@remotion/captions` transcription carries
+ * a leading-space delimiter; BOTH are normalised here to exactly one separating
+ * space so adjacent inline / inline-block words never render glued
+ * ("facedoesn'tdrift.Notonce."). The first word in a row gets no leading space.
+ * Spans that set `whiteSpace: "pre"` keep this space at their line-box start;
+ * plain inline spans render it as ordinary inter-word whitespace.
+ */
+export function captionWord(text: string, index: number): string {
+  const word = text.trim()
+  return index === 0 ? word : ` ${word}`
+}
+
+/**
  * Font + outline + casing shared by every caption overlay. Returns an EMPTY
  * object when the look sets none of them, so spreading it is a no-op on the
  * default path. `paintOrder: "stroke fill"` paints the outline BEHIND the glyph,
