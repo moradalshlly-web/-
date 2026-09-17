@@ -35,6 +35,7 @@ Advertiser picks run exactly like Facebook Pages — each pick is one source for
 | Country | select | All countries | `ALL`, or a 2-letter country code (e.g. `US`) to restrict where the ads were delivered |
 | Platforms | toggles | none (no filter) | Keep only ads delivered on the selected platforms — Facebook, Instagram, Audience Network, Messenger, WhatsApp, Threads. No selection (or all six) means no filter |
 | Creative format | toggles | none (no filter) | Keep only ads whose creative is `vertical` (phone — Stories, Reels, mobile feed; width/height below 0.95), `square` (within ±5 % of 1:1) or `horizontal` (web / feed — above 1.05), classified from the creative's actual pixels. Fewer ads than requested may come back |
+| AI analysis | toggle + model + focus | off | Run an "expert competitor ad analyst" pass on every returned ad — asset type, format, visual hooks, audiences, graphic identity, copywriting hooks, USPs, CTA and a summary. Pick any image-capable analysis model (default: an economy model) and an optional focus line. Priced per **requested** ad by the model's tier and settled per ad **analysed** — an ad the model failed on, or one a long run ran out of time for, is refunded |
 
 After a run the node card features one ad — creative preview, advertiser, headline, copy, format, platforms, run dates and call-to-action — with a thumbnail strip and ‹ › to move between the returned ads; the **Results** tab lists them all (List / Grid / Raw JSON), filters them by format, and clicking a row features it on the card.
 
@@ -87,9 +88,22 @@ The `json` handle emits an array of ads, each shaped as:
   "images": ["https://…/creative.jpg"],
   "videos": ["https://…/creative.mp4"],
   "videoPreviews": ["https://…/poster.jpg"],
-  "collationCount": 3
+  "collationCount": 3,
+  "analysis": {
+    "assetType": "static",
+    "format": "in-feed",
+    "visualHooks": ["product close-up", "big bold number"],
+    "audiences": ["runners", "value shoppers"],
+    "graphicIdentity": "Black-on-white, large sans headline, logo top-left.",
+    "copywritingHooks": ["urgency: 'last day'"],
+    "usps": ["free returns"],
+    "cta": "Shop now",
+    "summary": "Sells running shoes to value-conscious runners with a last-day urgency hook."
+  }
 }
 ```
+
+The `analysis` object is present only when AI analysis was on and that ad was analysed (see the AI analysis add-on under Pricing).
 
 ## Pricing
 
@@ -112,6 +126,18 @@ Worked examples:
 - 5 Facebook Pages, 100 ads per Page → total 500 → **500 CR**
 
 Credits are charged for the requested batch; a narrow period or a quiet keyword may return fewer ads than requested.
+
+### AI analysis add-on
+
+Turning on **AI analysis** adds a per-ad cost on top of the scrape, by the analysis model's tier — **+1 credit per ad** (economy model), **+3** (standard), **+4** (premium) — folded into the scrape's own tier. The analysis is reserved for the whole requested batch and **settled for the ads actually analysed**: an ad the model failed on, or one a long run could not reach before its time budget, is refunded.
+
+| Requested batch | Analysis model | Total |
+|-----------------|----------------|-------|
+| 20 ads | economy | 20 + 20 × 1 = **40 CR** |
+| 20 ads | standard | 20 + 20 × 3 = **80 CR** |
+| 2 Pages × 30 ads (tier 100) | premium | 100 + 100 × 4 = **500 CR** |
+
+The analysis rides inside each ad in the `json` output (an `analysis` object) and shows on each row in the **Results** tab.
 
 ## Common Use Cases
 

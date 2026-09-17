@@ -1,6 +1,7 @@
 import sharp from "sharp"
 import { classifyCreativeFormat, type MetaAdsCreativeFormat, type MetaAdsFormat } from "@nodaro/shared"
 import { safeFetch } from "./safe-fetch.js"
+import { deadlinePool } from "./deadline-pool.js"
 import { readBodyCapped, storeImportedImageBuffer } from "./media-import.js"
 import { isStorageConfigured, uploadToR2 } from "./storage.js"
 import { supabase } from "./supabase.js"
@@ -98,25 +99,6 @@ async function fetchAndProbe(url: string): Promise<Probe | null> {
   }
 }
 
-/** Run `fn` over `items` with bounded parallelism; stops STARTING new work past the deadline. */
-async function pool<T>(items: readonly T[], concurrency: number, deadlineAt: number, now: () => number, fn: (item: T) => Promise<void>): Promise<boolean> {
-  let next = 0
-  let hitDeadline = false
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    for (;;) {
-      if (now() >= deadlineAt) {
-        hitDeadline = true
-        return
-      }
-      const i = next++
-      if (i >= items.length) return
-      await fn(items[i])
-    }
-  })
-  await Promise.all(workers)
-  return hitDeadline
-}
-
 interface Slot {
   readonly adIndex: number
   readonly creativeIndex: number
@@ -181,7 +163,7 @@ export async function classifyAndStoreMetaAdsMedia(
       if (probeUrl) slots.push({ adIndex, creativeIndex, probeUrl })
     }
   }
-  const classifyHitDeadline = await pool(slots, concurrency, opts.deadlineAt, now, async (slot) => {
+  const classifyHitDeadline = await deadlinePool(slots, concurrency, opts.deadlineAt, now, async (slot) => {
     if (!probes.has(slot.probeUrl)) probes.set(slot.probeUrl, await fetchAndProbe(slot.probeUrl))
     const probe = probes.get(slot.probeUrl)
     const c = creativesByAd[slot.adIndex][slot.creativeIndex]
@@ -211,7 +193,7 @@ export async function classifyAndStoreMetaAdsMedia(
     const targets = keptIndexes.flatMap((adIndex) =>
       creativesByAd[adIndex].map((_, creativeIndex) => ({ adIndex, creativeIndex })),
     )
-    const storeHitDeadline = await pool(targets, Math.min(concurrency, 4), opts.deadlineAt, now, async ({ adIndex, creativeIndex }) => {
+    const storeHitDeadline = await deadlinePool(targets, Math.min(concurrency, 4), opts.deadlineAt, now, async ({ adIndex, creativeIndex }) => {
       if (quotaExceeded) return
       const c = creativesByAd[adIndex][creativeIndex]
       const probeUrl = c.kind === "video" ? c.posterUrl : c.url

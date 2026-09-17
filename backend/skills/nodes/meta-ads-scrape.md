@@ -1,7 +1,7 @@
 ---
 node_type: meta-ads-scrape
-generated_at: 2026-09-17T18:20:12.464Z
-generated_from: 112680126
+generated_at: 2026-09-17T19:52:22.402Z
+generated_from: 368e95a0d
 ---
 
 # Meta Ads
@@ -29,6 +29,9 @@ generated_from: 112680126
 - `formats?: string[]`
 - `featuredIndex?: number`
 - `viewFormat?: string`
+- `analyze?: boolean`
+- `analysisModel?: string`
+- `analysisFocus?: string`
 - `executionStatus?: "idle" | "running" | "completed" | "failed"`
 - `errorMessage?: string`
 - `generatedJson?: unknown`

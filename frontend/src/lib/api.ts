@@ -4267,8 +4267,12 @@ export async function metaAdsScrape(params: {
   featuredIndex?: number
   /** Copy the featured ad's video into the library too — set only when the node's video output is wired. */
   ingestVideo?: boolean
+  /** Per-ad AI analysis. */
+  analyze?: boolean
+  analysisModel?: string
+  analysisFocus?: string
   workflowId?: string
-}): Promise<{ jobId: string; json: unknown; text?: string; imageUrl?: string; videoUrl?: string; mediaStorage?: unknown }> {
+}): Promise<{ jobId: string; json: unknown; text?: string; imageUrl?: string; videoUrl?: string; mediaStorage?: unknown; analysis?: unknown }> {
   return apiJson("/v1/meta-ads-scrape", {
     body: params,
     workflowId: true,

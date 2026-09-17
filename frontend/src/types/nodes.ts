@@ -5270,6 +5270,12 @@ export type MetaAdsScrapeNodeData = {
   featuredIndex?: number
   /** Results-side view filter by creative format ("all" or a format); the card's thumb strip follows it */
   viewFormat?: string
+  /** Per-ad AI analysis (the competitor-ad-analyst pass); priced per requested ad by the model's tier */
+  analyze?: boolean
+  /** Which image-capable structured-output model runs the analysis; absent = the feature default */
+  analysisModel?: string
+  /** Optional analyst focus appended to the fixed prompt */
+  analysisFocus?: string
   // execution state — same #765 contract as WebScrapeNodeData
   executionStatus?: "idle" | "running" | "completed" | "failed"
   errorMessage?: string

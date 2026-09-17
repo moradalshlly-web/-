@@ -1083,6 +1083,11 @@ export function buildSyncHttpBody(
         platforms: Array.isArray(data.platforms) ? data.platforms : undefined,
         formats: Array.isArray(data.formats) ? data.formats : undefined,
         featuredIndex: typeof data.featuredIndex === "number" ? data.featuredIndex : undefined,
+        // Optional per-ad AI analysis — priced into the same identifier the
+        // route's guard resolves, so the node's quote and the reservation agree.
+        analyze: data.analyze === true ? true : undefined,
+        analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
+        analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,
         userId: ctx.userId,
       }
       return withUserPrompt(body)

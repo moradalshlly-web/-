@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest"
+import { LLM_FEATURE_DEFAULTS, STRUCTURED_VISION_MODELS, getLlmModel } from "../llm-models.js"
 import {
+  META_ADS_ANALYSIS_CREDITS_PER_AD,
+  META_ADS_ANALYSIS_TIERS,
   META_ADS_SCRAPE_CREDIT_COSTS,
+  adCreativeAnalysisFrom,
+  metaAdsAnalysisCreditId,
+  metaAdsAnalysisTier,
+  metaAdsScrapeCreditIdFromNode,
   META_ADS_SCRAPE_FALLBACK_CREDIT_ID,
   META_ADS_SCRAPE_MAX_COUNT,
   META_ADS_SCRAPE_MAX_SOURCES,
@@ -59,6 +66,58 @@ describe("meta-ads-scrape credit identifiers", () => {
     }
     expect(META_ADS_SCRAPE_CREDIT_COSTS["meta-ads-scrape"]).toBe(20)
     expect(META_ADS_SCRAPE_CREDIT_COSTS[META_ADS_SCRAPE_FALLBACK_CREDIT_ID]).toBeDefined()
+  })
+
+  describe("per-ad AI analysis pricing (folded into the same identifier)", () => {
+    it("the analysis SKU is tier × (1 + per-ad credits of the model's tier), and every combination is priced", () => {
+      expect(buildMetaAdsScrapeCreditId({ count: 20, sources: 1, analysis: "standard" })).toBe("meta-ads-scrape:20:analysis")
+      expect(buildMetaAdsScrapeCreditId({ count: 20, sources: 1, analysis: "economy" })).toBe("meta-ads-scrape:20:analysis:economy")
+      expect(buildMetaAdsScrapeCreditId({ count: 30, sources: 2, analysis: "premium" })).toBe("meta-ads-scrape:100:analysis:premium")
+      expect(buildMetaAdsScrapeCreditId({ count: 20, sources: 1, analysis: null })).toBe("meta-ads-scrape:20")
+      for (const tier of META_ADS_SCRAPE_TIERS) {
+        for (const a of META_ADS_ANALYSIS_TIERS) {
+          const suffix = a === "standard" ? ":analysis" : `:analysis:${a}`
+          const id = `meta-ads-scrape:${tier}${suffix}`
+          expect(META_ADS_SCRAPE_CREDIT_COSTS[id], id).toBe(tier * (1 + META_ADS_ANALYSIS_CREDITS_PER_AD[a]))
+        }
+      }
+      // The per-ad settlement rows.
+      expect(META_ADS_SCRAPE_CREDIT_COSTS[metaAdsAnalysisCreditId("economy")]).toBe(1)
+      expect(META_ADS_SCRAPE_CREDIT_COSTS[metaAdsAnalysisCreditId("standard")]).toBe(3)
+      expect(META_ADS_SCRAPE_CREDIT_COSTS[metaAdsAnalysisCreditId("premium")]).toBe(4)
+      expect(metaAdsAnalysisCreditId("standard")).toBe("meta-ads-analysis")
+      // Worked example the docs quote: 20 ads, economy model → 20 + 20 × 1 = 40.
+      expect(META_ADS_SCRAPE_CREDIT_COSTS["meta-ads-scrape:20:analysis:economy"]).toBe(40)
+    })
+
+    it("the analysis tier follows the model; the default model is economy and image-capable with structured output", () => {
+      expect(metaAdsAnalysisTier(undefined)).toBe("economy")
+      expect(metaAdsAnalysisTier("claude-sonnet-4.6")).toBe("standard")
+      expect(metaAdsAnalysisTier("claude-opus-5")).toBe("premium")
+      const def = getLlmModel(LLM_FEATURE_DEFAULTS["meta-ads-analysis"])
+      expect(def?.supportsImages).toBe(true)
+      expect(def?.structuredOutputMode).toBeTruthy()
+      expect(STRUCTURED_VISION_MODELS.some((m) => m.id === def?.id)).toBe(true)
+    })
+
+    it("metaAdsScrapeCreditIdFromNode: the ONE identifier a node's settings quote (also the wire resolver's answer)", () => {
+      expect(metaAdsScrapeCreditIdFromNode({})).toBe("meta-ads-scrape:20")
+      expect(metaAdsScrapeCreditIdFromNode({ mode: "search", count: 50, analyze: true })).toBe("meta-ads-scrape:50:analysis:economy")
+      expect(metaAdsScrapeCreditIdFromNode({ mode: "pages", pageUrls: "a\nb", count: 30, analyze: true, analysisModel: "claude-sonnet-4.6" })).toBe("meta-ads-scrape:100:analysis")
+      expect(metaAdsScrapeCreditIdFromNode({ mode: "search", count: 20, analyze: false, analysisModel: "claude-opus-5" })).toBe("meta-ads-scrape:20")
+      // The wire resolver lands on the same SKU for the request the node would send.
+      expect(resolveMetaAdsScrapeCreditId({ mode: "search", query: "x", count: 50, analyze: true })).toBe("meta-ads-scrape:50:analysis:economy")
+      expect(resolveMetaAdsScrapeCreditId({ mode: "search", query: "x", analyze: true, analysisModel: "claude-opus-5" })).toBe("meta-ads-scrape:20:analysis:premium")
+    })
+
+    it("adCreativeAnalysisFrom reads a stored analysis defensively", () => {
+      const raw = { assetType: "motion", format: "reel", visualHooks: ["face", 3, ""], audiences: [], graphicIdentity: "", copywritingHooks: ["urgency"], usps: [], cta: "Install", summary: "Sells an app." }
+      expect(adCreativeAnalysisFrom(raw)).toEqual({ ...raw, visualHooks: ["face"] })
+      expect(adCreativeAnalysisFrom({ ...raw, assetType: "gif" })?.assetType).toBe("unknown")
+      expect(adCreativeAnalysisFrom({ ...raw, summary: "" })).toBeNull()
+      expect(adCreativeAnalysisFrom(null)).toBeNull()
+      expect(adCreativeAnalysisFrom("x")).toBeNull()
+    })
   })
 
   it("featuredMetaAdOutputs: the featured ad's copy, first image (else poster) and first video", () => {

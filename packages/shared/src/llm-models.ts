@@ -665,6 +665,10 @@ export type LlmFeature =
   // zero-cost `3d-scene-ops` identifier instead.
   | "3d-scene"
   | "image-to-text"
+  // Per-ad creative analysis on the social scraper nodes (Meta Ads first):
+  // one structured vision call per ad, priced per REQUESTED ad by tier and
+  // folded into the scrape's own identifier (packages/shared/meta-ads-scrape).
+  | "meta-ads-analysis"
   | "describe-to-picker"
   | "qa-check"
   | "generate-script"
@@ -696,6 +700,10 @@ export const LLM_FEATURE_DEFAULTS: Record<LlmFeature, string> = {
   "3d-title": "claude-sonnet-4.6",
   "3d-scene": "claude-sonnet-4.6",
   "image-to-text": "claude-sonnet-4.6",
+  // Economy on purpose: the analysis reads ONE frame + the copy per ad and
+  // runs once per returned ad — volume, not depth. Must stay an image-capable
+  // structured-output model (STRUCTURED_VISION_MODELS); a registry test pins it.
+  "meta-ads-analysis": "gemini-3.6-flash",
   "describe-to-picker": "claude-opus-5",
   "qa-check": "gemini-3.6-flash",
   "generate-script": "gemini-3.6-flash",

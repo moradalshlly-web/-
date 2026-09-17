@@ -1,7 +1,7 @@
 import type { WorkflowNode, WorkflowEdge, GenerateVideoProNodeData, EditVideoProNodeData } from "@/types/nodes";
 import { StorageExceededError, SubscriptionRequiredError } from "@/lib/api";
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
-import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListItems, type SelectorFields, getEffectiveRepeatCount, buildScraperCreditId, isScraperActor, SCRAPER_CREDIT_COSTS, buildMetaAdsScrapeCreditId, META_ADS_SCRAPE_CREDIT_COSTS, META_ADS_SCRAPE_DEFAULT_COUNT, metaAdsScrapeSources, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, bucketSecondsFromCreditId, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAuditCreditId, VIDEO_AUDIT_BUCKET_CREDITS, FAN_OUT_EACH_TYPES, buildVideoCreditModelIdentifier, SEEDANCE_2_CONTINUATION_REF_SEC, isSeedance2Provider, isMinimaxH3Provider, maxSegmentSecFor, normalizeMinimaxH3Resolution, PRO3D_RENDER_CREDIT_ID } from "@nodaro/shared"
+import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListItems, type SelectorFields, getEffectiveRepeatCount, buildScraperCreditId, isScraperActor, SCRAPER_CREDIT_COSTS, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, bucketSecondsFromCreditId, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAuditCreditId, VIDEO_AUDIT_BUCKET_CREDITS, FAN_OUT_EACH_TYPES, buildVideoCreditModelIdentifier, SEEDANCE_2_CONTINUATION_REF_SEC, isSeedance2Provider, isMinimaxH3Provider, maxSegmentSecFor, normalizeMinimaxH3Resolution, PRO3D_RENDER_CREDIT_ID } from "@nodaro/shared"
 // getCachedCredits reads the live React-Query model-cost cache (an `ee/`
 // concern — credits are enterprise-only). Allowlisted in
 // tools/check-ee-imports.mjs (same coupling as ./run-handlers.ts).
@@ -477,11 +477,9 @@ export function estimateNodeCredits(
     return SCRAPER_CREDIT_COSTS[modelId] ?? NODE_CREDIT_COSTS["web-scrape"] ?? 0
   }
   if (nodeType === "meta-ads-scrape" && node.data) {
-    // 1 credit per requested ad, tiered on count × sources — the same
-    // builder the backend guard + reservation use (packages/shared).
-    const count = typeof node.data.count === "number" ? node.data.count : META_ADS_SCRAPE_DEFAULT_COUNT
-    const sources = metaAdsScrapeSources(node.data)
-    const modelId = buildMetaAdsScrapeCreditId({ count, sources })
+    // 1 credit per requested ad, tiered on count × sources, plus the optional
+    // per-ad analysis multiple — the same builder the backend uses (shared).
+    const modelId = metaAdsScrapeCreditIdFromNode(node.data)
     return META_ADS_SCRAPE_CREDIT_COSTS[modelId] ?? NODE_CREDIT_COSTS["meta-ads-scrape"] ?? 0
   }
   if (nodeType === "video-analysis" && node.data) {

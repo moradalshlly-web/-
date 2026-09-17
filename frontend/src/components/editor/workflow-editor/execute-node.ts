@@ -431,6 +431,9 @@ export function buildMetaAdsScrapeParams(
     // The creative video is the expensive bytes — copied into the library
     // only when something downstream will actually consume it.
     ingestVideo: opts.videoWired === true,
+    analyze: data.analyze === true ? true : undefined,
+    analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
+    analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,
   };
   return params;
 }

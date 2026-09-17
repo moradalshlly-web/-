@@ -1,6 +1,6 @@
 import type { WorkflowNode, WorkflowEdge, FieldMappings } from "@/types/nodes"
 import type { SourceNodeInfo } from "./types"
-import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, buildMetaAdsScrapeCreditId, metaAdsScrapeSources, META_ADS_SCRAPE_DEFAULT_COUNT, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
+import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
 import { videoAuditAnalysisWired } from "@/components/editor/workflow-editor/types"
 import { renderVideoCreditIdForNode } from "@/lib/render-video-plan"
 import type { LlmFeature } from "@nodaro/shared"
@@ -363,9 +363,9 @@ export function getModelIdentifier(
   // (estimateNodeCredits) and the backend guard/reservation use, so the run
   // total, the pre-run precheck and the >100cr confirm never under-quote.
   if (nodeType === "meta-ads-scrape") {
-    const count = typeof data.count === "number" ? data.count : META_ADS_SCRAPE_DEFAULT_COUNT
-    const sources = metaAdsScrapeSources(data)
-    return buildMetaAdsScrapeCreditId({ count, sources })
+    // ONE identifier (packages/shared) from count × sources × analysis — the
+    // same builder the backend guard + reservation use.
+    return metaAdsScrapeCreditIdFromNode(data)
   }
 
   if (nodeType === "add-captions") {

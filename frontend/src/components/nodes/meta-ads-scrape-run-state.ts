@@ -234,6 +234,10 @@ export function metaAdsScrapeFingerprint(d: MetaAdsScrapeNodeData): string {
     Array.isArray(d.formats) ? [...d.formats].sort() : [],
     // Advertiser picks by page id (order-insensitive) — a different pick set is a different run.
     metaAdsAdvertisersFrom(d.advertisers).map((a) => a.pageId).sort(),
+    // Analysis is part of what a run produces — toggling it (or its model / focus) makes the last results stale.
+    d.analyze === true,
+    d.analyze === true ? (d.analysisModel ?? "") : "",
+    d.analyze === true ? (d.analysisFocus ?? "") : "",
   ])
 }
 

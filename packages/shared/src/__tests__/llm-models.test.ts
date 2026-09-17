@@ -388,6 +388,7 @@ describe("LLM_FEATURE_DEFAULTS", () => {
     "lottie-overlay",
     "3d-title",
     "image-to-text",
+    "meta-ads-analysis",
     "describe-to-picker",
     "qa-check",
     "generate-script",
@@ -399,8 +400,8 @@ describe("LLM_FEATURE_DEFAULTS", () => {
     "3d-scene",
   ]
 
-  it("has entries for all 18 features", () => {
-    expect(Object.keys(LLM_FEATURE_DEFAULTS)).toHaveLength(18)
+  it("has entries for all 19 features", () => {
+    expect(Object.keys(LLM_FEATURE_DEFAULTS)).toHaveLength(19)
     for (const feature of ALL_FEATURES) {
       expect(LLM_FEATURE_DEFAULTS).toHaveProperty(feature)
     }

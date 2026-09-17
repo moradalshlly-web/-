@@ -8,20 +8,28 @@ import { commitReservedCreditsForJob, refundReservedCreditsForJob } from "../lib
 // The two job-status funnels (CAS-guarded against a mid-flight cancel) instead
 // of a direct jobs UPDATE — no service-role client in this file, and the
 // completion/failure invariants stay in one place.
-import { markJobCompleted } from "../workers/shared.js"
+import { commitJobCredits, markJobCompleted } from "../workers/shared.js"
 import { markJobFailed } from "../lib/job-failure.js"
+import { baseCreditCostFor } from "../lib/credit-base-cost.js"
 import { runMetaAdsScrape, type MetaAd } from "../providers/apify/meta-ads.js"
 import { searchMetaAdvertisers } from "../providers/apify/meta-ads-advertisers.js"
 import { MissingProviderKeyError } from "../providers/provider-keys.js"
 import { classifyAndStoreMetaAdsMedia, metaAdsWithoutMedia } from "../lib/meta-ads-media.js"
+import { analyzeMetaAds } from "../lib/meta-ads-analysis.js"
 import {
+  LLM_FEATURE_DEFAULTS,
+  LLM_MODEL_IDS,
   META_ADS_ADVERTISER_MAX_RESULTS,
+  META_ADS_ANALYSIS_FOCUS_MAX,
   META_ADS_FORMATS,
   META_ADS_PLATFORMS,
+  STRUCTURED_VISION_MODELS,
   clampMetaAdsFeaturedIndex,
   featuredMetaAdOutputs,
   isFacebookPageUrl,
   metaAdsAdvertisersFrom,
+  metaAdsAnalysisCreditId,
+  metaAdsAnalysisTierFrom,
   META_ADS_SCRAPE_DEFAULT_COUNT,
   META_ADS_SCRAPE_DEFAULT_COUNTRY,
   META_ADS_SCRAPE_MAX_COUNT,
@@ -118,7 +126,18 @@ const commonFields = {
   featuredIndex: z.number().int().min(0).optional(),
   /** Copy the featured ad's video into the library too (only when its video output is wired — the expensive bytes). */
   ingestVideo: z.boolean().optional(),
+  /** Per-ad AI analysis (the "competitor ad analyst" pass): priced per requested ad by the model's tier, settled per ad analysed. */
+  analyze: z.boolean().optional(),
+  /** An image-capable structured-output model; absent = the feature default. */
+  analysisModel: z
+    .enum(LLM_MODEL_IDS as [string, ...string[]])
+    .refine((id) => STRUCTURED_VISION_MODEL_IDS.has(id), { message: "analysisModel must be an image-capable model with structured output" })
+    .optional(),
+  /** The user's optional analyst focus, appended to the fixed prompt. */
+  analysisFocus: z.string().trim().max(META_ADS_ANALYSIS_FOCUS_MAX).optional(),
 }
+
+const STRUCTURED_VISION_MODEL_IDS = new Set(STRUCTURED_VISION_MODELS.map((m) => m.id))
 
 /** The request owns 600 s; the actor may take 480 of them. Media work never starts past this point. */
 const MEDIA_DEADLINE_MS = 570_000
@@ -209,7 +228,18 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
 
     const body = parsed.data
     const sources = body.mode === "pages" ? body.pageUrls.length : 1
-    const modelIdentifier = buildMetaAdsScrapeCreditId({ count: body.count, sources })
+    const analysisTier = metaAdsAnalysisTierFrom(body)
+    const modelIdentifier = buildMetaAdsScrapeCreditId({ count: body.count, sources, analysis: analysisTier })
+
+    // Decided up front: a keyless install relays the WHOLE run (scrape and
+    // analysis) to the connected account, so only a local run needs an LLM
+    // key — and a run that could never analyse must refuse before it reserves.
+    const viaCloud = await shouldRunOnCloud(config.APIFY_API_TOKEN)
+    if (analysisTier && !viaCloud && !config.KIE_API_KEY && !config.ANTHROPIC_API_KEY && !config.GEMINI_API_KEY) {
+      return reply.status(503).send({
+        error: { code: "provider_unavailable", message: "AI analysis needs an LLM key (KIE_API_KEY, ANTHROPIC_API_KEY or GEMINI_API_KEY) — or run without analysis." },
+      })
+    }
 
     const { data: job, error: jobError } = await insertJob(req, {
       workflow_id: extractWorkflowId(req.body),
@@ -229,7 +259,6 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
     const usageLogId = reservation?.usageLogId
 
     try {
-      const viaCloud = await shouldRunOnCloud(config.APIFY_API_TOKEN)
       const scraped = viaCloud
         ? await scrapeViaConnection(body as Record<string, unknown>)
         : await runMetaAdsScrape(body)
@@ -254,22 +283,51 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
         req.log.warn({ err, jobId: job.id }, "[meta-ads-scrape] media step failed; returning the ads with their source urls")
         return { ads: metaAdsWithoutMedia(scrapedAds), stats: { classified: 0, stored: 0, kept: scrapedAds.length, filteredOut: 0 } }
       })
+      // Per-ad AI analysis, under what is left of the same deadline. A cloud
+      // relay already analysed on the connected account (its `analysis`
+      // stats ride along); locally each ad is one structured vision call.
+      const analysisModel = body.analysisModel ?? LLM_FEATURE_DEFAULTS["meta-ads-analysis"]
+      const analyzed = analysisTier && !viaCloud
+        ? await analyzeMetaAds(media.ads, { modelId: analysisModel, focus: body.analysisFocus, deadlineAt: startedAt + MEDIA_DEADLINE_MS })
+        : null
+      const ads = analyzed ? analyzed.ads : media.ads
+      const relayedAnalysis = (scraped as Record<string, unknown>).analysis
+      const analysisStats = analyzed
+        ? { model: analysisModel, ...analyzed.stats }
+        : viaCloud && relayedAnalysis && typeof relayedAnalysis === "object" ? relayedAnalysis : undefined
       const result = {
-        json: media.ads,
+        json: ads,
         mediaStorage: media.stats,
+        ...(analysisStats ? { analysis: analysisStats } : {}),
         // The featured ad's typed outputs ride on output_data so the
         // orchestrator's NodeOutput carries them (see output-extractor).
-        ...featuredMetaAdOutputs(media.ads, featuredIndex),
+        ...featuredMetaAdOutputs(ads, featuredIndex),
       }
 
       // false = the user cancelled mid-flight and the cancel path already
       // refunded — returning the data would be a free scrape.
-      const completed = await markJobCompleted(job.id, { output_data: result })
+      const completed = await markJobCompleted(job.id, {
+        output_data: result,
+        ...(analyzed ? { provider_cost: analyzed.stats.providerCostUsd || null } : {}),
+      })
       if (!completed) {
         return reply.status(409).send({ error: { code: "job_cancelled", message: "The job was cancelled before it completed." } })
       }
 
-      if (usageLogId) await commitReservedCreditsForJob(job.id)
+      if (usageLogId) {
+        if (analyzed && analysisTier) {
+          // The reservation priced analysis per REQUESTED ad; settle per ad
+          // actually analysed (count-based metered commit: BASE credits in,
+          // the reservation's own margin re-applied, never above the reservation).
+          const [scrapeBase, perAd] = await Promise.all([
+            baseCreditCostFor(buildMetaAdsScrapeCreditId({ count: body.count, sources })),
+            baseCreditCostFor(metaAdsAnalysisCreditId(analysisTier)),
+          ])
+          await commitJobCredits(usageLogId, job.id, null, scrapeBase + perAd * analyzed.stats.analyzed, true)
+        } else {
+          await commitReservedCreditsForJob(job.id)
+        }
+      }
 
       return reply.send({ jobId: job.id, ...result })
     } catch (err) {
