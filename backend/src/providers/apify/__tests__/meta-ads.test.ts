@@ -26,6 +26,7 @@ vi.mock("../client.js", () => ({
 import { MissingProviderKeyError } from "../../provider-keys.js"
 import {
   META_ADS_ACTOR,
+  META_ADS_ACTOR_MIN_CHARGED_RESULTS,
   actorLimitPerSource,
   buildAdLibrarySearchUrl,
   buildMetaAdsActorInput,
@@ -300,6 +301,15 @@ describe("runMetaAdsScrape", () => {
     expect(result.json).toHaveLength(20)
     expect(result.json.filter((a) => a.pageId === "p1")).toHaveLength(10)
     expect(mocks.actorCall).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ maxItems: 20 }))
+  })
+
+  it("a small request never sends a charged-items cap below the actor's floor (it would exit empty, credits spent)", async () => {
+    mocks.datasetListItems.mockResolvedValueOnce({ items: [] })
+    await runMetaAdsScrape({ ...searchArgs, count: 3, period: "all" }) // 3 × 1 source, no over-fetch → 3
+    expect(mocks.actorCall).toHaveBeenCalledWith(
+      expect.objectContaining({ limitPerSource: 3 }), // the actor still fetches only what was asked
+      expect.objectContaining({ maxItems: META_ADS_ACTOR_MIN_CHARGED_RESULTS }),
+    )
   })
 
   it("enforces the period on the fetched ads", async () => {

@@ -2639,7 +2639,32 @@ export function resolveNodeInputs(
       }
     } else if (src.type === "schedule-trigger") {
       inputs.prompt = output;
-    } else if (src.type === "web-scrape" || src.type === "meta-ads-scrape") {
+    } else if (src.type === "meta-ads-scrape") {
+      // Route by the HANDLE the wire leaves: `output` is already the featured
+      // ad's copy / creative url (or the stringified json) — extractNodeOutput
+      // narrowed it. Mirrors the group / collect lane branch and the backend
+      // input-resolver's meta-ads branch.
+      if (resolvedSourceHandle === "image") {
+        if (IMAGE_REFERENCE_TARGET_TYPES.has(node.type ?? "")) {
+          inputs.referenceImageUrls = [...(inputs.referenceImageUrls ?? []), output];
+        } else if (node.type === "manual-edit") {
+          appendManualEditAsset(inputs, src.id, output, "image");
+        } else {
+          inputs.imageUrl = output;
+        }
+      } else if (resolvedSourceHandle === "video") {
+        if (MULTI_VIDEO_INPUT_TYPES.has(node.type!)) {
+          inputs.videoUrls = [...(inputs.videoUrls ?? []), output];
+          inputs.videoUrlsWithSourceIds = [...(inputs.videoUrlsWithSourceIds ?? []), { nodeId: src.id, url: output }];
+        } else if (node.type === "manual-edit") {
+          appendManualEditAsset(inputs, src.id, output, "video");
+        } else {
+          inputs.videoUrl = output;
+        }
+      } else {
+        inputs.prompt = output;
+      }
+    } else if (src.type === "web-scrape") {
       // json handle output arrives pre-stringified from extractNodeOutput
       inputs.prompt = output;
     } else if (src.type === "video-analysis" || src.type === "video-audit") {

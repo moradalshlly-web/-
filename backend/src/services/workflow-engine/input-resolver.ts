@@ -1278,6 +1278,26 @@ function routeOutput(
     return
   }
 
+  // --- Meta Ads scraper: route by the HANDLE the wire leaves. `output` is
+  // already the featured ad's text / image url / video url (or the stringified
+  // json) — getPrimaryOutput narrowed it by handle. Mirrors the group / collect
+  // lane branch above and the frontend node-input-resolver.
+  if (srcType === "meta-ads-scrape") {
+    const handle = edge.sourceHandle
+    if (handle === "image") {
+      if (IMAGE_REFERENCE_TARGET_TYPES.has(targetType)) {
+        inputs.referenceImageUrls = [...(inputs.referenceImageUrls ?? []), output]
+      } else {
+        inputs.imageUrl = output
+      }
+    } else if (handle === "video") {
+      routeVideoOutput(inputs, output, targetType, src.id)
+    } else {
+      inputs.prompt = output
+    }
+    return
+  }
+
   // --- 3D Render Pro `stills` → the WHOLE ordered contact sheet, spread into
   // referenceImageUrls. One still per shot is a set, not a pick: handing a
   // downstream model only the first would silently drop the rest of the

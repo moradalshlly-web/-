@@ -6,7 +6,7 @@ import { config } from "../lib/config.js"
 import { supabase } from "../lib/supabase.js"
 import { uploadFileToR2 } from "../lib/storage.js"
 import { resolveIsPublicOutput, mcpClientForcesPrivate } from "./output-visibility.js"
-import { createWorkDir, cleanupWorkDir, downloadFile, runFfmpeg, needsTranscode, transcodeToBrowserSafe, BROWSER_SAFE_VIDEO_ARGS, REMOTION_INPUT_VIDEO_ARGS } from "../providers/video/ffmpeg-utils.js"
+import { createWorkDir, cleanupWorkDir, downloadFile, runFfmpeg, needsTranscode, transcodeToBrowserSafe, BROWSER_SAFE_VIDEO_ARGS, REMOTION_INPUT_VIDEO_ARGS , restoreVideoAudioFromSource } from "../providers/video/ffmpeg-utils.js"
 import { applyVideoWatermark } from "../utils/watermark.js"
 import { commitJobCredits, refundJobCredits, shouldSaveJobResult, markJobCompletedDetailed, generateAndUploadThumbnail, createAssetFromJob, isFinalJobAttempt, type MarkJobCompletedOutcome } from "./shared.js"
 import { markJobFailed } from "../lib/job-failure.js"
@@ -723,17 +723,22 @@ function startLocalFileServer(serveDir: string): Promise<{ baseUrl: string; clos
 async function normalizeInputVideos(
   inputProps: Record<string, unknown>,
   workDir: string,
-): Promise<(() => void) | undefined> {
+): Promise<{ close: () => void; audioByUrl: Map<string, string> } | undefined> {
   const urls = collectVideoUrls(inputProps)
   if (urls.length === 0) return undefined
 
   const fileMap = new Map<string, string>() // original URL → local filename
+  // original URL → the raw download (WITH audio). The served copy is
+  // transcoded `-an` for fast seeking, so this is the only local file that
+  // still carries the source's sound — the caller muxes it back after render.
+  const audioByUrl = new Map<string, string>()
 
   for (const url of urls) {
     if (fileMap.has(url)) continue
     const inputName = `input-${randomUUID()}.mp4`
     const localPath = join(workDir, inputName)
     await downloadFile(url, localPath)
+    audioByUrl.set(url, localPath)
 
     // Always transcode with all-intra keyframes (-g 1) so Remotion's
     // compositor can seek to any frame instantly instead of decoding from
@@ -774,7 +779,7 @@ async function normalizeInputVideos(
   }
   replaceVideoUrls(inputProps, urlMap)
 
-  return close
+  return { close, audioByUrl }
 }
 
 /**
@@ -937,6 +942,11 @@ export function createRenderWorker() {
 
         // FFmpeg fast path: skip Remotion for simple scene graphs (1 video, no effects/text)
         let outputPath: string
+        // Kinetic-caption audio restore (see after render): the source's CDN
+        // url and the audio-bearing local downloads, both set on the Remotion path.
+        let captionSourceUrl: string | undefined
+        let captionAudioByUrl: Map<string, string> | undefined
+        let stopFileServer: (() => void) | undefined
         if (isSceneGraphJob(data) && canUseFfmpegFastPath(data.sceneGraph)) {
           console.log(`[render-worker] FFmpeg fast path for job ${jobId}`)
           outputPath = await renderSceneGraphViaFfmpeg(data, workDir, bullJob)
@@ -946,7 +956,15 @@ export function createRenderWorker() {
           // with "Request closed" errors on Cloudflare R2).
           console.log(`[render-worker] Job ${jobId}: normalizing input videos...`)
           const t0 = Date.now()
-          const stopFileServer = await normalizeInputVideos(inputProps, workDir)
+          // Captured BEFORE normalize rewrites inputProps to localhost URLs:
+          // the CDN url of the caption source, used after render to restore its
+          // audio (the served copy is transcoded audio-less for seeking).
+          if (isPlanJob(data) && data.planType === "burn-captions") {
+            captionSourceUrl = collectVideoUrls(inputProps)[0]
+          }
+          const norm = await normalizeInputVideos(inputProps, workDir)
+          stopFileServer = norm?.close
+          captionAudioByUrl = norm?.audioByUrl
           console.log(`[render-worker] Job ${jobId}: input videos ready (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
 
           let sceneAssets: { assetUrls: Record<string, string>; close(): void } | undefined
@@ -1079,6 +1097,28 @@ export function createRenderWorker() {
         if (!await shouldSaveJobResult(jobId)) {
           await refundJobCredits(effectiveUsageLogId, jobId, "cancelled")
           return
+        }
+
+        // Restore the source video's audio onto a kinetic-caption render. The
+        // composition plays the input through OffthreadVideo unmuted, but its
+        // served copy was transcoded `-an` for fast frame seeking, so the
+        // output is silent — every spoken/scored video captioned this way lost
+        // its sound. Mux the audio-bearing download back over the picture. A
+        // genuinely silent source is a no-op; an ffmpeg failure keeps the
+        // (silent) render rather than failing the job.
+        if (captionSourceUrl && captionAudioByUrl) {
+          const audioSrc = captionAudioByUrl.get(captionSourceUrl)
+          if (audioSrc) {
+            try {
+              const withAudio = join(workDir, `captioned-audio-${jobId}.mp4`)
+              if (await restoreVideoAudioFromSource(outputPath, audioSrc, withAudio)) {
+                outputPath = withAudio
+                console.log(`[render-worker] Job ${jobId}: restored source audio onto captioned render`)
+              }
+            } catch (err) {
+              console.warn(`[render-worker] Job ${jobId}: audio restore failed, keeping silent render: ${err instanceof Error ? err.message : String(err)}`)
+            }
+          }
         }
 
         // Apply watermark if free tier

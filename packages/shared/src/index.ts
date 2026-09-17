@@ -630,6 +630,14 @@ export {
   META_ADS_PLATFORMS,
   isMetaAdsPlatform,
   type MetaAdsPlatform,
+  META_ADS_FORMATS,
+  isMetaAdsFormat,
+  classifyCreativeFormat,
+  clampMetaAdsFeaturedIndex,
+  featuredMetaAdOutputs,
+  type FeaturedMetaAdOutputs,
+  type MetaAdsFormat,
+  type MetaAdsCreativeFormat,
   META_ADS_SCRAPE_COUNT_OPTIONS,
   META_ADS_SCRAPE_DEFAULT_COUNT,
   META_ADS_SCRAPE_MAX_COUNT,
@@ -645,6 +653,18 @@ export {
   metaAdsScrapeTier,
   buildMetaAdsScrapeCreditId,
   resolveMetaAdsScrapeCreditId,
+  META_ADS_NODE_MODES,
+  META_ADS_ADVERTISER_MAX_RESULTS,
+  metaAdsNodeMode,
+  isFacebookPageUrl,
+  isMetaCdnImageUrl,
+  metaAdsAdvertisersFrom,
+  metaAdsScrapeSources,
+  metaAdsScrapeWireSources,
+  type MetaAdsNodeMode,
+  type MetaAdsAdvertiser,
+  type MetaAdsNodeSourceFields,
+  type MetaAdsWireSources,
   type MetaAdsScrapeMode,
   type MetaAdsScrapePeriod,
   type MetaAdsScrapeStatus,
@@ -1143,3 +1163,7 @@ export * from "./scene3d-input-assets.js"
 export * from "./video-output-canvas.js"
 export * from "./video-frame-fit.js"
 export type { CharacterMotionMetadata } from "./character-motion-metadata.js"
+
+// --- EDL: the edit decision list contract (podcast editing primitives).
+//     Types + validators + pure remap/duration functions; structural only. ---
+export * from "./edl.js"

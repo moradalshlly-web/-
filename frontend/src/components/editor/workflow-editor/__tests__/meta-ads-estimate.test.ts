@@ -28,6 +28,7 @@ function metaAdsNode(data: Record<string, unknown> = {}): WorkflowNode {
 
 const PAGES_3 = "https://www.facebook.com/a\nhttps://www.facebook.com/b\nhttps://www.facebook.com/c"
 const PAGES_5 = Array.from({ length: 5 }, (_, i) => `https://www.facebook.com/p${i}`).join("\n")
+const advertisers = (n: number) => Array.from({ length: n }, (_, i) => ({ pageId: String(i), name: `Brand ${i}`, url: `https://www.facebook.com/brand${i}` }))
 
 describe("meta-ads-scrape credit estimate parity", () => {
   it.each([
@@ -36,6 +37,12 @@ describe("meta-ads-scrape credit estimate parity", () => {
     ["3 pages × 30 ads → 90 → 100 tier", { mode: "pages", pageUrls: PAGES_3, count: 30 }, "meta-ads-scrape:100"],
     ["5 pages × 100 ads → top tier", { mode: "pages", pageUrls: PAGES_5, count: 100 }, "meta-ads-scrape:500"],
     ["pages mode with no urls yet counts as one source", { mode: "pages", pageUrls: "", count: 20 }, "meta-ads-scrape:20"],
+    // Advertiser picks are sources exactly like page urls — quoted as such
+    // on every surface (the server bills them as pages).
+    ["2 advertisers × 30 ads → 60 → 100 tier", { mode: "advertiser", advertisers: advertisers(2), count: 30 }, "meta-ads-scrape:100"],
+    ["5 advertisers × 100 ads → top tier", { mode: "advertiser", advertisers: advertisers(5), count: 100 }, "meta-ads-scrape:500"],
+    ["advertiser mode with no picks yet counts as one source", { mode: "advertiser", advertisers: [], count: 20 }, "meta-ads-scrape:20"],
+    ["stale picks do not count in keyword mode", { mode: "search", query: "shoes", advertisers: advertisers(5), count: 20 }, "meta-ads-scrape:20"],
   ])("%s: run total id and card credits agree", (_label, data, expectedId) => {
     const node = metaAdsNode(data)
     expect(getModelIdentifier(node)).toBe(expectedId)

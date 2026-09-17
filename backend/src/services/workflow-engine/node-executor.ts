@@ -30,7 +30,7 @@ import { resolveFieldMappings, NODE_MAPPABLE_FIELDS } from "./resolve-field-mapp
 
 import { executeCombineText, executeSplitText, executeComposite, executeWebhookOutput, executePreview, executeTeleporterPassthrough, executeRouter, executeExtractField, executeJsonProcess, executeFilterList, executeDeduplicateList, executeMergeLists, executeSortList, executeSelector } from "./inline-executor.js"
 import { executeSubWorkflow } from "./sub-workflow-handler.js"
-import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER, splitMetaAdsPageUrls } from "@nodaro/shared"
+import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER, metaAdsScrapeWireSources } from "@nodaro/shared"
 import { computeLlmChatFields, computeNodePrompt, pickerFanoutTargets, applyPromptAffixes } from "@nodaro/prompts"
 import type { ComponentMetadata } from "@nodaro/shared"
 import { getAppSettings } from "../../lib/app-settings.js"
@@ -590,6 +590,14 @@ async function executeSyncHttpNode(
     if (cursor !== undefined) body.sinceId = cursor
   }
 
+  // Meta Ads: a creative video is only copied into the user's library when
+  // its `video` output is actually wired — videos are the expensive bytes,
+  // and an unwired one would just sit in the quota. Same rule as the editor's
+  // buildMetaAdsScrapeParams.
+  if (node.type === "meta-ads-scrape" && edges) {
+    body.ingestVideo = edges.some((e) => e.source === node.id && e.sourceHandle === "video")
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     // Authenticate to the auth hook with the shared orchestrator secret — NOT req.ip,
@@ -1062,25 +1070,20 @@ export function buildSyncHttpBody(
     }
 
     case "meta-ads-scrape": {
-      // Mirrors the editor's buildMetaAdsScrapeParams: the keyword (search)
-      // or the page list (pages) falls back to the upstream text so a Prompt
-      // / list node can drive the scrape. Page urls are typed one per line.
-      const mode = data.mode === "pages" ? "pages" : "search"
-      const upstreamText = resolvedInputs.prompt
+      // The same ONE mapping the editor's buildMetaAdsScrapeParams uses: the
+      // keyword (search) or the page list (pages) falls back to the upstream
+      // text so a Prompt / list node can drive the scrape; advertiser picks
+      // run as their Page urls (the route knows only search / pages).
       const body: Record<string, unknown> = {
-        mode,
+        ...metaAdsScrapeWireSources(data, resolvedInputs.prompt),
         count: data.count,
         period: data.period,
         activeStatus: data.activeStatus,
         countryCode: data.countryCode,
         platforms: Array.isArray(data.platforms) ? data.platforms : undefined,
+        formats: Array.isArray(data.formats) ? data.formats : undefined,
+        featuredIndex: typeof data.featuredIndex === "number" ? data.featuredIndex : undefined,
         userId: ctx.userId,
-      }
-      if (mode === "pages") {
-        const own = splitMetaAdsPageUrls(data.pageUrls)
-        body.pageUrls = own.length > 0 ? own : splitMetaAdsPageUrls(upstreamText)
-      } else {
-        body.query = (data.query as string) || upstreamText
       }
       return withUserPrompt(body)
     }

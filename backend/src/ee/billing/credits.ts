@@ -15,7 +15,7 @@ import { hasCredits } from "../../lib/config.js"
 import { getAppSettings } from "../../lib/app-settings.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
 import { FREE_TIER_RESTRICTIONS, TIER_STORAGE_LIMITS } from "./stripe-config.js"
-import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, buildMetaAdsScrapeCreditId, splitMetaAdsPageUrls, META_ADS_SCRAPE_DEFAULT_COUNT } from "@nodaro/shared"
+import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, buildMetaAdsScrapeCreditId, metaAdsScrapeSources, META_ADS_SCRAPE_DEFAULT_COUNT } from "@nodaro/shared"
 // Provider-$ cost formulas — CORE lib (not @nodaro/shared, an irrevocably
 // published Apache package). See the 2026-07-06 public-flip IP audit, S5.
 import { flux2BaseCredits } from "../../lib/pricing/flux2-cost.js"
@@ -3276,7 +3276,9 @@ function getNodeModelIdentifier(node: { type: string; data?: Record<string, unkn
   // per line on the node).
   if (nodeType === "meta-ads-scrape") {
     const count = typeof data.count === "number" ? data.count : META_ADS_SCRAPE_DEFAULT_COUNT
-    const sources = data.mode === "pages" ? Math.max(1, splitMetaAdsPageUrls(data.pageUrls).length) : 1
+    // ONE source count (packages/shared) for pages AND advertiser picks, so
+    // this quote can never say one source while the reservation bills five.
+    const sources = metaAdsScrapeSources(data)
     return buildMetaAdsScrapeCreditId({ count, sources })
   }
 

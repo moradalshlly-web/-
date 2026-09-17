@@ -8,7 +8,7 @@ import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
-import { ALL_CAPTION_STYLES, isKineticCaptionStyle } from "@nodaro/shared"
+import { ALL_CAPTION_STYLES, isKineticCaptionStyle, SUPPORTED_FONT_NAMES } from "@nodaro/shared"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 
@@ -27,7 +27,11 @@ function buildAddCaptionsCreditId(body: unknown): string {
   return "add-captions"
 }
 
-const addCaptionsBody = z.object({
+// Optional "look" levers. They shape ONLY the Remotion-rendered kinetic styles;
+// the static `subtitle` path is FFmpeg drawtext and cannot honour them, so the
+// refine below REJECTS them on a non-kinetic style rather than silently
+// dropping them (a silent no-op is the failure this guards against).
+export const addCaptionsBody = z.object({
   videoUrl: safeUrlSchema,
   text: z.string().min(1).optional(),
   captions: z.array(captionInputSchema).optional(),
@@ -38,6 +42,13 @@ const addCaptionsBody = z.object({
   fontSize: z.number().min(12).max(200).optional().default(32),
   color: z.string().optional().default("white"),
   backgroundColor: z.string().optional(),
+  // Kinetic-style look levers (kinetic styles only — see LOOK_LEVER_KEYS).
+  fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+  strokeColor: z.string().optional(),
+  strokeWidth: z.number().min(0).max(40).optional(),
+  highlightColor: z.string().optional(),
+  uppercase: z.boolean().optional(),
+  positionY: z.number().min(0).max(100).optional(),
   userId: z.string().uuid().optional(),
 }).superRefine((v, ctx) => {
   // Need at least one caption source. auto_transcribe defaults to undefined,
@@ -48,6 +59,27 @@ const addCaptionsBody = z.object({
       code: "custom",
       message: "Provide text, captions, or set auto_transcribe (default true for kinetic styles)",
     })
+  }
+  // Look levers only apply to the Remotion kinetic path. `style` is already
+  // defaulted to "subtitle" here, so an unset style rejects a stray look lever.
+  if (!isKineticCaptionStyle(v.style)) {
+    const looks: Array<[string, unknown]> = [
+      ["fontFamily", v.fontFamily],
+      ["strokeColor", v.strokeColor],
+      ["strokeWidth", v.strokeWidth],
+      ["highlightColor", v.highlightColor],
+      ["uppercase", v.uppercase],
+      ["positionY", v.positionY],
+    ]
+    for (const [k, val] of looks) {
+      if (val !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: [k],
+          message: `${k} only applies to kinetic caption styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy); the "${v.style}" style ignores it`,
+        })
+      }
+    }
   }
 })
 

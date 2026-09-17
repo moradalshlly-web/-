@@ -7,6 +7,7 @@ import {
   deriveMetaAdsScrapeCardState,
   metaAdDateRange,
   metaAdDomain,
+  metaAdFormat,
   metaAdGlyph,
   metaAdHeadline,
   metaAdInitial,
@@ -17,10 +18,12 @@ import {
   metaAdPlatformsShort,
   metaAdPreviewUrl,
   metaAdRunDays,
+  metaAdStoredCreatives,
   metaAdsActiveCount,
   metaAdsScrapeFingerprint,
   metaAdsScrapeItems,
   metaAdsScrapeRunStartPatch,
+  metaAdsVisibleIndexes,
 } from "../meta-ads-scrape-run-state"
 
 const ad = (over: Record<string, unknown> = {}) => ({
@@ -98,13 +101,42 @@ describe("meta-ads-scrape run state", () => {
     expect(metaAdsActiveCount([ad({ isActive: true }), ad({ isActive: false }), ad({})])).toBe(1)
   })
 
+  it("format vocabulary: classified format, view filter indexes, stored creatives", () => {
+    const items = [
+      ad({ adArchiveId: "v", format: "vertical", creatives: [{ kind: "image", url: "https://r2/v.jpg", stored: true, assetId: "a1" }] }),
+      ad({ adArchiveId: "h", format: "horizontal", creatives: [{ kind: "video", url: "https://cdn/h.mp4", stored: false, assetId: null }] }),
+      ad({ adArchiveId: "?", format: "banana" }),
+    ]
+    expect(items.map(metaAdFormat)).toEqual(["vertical", "horizontal", "unknown"])
+    expect(metaAdsVisibleIndexes(items, "all")).toEqual([0, 1, 2])
+    expect(metaAdsVisibleIndexes(items, undefined)).toEqual([0, 1, 2])
+    expect(metaAdsVisibleIndexes(items, "vertical")).toEqual([0])
+    expect(metaAdsVisibleIndexes(items, "square")).toEqual([])
+    expect(metaAdStoredCreatives(items[0])).toEqual([{ kind: "image", url: "https://r2/v.jpg", assetId: "a1" }])
+    expect(metaAdStoredCreatives(items[1])).toEqual([])
+    expect(metaAdStoredCreatives(items[2])).toEqual([])
+  })
+
   it("the featured index is clamped to the current payload and resets on a fresh success", () => {
     expect(clampFeaturedIndex(7, 3)).toBe(2)
     expect(clampFeaturedIndex(-1, 3)).toBe(0)
     expect(clampFeaturedIndex("x", 3)).toBe(0)
     expect(clampFeaturedIndex(1, 0)).toBe(0)
-    expect(applyMetaAdsScrapeResult([ad()]).featuredIndex).toBe(0)
+    expect(applyMetaAdsScrapeResult([ad()])).toMatchObject({ featuredIndex: 0, viewFormat: "all" })
     expect(applyMetaAdsScrapeResult([])).not.toHaveProperty("featuredIndex")
+    expect(applyMetaAdsScrapeResult([])).not.toHaveProperty("viewFormat")
+  })
+
+  it("the fingerprint tracks advertiser picks by page id (order-insensitive)", () => {
+    const nike = { pageId: "1", name: "Nike", url: "https://www.facebook.com/nike" }
+    const adidas = { pageId: "2", name: "Adidas", url: "https://www.facebook.com/adidas" }
+    const a = metaAdsScrapeFingerprint({ ...base, mode: "advertiser", advertisers: [nike, adidas] })
+    const b = metaAdsScrapeFingerprint({ ...base, mode: "advertiser", advertisers: [adidas, nike] })
+    const c = metaAdsScrapeFingerprint({ ...base, mode: "advertiser", advertisers: [nike] })
+    expect(a).toBe(b)
+    expect(a).not.toBe(c)
+    // A renamed pick (same page) is the same run.
+    expect(metaAdsScrapeFingerprint({ ...base, mode: "advertiser", advertisers: [{ ...nike, name: "NIKE" }] })).toBe(c)
   })
 
   it("the fingerprint tracks the platform filter (order-insensitive)", () => {

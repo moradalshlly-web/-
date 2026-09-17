@@ -1,7 +1,7 @@
 ---
 node_type: meta-ads-scrape
-generated_at: 2026-09-17T15:31:22.363Z
-generated_from: 77b8d2eae
+generated_at: 2026-09-17T18:20:12.464Z
+generated_from: 112680126
 ---
 
 # Meta Ads
@@ -11,21 +11,24 @@ generated_from: 77b8d2eae
 **Category:** input
 **Credit cost:** 20
 **Inputs (target handles):** `in`
-**Outputs (source handles):** `json`
+**Outputs (source handles):** `json`, `text`, `image`, `video`
 
 **Required data fields:**
 - `label: string`
 
 **Optional data fields:**
-- `mode?: import("@nodaro/shared").MetaAdsScrapeMode`
+- `mode?: import("@nodaro/shared").MetaAdsNodeMode`
 - `query?: string`
 - `pageUrls?: string`
+- `advertisers?: import("@nodaro/shared").MetaAdsAdvertiser[]`
 - `count?: number`
 - `period?: import("@nodaro/shared").MetaAdsScrapePeriod`
 - `activeStatus?: import("@nodaro/shared").MetaAdsScrapeStatus`
 - `countryCode?: string`
 - `platforms?: string[]`
+- `formats?: string[]`
 - `featuredIndex?: number`
+- `viewFormat?: string`
 - `executionStatus?: "idle" | "running" | "completed" | "failed"`
 - `errorMessage?: string`
 - `generatedJson?: unknown`

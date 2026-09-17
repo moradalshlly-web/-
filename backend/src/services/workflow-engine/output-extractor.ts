@@ -15,7 +15,7 @@ import {
   TEXT_SOURCE_TYPES,
 } from "./execution-graph.js"
 import {
-  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle } from "@nodaro/shared"
+  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs } from "@nodaro/shared"
 import type { SceneData } from "@nodaro/shared"
 import { buildScenePrompt } from "@nodaro/prompts"
 export { extractVideoDurationFromNode } from "@nodaro/shared"
@@ -676,10 +676,19 @@ export function getPrimaryOutput(
     return output.json === undefined ? undefined : JSON.stringify(output.json)
   }
 
-  // Meta Ads scraper: single `json` output handle (an array of normalized
-  // ads). Mirrors the web-scrape json branch.
-  if (sourceType === "meta-ads-scrape" && sourceHandle === "json") {
-    return output.json === undefined ? undefined : JSON.stringify(output.json)
+  // Meta Ads scraper: `json` (the whole ad array, stringified for text
+  // consumers) plus the FEATURED ad's `text` / `image` / `video` — the route
+  // writes those three onto output_data, and extractSavedNodeOutput re-derives
+  // them from the saved ad. Unknown handles return nothing rather than
+  // falling through to the generic url/text catch-all.
+  if (sourceType === "meta-ads-scrape") {
+    if (sourceHandle === "text") return output.text
+    if (sourceHandle === "image") return output.imageUrl
+    if (sourceHandle === "video") return output.videoUrl
+    if (sourceHandle === "json" || !sourceHandle) {
+      return output.json === undefined ? undefined : JSON.stringify(output.json)
+    }
+    return undefined
   }
 
   // Video-analysis / video-audit: `json` + `text` output handles carry the SAME
@@ -1286,12 +1295,15 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
     return json === undefined ? undefined : { json }
   }
 
-  // Meta Ads scraper: single `json` output (the normalized ad array persisted
-  // on data.generatedJson). Mirrors web-scrape's json branch so a skipped /
-  // "Run from here" node hydrates the handle from saved data without re-running.
+  // Meta Ads scraper: `json` (the normalized ad array persisted on
+  // data.generatedJson) plus the featured ad's text / image / video, derived
+  // from `data.featuredIndex` so picking another thumb re-hydrates the typed
+  // handles without a re-scrape. Mirrors web-scrape's json branch for the
+  // skipped / "Run from here" path.
   if (type === "meta-ads-scrape") {
     const json = data.generatedJson
-    return json === undefined ? undefined : { json }
+    if (json === undefined) return undefined
+    return { json, ...featuredMetaAdOutputs(json, data.featuredIndex) }
   }
 
   // Video-analysis / video-audit: single `json` output (the scene-segmented

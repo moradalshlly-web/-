@@ -1,0 +1,550 @@
+import { describe, it, expect } from "vitest"
+import {
+  EDL_VERSION,
+  edlDurationMs,
+  validateEdl,
+  validateEdlClipSet,
+  remapMsThroughEdl,
+  remapTranscriptThroughEdl,
+  speakerTurns,
+  normalizeEdl,
+  normalizeTranscript,
+  type Edl,
+  type Transcript,
+} from "../edl.js"
+
+/** A minimal valid single-camera tighten EDL: two kept spans of the master. */
+function tightenEdl(): Edl {
+  return {
+    version: 1,
+    clock: "master",
+    sources: [{ id: "master", url: "https://x/master.mp4", kind: "video", role: "master-audio" }],
+    segments: [
+      { id: "s0", inMs: 0, outMs: 5000, video: "master" },
+      { id: "s1", inMs: 8000, outMs: 12000, video: "master" }, // 3000-8000 dropped
+    ],
+    dropped: [{ inMs: 5000, outMs: 8000, reason: "silence" }],
+  }
+}
+
+describe("edlDurationMs (D17 overlap)", () => {
+  it("sums segment durations with no transitions", () => {
+    expect(edlDurationMs(tightenEdl())).toBe(9000) // 5000 + 4000
+  })
+
+  it("subtracts a crossfade transition (overlap compresses the timeline)", () => {
+    const edl: Edl = {
+      ...tightenEdl(),
+      segments: [
+        { id: "s0", inMs: 0, outMs: 5000, video: "master" },
+        { id: "s1", inMs: 8000, outMs: 12000, video: "master", transition: { type: "crossfade", durationMs: 1000 } },
+      ],
+    }
+    expect(edlDurationMs(edl)).toBe(8000) // 9000 - 1000 overlap
+  })
+
+  it("does NOT subtract a cut", () => {
+    const edl: Edl = {
+      ...tightenEdl(),
+      segments: [
+        { id: "s0", inMs: 0, outMs: 5000, video: "master" },
+        { id: "s1", inMs: 8000, outMs: 12000, video: "master", transition: { type: "cut", durationMs: 0 } },
+      ],
+    }
+    expect(edlDurationMs(edl)).toBe(9000)
+  })
+
+  it("subtracts an xfade:* layout transition but not pan/zoom", () => {
+    const base = tightenEdl()
+    const withXfade: Edl = {
+      ...base,
+      sources: [
+        { id: "a", url: "https://x/a.mp4", kind: "video", role: "master-audio" },
+        { id: "b", url: "https://x/b.mp4", kind: "video" },
+      ],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 5000, video: "a" },
+        { id: "s1", inMs: 8000, outMs: 12000, video: "b", layout: { mode: "single", transition: { type: "xfade:slide-left", durationMs: 800 } } },
+      ],
+      dropped: undefined,
+    }
+    expect(edlDurationMs(withXfade)).toBe(8200)
+    const withPan: Edl = {
+      ...withXfade,
+      segments: [
+        withXfade.segments[0],
+        { ...withXfade.segments[1], layout: { mode: "single", transition: { type: "pan", durationMs: 800 } } },
+      ],
+    }
+    expect(edlDurationMs(withPan)).toBe(9000)
+  })
+})
+
+describe("remapMsThroughEdl", () => {
+  it("maps kept instants to the compacted output clock and drops removed ones", () => {
+    const edl = tightenEdl()
+    expect(remapMsThroughEdl(edl, 0)).toBe(0)
+    expect(remapMsThroughEdl(edl, 4999)).toBe(4999)
+    expect(remapMsThroughEdl(edl, 6000)).toBeNull() // dropped span
+    expect(remapMsThroughEdl(edl, 8000)).toBe(5000) // start of 2nd segment lands right after the 1st
+    expect(remapMsThroughEdl(edl, 11999)).toBe(8999)
+  })
+
+  it("is monotonic over kept instants", () => {
+    const edl = tightenEdl()
+    let prev = -1
+    for (const ms of [0, 1000, 2500, 4999, 8000, 9000, 11999]) {
+      const out = remapMsThroughEdl(edl, ms)
+      if (out === null) continue
+      expect(out).toBeGreaterThan(prev)
+      prev = out
+    }
+  })
+
+  it("applies the D19 source offset (masterMs = sourceMs + offsetMs)", () => {
+    const edl: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [
+        { id: "master", url: "https://x/m.mp4", kind: "video", role: "master-audio" },
+        { id: "cam", url: "https://x/c.mp4", kind: "video", offsetMs: 1200 },
+      ],
+      segments: [{ id: "s0", inMs: 0, outMs: 10000, video: "master" }],
+    }
+    // A cam instant at 0 is at master 1200.
+    expect(remapMsThroughEdl(edl, 0, "cam")).toBe(1200)
+    // Without a sourceId the instant is already on the master clock.
+    expect(remapMsThroughEdl(edl, 0)).toBe(0)
+  })
+})
+
+describe("remapTranscriptThroughEdl", () => {
+  it("drops words in removed spans and clips straddlers; identity+offset round-trips", () => {
+    const edl = tightenEdl()
+    const t: Transcript = {
+      version: 1,
+      words: [
+        { text: "keep", startMs: 100, endMs: 400 },
+        { text: "gone", startMs: 6000, endMs: 6500 }, // dropped span
+        { text: "back", startMs: 8100, endMs: 8500 },
+      ],
+    }
+    const out = remapTranscriptThroughEdl(edl, t)
+    expect(out.words.map(w => w.text)).toEqual(["keep", "back"])
+    expect(out.words[0]).toMatchObject({ startMs: 100, endMs: 400 })
+    expect(out.words[1]).toMatchObject({ startMs: 5100, endMs: 5500 })
+  })
+
+  it("applies the offset via transcript.sourceId (no silent drift)", () => {
+    const edl: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [
+        { id: "master", url: "https://x/m.mp4", kind: "video", role: "master-audio" },
+        { id: "cam", url: "https://x/c.mp4", kind: "video", offsetMs: 1000 },
+      ],
+      segments: [{ id: "s0", inMs: 0, outMs: 10000, video: "master" }],
+    }
+    // A word at cam-time 500 is at master 1500 → output 1500 (identity segment).
+    const t: Transcript = { version: 1, sourceId: "cam", words: [{ text: "hi", startMs: 500, endMs: 900 }] }
+    const out = remapTranscriptThroughEdl(edl, t)
+    expect(out.words[0]).toMatchObject({ startMs: 1500, endMs: 1900 })
+  })
+})
+
+describe("validateEdl", () => {
+  it("accepts a well-formed tighten EDL", () => {
+    expect(validateEdl(tightenEdl())).toEqual({ ok: true, issues: [] })
+  })
+
+  it("rejects outMs <= inMs, unknown source ids, and dropped∩segments", () => {
+    const bad: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "m", url: "x", kind: "video", role: "master-audio" }],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 0, video: "m" },
+        { id: "s1", inMs: 100, outMs: 200, video: "ghost" },
+      ],
+      dropped: [{ inMs: 150, outMs: 180, reason: "silence" }],
+    }
+    const r = validateEdl(bad)
+    expect(r.ok).toBe(false)
+    expect(r.issues.join("\n")).toMatch(/outMs .* must be > inMs/)
+    expect(r.issues.join("\n")).toMatch(/video source "ghost" not in sources/)
+    expect(r.issues.join("\n")).toMatch(/overlaps kept segment/)
+  })
+
+  it("forbids a transition on segments[0] and both transition fields on one segment", () => {
+    const e1: Edl = { ...tightenEdl(), segments: [{ id: "s0", inMs: 0, outMs: 5000, video: "master", transition: { type: "crossfade", durationMs: 100 } }, { id: "s1", inMs: 8000, outMs: 12000, video: "master" }], dropped: undefined }
+    expect(validateEdl(e1).issues.join("\n")).toMatch(/segments\[0\] cannot have a transition/)
+    const e2: Edl = { ...tightenEdl(), segments: [{ id: "s0", inMs: 0, outMs: 5000, video: "master" }, { id: "s1", inMs: 8000, outMs: 12000, video: "master", transition: { type: "crossfade", durationMs: 100 }, layout: { mode: "single", transition: { type: "xfade:x", durationMs: 100 } } }], dropped: undefined }
+    expect(validateEdl(e2).issues.join("\n")).toMatch(/both EdlSegment.transition and EdlLayout.transition/)
+  })
+
+  it("enforces the 0.9*min(adjacent) transition bound (the executor's real clamp)", () => {
+    // adjacent min duration is 4000 → bound is 3600. 3800 must fail; 3600 must pass.
+    const over: Edl = { ...tightenEdl(), segments: [{ id: "s0", inMs: 0, outMs: 5000, video: "master" }, { id: "s1", inMs: 8000, outMs: 12000, video: "master", transition: { type: "crossfade", durationMs: 3800 } }], dropped: undefined }
+    expect(validateEdl(over).ok).toBe(false)
+    const okEdl: Edl = { ...over, segments: [over.segments[0], { ...over.segments[1], transition: { type: "crossfade", durationMs: 3600 } }] }
+    expect(validateEdl(okEdl).ok).toBe(true)
+  })
+
+  it("rejects segment.region when the layout has >1 slot (D20)", () => {
+    const e: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "a", url: "x", kind: "video", role: "master-audio" }, { id: "b", url: "y", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 1000, video: "a", region: { x: 0, y: 0, w: 0.5, h: 0.5 }, layout: { mode: "side-by-side", slots: [{ source: "a" }, { source: "b" }] } }],
+    }
+    expect(validateEdl(e).issues.join("\n")).toMatch(/segment.region is invalid when the layout has >1 slot/)
+  })
+
+  it("rejects >1 master-audio and a non-video slot source", () => {
+    const e: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [
+        { id: "a", url: "x", kind: "video", role: "master-audio" },
+        { id: "b", url: "y", kind: "audio", role: "master-audio" },
+      ],
+      segments: [{ id: "s0", inMs: 0, outMs: 1000, video: "a", layout: { mode: "pip", slots: [{ source: "b" }] } }],
+    }
+    const r = validateEdl(e)
+    expect(r.issues.join("\n")).toMatch(/more than one source has role:"master-audio"/)
+    expect(r.issues.join("\n")).toMatch(/slots must be video/)
+  })
+})
+
+describe("validateEdlClipSet", () => {
+  it("accepts a set of valid clips and reports a bad one", () => {
+    const good = { version: 1 as const, clips: [tightenEdl(), tightenEdl()] }
+    expect(validateEdlClipSet(good).ok).toBe(true)
+    const bad = { version: 1 as const, clips: [tightenEdl(), { ...tightenEdl(), segments: [] }] }
+    const r = validateEdlClipSet(bad)
+    expect(r.ok).toBe(false)
+    expect(r.issues.join("\n")).toMatch(/clip\[1\]: segments is empty/)
+  })
+})
+
+describe("speakerTurns", () => {
+  it("merges within the gap and drops short turns", () => {
+    const t: Transcript = {
+      version: 1,
+      words: [
+        { text: "a", startMs: 0, endMs: 300, speaker: "host" },
+        { text: "b", startMs: 400, endMs: 900, speaker: "host" }, // gap 100 < merge
+        { text: "c", startMs: 2000, endMs: 2100, speaker: "guest" }, // 100ms turn, dropped
+        { text: "d", startMs: 3000, endMs: 5000, speaker: "guest" },
+      ],
+    }
+    const turns = speakerTurns(t, { minTurnMs: 500, mergeGapMs: 200 })
+    expect(turns).toEqual([
+      { speaker: "host", startMs: 0, endMs: 900 },
+      { speaker: "guest", startMs: 3000, endMs: 5000 },
+    ])
+  })
+})
+
+describe("normalizeEdl", () => {
+  it("fills defaults, clamps regions, and is ms-only (no unit guessing)", () => {
+    const n = normalizeEdl({
+      segments: [{ inMs: 5, outMs: 12, region: { x: -1, y: 0.5, w: 2, h: 0.5 } }],
+      sources: [{ id: "m", url: "u", kind: "video" }],
+    })
+    expect(n.version).toBe(EDL_VERSION)
+    expect(n.clock).toBe("master")
+    // ms preserved verbatim — an integer-seconds-looking value is NOT rescaled.
+    expect(n.segments[0]).toMatchObject({ inMs: 5, outMs: 12 })
+    expect(n.segments[0].region).toEqual({ x: 0, y: 0.5, w: 1, h: 0.5 })
+  })
+
+  it("preserves segment order verbatim (no destructive re-sort)", () => {
+    const n = normalizeEdl({ segments: [{ id: "b", inMs: 900, outMs: 1000 }, { id: "a", inMs: 0, outMs: 100 }] })
+    expect(n.segments.map(s => s.id)).toEqual(["b", "a"])
+  })
+
+  it("renames nothing but carries slots[].weight (D20)", () => {
+    const n = normalizeEdl({ segments: [{ inMs: 0, outMs: 100, layout: { mode: "grid", slots: [{ source: "a", weight: 1 }, { source: "b", weight: 2 }] } }] })
+    expect(n.segments[0].layout?.slots).toEqual([{ source: "a", weight: 1 }, { source: "b", weight: 1 }])
+  })
+
+  it("round-trips a normalized EDL through validateEdl cleanly", () => {
+    const n = normalizeEdl(tightenEdl())
+    expect(validateEdl(n).ok).toBe(true)
+  })
+})
+
+describe("normalizeTranscript", () => {
+  it("coerces words to ms and carries sourceId", () => {
+    const t = normalizeTranscript({ sourceId: "cam", words: [{ text: "hi", startMs: 1.6, endMs: 2.4 }] })
+    expect(t.version).toBe(EDL_VERSION)
+    expect(t.sourceId).toBe("cam")
+    expect(t.words[0]).toEqual({ text: "hi", startMs: 2, endMs: 2 })
+  })
+
+  it("never produces an inverted word (endMs >= startMs)", () => {
+    const t = normalizeTranscript({ words: [{ text: "x", startMs: 500, endMs: 100 }] })
+    expect(t.words[0].endMs).toBeGreaterThanOrEqual(t.words[0].startMs)
+    expect(t.words[0].endMs).toBe(500)
+  })
+})
+
+// ── Fixes from the 2026-09-17 adversarial review ──────────────────────────
+
+/** A 3-segment fixture with two crossfades (exercises cumulative overlap). */
+function threeSegOverlap(): Edl {
+  return {
+    version: 1,
+    clock: "master",
+    sources: [{ id: "m", url: "https://x/m.mp4", kind: "video", role: "master-audio" }],
+    segments: [
+      { id: "s0", inMs: 0, outMs: 4000, video: "m" },
+      { id: "s1", inMs: 4000, outMs: 8000, video: "m", transition: { type: "crossfade", durationMs: 500 } },
+      { id: "s2", inMs: 8000, outMs: 12000, video: "m", transition: { type: "crossfade", durationMs: 500 } },
+    ],
+  }
+}
+
+describe("edlDurationMs ↔ segmentOutputStarts invariant", () => {
+  it("remap(lastSeg.outMs-1)+1 === edlDurationMs under cumulative overlap", () => {
+    const edl = threeSegOverlap()
+    expect(edlDurationMs(edl)).toBe(11000) // 12000 - 2*500
+    const last = edl.segments[edl.segments.length - 1]
+    const endOut = remapMsThroughEdl(edl, last.outMs - 1)!
+    expect(endOut + 1).toBe(edlDurationMs(edl))
+  })
+
+  it("stays consistent even if a transition is (wrongly) on segments[0]", () => {
+    // normalizeEdl strips it; but even on the raw object the two overlap paths must agree.
+    const raw: Edl = {
+      ...threeSegOverlap(),
+      segments: [
+        { id: "s0", inMs: 0, outMs: 4000, video: "m", transition: { type: "crossfade", durationMs: 500 } },
+        { id: "s1", inMs: 4000, outMs: 8000, video: "m" },
+      ],
+    }
+    const last = raw.segments[raw.segments.length - 1]
+    expect(remapMsThroughEdl(raw, last.outMs - 1)! + 1).toBe(edlDurationMs(raw))
+  })
+})
+
+describe("remapTranscriptThroughEdl segments (envelope, not endpoint-probe)", () => {
+  it("does not collapse a segment straddling into dropped material", () => {
+    const edl = tightenEdl() // s0[0,5000), dropped[5000,8000), s1[8000,12000)
+    const t: Transcript = { version: 1, words: [], segments: [{ startMs: 4000, endMs: 6000, text: "spanning" }] }
+    const out = remapTranscriptThroughEdl(edl, t).segments!
+    // kept portion is [4000,5000) master → output [4000,5000), NOT a 1ms stub
+    expect(out[0]).toMatchObject({ startMs: 4000, endMs: 5000 })
+  })
+
+  it("never inverts across a crossfade boundary", () => {
+    const edl: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 5000, video: "m" },
+        { id: "s1", inMs: 5000, outMs: 9000, video: "m", transition: { type: "crossfade", durationMs: 1000 } },
+      ],
+    }
+    const t: Transcript = { version: 1, words: [], segments: [{ startMs: 4700, endMs: 5300, text: "x" }] }
+    const out = remapTranscriptThroughEdl(edl, t).segments![0]
+    expect(out.endMs).toBeGreaterThanOrEqual(out.startMs)
+  })
+
+  it("spans both when a segment straddles two contiguous kept segments", () => {
+    const edl: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 5000, video: "m" },
+        { id: "s1", inMs: 5000, outMs: 9000, video: "m" },
+      ],
+    }
+    const t: Transcript = { version: 1, words: [], segments: [{ startMs: 4000, endMs: 6000, text: "x" }] }
+    const out = remapTranscriptThroughEdl(edl, t).segments![0]
+    expect(out).toMatchObject({ startMs: 4000, endMs: 6000 })
+  })
+})
+
+describe("remap boundary exclusivity & range", () => {
+  it("outMs is exclusive; out-of-range instants are null", () => {
+    const edl = tightenEdl()
+    expect(remapMsThroughEdl(edl, 5000)).toBeNull() // == s0.outMs (exclusive) and inside the dropped span
+    expect(remapMsThroughEdl(edl, -1)).toBeNull()
+    expect(remapMsThroughEdl(edl, 999_999)).toBeNull()
+  })
+
+  it("keeps a zero-width word sitting in kept material", () => {
+    const edl = tightenEdl()
+    const t: Transcript = { version: 1, words: [{ text: "pt", startMs: 2000, endMs: 2000 }] }
+    const out = remapTranscriptThroughEdl(edl, t)
+    expect(out.words).toHaveLength(1)
+    expect(out.words[0]).toMatchObject({ startMs: 2000, endMs: 2000 })
+  })
+})
+
+describe("validateEdl — transition bound applies only to overlap types", () => {
+  it("accepts a long pan/zoom/cut (no xfade, no time consumed)", () => {
+    const mk = (type: string): Edl => ({
+      version: 1,
+      clock: "master",
+      sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 10000, video: "m" },
+        { id: "s1", inMs: 10000, outMs: 20000, video: "m", layout: { mode: "single", transition: { type, durationMs: 9500 } } },
+      ],
+    })
+    expect(validateEdl(mk("pan")).ok).toBe(true)
+    expect(validateEdl(mk("zoom")).ok).toBe(true)
+    const cut: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 300, video: "m" },
+        { id: "s1", inMs: 300, outMs: 600, video: "m", transition: { type: "cut", durationMs: 5000 } },
+      ],
+    }
+    expect(validateEdl(cut).ok).toBe(true) // a cut's durationMs is inert
+  })
+
+  it("still rejects an over-long crossfade with the 0.9·min message", () => {
+    const over: Edl = { ...tightenEdl(), segments: [{ id: "s0", inMs: 0, outMs: 5000, video: "master" }, { id: "s1", inMs: 8000, outMs: 12000, video: "master", transition: { type: "crossfade", durationMs: 3800 } }], dropped: undefined }
+    expect(validateEdl(over).issues.join("\n")).toMatch(/exceeds 0.9·min/)
+  })
+})
+
+describe("validateEdl — more branches", () => {
+  it("rejects duplicate source id, wrong version, bad clock, audio-typed video, empty url", () => {
+    const dup: Edl = { ...tightenEdl(), sources: [{ id: "master", url: "u", kind: "video", role: "master-audio" }, { id: "master", url: "u2", kind: "video" }] }
+    expect(validateEdl(dup).issues.join("\n")).toMatch(/duplicate source id/)
+    const badV = { ...tightenEdl(), version: 2 } as unknown as Edl
+    expect(validateEdl(badV).ok).toBe(false)
+    const badClock = { ...tightenEdl(), clock: "wall" } as unknown as Edl
+    expect(validateEdl(badClock).issues.join("\n")).toMatch(/clock must be/)
+    const audioVideo: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "a", url: "u", kind: "audio", role: "master-audio" }, { id: "v", url: "w", kind: "video" }],
+      segments: [{ id: "s", inMs: 0, outMs: 1000, video: "a" }],
+    }
+    expect(validateEdl(audioVideo).issues.join("\n")).toMatch(/video source "a" is kind:"audio"/)
+    const emptyUrl: Edl = { version: 1, clock: "master", sources: [{ id: "m", url: "", kind: "video", role: "master-audio" }], segments: [{ id: "s", inMs: 0, outMs: 1000, video: "m" }] }
+    expect(validateEdl(emptyUrl).issues.join("\n")).toMatch(/url is empty/)
+  })
+
+  it("accepts a segment whose audio falls back to the master-audio source", () => {
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "aud", url: "u", kind: "audio", role: "master-audio" }, { id: "cam", url: "w", kind: "video" }],
+      segments: [{ id: "s", inMs: 0, outMs: 1000, video: "cam" }], // no explicit audio → master-audio
+    }
+    expect(validateEdl(edl).ok).toBe(true)
+  })
+
+  it("rejects a segment with no audio and no master-audio/video fallback", () => {
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "aud", url: "u", kind: "audio" }], // no master-audio role
+      segments: [{ id: "s", inMs: 0, outMs: 1000 }], // no audio, no video
+    }
+    expect(validateEdl(edl).issues.join("\n")).toMatch(/no audio source and no master-audio\/video fallback/)
+  })
+})
+
+describe("normalizeEdl — coerce never reject (round-trip through validateEdl)", () => {
+  it("handles degenerate input without throwing", () => {
+    for (const x of [{}, null, "x", 42, [], { segments: null }]) {
+      const n = normalizeEdl(x)
+      expect(n.version).toBe(EDL_VERSION)
+      expect(n.clock).toBe("master")
+      expect(Array.isArray(n.segments)).toBe(true)
+    }
+    expect(validateEdl(normalizeEdl({})).issues.join("\n")).toMatch(/segments is empty/)
+  })
+
+  it("fits a region that per-axis clamping alone would leave out of the frame", () => {
+    const n = normalizeEdl({ sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }], segments: [{ id: "s", inMs: 0, outMs: 1000, video: "m", region: { x: 0.9, y: 0.9, w: 0.5, h: 0.5 } }] })
+    expect(validateEdl(n).ok).toBe(true)
+    const r = n.segments[0].region!
+    expect(r.x + r.w).toBeLessThanOrEqual(1)
+    expect(r.y + r.h).toBeLessThanOrEqual(1)
+  })
+
+  it("defaults a layout with no mode to \"single\" and keeps its slots + transition", () => {
+    const n = normalizeEdl({ segments: [{ id: "a", inMs: 0, outMs: 100 }, { id: "s", inMs: 100, outMs: 200, layout: { slots: [{ source: "a" }, { source: "b" }], transition: { type: "xfade:x", durationMs: 50 } } }] })
+    expect(n.segments[1].layout?.mode).toBe("single")
+    expect(n.segments[1].layout?.slots).toHaveLength(2)
+    expect(n.segments[1].layout?.transition).toMatchObject({ type: "xfade:x" })
+  })
+
+  it("strips a transition on segments[0] so validateEdl does not reject a fixable EDL", () => {
+    const n = normalizeEdl({
+      sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 5000, video: "m", transition: { type: "crossfade", durationMs: 100 } },
+        { id: "s1", inMs: 8000, outMs: 12000, video: "m" },
+      ],
+    })
+    expect(n.segments[0].transition).toBeUndefined()
+    expect(validateEdl(n).ok).toBe(true)
+  })
+
+  it("property: a normalized EDL whose only inherent defect is empty-segments/unresolved-ids validates otherwise", () => {
+    // A grab-bag of repairable garbage; normalize must not throw, and any
+    // remaining issues must be ones normalize genuinely cannot repair.
+    const samples = [
+      { clock: "weird", sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }], segments: [{ inMs: 0, outMs: 1000, video: "m", region: { x: 2, y: -1, w: 5, h: 5 } }] },
+      { sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }], segments: [{ inMs: 0, outMs: 1000, video: "m", transition: { type: "crossfade", durationMs: 1e9 } }] },
+    ]
+    for (const s of samples) {
+      const n = normalizeEdl(s)
+      const r = validateEdl(n)
+      // These specific samples are repairable to valid (region fitted, seg[0]
+      // transition stripped) — so they should validate clean.
+      expect(r.ok).toBe(true)
+    }
+  })
+})
+
+describe("validateEdlClipSet with a diverse set", () => {
+  it("validates a mixed-length clip set", () => {
+    const clipA = tightenEdl()
+    const clipB: Edl = { version: 1, clock: "master", sources: clipA.sources, segments: [{ id: "c", inMs: 0, outMs: 3000, video: "master" }], meta: { hook: "watch this" } }
+    expect(validateEdlClipSet({ version: 1, clips: [clipA, clipB] }).ok).toBe(true)
+  })
+})
+
+describe("transition.durationMs is optional (inert for non-overlap types)", () => {
+  it("accepts a cut with no durationMs and counts no overlap", () => {
+    const edl: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 5000, video: "m" },
+        { id: "s1", inMs: 8000, outMs: 12000, video: "m", transition: { type: "cut" } },
+      ],
+    }
+    expect(validateEdl(edl).ok).toBe(true)
+    expect(edlDurationMs(edl)).toBe(9000)
+  })
+
+  it("normalizeEdl zeroes a cut's durationMs (inert)", () => {
+    const n = normalizeEdl({
+      sources: [{ id: "m", url: "u", kind: "video", role: "master-audio" }],
+      segments: [
+        { id: "s0", inMs: 0, outMs: 5000, video: "m" },
+        { id: "s1", inMs: 8000, outMs: 12000, video: "m", transition: { type: "cut", durationMs: 5000 } },
+      ],
+    })
+    expect(n.segments[1].transition).toEqual({ type: "cut", durationMs: 0 })
+  })
+
+  it("validateEdl does not throw on a raw object that skipped normalize", () => {
+    expect(() => validateEdl({ version: 1, clock: "master" } as unknown as Edl)).not.toThrow()
+    expect(validateEdl({ version: 1, clock: "master" } as unknown as Edl).ok).toBe(false)
+  })
+})

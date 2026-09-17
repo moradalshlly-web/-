@@ -46,7 +46,7 @@ import {
   type HandlerFn,
   type JobContext,
 } from "../shared.js"
-import { isKineticCaptionStyle } from "@nodaro/shared"
+import { isKineticCaptionStyle, type SupportedFontName } from "@nodaro/shared"
 import { attachAssetToCharacter, resolveAssetColumn } from "../../lib/character-auto-attach.js"
 import { DrainAbortError } from "../../lib/worker-drain.js"
 
@@ -524,6 +524,12 @@ async function dispatchKineticCaptions(
     fontSize?: number
     color?: string
     backgroundColor?: string
+    fontFamily?: SupportedFontName
+    strokeColor?: string
+    strokeWidth?: number
+    highlightColor?: string
+    uppercase?: boolean
+    positionY?: number
   },
 ): Promise<void> {
   const fps = 30
@@ -666,6 +672,12 @@ async function dispatchKineticCaptions(
         fontSize: data.fontSize ?? 32,
         color: data.color ?? "#ffffff",
         backgroundColor: data.backgroundColor,
+        fontFamily: data.fontFamily,
+        strokeColor: data.strokeColor,
+        strokeWidth: data.strokeWidth,
+        highlightColor: data.highlightColor,
+        uppercase: data.uppercase,
+        positionY: data.positionY,
         fps,
         width,
         height,

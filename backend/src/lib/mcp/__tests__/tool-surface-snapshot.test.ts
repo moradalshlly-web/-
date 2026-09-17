@@ -219,6 +219,19 @@ const SCENE3D_REVIEW_UNAVAILABLE_BYTES = 302
 // the same 1_320 B — the list had shrunk since the 85 B the entries above record,
 // and this raise spends none of that slack.
 const SCENE3D_REVIEW_UNUSABLE_BYTES = 60
+//
+// RAISED 2026-09-17 by the add-captions kinetic LOOK levers and nothing else.
+// The add_captions tool gained six optional arguments for the Remotion kinetic
+// styles — font_family (which serialises the full SUPPORTED_FONT_NAMES enum),
+// stroke_color / stroke_width, highlight_color, uppercase, position_y — plus a
+// paragraph on its description saying they apply to the kinetic styles only.
+// Most of the bytes are the font enum and the six describe strings, not prose.
+// No tool was added, so the membership fixture does NOT move, and add_captions
+// is nowhere near the per-tool budget (the largest definition in the list is
+// generate_video at 8_130 B). Measured by this suite: 350_659 total − 348_792
+// base = 1_867 B, which preserves the same 1_287 B of headroom the list had
+// before this raise.
+const CAPTION_LOOK_LEVERS_BYTES = 1_867
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -233,7 +246,8 @@ export const TOOL_WIRE_BUDGET = {
     SCENE3D_ADVISORY_REVIEW_BYTES +
     SCENE3D_RETAINED_FAILURE_BYTES +
     SCENE3D_MECHANICAL_PASSES_BYTES +
-    SCENE3D_REVIEW_UNAVAILABLE_BYTES,
+    SCENE3D_REVIEW_UNAVAILABLE_BYTES +
+    CAPTION_LOOK_LEVERS_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

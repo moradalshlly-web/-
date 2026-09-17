@@ -91,7 +91,7 @@ export const NODE_HANDLES: Readonly<Record<string, NodeHandleSpec>> = {
   "material": { inputs: ["in"], outputs: ["out"] },
   "merge-lists": { inputs: ["in"], outputs: ["out"] },
   "merge-video-audio": { inputs: ["in"], outputs: ["video"] },
-  "meta-ads-scrape": { inputs: ["in"], outputs: ["json"] },
+  "meta-ads-scrape": { inputs: ["in"], outputs: ["json", "text", "image", "video"] },
   "mix-audio": { inputs: ["in"], outputs: ["audio"] },
   "modify-image": { inputs: ["image", "mask", "cinematography"], outputs: ["out"] },
   "mood": { inputs: ["in"], outputs: ["out"] },
