@@ -482,6 +482,13 @@ export const burnCaptionsPlanSchema = z
     fontSize: z.number().min(12).max(200),
     color: z.string(),
     backgroundColor: z.string().optional(),
+    // Optional look levers — every one defaults to the prior render when unset.
+    fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+    strokeColor: z.string().optional(),
+    strokeWidth: z.number().min(0).max(40).optional(),
+    highlightColor: z.string().optional(),
+    uppercase: z.boolean().optional(),
+    positionY: z.number().min(0).max(100).optional(),
     fps: z.number().min(15).max(60),
     width: z.number().min(100).max(3840),
     height: z.number().min(100).max(3840),

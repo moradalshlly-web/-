@@ -4,22 +4,41 @@
 
 ## Overview
 
-The Add Captions node automatically generates captions from video audio and overlays them on the video. Choose between subtitle, word-highlight, or karaoke styles with customizable position, font size, and color.
+The Add Captions node automatically generates captions from video audio (or takes word-timed captions you supply) and overlays them on the video. Choose a static subtitle or one of five animated "kinetic" styles, with customizable position, font size, and color.
 
 ## Configuration
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| Style | Select | subtitle | Caption display style |
+| Style | Select | subtitle | Caption display style (see below) |
 | Position | Select | bottom | Where captions appear |
-| Font Size | Number | 24 | Text size in pixels (8-72) |
+| Font Size | Number | 32 | Text size in pixels (12-200) |
 | Color | Color picker | #FFFFFF | Caption text color |
 
 ### Caption Styles
 
-- **subtitle** — Standard subtitle appearance
-- **word-highlight** — Highlights the current word being spoken
-- **karaoke** — Karaoke-style progressive highlighting
+- **subtitle** — Standard subtitle appearance (rendered with FFmpeg)
+- **word-highlight** — A window of words, the spoken one highlighted
+- **karaoke** — Karaoke-style progressive fill, word by word
+- **tiktok-words** — TikTok/CapCut-style 1–4 word "pages" that pop in
+- **word-pop** — One word at a time, springing in and out
+- **bouncy** — Full line visible, each word bounces as it's spoken
+
+The five animated styles (everything except `subtitle`) are **kinetic** styles, rendered with Remotion.
+
+### Kinetic style look (API / MCP)
+
+When you drive Add Captions through the [API](../../api-integration.md) or an [MCP client](../../mcp/index.md) (e.g. Claude), the kinetic styles accept extra "look" levers to match a TikTok/Reels caption. They add **no credits**, and are **rejected on the static `subtitle` style** (which the FFmpeg path can't honour) rather than being silently ignored:
+
+| Lever | Applies to | Description |
+|-------|-----------|-------------|
+| `font_family` | all kinetic | A font face (e.g. `Montserrat`, `Anton`, `Bebas Neue`, `Oswald`, `Poppins`; `Rubik`/`Heebo`/`Cairo`/`Tajawal` cover Hebrew & Arabic) |
+| `stroke_color` + `stroke_width` | all kinetic | The black (or any colour) outline TikTok/Reels captions use; `stroke_width` in px |
+| `highlight_color` | `tiktok-words` (also recolours the active word in `word-highlight` / `karaoke`) | Colour of the word being spoken |
+| `uppercase` | all kinetic | Render captions in UPPERCASE |
+| `position_y` | all kinetic | Vertical position of the caption's **center** as % of height; overrides `position`. ~65 sits below the face, above the app's own bottom UI |
+
+> These levers are available today via the API and MCP; the canvas config panel exposes Style, Position, Font Size, and Color.
 
 ### Position Options
 

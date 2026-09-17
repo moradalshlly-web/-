@@ -17,7 +17,7 @@ import {
   uiMeta,
 } from "./_verb-helpers.js"
 import { WIDGET_URI } from "../widgets/registrar.js"
-import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS } from "@nodaro/shared"
+import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS } from "@nodaro/shared"
 import { applyPromptAffixes } from "@nodaro/prompts"
 
 // Map list_models catalog/display ids → /v1/motion-transfer route providers.
@@ -962,7 +962,8 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
     {
       title: "Add Captions",
       description:
-        "Burn captions into a video. Provide either video_url OR video_asset_id, plus captions data. Static styles (subtitle) accept `text`. Kinetic styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy) need word-timed `captions[]` OR set `auto_transcribe: true` (default) to transcribe the input video's audio.",
+        "Burn captions into a video. Provide either video_url OR video_asset_id, plus captions data. Static styles (subtitle) accept `text`. Kinetic styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy) need word-timed `captions[]` OR set `auto_transcribe: true` (default) to transcribe the input video's audio.\n\n" +
+        "Look levers for the KINETIC styles (rejected on the static subtitle style, and free — they add no credits): `font_family` (any face in SUPPORTED_FONT_NAMES, e.g. Montserrat/Anton/Bebas Neue), `stroke_color` + `stroke_width` for the black outline TikTok/Reels captions use, `highlight_color` for the word being spoken (tiktok-words; also recolours the active word in word-highlight/karaoke), `uppercase`, and `position_y` (0-100 % of height) for a free vertical position — ~65 sits below the face and above the app's bottom UI.",
       inputSchema: {
         text: z.string().min(1).optional(),
         captions: z.array(z.object({
@@ -981,6 +982,12 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         font_size: z.number().int().min(12).max(200).optional(),
         color: z.string().optional(),
         background_color: z.string().optional(),
+        font_family: z.enum(SUPPORTED_FONT_NAMES).optional().describe("Kinetic styles only. A font face from SUPPORTED_FONT_NAMES (e.g. Montserrat, Anton, Bebas Neue, Oswald, Poppins, Playfair Display; Rubik/Heebo/Cairo/Tajawal cover Hebrew/Arabic)."),
+        stroke_color: z.string().optional().describe("Kinetic styles only. Outline colour (e.g. #000000). Needs stroke_width > 0."),
+        stroke_width: z.number().min(0).max(40).optional().describe("Kinetic styles only. Outline width in px (the TikTok/Reels black outline)."),
+        highlight_color: z.string().optional().describe("Kinetic styles only. The spoken/active word colour — token-by-token for tiktok-words; also recolours the active word in word-highlight/karaoke."),
+        uppercase: z.boolean().optional().describe("Kinetic styles only. Render captions in UPPERCASE."),
+        position_y: z.number().min(0).max(100).optional().describe("Kinetic styles only. Vertical position of the caption's CENTER as % of height; overrides `position`. ~65 sits below the face, above the app's bottom UI (100 would center the text on the bottom edge)."),
       },
               outputSchema: {
           jobId: z.string(),
@@ -1033,6 +1040,12 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         fontSize: args.font_size,
         color: args.color,
         backgroundColor: args.background_color,
+        fontFamily: args.font_family,
+        strokeColor: args.stroke_color,
+        strokeWidth: args.stroke_width,
+        highlightColor: args.highlight_color,
+        uppercase: args.uppercase,
+        positionY: args.position_y,
         mcp_client: session.clientName,
         userId: session.userId,
       }

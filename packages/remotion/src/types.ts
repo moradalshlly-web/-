@@ -62,6 +62,15 @@ export interface BurnCaptionsPlan {
   fontSize: number
   color: string
   backgroundColor?: string
+  /** Optional look levers (all default to the prior render when unset): a
+   *  Google-font face name, an outline, the spoken-word colour, casing, and a
+   *  free vertical position (0-100 % of composition height). */
+  fontFamily?: string
+  strokeColor?: string
+  strokeWidth?: number
+  highlightColor?: string
+  uppercase?: boolean
+  positionY?: number
   fps: number
   width: number
   height: number

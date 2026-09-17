@@ -1,7 +1,7 @@
 ---
 node_type: add-captions
-generated_at: 2026-08-15T21:55:07.658Z
-generated_from: 150c80ac9
+generated_at: 2026-09-17T19:30:13.536Z
+generated_from: 2c2a2252b
 ---
 
 # Add Captions
@@ -63,6 +63,12 @@ generated_from: 150c80ac9
 - `font_size`
 - `color`
 - `background_color`
+- `font_family`
+- `stroke_color`
+- `stroke_width`
+- `highlight_color`
+- `uppercase`
+- `position_y`
 <!-- AUTO-GEN:END mcp-call -->
 
 ## Common gotchas

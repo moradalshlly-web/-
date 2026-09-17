@@ -1,6 +1,7 @@
 import React from "react"
 import type { Caption } from "@remotion/captions"
 import type { KineticCaptionStyle, CaptionStyle as SharedCaptionStyle } from "@nodaro/shared"
+import type { CaptionLook } from "./caption-look"
 import { SubtitleOverlay } from "./subtitle-overlay"
 import { WordHighlightOverlay } from "./word-highlight-overlay"
 import { KaraokeOverlay } from "./karaoke-overlay"
@@ -13,7 +14,7 @@ import { BouncyOverlay } from "./bouncy-overlay"
 export type KineticStyle = KineticCaptionStyle
 export type CaptionStyle = SharedCaptionStyle
 
-export interface CaptionOverlayProps {
+export interface CaptionOverlayProps extends CaptionLook {
   captions: readonly Caption[]
   style: CaptionStyle
   position: "top" | "center" | "bottom"
