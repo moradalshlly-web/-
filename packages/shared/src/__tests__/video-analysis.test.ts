@@ -62,6 +62,21 @@ const dreamVariation = {
   refImageUrl: "https://cdn.example/frames/hero-dream.jpg",
 }
 
+describe("owned objects (2026-09-17)", () => {
+  it("entitySlotSchema round-trips owner { slotId, relation }", () => {
+    const owner = { slotId: "man-blue", relation: "worn by" }
+    const parsed = entitySlotSchema.parse({ ...slot, owner })
+    expect(parsed.owner).toEqual(owner)
+  })
+  it("absent owner stays absent", () => {
+    expect("owner" in entitySlotSchema.parse(slot)).toBe(false)
+  })
+  it("rejects an owner without a relation or with a malformed slot id", () => {
+    expect(entitySlotSchema.safeParse({ ...slot, owner: { slotId: "man-blue" } }).success).toBe(false)
+    expect(entitySlotSchema.safeParse({ ...slot, owner: { slotId: "Man Blue", relation: "worn by" } }).success).toBe(false)
+  })
+})
+
 describe("appearance variations (cast-variations spec §4)", () => {
   it("entitySlotSchema round-trips variations[] including refImageUrl", () => {
     const parsed = entitySlotSchema.parse({ ...slot, variations: [dreamVariation] })
