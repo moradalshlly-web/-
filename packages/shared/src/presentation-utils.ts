@@ -145,6 +145,13 @@ const VIDEO_OUTPUT_TYPES = new Set([
   "upload-video",
   "lip-sync", "motion-transfer", "video-upscale", "add-captions",
   "social-media-format",
+  // apply-edl renders an EDL into video OR audio. Its medium is decided at run
+  // time (DYNAMIC_PRODUCER_TYPES), so getOutputType would answer "data" and a
+  // published app would render the cut as a JSON blob. Declaring it here — as
+  // the voice-changer/dubbing precedent does for their default medium — makes
+  // the classifier answer "video" (the common case; an audio-only cut still
+  // plays in a video element). Asserted in producer-types.test.ts.
+  "apply-edl",
 ])
 
 const AUDIO_OUTPUT_TYPES = new Set([

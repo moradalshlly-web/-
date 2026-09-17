@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-09-17T19:42:42.481Z
+generated_at: 2026-09-17T19:57:48.393Z
 generated_from: a03903d30
 ---
 
@@ -81,6 +81,7 @@ Call `get_node_skill(<type>)` for the full schema of any node type:
 - `after-effects` — After Effects
 - `ai-avatar` — AI Avatar
 - `animal` — Animal
+- `apply-edl` — Apply EDL
 - `aspect-ratio` — Aspect Ratio
 - `assemble-narrated-video` — Assemble Narrated Video
 - `atmosphere` — Atmosphere

@@ -25,6 +25,7 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { WaveformAudioPlayer } from "@/components/audio-player"
 import type {
   CombineVideosData,
+  ApplyEdlData,
   ImageCollageData,
   AddCaptionsData,
   ResizeVideoData,
@@ -490,6 +491,49 @@ export function TrimAudioConfig({ data, onUpdate }: ConfigProps<TrimAudioData>) 
           value={(data.endTime as number | undefined) ?? ""}
           onChange={(e) => onUpdate({ endTime: e.target.value ? parseFloat(e.target.value) : undefined })}
         />
+      </div>
+    </div>
+  )
+}
+
+export function ApplyEdlConfig({ data, onUpdate }: ConfigProps<ApplyEdlData>) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] text-muted-foreground">
+        Renders the wired EDL into one media file. Connect an <strong>EDL</strong> (json) to the node&apos;s EDL input; media resolves from each source&apos;s URL. Wire a <strong>Transcript</strong> to also emit it remapped through the cut.
+      </p>
+      <div>
+        <Label>Output</Label>
+        <Select value={data.output ?? "video"} onValueChange={(v) => onUpdate({ output: v as "video" | "audio" })}>
+          <SelectTrigger aria-label="Output medium"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="video">Video</SelectItem>
+            <SelectItem value="audio">Audio only</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Quality</Label>
+        <Select value={data.quality ?? "final"} onValueChange={(v) => onUpdate({ quality: v as "proxy" | "final" })}>
+          <SelectTrigger aria-label="Render quality"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="final">Final (full quality)</SelectItem>
+            <SelectItem value="proxy">Proxy (720p review)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="apply-edl-crossfade">Default crossfade (ms)</Label>
+        <Input
+          id="apply-edl-crossfade"
+          type="number"
+          min={0}
+          max={5000}
+          step={50}
+          value={data.crossfadeMs ?? 0}
+          onChange={(e) => onUpdate({ crossfadeMs: Math.max(0, Math.min(5000, parseInt(e.target.value) || 0)) })}
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">Applied at boundaries with no explicit transition; clamped per-boundary to the ffmpeg limit. 0 = hard cuts.</p>
       </div>
     </div>
   )

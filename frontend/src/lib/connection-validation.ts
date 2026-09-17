@@ -4,7 +4,7 @@ import { isValidGenerateVideoProConnection } from "./generate-video-pro-handles"
 import { isValidEditVideoProConnection } from "./edit-video-pro-handles"
 import { isValidVideoRetakeConnection, type VideoRetakeHandleId } from "./video-retake-handles"
 import { isValidVideoSfxConnection } from "./video-sfx-handles"
-import { FFMPEG_NODE_TYPES, isValidFfmpegConnection, ACCEPTS_VIDEO, ACCEPTS_AUDIO } from "./ffmpeg-handles"
+import { FFMPEG_NODE_TYPES, isValidFfmpegConnection, ACCEPTS_VIDEO, ACCEPTS_AUDIO, ACCEPTS_MEDIA } from "./ffmpeg-handles"
 import {
   isValidTextToSpeechConnection,
   isValidTextToAudioConnection,
@@ -50,6 +50,7 @@ import {
   isValidSelectorConnection,
   isValidLoopCoarse,
   ACCEPTS_ANALYSIS,
+  ACCEPTS_JSON,
 } from "./data-handles"
 import {
   isValidEditImageConnection,
@@ -540,6 +541,13 @@ export function isValidWorkflowConnection(
     const auditSourceType = imageSourceType
     if (connection.targetHandle === "video") return ACCEPTS_VIDEO(auditSourceType)
     if (connection.targetHandle === "analysis") return ACCEPTS_ANALYSIS(auditSourceType)
+    return false
+  }
+  // apply-edl — `edl` (required) and `transcript` (optional) take json/data
+  // producers; `sources` takes optional media-URL overrides (video or audio).
+  if (targetType === "apply-edl" && connection.targetHandle) {
+    if (connection.targetHandle === "edl" || connection.targetHandle === "transcript") return ACCEPTS_JSON(imageSourceType)
+    if (connection.targetHandle === "sources") return ACCEPTS_MEDIA(imageSourceType)
     return false
   }
   if (targetType === "extract-field" && connection.targetHandle) {

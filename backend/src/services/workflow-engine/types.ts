@@ -386,6 +386,16 @@ export interface ResolvedInputs {
   voice?: string
   voiceType?: "premade" | "library" | "custom"
   provider?: string
+  /** apply-edl: the EDL wired into the required `edl` (json) handle — the
+   *  stringified Edl from getPrimaryOutput's json branch. The payload builder
+   *  parses + normalizes it into the effective EDL. */
+  edl?: string
+  /** apply-edl: an optional upstream Transcript (json) wired into the
+   *  `transcript` handle, remapped through the cut for the `json` output. */
+  transcript?: string
+  /** apply-edl: optional media-URL overrides for `EdlSource[i].url`, positional
+   *  in wire order (the `sources` handle). */
+  sources?: string[]
 }
 
 // ---------------------------------------------------------------------------

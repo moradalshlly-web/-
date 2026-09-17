@@ -58,6 +58,13 @@ export const ANALYSIS_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
  *  `HandleWithPopover`'s `accepts` and the drop validator both take. */
 export const ACCEPTS_ANALYSIS = (sourceType: string): boolean => ANALYSIS_PRODUCER_TYPES.has(sourceType)
 
+/** Accepts any JSON/structured-data producer (plus list producers, so a `list`
+ *  fan-out can feed a json input). The shape `HandleWithPopover`'s `accepts`
+ *  and the drop validator take — used by apply-edl's `edl` / `transcript`
+ *  inputs. */
+export const ACCEPTS_JSON = (sourceType: string): boolean =>
+  JSON_PRODUCER_TYPES.has(sourceType) || LIST_PRODUCER_TYPES.has(sourceType)
+
 /** Producers of JSON/dict-shaped data — web-scrape returns json arrays,
  *  extract-field has a `json` outputType, etc. */
 export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
@@ -71,6 +78,12 @@ export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
   // analysis pair.
   "transcribe",
   ...ANALYSIS_PRODUCER_TYPES,
+  // apply-edl's `json` output handle carries the remapped Transcript. Its OTHER
+  // (default) output handle is dynamic media (video|audio), declared in
+  // @nodaro/shared DYNAMIC_PRODUCER_TYPES — this is the json half of the same
+  // dual-handle node. Lets its `json` handle feed a data/json consumer (e.g.
+  // add-captions' transcript input).
+  "apply-edl",
 ])
 
 /** True when `sourceType` can flow into a generic data input (text, list,

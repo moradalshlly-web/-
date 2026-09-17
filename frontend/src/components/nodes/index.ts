@@ -108,6 +108,7 @@ import { ImageToTextNode } from "./image-to-text-node";
 import { DescribeToPickerNode } from "./describe-to-picker-node";
 import { LLMChatNode } from "./llm-chat-node";
 import { CombineVideosNode } from "./combine-videos-node";
+import { ApplyEdlNode } from "./apply-edl-node";
 import { ImageCollageNode } from "./image-collage-node";
 import { ImageOverlayNode } from "./image-overlay-node";
 import { AssembleNarratedVideoNode } from "./assemble-narrated-video-node";
@@ -315,6 +316,7 @@ export const nodeTypes: Record<SceneNodeType, React.ComponentType<any>> = {
   "llm-chat": LLMChatNode,
   // Processing
   "combine-videos": CombineVideosNode,
+  "apply-edl": ApplyEdlNode,
   "image-collage": ImageCollageNode,
   "image-overlay": ImageOverlayNode,
   "assemble-narrated-video": AssembleNarratedVideoNode,

@@ -3247,6 +3247,36 @@ export async function combineVideos(
 }
 
 /**
+ * apply-edl: render an EDL into ONE media file (video OR audio) plus, when a
+ * transcript is provided, the transcript remapped through the cut on the job's
+ * `json` output. The EDL is validated at the route (a bad/unresolvable source
+ * is a 400 naming it, never a mid-render failure). Sources resolve from each
+ * `EdlSource.url`; `sources` positionally overrides those URLs.
+ */
+export async function applyEdl(params: {
+  edl: unknown
+  output?: "video" | "audio"
+  quality?: "proxy" | "final"
+  crossfadeMs?: number
+  sources?: string[]
+  transcript?: unknown
+  userId?: string
+}): Promise<{ jobId: string }> {
+  const body: Record<string, unknown> = { edl: params.edl }
+  if (params.output) body.output = params.output
+  if (params.quality) body.quality = params.quality
+  if (typeof params.crossfadeMs === "number") body.crossfadeMs = params.crossfadeMs
+  if (params.sources && params.sources.length > 0) body.sources = params.sources
+  if (params.transcript !== undefined) body.transcript = params.transcript
+  if (params.userId) body.userId = params.userId
+  return apiJson("/v1/apply-edl", {
+    body,
+    workflowId: true,
+    label: "Failed to start EDL render",
+  })
+}
+
+/**
  * Image Overlay: base image + 1–12 layers → one composited image (local sharp).
  * Every layer position/size is in % of the base image; see ImageOverlayData.
  */

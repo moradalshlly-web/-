@@ -51,7 +51,7 @@ the foot of the list.
 | **Story & Script** | Story → Video · Scene · Generate Script |
 | **Animate & Perform** | AI Avatar · Cinematic Avatar · Lip Sync · Speech to Video · Motion Transfer · Face Swap |
 | **Continue & Restyle** | Extend Video · Edit Video Pro · Retake Video · Video to Video · Relight & Switch |
-| **Cut & Assemble** | Trim Video · Combine Videos · Assemble Narrated Video · Adjust Speed · Loop Video · Fade In/Out · Composite · Compose Video · Split into Chunks · Manual Edit |
+| **Cut & Assemble** | Trim Video · Combine Videos · Apply EDL · Assemble Narrated Video · Adjust Speed · Loop Video · Fade In/Out · Composite · Compose Video · Split into Chunks · Manual Edit |
 | **Sound for Video** | Video SFX · Merge Video & Audio · Extract Audio · Remove Audio |
 | **Titles, Graphics & Captions** | 3D Title · Motion Graphics · After Effects · Lottie Overlay · Add Captions · Render Video |
 | **Format & Export** | Resize Video · Social Media Format · Upscale Video · Transcode Video · Gif to Video |
@@ -376,6 +376,7 @@ FFmpeg-based video manipulation.
 | Node | Description | When to Use |
 |------|-------------|-------------|
 | [Combine Videos](./processing-video/combine-videos.md) | Concatenate videos with transitions | Join multiple clips with ~50 FFmpeg `xfade` transitions: cuts, fades, dips, wipes, slides, irises, slices, reveals, covers, blurs, and zooms |
+| [Apply EDL](./processing-video/apply-edl.md) | Render an edit decision list into one media file (10 CR/output minute) | Turn a structured edit description (sources + ordered segments) into a finished video or audio cut; optionally emit a transcript remapped to match the cut |
 | [Assemble Narrated Video](./processing-video/assemble-narrated-video.md) | Fit N ordered (clip, voice) blocks into one MP4 | Audio-led narrated-video assembly: short voice centers over its clip with padding, long voice slows the clip (capped, then holds); audio is never cropped |
 | [Still to Video](./processing-video/still-to-video.md) | One still image + one audio track → MP4, zero credits | Animate a still with zoom / pan / Ken Burns (or none) for exactly the audio's length — narrated slides, visualizers, photo moments |
 | [Slideshow](./processing-video/slideshow.md) | 2–100 images over one optional audio track → MP4, zero credits | Ordered stills with per-slide motion + transitions; audio-anchored timing (equal split / pinned rows / disclosed proportional scale), silent without audio |
