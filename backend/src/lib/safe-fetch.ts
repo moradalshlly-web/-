@@ -172,8 +172,9 @@ export async function resolvesOnlyToPublicAddresses(hostname: string): Promise<b
  * Shared agent — a single instance across all safeFetch calls so the undici
  * connection pool is reused. The `connect.lookup` hook resolves the hostname
  * with `all: true` so multi-record answers are fully inspected; any private
- * IP among the results fails the connection before a socket is opened.
- * Redirects flow through the same agent, so each hop is re-validated.
+ * IP among the results fails the connection before a socket is opened. This
+ * gate does NOT fire for IP-literal hosts (Node skips options.lookup then), so
+ * safeFetch validates redirect hops itself (see assertSafeRedirectTarget).
  */
 /**
  * Plain agent for fetches inside the configured own-storage subtree (see
@@ -233,10 +234,44 @@ export interface SafeFetchInit extends Omit<UndiciRequestInit, "dispatcher"> {
  *   - Literal private/reserved IPs in the URL are rejected synchronously.
  *   - DNS is resolved at connection time; any resolved IP in the private /
  *     reserved / cloud-metadata ranges refuses the connection.
- *   - Redirects are followed (fetch's default) but each hop is revalidated
- *     because the agent's `lookup` fires for every new socket.
+ *   - Redirects are followed MANUALLY (up to MAX_REDIRECTS): each hop's target
+ *     is re-validated for protocol AND a private/reserved IP-literal host before
+ *     it is followed. The agent's `lookup` gate covers DNS answers for hostname
+ *     hops but is SKIPPED by Node for IP-literal hosts, so a redirect to
+ *     `http://127.0.0.1/` would otherwise bypass every gate — the manual per-hop
+ *     `assertSafeRedirectTarget` closes that.
  *   - Non-http(s) protocols are rejected.
  */
+/** How many redirect hops safeFetch will follow before giving up. */
+const MAX_REDIRECTS = 5
+
+/**
+ * Re-validate a REDIRECT target before following it: http(s) only, and a
+ * literal private/reserved IP host is refused. This is load-bearing —
+ * `safeAgent`'s `connect.lookup` gate validates DNS answers for HOSTNAME hops,
+ * but Node's `net.connect` skips `options.lookup` when the host is already an IP
+ * literal, so a `Location: http://127.0.0.1/` (or 169.254.169.254, ::1, 0.0.0.0)
+ * would otherwise reach an internal target unchecked (SSRF). We follow redirects
+ * manually so this runs on every hop. Never own-storage: a redirect off the
+ * own-storage subtree is not own-storage.
+ */
+export function assertSafeRedirectTarget(rawUrl: string): void {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    const shown = String(rawUrl ?? "").replace(/\s+/g, " ").trim().slice(0, 120)
+    throw new Error(`safeFetch: blocked — redirect to an invalid URL: "${shown}"`)
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`safeFetch: blocked — redirect to protocol ${parsed.protocol}`)
+  }
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "")
+  if (isIP(hostname) && isPrivateOrReservedIP(hostname)) {
+    throw new Error(`safeFetch: blocked — redirect to ${hostname} (private/reserved IP)`)
+  }
+}
+
 export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<Response> {
   // NAME what was rejected. `new URL()` throws a bare "Invalid URL" — no value,
   // no context — and that string is what reached /admin/app-reports as the
@@ -271,17 +306,48 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
   const outer = init.signal
   const signal = outer ? AbortSignal.any([outer as AbortSignal, timer]) : timer
 
-  // Drop our own option before forwarding.
-  const { timeoutMs: _, ...forward } = init
+  // Drop our own option, and NEVER let a caller override redirect handling —
+  // safe redirect following is the whole point of this function.
+  const { timeoutMs: _t, redirect: _r, ...forward } = init
 
-  const response = await undiciFetch(url, {
-    ...forward,
-    ...(ownStorage ? { redirect: "error" as const } : {}),
-    signal,
-    dispatcher: ownStorage ? ownStorageAgent : safeAgent,
-  })
-  // undici's Response is a structural superset of the global one — the cast
-  // keeps callers typed against globalThis.Response without pulling undici's
-  // types into their signatures.
-  return response as unknown as Response
+  // Own-storage refuses redirects outright; the subtree exemption can't be
+  // parlayed into a fetch off the subtree.
+  if (ownStorage) {
+    const response = await undiciFetch(url, {
+      ...forward,
+      redirect: "error" as const,
+      signal,
+      dispatcher: ownStorageAgent,
+    })
+    return response as unknown as Response
+  }
+
+  // General fetch: follow redirects MANUALLY so every hop is re-validated
+  // (the agent's lookup gate never sees an IP-literal hop — see
+  // assertSafeRedirectTarget). Verified: undici's redirect:"manual" returns the
+  // real 3xx response with a readable Location header (it does NOT opaque it).
+  let currentUrl = url
+  for (let hop = 0; ; hop++) {
+    if (hop > MAX_REDIRECTS) {
+      throw new Error(`safeFetch: blocked — more than ${MAX_REDIRECTS} redirects`)
+    }
+    if (hop > 0) assertSafeRedirectTarget(currentUrl)
+    const response = await undiciFetch(currentUrl, {
+      ...forward,
+      redirect: "manual" as const,
+      signal,
+      dispatcher: safeAgent,
+    })
+    const location = response.headers.get("location")
+    if (response.status >= 300 && response.status < 400 && location) {
+      // Free the socket before the next hop; a redirect body is never surfaced.
+      await (response.body as ReadableStream | null)?.cancel().catch(() => {})
+      currentUrl = new URL(location, currentUrl).toString()
+      continue
+    }
+    // undici's Response is a structural superset of the global one — the cast
+    // keeps callers typed against globalThis.Response without pulling undici's
+    // types into their signatures.
+    return response as unknown as Response
+  }
 }

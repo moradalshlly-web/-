@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { isPrivateOrReservedIP, safeFetch, filterSafeResolvedAddresses } from "../safe-fetch.js"
+import { isPrivateOrReservedIP, safeFetch, filterSafeResolvedAddresses, assertSafeRedirectTarget } from "../safe-fetch.js"
 
 // ---------------------------------------------------------------------------
 // IP classifier — exercises the raw blocklist. The runtime path (DNS-lookup
@@ -143,5 +143,47 @@ describe("safeFetch — fast-fail", () => {
     expect(err?.message).toMatch(/^safeFetch: not a valid URL: /)
     expect(err?.message.length).toBeLessThan(200)
     expect(err?.message).not.toContain("\n")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Redirect-hop SSRF gate. safeFetch follows redirects MANUALLY and re-validates
+// every hop, because the agent's connect.lookup gate is SKIPPED by Node for
+// IP-literal hosts — so a public URL that 302s to http://127.0.0.1/ would
+// otherwise reach an internal target. assertSafeRedirectTarget is the per-hop
+// enforcement point. (The full public→internal path can't be exercised in a
+// hermetic unit test — there is no real public host to redirect FROM — so we
+// test the gate directly; undici's redirect:"manual" exposing a readable
+// Location, which the follow loop relies on, was verified against the vendored
+// undici during the fix.)
+// ---------------------------------------------------------------------------
+
+describe("safeFetch — redirect-hop SSRF gate (assertSafeRedirectTarget)", () => {
+  it("blocks a redirect to an IP-literal loopback / metadata / private / any-addr host", () => {
+    expect(() => assertSafeRedirectTarget("http://127.0.0.1/x")).toThrow(/127\.0\.0\.1/)
+    expect(() => assertSafeRedirectTarget("http://169.254.169.254/latest/meta-data/")).toThrow(/169\.254\.169\.254/)
+    expect(() => assertSafeRedirectTarget("http://10.0.0.5/internal")).toThrow(/10\.0\.0\.5/)
+    expect(() => assertSafeRedirectTarget("http://192.168.1.1/")).toThrow(/192\.168\.1\.1/)
+    expect(() => assertSafeRedirectTarget("http://0.0.0.0/")).toThrow(/0\.0\.0\.0/)
+  })
+
+  it("blocks a redirect to an IP-literal IPv6 loopback / link-local / ULA host", () => {
+    expect(() => assertSafeRedirectTarget("http://[::1]/api")).toThrow(/::1/)
+    expect(() => assertSafeRedirectTarget("http://[fe80::1]/api")).toThrow(/fe80::1/)
+    expect(() => assertSafeRedirectTarget("http://[fc00::1]/api")).toThrow(/fc00::1/)
+  })
+
+  it("blocks a redirect to a non-http(s) protocol", () => {
+    expect(() => assertSafeRedirectTarget("file:///etc/passwd")).toThrow(/protocol file/)
+    expect(() => assertSafeRedirectTarget("gopher://x/")).toThrow(/protocol gopher/)
+  })
+
+  it("blocks a redirect to an unparseable Location", () => {
+    expect(() => assertSafeRedirectTarget("::::not a url")).toThrow(/invalid URL/)
+  })
+
+  it("allows a redirect to a public host (hostname DNS is still gated at connect time)", () => {
+    expect(() => assertSafeRedirectTarget("https://example.com/path")).not.toThrow()
+    expect(() => assertSafeRedirectTarget("http://cdn.example.org/a.mp4")).not.toThrow()
   })
 })
