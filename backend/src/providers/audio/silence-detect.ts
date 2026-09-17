@@ -130,7 +130,11 @@ export async function runSilenceDetectOnFile(
   timeoutMs?: number,
 ): Promise<SilenceDetectResult> {
   const noiseDb = -Math.abs(settings.thresholdDb) // guard: always a cut BELOW 0 dBFS
-  const durationSec = settings.minSilenceMs / 1000
+  // Mirror the route Zod (`int().min(1)`): a workflow JSON / import can carry a
+  // negative or fractional minSilenceMs the config-panel slider never produces,
+  // and a negative `d=` makes ffmpeg error. Coerce-not-reject so the DAG path
+  // yields the same result as single-node "Run from here" (not a silent empty).
+  const durationSec = Math.max(1, Math.round(settings.minSilenceMs ?? SILENCE_DETECT_DEFAULTS.minSilenceMs)) / 1000
 
   let stderr = ""
   try {
@@ -148,8 +152,12 @@ export async function runSilenceDetectOnFile(
     // `-f null -` normally exits 0, but keep the fallback the beat-grid path
     // uses: runFfmpegCapture attaches the full stderr to the thrown error, and
     // the markers we need are on it even when ffmpeg exits non-zero.
+    // Only trust the non-zero-exit fallback when the marker lines are actually
+    // present. A genuine ffmpeg failure (bad args, unreadable input) has NO
+    // silence_* lines and must PROPAGATE — never masquerade as "0 silences
+    // detected", which would commit a credit for a wrong empty result.
     const e = err as { stderr?: string }
-    if (!e?.stderr) throw err
+    if (!e?.stderr || !/silence_(start|end)/.test(e.stderr)) throw err
     stderr = e.stderr
   }
 
