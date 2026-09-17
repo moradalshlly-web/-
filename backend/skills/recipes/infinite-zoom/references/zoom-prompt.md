@@ -93,7 +93,8 @@ visible entry point.
 
 ## Settings that carry the effect
 
-- `extract-frame`: `mode: "frame-from-end"`, `framesFromEnd: 3`. Never `last`.
+- `extract-frame`: `mode: "last"` on every handoff. Only a loop-closing clip
+  with a pinned `endFrame` uses `mode: "frame-from-end"`, `framesFromEnd: 3`.
 - `combine-videos`: `transition: "cut"`, `transitionDuration: 0`,
   `smartCutEnabled: true`, `smartCutMode: "preroll-keep-prev"`, explicit
   `clipOrder`.

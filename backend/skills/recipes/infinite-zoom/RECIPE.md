@@ -35,11 +35,15 @@ Two ideas carry the whole method:
    `model`, `duration` and `resolution` on every clip in the chain. Longer clips
    mean fewer seams: a model that holds 15-30s in one shot buys a calmer film
    than six 5s clips.
-3. **Per level** — the clip's `video` → `extract-frame`,
-   `mode: "frame-from-end"`, `framesFromEnd: 3`, its `image` → the NEXT
-   `generate-video`.`startFrame`. **Never `mode: "last"`.** The final frames of a
-   generated clip are the mushiest in it (tail dissolve, compression smear) and
-   that mush would become the next clip's entire world.
+3. **Per level** — the clip's `video` → `extract-frame`, `mode: "last"`, its
+   `image` → the NEXT `generate-video`.`startFrame`. The last frame is the
+   deepest point of the zoom, so it is the only frame that hands the next level
+   a full-screen surface, and on start-frame-only clips it is measurably as
+   sharp as the rest of the tail or sharper — there is nothing to dodge.
+   `mode: "frame-from-end"` (`framesFromEnd: 3`) belongs on ONE clip only: a
+   loop-closing clip that pins an `endFrame`. First-and-last-frame mode is where
+   the tail dissolve lives, which is what the smart-loop-cut trim exists for, and
+   a pinned end frame is the only place this chain meets it.
 4. **Join** — all N clips → `combine-videos` with `transition: "cut"`,
    `transitionDuration: 0`, `smartCutEnabled: true`,
    `smartCutMode: "preroll-keep-prev"`, and an explicit `clipOrder` in level
@@ -92,7 +96,13 @@ wording that works, not as a guarantee on a from-scratch world.
   every level after it. Do not author the whole chain in one call.
 - **Keep the rate constant.** Same zoom-speed language and same duration in
   every clip. A clip that arrives at rest, or that starts by holding still,
-  reads as a new shot however good the frame match is.
+  reads as a new shot however good the frame match is. This is the one real
+  hazard at a handoff: generators ease the camera toward stillness in their last
+  frames, so a settled end frame makes the next clip rebuild motion from rest
+  and the join hitches. The prompt's "never slowing, never settling, still
+  travelling inward on the last frame" line exists to defeat it, and Smart Cut's
+  `preroll-keep-prev` cleans up what survives. If a model still insists on
+  easing off, harvest before it does with `mode: "frame-from-end"`.
 - **Three levels is a film.** N=3 at the model's longest single-shot duration is
   the cheapest thing that already reads as endless. Go wider only after the
   user has seen three.
