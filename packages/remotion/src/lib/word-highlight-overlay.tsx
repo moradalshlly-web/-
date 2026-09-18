@@ -2,7 +2,7 @@ import React, { useMemo } from "react"
 import { useCurrentFrame, useVideoConfig } from "remotion"
 import type { OverlayCommonProps } from "./subtitle-overlay"
 import { captionAnchorStyle, captionLookStyle, captionRowColors, captionWord } from "./caption-look"
-import { activeCaptionLine, captionLineCharBudget, groupCaptionLines } from "./caption-lines"
+import { activeCaptionLine, activeWordScale, captionLineCharBudget, groupCaptionLines } from "./caption-lines"
 import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
 
 /** Renders ONE LINE of words at a time; the word being spoken is colored/scaled
@@ -56,7 +56,9 @@ export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
         return (
           <span key={i} style={{
             color: isActive ? spoken : rest,
-            transform: isActive ? "scale(1.15)" : "scale(1)",
+            // Length-aware pop: a flat scale(1.15) has no layout space reserved, so
+            // a long active word grew over its neighbour ("Nore-prompting.").
+            transform: isActive ? `scale(${activeWordScale(c.text)})` : "scale(1)",
             display: "inline-block",
             // An inline-block starts its own line box, so CSS removes the
             // collapsible leading space that is the @remotion/captions word

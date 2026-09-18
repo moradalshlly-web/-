@@ -103,6 +103,25 @@ describe("CaptionOverlay", () => {
       for (const word of ["alpha", " bravo", " hotel"]) expect(html).toContain(`>${word}</span>`)
     })
 
+    // Production render 2026-09-18: a flat scale(1.15) drew the long active word
+    // over its neighbour ("Nore-prompting."). At the mocked 1000 ms the active
+    // word below is "re-prompting." — it must get the tapered, length-aware scale.
+    it("tapers the active-word pop on a long word so it cannot cover its neighbour", () => {
+      const clip: Caption[] = [
+        { text: "No", startMs: 700, endMs: 900, timestampMs: 700, confidence: null },
+        { text: " re-prompting.", startMs: 900, endMs: 1500, timestampMs: 900, confidence: null },
+      ]
+      const html = renderToStaticMarkup(
+        <CaptionOverlay captions={clip} style="word-highlight" position="bottom" fontSize={50} color="#ffffff" />,
+      )
+      const active = (html.match(/<span[^>]*>[^<]*<\/span>/g) ?? []).find((s) => s.endsWith("> re-prompting.</span>"))
+      expect(active).toBeDefined()
+      expect(active).not.toContain("scale(1.15)")
+      const scale = Number(/scale\(([\d.]+)\)/.exec(active!)?.[1])
+      expect(scale).toBeGreaterThan(1)
+      expect(scale).toBeLessThan(1.06)
+    })
+
     it("sizes the line from the frame width and font size (overlay -> budget wiring)", () => {
       // Same words, same frame, a 200px font: the budget drops to ~14 chars, so the
       // visible line is the LAST short group and the first word is off screen.

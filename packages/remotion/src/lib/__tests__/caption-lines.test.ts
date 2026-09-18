@@ -3,7 +3,10 @@ import type { Caption } from "@remotion/captions"
 import {
   CAPTION_LINE_BREAK_GAP_MS,
   CAPTION_LINE_MAX_HOLD_MS,
+  ACTIVE_WORD_GROWTH_CHARS,
+  ACTIVE_WORD_MAX_SCALE,
   activeCaptionLine,
+  activeWordScale,
   captionCharWidthEm,
   captionLineCharBudget,
   groupCaptionLines,
@@ -301,5 +304,33 @@ describe("no blank frame on a real word-timed clip", () => {
     expect(starts).toContain(3080)
     expect(starts).not.toContain(1080)
     expect(lines.map((l) => texts(l.words))).toContainEqual(["every", "shot."])
+  })
+})
+
+describe("activeWordScale — the highlight pop never collides with a neighbour", () => {
+  // A CSS scale() reserves no layout space, so the growth lands on the adjacent
+  // words. Production render, 2026-09-18: "No re-prompting." with a flat
+  // scale(1.15) drew the active word ON TOP of "No" ("Nore-prompting.").
+  it("short words keep the full pop", () => {
+    expect(activeWordScale("No")).toBe(ACTIVE_WORD_MAX_SCALE)
+    expect(activeWordScale("face")).toBe(ACTIVE_WORD_MAX_SCALE)
+  })
+  it("long words taper (the word from the bug report gets ~1.05, not 1.15)", () => {
+    expect(activeWordScale("re-prompting.")).toBeCloseTo(1 + 0.6 / 13, 5)
+    expect(activeWordScale("re-prompting.")).toBeLessThan(1.06)
+  })
+  it("the growth per side never exceeds half the character allowance, at any length", () => {
+    for (let len = 1; len <= 40; len++) {
+      const perSideChars = ((activeWordScale("x".repeat(len)) - 1) / 2) * len
+      expect(perSideChars).toBeLessThanOrEqual(ACTIVE_WORD_GROWTH_CHARS / 2 + 1e-9)
+    }
+  })
+  it("measures the TRIMMED word (the leading-space delimiter is not a character of it)", () => {
+    expect(activeWordScale(" re-prompting.")).toBe(activeWordScale("re-prompting."))
+  })
+  it("never shrinks, and an empty word is left alone", () => {
+    expect(activeWordScale("")).toBe(1)
+    expect(activeWordScale("   ")).toBe(1)
+    expect(activeWordScale("x".repeat(500))).toBeGreaterThan(1)
   })
 })

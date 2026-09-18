@@ -249,3 +249,30 @@ export function activeCaptionLine(lines: readonly CaptionLine[], ms: number): Ac
   }
   return null
 }
+
+/** The pop a SHORT active word gets. */
+export const ACTIVE_WORD_MAX_SCALE = 1.15
+
+/**
+ * How far the active word may grow, in characters of ITS OWN text, summed over
+ * both sides. A CSS `scale()` grows a word around its centre WITHOUT reserving
+ * layout space, so the growth lands on the neighbours: each side may only use
+ * part of the ~one-character space that separates two words. 0.6 ⇒ 0.3 of a
+ * character per side, which stays inside the space even on the widest look
+ * (heavy uppercase + outline stroke).
+ */
+export const ACTIVE_WORD_GROWTH_CHARS = 0.6
+
+/**
+ * The highlight scale for the active word — LENGTH-AWARE so it never collides.
+ * A flat `scale(1.15)` grows a word by 7.5 % of its width per side: invisible on
+ * "No", but on "re-prompting." that is ~29 px into a ~14 px space, so the active
+ * word rendered ON TOP of the previous one ("Nore-prompting."). Capping the
+ * growth in characters keeps the pop on short words and tapers it on long ones
+ * (4 chars → 1.15, 8 → 1.075, 13 → ~1.05), which already carry their own weight.
+ */
+export function activeWordScale(text: string): number {
+  const length = text.trim().length
+  if (length === 0) return 1
+  return Math.min(ACTIVE_WORD_MAX_SCALE, 1 + ACTIVE_WORD_GROWTH_CHARS / length)
+}
