@@ -12,6 +12,7 @@ import {
   unwrapEditPlanOutput,
   buildEditPlanCreditId,
   editPlanBucketMinutes,
+  transcriptDurationSec,
   type Edl,
   type Transcript,
 } from "../edl.js"
@@ -618,5 +619,43 @@ describe("editPlanSourceDurationSec — audio-master lane (avoids the ceiling ov
     expect(editPlanSourceDurationSec({})).toBeUndefined()
     expect(editPlanSourceDurationSec({ metadata: {} })).toBeUndefined()
     expect(editPlanSourceDurationSec(undefined)).toBeUndefined()
+  })
+})
+
+describe("transcriptDurationSec — the URL-source reserve fallback (beneath the probe)", () => {
+  it("reads the source clock from the MAX word endMs", () => {
+    // A 59.4-min episode: latest word ends at 3,564,000 ms → 3564s → the 60m
+    // bucket, NOT the 180m ceiling (the reported over-reservation).
+    const t = { version: 1, words: [{ text: "hi", startMs: 0, endMs: 500 }, { text: "bye", startMs: 3_563_000, endMs: 3_564_000 }] }
+    expect(transcriptDurationSec(t)).toBe(3564)
+    expect(buildEditPlanCreditId("tighten", "standard", transcriptDurationSec(t))).toBe("edit-plan:tighten:standard:60m")
+  })
+
+  it("takes the MAX endMs so an out-of-order words array can't under-report", () => {
+    const t = { words: [{ endMs: 3_564_000 }, { endMs: 12_000 }, { endMs: 1_000 }] }
+    expect(transcriptDurationSec(t)).toBe(3564)
+  })
+
+  it("reads segments when a transcript carries no words", () => {
+    expect(transcriptDurationSec({ segments: [{ startMs: 0, endMs: 90_000 }] })).toBe(90)
+  })
+
+  it("takes the MAX over BOTH words and segments (a segment tail past the last word wins)", () => {
+    // The plugin's transcriptDurationMs maxes both; a words-only or
+    // segments-only-when-empty read would under-report the tail.
+    const t = {
+      words: [{ endMs: 3_540_000 }], // 59.0 min
+      segments: [{ startMs: 0, endMs: 3_600_000 }], // 60.0 min tail
+    }
+    expect(transcriptDurationSec(t)).toBe(3600)
+  })
+
+  it("returns undefined (→ ceiling, safe direction) for an empty / unmeasurable transcript", () => {
+    expect(transcriptDurationSec({ words: [] })).toBeUndefined()
+    expect(transcriptDurationSec({})).toBeUndefined()
+    expect(transcriptDurationSec(undefined)).toBeUndefined()
+    expect(transcriptDurationSec("not-an-object")).toBeUndefined()
+    expect(transcriptDurationSec({ words: [{ endMs: "x" }, { endMs: NaN }] })).toBeUndefined()
+    expect(buildEditPlanCreditId("tighten", "standard", transcriptDurationSec({ words: [] }))).toBe("edit-plan:tighten:standard:180m")
   })
 })

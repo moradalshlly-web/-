@@ -247,6 +247,49 @@ export interface Transcript {
   }>
 }
 
+/** Duration (seconds) implied by a transcript — the LATEST word/segment `endMs`
+ *  across the whole transcript, in seconds. The edit-plan reserve's duration
+ *  fallback BENEATH the master-source ffprobe (`computeEditPlanReserveId`): the
+ *  authoritative reserve basis is a probe of the master media, exactly like the
+ *  plugin route; this transcript clock is used only in `buildPayload` (which
+ *  cannot ffprobe) and when that probe can't run, for a MASTER source node that
+ *  exposes no length of its own (a `reference-audio`/youtube or direct-URL
+ *  master carries its length in neither `data.duration` nor
+ *  `metadata.durationSeconds` — see `editPlanSourceDurationSec` — and its live
+ *  orchestrator output is a bare URL). The transcript is a REQUIRED edit-plan
+ *  input and is the timing map of that same master, so its last word's `endMs`
+ *  is a lower bound on the source's own clock.
+ *
+ *  Accepts `unknown` because the cloud plugin's Zod is the transcript's schema
+ *  authority; this reads defensively and returns `undefined` for any shape it
+ *  can't measure (so the caller falls back to the ceiling bucket — the safe
+ *  over-reserve direction). Takes the MAX endMs rather than the last element so
+ *  an out-of-order words array can't under-report. NOTE the direction: a
+ *  transcript's last spoken word ends at or before the true media end (trailing
+ *  music/silence is not transcribed), so this can UNDER-estimate; bucket
+ *  round-up is the headroom, and the cloud re-probe money-gate refuses (never
+ *  overcharges) if the probed master still exceeds the reserved bucket. */
+export function transcriptDurationSec(transcript: unknown): number | undefined {
+  if (!transcript || typeof transcript !== "object") return undefined
+  const t = transcript as { words?: unknown; segments?: unknown }
+  let maxEndMs = 0
+  const scan = (rows: unknown): void => {
+    if (!Array.isArray(rows)) return
+    for (const row of rows) {
+      const endMs = (row as { endMs?: unknown } | null)?.endMs
+      if (typeof endMs === "number" && Number.isFinite(endMs) && endMs > maxEndMs) {
+        maxEndMs = endMs
+      }
+    }
+  }
+  // Max over BOTH words AND segments — a segment tail can extend past the last
+  // word (mirrors the plugin's own `transcriptDurationMs`, which maxes both), so
+  // scanning segments only when words is empty would under-report.
+  scan(t.words)
+  scan(t.segments)
+  return maxEndMs > 0 ? maxEndMs / 1000 : undefined
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 //  Pure functions
 // ─────────────────────────────────────────────────────────────────────────
