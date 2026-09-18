@@ -180,7 +180,9 @@ export const OPERATOR_OWNED_COLUMNS: readonly string[] = ["is_active", "listed_i
 
 /**
  * What a tutorial this installation has never seen starts as: visible, and
- * listed in the Tutorials tab. Applied on INSERT only — see above.
+ * listed in the Tutorials tab. Applied on INSERT only — see above. A doc can
+ * override the initial `listed_in` channel (e.g. a marketplace-only template)
+ * via `doc.listedIn`; the operator still owns the column afterward.
  */
 const SEEDED_DEFAULTS = {
   is_active: true,
@@ -293,7 +295,10 @@ async function seedOne(
   }
   const { error } = await supabase
     .from("workflow_templates")
-    .insert({ ...row, ...SEEDED_DEFAULTS })
+    // `listedIn` overrides the default channel on INSERT only (a marketplace
+    // template declares `["marketplace"]`); every other OPERATOR_OWNED default
+    // still applies. Spread order matters — the explicit key wins.
+    .insert({ ...row, ...SEEDED_DEFAULTS, listed_in: doc.listedIn ?? SEEDED_DEFAULTS.listed_in })
   if (error) throw error
   return "created"
 }
