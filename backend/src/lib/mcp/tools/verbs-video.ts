@@ -3042,6 +3042,14 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         try { return JSON.parse(v) } catch { return undefined }
       }
       const edl = parseMaybe(args.edl)
+      // An unparseable JSON STRING would normalize to an empty EDL and report
+      // "segments is empty" — misleading. Name the real problem instead.
+      if (typeof args.edl === "string" && edl === undefined) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: "apply_edl: `edl` is a string but not valid JSON — pass the EDL object, or a correctly JSON-encoded string." }],
+        }
+      }
       // Pre-validate at the verb, mirroring the DAG payload-builder: the route
       // already 400s a bad EDL, but the MCP error formatter surfaces only the
       // code+message and DROPS the `issues[]`, so an agent would see an unnamed

@@ -1442,6 +1442,19 @@ describe("apply_edl verb", () => {
     expect((received.body?.edl as Record<string, unknown>)?.clock).toBe("master")
   })
 
+  it("returns an honest isError for an unparseable JSON-string EDL (not 'segments is empty')", async () => {
+    const { fastify, received } = stubRoute("POST", "/v1/apply-edl", { jobId: "j-badstr" })
+    const server = buildServer()
+    registerVerbs({ server, session: executeSession(), fastify })
+
+    const result = await callTool(server, "apply_edl", { edl: "{not valid json" })
+
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain("not valid JSON")
+    expect((result.content[0] as { text: string }).text).not.toContain("segments is empty")
+    expect(received.body).toBeUndefined()
+  })
+
   it("pre-validates and returns isError NAMING the segment + rule, never dispatching", async () => {
     // A video render with a picture-less segment: the route would 400, but the
     // MCP error formatter drops issues[] — so the verb pre-validates and surfaces
