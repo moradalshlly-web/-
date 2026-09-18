@@ -25,6 +25,9 @@ export function useUpstreamVideoDuration(nodeId: string, handleId: string): numb
       data.videoDuration as number | undefined,
       data.videoDurationSec as number | undefined,
       data.sourceDurationSec as number | undefined,
+      // upload-audio (and URL-imported audio) write their length ONLY here —
+      // without this an edit-plan audio master shows the pricing ceiling badge.
+      (data.metadata as { durationSeconds?: number } | undefined)?.durationSeconds,
     ]
     return candidates.find((v) => typeof v === "number" && v > 0) ?? null
   })

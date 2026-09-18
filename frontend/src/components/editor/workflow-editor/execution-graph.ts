@@ -756,12 +756,18 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
   }
   // edit-plan: single `edl` (json) output — the EDL plan (already unwrapped onto
   // generatedJson: an Edl for tighten, a bare Edl[] for clips, a
-  // { version, chapters } for chapters). Stringify for the scalar path exactly
-  // like web-scrape; the clips FAN-OUT reads the array per-item via
-  // extractNodeOutputAsList. Mirrors the backend getPrimaryOutput edit-plan branch.
+  // { version, chapters } for chapters). The clips FAN-OUT (>1 clip) reads the
+  // array per-item via extractNodeOutputAsList; this SCALAR path (N=1, empty, or
+  // an explicit "last"/first edge) must NEVER stringify the ARRAY — apply-edl's
+  // normalizeEdl would treat `[edl]` as an EDL with no sources/segments →
+  // validate 400. Emit the FIRST clip (one valid EDL), or nothing when empty.
+  // Mirrors the backend getPrimaryOutput edit-plan branch.
   if (type === "edit-plan") {
     const d = node.data as { generatedJson?: unknown };
-    return d.generatedJson === undefined ? undefined : JSON.stringify(d.generatedJson);
+    const plan = d.generatedJson;
+    if (plan === undefined || plan === null) return undefined;
+    if (Array.isArray(plan)) return plan.length > 0 ? JSON.stringify(plan[0]) : undefined;
+    return JSON.stringify(plan);
   }
   if (type === "describe-to-picker") {
     const d = node.data as DescribeToPickerData;

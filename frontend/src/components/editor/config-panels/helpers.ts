@@ -1,6 +1,6 @@
 import type { WorkflowNode, WorkflowEdge, FieldMappings } from "@/types/nodes"
 import type { SourceNodeInfo } from "./types"
-import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
+import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, editPlanSourceDurationSec, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
 import { videoAuditAnalysisWired } from "@/components/editor/workflow-editor/types"
 import { renderVideoCreditIdForNode } from "@/lib/render-video-plan"
 import type { LlmFeature } from "@nodaro/shared"
@@ -408,6 +408,31 @@ export function getModelIdentifier(
       analysisProvided: videoAuditAnalysisWired(node.id, edges),
       durationSec: probedVideo?.durationSec,
     })
+  }
+
+  // Edit Plan: mode × tier × duration-bucket composite — the SAME id the reserve
+  // builds (payload-builder), so the run-level estimates (Execute badge, >100cr
+  // confirm dialog, precheck) hit the same seeded model-cost row. Falling through
+  // to the bare "edit-plan" key priced EVERY run at the table MAX (1480) or, with
+  // no NODE_CREDIT_COSTS entry, at the 1-credit placeholder — the documented
+  // video-analysis under-quote trap (run fails mid-DAG after transcribe charged).
+  // Duration is the MASTER source's length read the SAME way as the reserve
+  // (editPlanSourceDurationSec — incl. the audio-master metadata lane); unknown →
+  // the tier's own ceiling bucket.
+  if (nodeType === "edit-plan") {
+    const cfg = (data.sourceConfig as Record<string, { role?: string }> | undefined) ?? {}
+    const order = (data.sourceOrder as string[] | undefined) ?? []
+    const srcIds = (edges ?? [])
+      .filter((e) => e.target === node.id && e.targetHandle === "sources")
+      .map((e) => e.source)
+    const ordered = order.length
+      ? [...order.filter((id) => srcIds.includes(id)), ...srcIds.filter((id) => !order.includes(id))]
+      : srcIds
+    const masterId = ordered.find((id) => cfg[id]?.role === "master-audio") ?? ordered[0]
+    const byId = new Map((nodes ?? []).map((n) => [n.id, n]))
+    const masterData = masterId ? (byId.get(masterId)?.data as Record<string, unknown> | undefined) : undefined
+    const durationSec = masterData ? editPlanSourceDurationSec(masterData) : undefined
+    return buildEditPlanCreditId(asEditPlanMode(data.mode), asEditPlanTier(data.planTier), durationSec)
   }
 
   // HeyGen avatar nodes + reference sheet are COMPOSITE-only priced (duration/

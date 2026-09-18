@@ -51,6 +51,11 @@ export const NODE_CREDIT_COSTS: Record<string, number> = {
   "transcribe": 10,
   "combine-videos": 30,
   "apply-edl": 10,
+  // edit-plan's live per-run cost is dynamic (getModelIdentifier → the seeded
+  // mode×tier×duration row). This is the COLD-CACHE fallback only: the table MAX
+  // (clips·premium·180m = 1480), never-under-quote — mirrors video-analysis's
+  // fallback rationale so a run never fails mid-DAG after transcribe charged.
+  "edit-plan": 1480,
   "assemble-narrated-video": 40,
   "image-collage": 20,
   "image-overlay": 10,

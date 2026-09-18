@@ -2,7 +2,7 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
 import { readSunoIds } from "@/lib/suno-ids";
 import { getParameterPromptHint } from "@nodaro/prompts"
-import { DYNAMIC_PRODUCER_TYPES, DEFAULT_CHARACTER_FACET, PARAMETER_NODE_TYPES, getParameterValue, OBJECT_PICKER_NODE_TYPES, parseGroupHandle, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, FAN_OUT_EACH_TYPES, extractAllGeneratedResults, extractGeneratedJsonAsList, splitGeneratedItems, SOCIAL_POST_NODE_TYPES, resolveSourceThroughConnectedList, VARIABLES_HANDLE_ID, extractReferencedLabels, canonicalVarName, characterMentionSlug, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
+import { DYNAMIC_PRODUCER_TYPES, DEFAULT_CHARACTER_FACET, PARAMETER_NODE_TYPES, getParameterValue, OBJECT_PICKER_NODE_TYPES, parseGroupHandle, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, editPlanSourceDurationSec, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, FAN_OUT_EACH_TYPES, extractAllGeneratedResults, extractGeneratedJsonAsList, splitGeneratedItems, SOCIAL_POST_NODE_TYPES, resolveSourceThroughConnectedList, VARIABLES_HANDLE_ID, extractReferencedLabels, canonicalVarName, characterMentionSlug, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
 import type { EntityKind, ConnectedReference } from "@nodaro/shared"
 import { buildNodeRefMap, resolveTextRefs } from "@/lib/node-refs";
 import type {
@@ -702,7 +702,7 @@ export interface FrontendResolvedInputs {
    *  the `sources` handle. Mirror of backend ResolvedInputs.silence /
    *  editPlanSources. */
   silence?: string;
-  editPlanSources?: Array<{ nodeId: string; url: string; kind: "video" | "audio" }>;
+  editPlanSources?: Array<{ nodeId: string; url: string; kind: "video" | "audio"; duration?: number }>;
   /** Fan-in input list — populated by the resolver for reduce-style targets.
    *  Carries the full upstream list (or `[singleOutput]` when upstream wasn't
    *  fanned out) so the reduce strategy can fold it into a single value.
@@ -1666,7 +1666,13 @@ export function resolveNodeInputs(
         const srcType = src.type ?? "";
         const kind: "video" | "audio" =
           VIDEO_PRODUCER_TYPES.has(srcType) ? "video" : AUDIO_PRODUCER_TYPES.has(srcType) ? "audio" : "video";
-        inputs.editPlanSources = [...(inputs.editPlanSources ?? []), { nodeId: src.id, url: output, kind }];
+        // Carry the source's own duration (incl. the audio-master lane via
+        // metadata.durationSeconds) for parity with the backend reserve.
+        const duration = editPlanSourceDurationSec(src.data as Record<string, unknown>);
+        inputs.editPlanSources = [
+          ...(inputs.editPlanSources ?? []),
+          { nodeId: src.id, url: output, kind, ...(duration !== undefined ? { duration } : {}) },
+        ];
         continue;
       }
     }

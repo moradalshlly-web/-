@@ -23,3 +23,22 @@ export function extractVideoDurationFromNode(
   }
   return undefined
 }
+
+/** Duration (seconds) of an edit-plan SOURCE node's media, for the reserve
+ *  bucket. Extends {@link extractVideoDurationFromNode} with the AUDIO lane:
+ *  `upload-audio` (and URL-imported audio) write their length to
+ *  `metadata.durationSeconds` ONLY — never `generatedResults[].duration` /
+ *  `data.duration` — so a podcast's audio master would otherwise resolve to
+ *  undefined and reserve the 180-minute ceiling (a ~6× overbill).
+ *
+ *  Deliberately a NEW function, not a change to `extractVideoDurationFromNode`,
+ *  so no other node's duration read shifts — this fallback is edit-plan-scoped. */
+export function editPlanSourceDurationSec(
+  data: Record<string, unknown> | undefined,
+): number | undefined {
+  const fromVideo = extractVideoDurationFromNode(data)
+  if (fromVideo !== undefined) return fromVideo
+  const meta = data?.metadata as { durationSeconds?: unknown } | undefined
+  const d = meta?.durationSeconds
+  return typeof d === "number" && Number.isFinite(d) && d > 0 ? d : undefined
+}

@@ -15,6 +15,7 @@ import {
   type Edl,
   type Transcript,
 } from "../edl.js"
+import { editPlanSourceDurationSec } from "../video-duration.js"
 
 /** A minimal valid single-camera tighten EDL: two kept spans of the master. */
 function tightenEdl(): Edl {
@@ -598,5 +599,24 @@ describe("edit-plan credit-id scheme", () => {
   it("builds `edit-plan:<mode>:<tier>:<bucket>m`", () => {
     expect(buildEditPlanCreditId("tighten", "standard", 45 * 60)).toBe("edit-plan:tighten:standard:60m")
     expect(buildEditPlanCreditId("clips", "premium", undefined)).toBe("edit-plan:clips:premium:180m")
+  })
+})
+
+describe("editPlanSourceDurationSec — audio-master lane (avoids the ceiling overbill)", () => {
+  it("reads an audio master's length from metadata.durationSeconds (upload-audio writes it there ONLY)", () => {
+    // A 45-minute podcast master → 2700s → the 60m bucket, NOT the 180m ceiling.
+    expect(editPlanSourceDurationSec({ metadata: { durationSeconds: 2700 } })).toBe(2700)
+    expect(buildEditPlanCreditId("tighten", "standard", editPlanSourceDurationSec({ metadata: { durationSeconds: 2700 } }))).toBe("edit-plan:tighten:standard:60m")
+  })
+
+  it("still prefers the video lane (generatedResults / data.duration) when present", () => {
+    expect(editPlanSourceDurationSec({ generatedResults: [{ duration: 120 }], activeResultIndex: 0 })).toBe(120)
+    expect(editPlanSourceDurationSec({ duration: 90 })).toBe(90)
+  })
+
+  it("returns undefined (→ ceiling bucket) when no duration is known", () => {
+    expect(editPlanSourceDurationSec({})).toBeUndefined()
+    expect(editPlanSourceDurationSec({ metadata: {} })).toBeUndefined()
+    expect(editPlanSourceDurationSec(undefined)).toBeUndefined()
   })
 })

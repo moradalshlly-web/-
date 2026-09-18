@@ -22,7 +22,7 @@ Because the plan is just data, an agent or you can decide *what* the edit is; th
 |--------|------|----------|-------------|
 | Transcript | json | **Yes** | The timed, word-level transcript. Wire it from a Transcribe node's `json` output. |
 | Silence | json | No | Silence ranges from a Silence Detect node — helps the tighten pass cut dead air precisely. |
-| Sources | video/audio | No | The media the edit draws from (1–6). Each connected source becomes an EDL source; annotate role / speakers / offset per source in the config panel. |
+| Sources | video/audio | **Yes** | The media the edit draws from (1–6). Each connected source becomes an EDL source; annotate role / speakers / offset per source in the config panel. |
 
 ## Outputs
 

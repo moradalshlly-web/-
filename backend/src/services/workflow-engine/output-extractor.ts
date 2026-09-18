@@ -714,12 +714,18 @@ export function getPrimaryOutput(
 
   // Edit Plan: single `edl` (json) output handle carrying the EDL plan — an
   // `Edl` for tighten, a bare `Edl[]` for clips, a `{version, chapters}` for
-  // chapters (already unwrapped onto output.json / data.generatedJson). Stringify
-  // for the scalar path exactly like web-scrape; the clips FAN-OUT (the primary
-  // path) reads the array per-item via getListInputForNode, so this scalar form
-  // is only the explicit "last"/"first" fallback. Mirrors the frontend branch.
+  // chapters (already unwrapped onto output.json / data.generatedJson). The clips
+  // FAN-OUT (the primary path, >1 clip) reads the array per-item via
+  // getListInputForNode, so this SCALAR path is only hit for N=1, an empty clip
+  // set, or an explicit "last"/first edge. It must NEVER stringify the ARRAY — a
+  // downstream `edl` input's normalizeEdl would treat `[edl]` as an EDL with no
+  // sources/segments → validateEdl 400. Emit the FIRST clip (one valid EDL), or
+  // nothing for an empty set. Mirrors the frontend extractNodeOutput branch.
   if (sourceType === "edit-plan") {
-    return output.json === undefined ? undefined : JSON.stringify(output.json)
+    const plan = output.json
+    if (plan === undefined || plan === null) return undefined
+    if (Array.isArray(plan)) return plan.length > 0 ? JSON.stringify(plan[0]) : undefined
+    return JSON.stringify(plan)
   }
 
   // Describe-to-picker: single `picker-json` output (a structured catalog JSON

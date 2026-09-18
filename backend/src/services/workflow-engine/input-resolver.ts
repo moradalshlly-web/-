@@ -12,7 +12,7 @@ import type {
 } from "./types.js"
 import { extractSourceNodeOutput, extractSourceNodeOutputAsList, extractSavedNodeOutput, extractAllGeneratedResults, extractVideoDurationFromNode, getPrimaryOutput, ANALYSIS_PRODUCER_TYPES } from "./output-extractor.js"
 import {
-  pro3DRenderShotStills, extractGeneratedJsonAsList, splitGeneratedItems, resolveNodeRefs, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, SOCIAL_POST_NODE_TYPES, PARAMETER_NODE_TYPES, getParameterValue, FAN_OUT_EACH_TYPES, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, extractReferencedLabels, canonicalVarName, REFERENCE_HANDLE_MAP, parseGroupHandle, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
+  pro3DRenderShotStills, extractGeneratedJsonAsList, splitGeneratedItems, resolveNodeRefs, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, SOCIAL_POST_NODE_TYPES, PARAMETER_NODE_TYPES, getParameterValue, FAN_OUT_EACH_TYPES, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, editPlanSourceDurationSec, extractReferencedLabels, canonicalVarName, REFERENCE_HANDLE_MAP, parseGroupHandle, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
 import { isSourceNode } from "./execution-graph.js"
 import { overlayHandleIndex } from "../../providers/image/overlay-contract.js"
 import { buildNodeRefMap } from "./payload-builder.js"
@@ -1403,7 +1403,9 @@ function routeOutput(
         VIDEO_PRODUCER_TYPES.has(srcType) ? "video" : AUDIO_PRODUCER_TYPES.has(srcType) ? "audio" : "video"
       // Carry the source's own duration (when the producer exposes it) so the
       // reserve buckets on the MASTER source's real length, not the 180m ceiling.
-      const duration = extractVideoDurationFromNode(src.data)
+      // editPlanSourceDurationSec adds the AUDIO lane (metadata.durationSeconds) —
+      // a podcast's upload-audio master has its length there ONLY.
+      const duration = editPlanSourceDurationSec(src.data as Record<string, unknown>)
       inputs.editPlanSources = [
         ...(inputs.editPlanSources ?? []),
         { nodeId: src.id, url: output, kind, ...(duration !== undefined ? { duration } : {}) },

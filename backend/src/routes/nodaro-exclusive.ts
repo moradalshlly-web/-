@@ -86,6 +86,22 @@ interface EnqueueArgs {
   readonly extraPayload?: Record<string, unknown>
 }
 
+/** For edit-plan, keep the up-to-24MB transcript/silence OUT of `jobs.input_data`
+ *  (which get_job / list_jobs / admin return VERBATIM) — store a size summary
+ *  instead. The full payload still rides the queue job data below. Mirrors the
+ *  cloud plugin route's slimming; a no-op for every other exclusive type. */
+function slimInputData(body: Record<string, unknown>, jobType: string): Record<string, unknown> {
+  if (jobType !== "edit-plan") return body
+  const { transcript, silence, ...slim } = body
+  const words = (transcript as { words?: unknown } | null | undefined)?.words
+  return {
+    ...slim,
+    transcriptWordCount: Array.isArray(words) ? words.length : 0,
+    transcriptBytes: JSON.stringify(transcript ?? null).length,
+    silenceIncluded: silence !== undefined,
+  }
+}
+
 /** insertJob + enqueue, mirroring routes/ai-avatar.ts. */
 async function enqueueExclusive({ req, reply, jobType, body, extraPayload }: EnqueueArgs) {
   const userId = req.userId
@@ -98,7 +114,7 @@ async function enqueueExclusive({ req, reply, jobType, body, extraPayload }: Enq
     force_private: extractForcePrivate(req.body) || undefined,
     user_id: userId,
     status: "pending",
-    input_data: buildJobInputData(body, jobType),
+    input_data: buildJobInputData(slimInputData(body, jobType), jobType),
   })
   if (error) {
     return sendInternalError(reply, req, error, "Failed to create job")
