@@ -4,6 +4,7 @@
  */
 import { z } from "zod"
 import { MODEL_CATALOG } from "./model-catalog.js"
+import { isAutoVideoDuration } from "./video-duration-auto.js"
 
 /** Base USD value of 1 Nodaro credit. Used for cost→credit conversion. */
 export const CREDIT_BASE_USD = 0.002
@@ -2627,7 +2628,32 @@ export const PRICING_DEFAULT_DURATION_SEC: Record<string, number> = {
 export function pricedOutputDurationSec(provider: string, requested: number | string | undefined): number {
   const fallback = PRICING_DEFAULT_DURATION_SEC[provider] ?? 5
   const parsed = typeof requested === "string" ? parseInt(requested, 10) : requested
-  return parsed === undefined || Number.isNaN(parsed) ? fallback : parsed
+  if (parsed === undefined || Number.isNaN(parsed)) return fallback
+  // AUTO (`VIDEO_DURATION_AUTO`): the model picks the length, so the only
+  // safe price is the LONGEST it can render — `commit_credits` refunds a surplus
+  // but never collects a deficit, and the delivered clip is measured at settle
+  // time (lib/seedance2-ref-video-settle.ts). Living HERE, the one source every
+  // tier and every scaled reservation reads, a new pricing call site reserves
+  // the ceiling by default instead of having to remember to. Any other
+  // non-positive value is nonsense and prices at the render default.
+  if (parsed <= 0) {
+    return isAutoVideoDuration(parsed) && supportsAutoVideoDuration(provider)
+      ? maxVideoDurationSec(provider) ?? fallback
+      : fallback
+  }
+  return parsed
+}
+
+/** Models that accept `VIDEO_DURATION_AUTO` — a catalog capability (docs.kie.ai:
+ *  the Seedance 2 family, "4-15 seconds or -1" / 2.5 "Special values -1"). */
+export function supportsAutoVideoDuration(provider: string | undefined): boolean {
+  return !!provider && MODEL_CATALOG[provider]?.autoDuration === true
+}
+
+/** The longest clip a duration-tiered provider can render (its top priced tier). */
+export function maxVideoDurationSec(provider: string): number | undefined {
+  const tiers = VIDEO_DURATION_TIERS[provider]
+  return tiers && tiers.length > 0 ? tiers[tiers.length - 1]!.maxSeconds : undefined
 }
 
 /**

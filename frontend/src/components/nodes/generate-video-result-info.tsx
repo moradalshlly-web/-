@@ -1,5 +1,6 @@
 "use client"
 
+import { VIDEO_DURATION_AUTO } from "@nodaro/shared"
 import { useT } from "@/lib/i18n"
 import { Volume2, VolumeX } from "lucide-react"
 import { toast } from "sonner"
@@ -77,7 +78,7 @@ export function GenerateVideoResultInfo({
   // result whose provider never produced audio.
   const recordedAudio = settings?.generateAudio
   const model = videoModelLabelFor(provider)
-  const durationLabel = typeof duration === "number" ? `${duration}s` : undefined
+  const durationLabel = typeof duration === "number" ? (duration === VIDEO_DURATION_AUTO ? "Auto" : `${duration}s`) : undefined
   const summary = [model, aspect, resolution, durationLabel].filter(Boolean).join(" · ")
 
   const rows: ResultSummaryRow[] = [{ label: "Model", value: model }]

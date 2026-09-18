@@ -17,9 +17,10 @@
 import { describe, it, expect, vi } from "vitest"
 import { renderHook } from "@testing-library/react"
 
+const store = vi.hoisted(() => ({ updateNodeData: vi.fn() }))
 vi.mock("@/hooks/use-workflow-store", () => ({
   useWorkflowStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector({ updateNodeData: () => {}, runSingleNode: () => {} }),
+    selector({ updateNodeData: store.updateNodeData, runSingleNode: () => {} }),
 }))
 
 import { useGenerateVideoStripModel } from "../use-generate-video-strip-model"
@@ -63,3 +64,24 @@ describe("useGenerateVideoStripModel — unset duration/resolution defaults", ()
     expect(s.currentResolution).toBe("")
   })
 })
+
+describe("useGenerateVideoStripModel — Auto duration", () => {
+  it("labels Auto as Auto, never '-1s'", () => {
+    expect(strip({ provider: "seedance-2-5", duration: -1 }).durationShort).toBe("Auto")
+  })
+
+  it("switching to a model without Auto clears it — the panel's snap is not mounted here", () => {
+    store.updateNodeData.mockClear()
+    strip({ provider: "seedance-2-5", duration: -1 }).onModelChange("kling-3.0")
+    expect(store.updateNodeData).toHaveBeenCalledWith("n1", { provider: "kling-3.0", duration: undefined })
+  })
+
+  it("switching between two Auto-capable models keeps it; a real length is never touched", () => {
+    store.updateNodeData.mockClear()
+    strip({ provider: "seedance-2-5", duration: -1 }).onModelChange("seedance-2")
+    expect(store.updateNodeData).toHaveBeenLastCalledWith("n1", { provider: "seedance-2" })
+    strip({ provider: "seedance-2-5", duration: 12 }).onModelChange("kling-3.0")
+    expect(store.updateNodeData).toHaveBeenLastCalledWith("n1", { provider: "kling-3.0" })
+  })
+})
+

@@ -479,6 +479,13 @@ models are priced on a fixed ladder of seeded durations per resolution band, so
 a duration between rungs is moved to the nearest one and reported in
 `adjustments`.
 
+`duration: -1` means **Auto** on the models that support it (the Seedance 2
+family — `autoDuration: true` in `GET /v1/models`): the model picks the clip
+length, which is the source clip's length when it edits a reference video. An
+Auto run reserves credits for the model's longest clip and is refunded down to
+the length actually delivered. On any other model `-1` is ignored and the model
+renders its default duration.
+
 ## 5. Sync vs async execution
 
 By default, `POST /v1/api/run` is **async**: it returns `202 Accepted`

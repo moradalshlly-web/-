@@ -29,6 +29,7 @@
  */
 
 import { isFlux2Model } from "./flux2-pricing.js"
+import { isAutoVideoDuration } from "./video-duration-auto.js"
 
 export type ModelKind = "image" | "video" | "audio"
 
@@ -152,6 +153,14 @@ export interface ModelCatalogEntry {
   unlistedResolutionRendersAs?: string
   qualities?: readonly string[]
   durations?: readonly number[]
+  /**
+   * The model accepts an AUTO duration (`duration: -1`, see
+   * `VIDEO_DURATION_AUTO`): it picks the clip length itself — the source clip's
+   * length on a video edit, a length within `durations` otherwise. A capability,
+   * not a member of `durations` (which stay real seconds). Runs are reserved at
+   * the longest clip and settled on the delivered one.
+   */
+  autoDuration?: boolean
   pricing: readonly PriceVariant[]
   /** Editorial highlight — "best in tier". Surfaces in MCP output as a ⭐. */
   featured?: boolean
@@ -1528,6 +1537,7 @@ const VIDEO_MODELS: Record<string, ModelCatalogEntry> = {
     features: ["end-frame", "audio", "reference-image", "video-reference"],
     aspectRatios: VIDEO_RATIOS_SEEDANCE_2,
     durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    autoDuration: true,
     resolutions: ["480p", "720p", "1080p", "4k"],
     pricing: [
       { identifier: "seedance-2", credits: 380, note: "default — see :NsR variants for exact" },
@@ -1553,6 +1563,7 @@ const VIDEO_MODELS: Record<string, ModelCatalogEntry> = {
     features: ["end-frame", "audio", "reference-image", "video-reference"],
     aspectRatios: VIDEO_RATIOS_SEEDANCE_2,
     durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    autoDuration: true,
     resolutions: ["480p", "720p"],
     pricing: [
       { identifier: "seedance-2-fast", credits: 310, note: "default — see :NsR variants" },
@@ -1574,6 +1585,7 @@ const VIDEO_MODELS: Record<string, ModelCatalogEntry> = {
     features: ["end-frame", "audio", "reference-image", "video-reference"],
     aspectRatios: VIDEO_RATIOS_SEEDANCE_2,
     durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    autoDuration: true,
     resolutions: ["480p", "720p"],
     pricing: [
       { identifier: "seedance-2-mini", credits: 190, note: "default — see :NsR variants" },
@@ -1601,6 +1613,7 @@ const VIDEO_MODELS: Record<string, ModelCatalogEntry> = {
     features: ["end-frame", "audio", "reference-image", "video-reference"],
     aspectRatios: VIDEO_RATIOS_SEEDANCE_2,
     durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+    autoDuration: true,
     resolutions: ["480p", "720p", "1080p"],
     pricing: [
       { identifier: "seedance-2-5", credits: 1260, note: "default 8s 720p — see :Ns:res variants for exact" },
@@ -2802,7 +2815,10 @@ export function validateModelInput(
         allowed: null,
       }
     }
-    if (!m.durations.includes(input.duration)) {
+    // Auto (-1) is a legal value for the providers that accept it — it is a
+    // capability of the model, not a member of its seconds list.
+    const isAuto = m.autoDuration === true && isAutoVideoDuration(input.duration)
+    if (!isAuto && !m.durations.includes(input.duration)) {
       return {
         field: "duration",
         message: `Model "${modelId}" does not support duration ${input.duration}s. Supported: ${m.durations.join(", ")}s.`,
@@ -2945,7 +2961,10 @@ export function normalizeModelInput(
     defaultResolutionFor(modelId),
   )
   out.quality = snap("quality", input.quality, m.qualities)
-  out.duration = snap("duration", input.duration, m.durations)
+  out.duration =
+    m.autoDuration === true && isAutoVideoDuration(input.duration)
+      ? input.duration
+      : snap("duration", input.duration, m.durations)
 
   // Cross-field constraints — a pair that is individually valid but jointly
   // rejected upstream. GPT Image 2 (per docs.kie.ai): `auto` requires 1K, and

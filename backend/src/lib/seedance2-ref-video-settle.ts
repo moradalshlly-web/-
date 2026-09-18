@@ -1,11 +1,11 @@
-import { isSeedance2Provider } from "@nodaro/shared"
+import { isSeedance2Provider, isAutoVideoDuration } from "@nodaro/shared"
 import { hasCredits } from "./config.js"
 
 /**
  * The BASE credits a Seedance 2 reference-video run actually billed, measured
  * from the clip the provider delivered — or `undefined` when there is nothing
- * to measure (no credits in this edition, another provider, no reference
- * video) or the measurement failed, in which case the caller commits the
+ * to measure (no credits in this edition, another provider, neither a
+ * reference video nor an Auto duration) or the measurement failed, in which case the caller commits the
  * reservation exactly as before (never under-bills).
  *
  * WHY: the reservation for such a run is a worst case. Seedance decides from
@@ -30,11 +30,29 @@ export async function measureSeedance2RefVideoBaseCredits(args: {
   outputUrl: string
   referenceVideoUrls: unknown
   refVideoDurationsSec?: unknown
+  /** The REQUESTED duration. Only Auto (-1) matters here: with no reference
+   *  video wired it is the one other run reserved at a worst case. */
+  duration?: unknown
 }): Promise<number | undefined> {
   if (!hasCredits()) return undefined
   const { provider, referenceVideoUrls } = args
-  if (!isSeedance2Provider(provider) || !Array.isArray(referenceVideoUrls) || referenceVideoUrls.length === 0) {
-    return undefined
+  if (!isSeedance2Provider(provider)) return undefined
+  const hasVideoRef = Array.isArray(referenceVideoUrls) && referenceVideoUrls.length > 0
+  if (!hasVideoRef) {
+    // AUTO duration, nothing wired: reserved at the model's longest clip, so
+    // settle to the tier of the length the model actually chose.
+    if (!isAutoVideoDuration(args.duration)) return undefined
+    try {
+      const { seedance2AutoDurationActualBaseCredits } = await import("../ee/billing/seedance2-ref-video-credits.js")
+      return await seedance2AutoDurationActualBaseCredits({
+        provider: provider as string,
+        resolution: args.resolution,
+        outputUrl: args.outputUrl,
+      })
+    } catch (err) {
+      console.warn(`[billing] could not measure the delivered Seedance auto-duration run; committing the reservation:`, err)
+      return undefined
+    }
   }
   try {
     const { seedance2RefVideoActualBaseCredits } = await import("../ee/billing/seedance2-ref-video-credits.js")

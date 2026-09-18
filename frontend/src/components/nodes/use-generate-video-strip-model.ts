@@ -6,7 +6,7 @@ import {
   getDurationsForVideoModel,
   getVideoModelCapabilitiesTooltip,
 } from "@/components/editor/config-panels/model-options"
-import { uiResolutionFill, uiDurationFill } from "@nodaro/shared"
+import { uiResolutionFill, uiDurationFill, isAutoVideoDuration, supportsAutoVideoDuration } from "@nodaro/shared"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { shortenLabel } from "./strip-label"
 import type { GenerateVideoNodeData } from "@/types/nodes"
@@ -72,7 +72,9 @@ export function useGenerateVideoStripModel(nodeId: string, data: GenerateVideoNo
   // "16:9"). The full label still renders inside the dropdown items.
   const aspectShort = shortenLabel(aspectOptions.find((o) => o.value === currentAspect)?.label ?? currentAspect)
   const resolutionShort = shortenLabel(resolutionOptions?.find((o) => o.value === currentResolution)?.label ?? currentResolution)
-  const durationShort = currentDuration !== undefined ? `${currentDuration}s` : ""
+  const durationShort = currentDuration !== undefined
+    ? (durationOptions.find((o) => o.value === currentDuration)?.label ?? `${currentDuration}s`)
+    : ""
 
   // Versions / repeat count — how many results to generate per run. Clamped to
   // 1-4 in this UI.
@@ -83,7 +85,12 @@ export function useGenerateVideoStripModel(nodeId: string, data: GenerateVideoNo
   }
 
   const handleModelChange = (value: string) => {
-    updateNodeData(nodeId, { provider: value })
+    // Auto (-1) is a capability of the model, and the panel's stale-value snap
+    // only runs while the panel is mounted — so the strip clears an Auto the
+    // new model cannot honour itself (the node then shows and bills the new
+    // model's own default) instead of carrying "-1" into a run.
+    const clearAuto = isAutoVideoDuration(data.duration) && !supportsAutoVideoDuration(value)
+    updateNodeData(nodeId, { provider: value, ...(clearAuto ? { duration: undefined } : {}) })
   }
   const handleAspectChange = (value: string) => {
     updateNodeData(nodeId, { aspectRatio: value })

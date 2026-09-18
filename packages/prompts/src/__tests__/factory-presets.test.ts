@@ -5,7 +5,7 @@ import { COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS } from "@nodaro/shared"
 import { STYLE_IDS } from "../index.js"
 import { joinPromptParts } from "../resolve-prompt.js"
 import { nodeSupportsPromptAffixes } from "../node-prompt-fields.js"
-import { IMAGE_GEN_PROVIDERS, MODIFY_IMAGE_PROVIDERS, VIDEO_GEN_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, MUSIC_PROVIDERS, SUNO_MODELS, TTS_PROVIDERS, TEXT_TO_AUDIO_PROVIDERS, ALL_CAPTION_STYLES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, aspectRatioOptionsByKind, durationsByMode, IMAGE_PROMPT_MAX, MODEL_CATALOG, NATIVE_NEGATIVE_VIDEO_PROVIDERS } from "@nodaro/shared"
+import { IMAGE_GEN_PROVIDERS, MODIFY_IMAGE_PROVIDERS, VIDEO_GEN_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, MUSIC_PROVIDERS, SUNO_MODELS, TTS_PROVIDERS, TEXT_TO_AUDIO_PROVIDERS, ALL_CAPTION_STYLES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, aspectRatioOptionsByKind, durationsByMode, IMAGE_PROMPT_MAX, MODEL_CATALOG, NATIVE_NEGATIVE_VIDEO_PROVIDERS, VIDEO_DURATION_AUTO, supportsAutoVideoDuration } from "@nodaro/shared"
 
 /**
  * The text a preset ACTUALLY sends: a preset may ship its doctrine as pre/post
@@ -327,6 +327,8 @@ describe("generate-video factory preset data validity", () => {
     new Set<number>([
       ...(durationsByMode("t2v")[provider] ?? []),
       ...(durationsByMode("i2v")[provider] ?? []),
+      // Auto (-1) is a catalog capability, not a member of the seconds list.
+      ...(supportsAutoVideoDuration(provider) ? [VIDEO_DURATION_AUTO] : []),
     ])
 
   it("uses a known video provider when set", () => {
@@ -382,8 +384,10 @@ describe("generate-video factory preset data validity", () => {
         NATIVE_NEGATIVE_VIDEO_PROVIDERS.has(provider),
         `${p.id}: missing negativePrompt on a native-negative provider`,
       ).toBe(false)
+      // The ASSEMBLED prompt — an affix-only preset (the user's own sentence is
+      // the whole prompt) carries its constraint tail in the post text.
       expect(
-        (p.data.prompt as string) ?? "",
+        effectivePrompt(p.data),
         `${p.id}: omits negativePrompt but carries no in-prompt constraint tail`,
       ).toContain("subtitle-free")
     }
@@ -392,7 +396,7 @@ describe("generate-video factory preset data validity", () => {
   it("non-style-pinned generate-video prompts are substantive", () => {
     for (const p of presets) {
       if (p.data.style !== undefined) continue
-      const prompt = (p.data.prompt as string | undefined) ?? ""
+      const prompt = effectivePrompt(p.data)
       expect(prompt.trim().length, `${p.id}: prompt too thin (${prompt.length} chars)`).toBeGreaterThanOrEqual(40)
     }
   })
@@ -1099,3 +1103,24 @@ describe("factory-presets split integrity", () => {
     }
   })
 })
+
+describe("generate-video/edit-video — the Seedance 2.5 edit shape, up front", () => {
+  const preset = getFactoryPresets("generate-video").find((p) => p.id === "generate-video/edit-video")!
+
+  it("ships exactly what edit mode requires: Adaptive ratio + Auto duration on seedance-2-5", () => {
+    expect(preset.data.provider).toBe("seedance-2-5")
+    expect(preset.data.aspectRatio).toBe("adaptive")
+    expect(preset.data.duration).toBe(VIDEO_DURATION_AUTO)
+    expect(supportsAutoVideoDuration(preset.data.provider as string)).toBe(true)
+  })
+
+  it("owns only the pre & post text — the user's sentence is the prompt", () => {
+    expect(preset.data.prompt).toBeUndefined()
+    expect(preset.data.promptPrefix).toBe("edit {video:1} as follows:\n")
+    // The instruction lands on its own line, straight after the prefix.
+    expect(effectivePrompt({ ...preset.data, prompt: "make it black and white" })).toMatch(
+      /^edit \{video:1\} as follows:\nmake it black and white/,
+    )
+  })
+})
+

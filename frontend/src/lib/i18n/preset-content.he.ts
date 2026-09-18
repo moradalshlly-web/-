@@ -290,6 +290,8 @@ export const PRESET_CONTENT_HE: Record<string, PresetCopy> = {
   "generate-video/seedance-speed-ramp-duel": { name: "דו־קרב בהאטה הדרגתית", description: "התנגשות אמנויות לחימה עם האטה קיצונית." },
   "generate-video/seedance-creature-feature": { name: "סרט יצורים", description: "יצור מיתי מעוגן באנטומיה של חיה אמיתית." },
   "generate-video/seedance-vertical-dance-reel": { name: "ריל ריקוד אנכי", description: "עריכת ריקוד 9:16 מונעת מוזיקה עם אנרגיית פאן מהיר." },
+  // ── Video Editing ──
+  "generate-video/edit-video": { name: "עריכת וידאו", description: "שינוי קליפ מחובר לפי הוראה — שומר על האורך, היחס וכל מה שלא הוזכר." },
 
   // ═══ voice (TTS / voice design / voice changer) ═══
   "text-to-speech/narrator-calm": { name: "קריין רגוע", description: "קריינות אחידה ומדודה." },

@@ -13,9 +13,12 @@ import { probeRefVideoDurations } from "../lib/ref-video-probe.js"
 import { insertJobIdempotent } from "../lib/insert-job.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { applyPromptPolicies } from "../lib/prompt-policy.js"
-import { TEXT_TO_VIDEO_PROVIDERS, SEEDANCE_2_5_REF_LIMITS, PROMPT_HARD_CEILING, videoProviderRequiresImage, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, applyDefaultVideoSelection, buildVideoCreditModelIdentifier, type ConnectedReference, type DescribedReference } from "@nodaro/shared"
+import { TEXT_TO_VIDEO_PROVIDERS, VIDEO_DURATION_AUTO, SEEDANCE_2_5_REF_LIMITS, PROMPT_HARD_CEILING, videoProviderRequiresImage, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, applyDefaultVideoSelection, buildVideoCreditModelIdentifier, type ConnectedReference, type DescribedReference } from "@nodaro/shared"
 import { imageRequiredError } from "../lib/video-image-required.js"
-import { composeVideoPromptText } from "@nodaro/prompts"
+import { composeVideoPromptText, resolveReferenceTokens } from "@nodaro/prompts"
+
+/** An editor reference token — `{image:N}` / `{video:N}` / `{audio:N}`, optionally labelled. */
+const REFERENCE_TOKEN_PROBE = /\{(?:image|video|audio):\d+/i
 import { connectedReferenceSchema, describedReferenceSchema, referenceCaptionSchema, DESCRIBED_REFERENCE_LIMIT } from "../lib/connected-reference-schema.js"
 import { directionSchema } from "../lib/direction-schema.js"
 import { subjectSchema } from "../lib/subject-schema.js"
@@ -26,7 +29,10 @@ export const textToVideoBody = z.object({
   prompt: z.string().min(1).max(PROMPT_HARD_CEILING),
   userPrompt: z.string().max(PROMPT_HARD_CEILING).optional(),
   provider: z.enum(TEXT_TO_VIDEO_PROVIDERS).optional(),
-  duration: z.number().int().min(1).max(60).optional(),
+  // Seconds, or VIDEO_DURATION_AUTO (-1): the model picks the length. Only the
+  // providers that accept it send it on (`supportsAutoVideoDuration`); pricing
+  // reserves the model's longest clip and settles on the delivered one.
+  duration: z.union([z.literal(VIDEO_DURATION_AUTO), z.number().int().min(1).max(60)]).optional(),
   mode: z.enum(["pro", "std", "4K"]).optional(),
   sound: z.boolean().optional(),
   negativePrompt: z.string().max(PROMPT_HARD_CEILING).optional(),
@@ -335,6 +341,19 @@ export async function textToVideoRoutes(app: FastifyInstance) {
       // Mirror into parsed.data so buildJobInputData records what the worker gets.
       parsed.data.prompt = prompt
       parsed.data.referenceImageUrls = referenceImageUrls
+    } else if (REFERENCE_TOKEN_PROBE.test(prompt)) {
+      // Flat path (URL arrays only — the MCP `generate_video` verb, SDK callers):
+      // an editor token still has to reach the model as its wire form. A preset's
+      // pre text carries one ("edit {video:1} as follows:"), and the raw
+      // `{video:1}` means nothing to the provider. Same resolver, counted against
+      // the flat arrays; an out-of-range token degrades to its label or nothing.
+      // Gated on a token being present so an ordinary prompt is never re-spaced.
+      prompt = resolveReferenceTokens(prompt, {
+        image: referenceImageUrls?.length ?? 0,
+        video: referenceVideoUrls?.length ?? 0,
+        audio: referenceAudioUrls?.length ?? 0,
+      }) ?? ""
+      parsed.data.prompt = prompt
     }
 
     // Truncation warning on the ASSEMBLED prompt — the string the shed budgeted
@@ -390,6 +409,11 @@ export async function textToVideoRoutes(app: FastifyInstance) {
           input_data: buildJobInputData(
             {
               ...parsed.data,
+              // The RESOLVED provider, not the raw (optional) one: the reconcile
+              // cron settles a worst-case reservation from `input_data` alone,
+              // and a provider-less request runs on the platform default — a
+              // Seedance model, so exactly the runs that need the settlement.
+              provider,
               aspectRatio: normAspectRatio,
               resolution: normResolution,
               duration: normDuration,

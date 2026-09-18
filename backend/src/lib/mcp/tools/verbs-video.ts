@@ -125,7 +125,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         duration: z
           .number()
           .optional()
-          .describe("Duration (seconds). Snaps to nearest supported value."),
+          .describe("Duration (seconds). Snaps to nearest supported value. -1 = Auto (Seedance 2): the model picks the length."),
         aspect_ratio: z
           .string()
           .optional()

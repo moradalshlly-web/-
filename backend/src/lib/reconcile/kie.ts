@@ -360,6 +360,7 @@ export async function reconcileKieJob(row: KieJobRow, opts?: ReconcileOpts): Pro
       outputUrl: result.url,
       referenceVideoUrls: input.referenceVideoUrls,
       refVideoDurationsSec: input.refVideoDurationsSec,
+      duration: input.duration,
     })
 
     await finalizeJobWithMedia({

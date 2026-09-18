@@ -425,6 +425,7 @@ const PRESET_GROUPS_HE: Record<string, string> = {
   "UI & Stingers": "ממשק וסטינגרים",
   "Utility": "כלי עזר",
   "Viral & Effects": "ויראלי ואפקטים",
+  "Video Editing": "עריכת וידאו",
   "Vocals & Songs": "שירה ושירים",
   "Writing & Marketing": "כתיבה ושיווק",
 }

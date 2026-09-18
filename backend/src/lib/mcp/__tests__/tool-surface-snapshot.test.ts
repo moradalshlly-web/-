@@ -294,6 +294,13 @@ const TRANSCRIBE_WORD_TIMESTAMPS_BYTES = 147
 // 8_147 B, still under the 8_192 B per-tool budget. Measured: 362_980 total −
 // 362_737 dev = 243 B.
 const CAPTION_WORD_WINDOW_WORDING_BYTES = 243
+// Auto video duration (2026-09-18): `generate_video.duration` gained one
+// sentence — "-1 = Auto (Seedance 2): the model picks the length." — because a
+// negative duration is otherwise an obvious typo to a caller, and it is the only
+// way to ask Seedance to EDIT a reference clip at the clip's own length. No tool
+// added, no arg added; `generate_video` is 8_182 B, under the 8_192 B per-tool
+// budget. Measured: 363_032 total − 362_980 = 52 B.
+const VIDEO_AUTO_DURATION_WORDING_BYTES = 52
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -316,7 +323,8 @@ export const TOOL_WIRE_BUDGET = {
     APPLY_EDL_TOOL_BYTES +
     CAPTION_LOOK_PRESETS_BYTES +
     TRANSCRIBE_WORD_TIMESTAMPS_BYTES +
-    CAPTION_WORD_WINDOW_WORDING_BYTES,
+    CAPTION_WORD_WINDOW_WORDING_BYTES +
+    VIDEO_AUTO_DURATION_WORDING_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }
