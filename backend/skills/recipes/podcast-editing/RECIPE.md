@@ -25,8 +25,8 @@ This recipe covers the two phase-1 components:
 
 | Verb | Role | Availability |
 |------|------|--------------|
-| `transcribe` | Speech to a timed, word-level transcript | everywhere |
-| `silence_detect` | Detect the silent ranges (one local ffmpeg pass, no transcript) | everywhere (CORE) |
+| `transcribe` | Speech to a timed, word-level transcript | everywhere (needs a speech-provider key on a self-host) |
+| `silence_detect` | Detect the silent ranges (one local ffmpeg pass, no transcript) | everywhere (CORE, keyless) |
 | `plan_edit` | Read the transcript and WRITE an EDL — `mode`: `tighten` / `clips` / `chapters` | **Cloud only** |
 | `apply_edl` | RENDER an EDL into a finished video or audio cut | everywhere (CORE) |
 
@@ -37,7 +37,10 @@ planner you like) to the contract below, then render it with `apply_edl`. `plan_
 writes the EDL for you; it is not required to render one.
 
 Each of these verbs returns a `job_id` — poll `get_job`. `plan_edit`'s EDL is in the job's
-`output_data`; `apply_edl`'s rendered file is the job result.
+`output_data`; `apply_edl`'s rendered file is the job result. **The `transcribe` and
+`silence_detect` payloads you hand to `plan_edit` are nested under `output_data.json` — pass
+that inner object, never the whole `output_data` (see the steps below; getting this wrong
+silently drops the data with no error).**
 
 ---
 
@@ -46,12 +49,18 @@ Each of these verbs returns a `job_id` — poll `get_job`. `plan_edit`'s EDL is 
 1. **Transcribe the master audio.** Call `transcribe` with `word_timestamps: true` (and
    `diarize: true` for a multi-speaker recording) so the transcript carries per-word
    `startMs` / `endMs` and speaker labels — `plan_edit` reads word timings, so a transcript
-   without them cannot drive a tighten.
-2. **Optional — detect silence.** Call `silence_detect` on the same source. Pass the
-   resulting ranges to `plan_edit` as `silence` to sharpen where the cuts land. Tune
-   `threshold_db` (a lower, more-negative dBFS floor is stricter), `min_silence_ms`, and
-   `pad_ms` (speech kept around each range) if the default cut is too aggressive or too
-   loose.
+   without them cannot drive a tighten. When the job completes, pass its
+   **`output_data.json`** (the normalized Transcript, word timings in milliseconds) as
+   `plan_edit`'s `transcript`. Do NOT pass the whole `output_data` — its top-level
+   `segments` are in SECONDS, and only `output_data.json` is the ms-timed Transcript the
+   planner expects.
+2. **Optional — detect silence.** Call `silence_detect` on the same source. Pass its
+   **`output_data.json`** (the `{ version, ranges, durationMs }` object) as `plan_edit`'s
+   `silence` to sharpen where the cuts land — pass that inner object, NOT the whole
+   `output_data`, or the planner finds no `ranges` and the silence is silently ignored (the
+   paid step does nothing). Tune `threshold_db` (a lower, more-negative dBFS floor is
+   stricter), `min_silence_ms`, and `pad_ms` (speech kept around each range) if the default
+   cut is too aggressive or too loose.
 3. **Plan the tighten.** Call `plan_edit` with `mode: "tighten"`, the `transcript`, the
    optional `silence`, and the media `sources` (1–6). It returns one `Edl`: the kept spans
    are in `segments`, and everything it removed is recorded in `dropped[]` with a `reason`
@@ -151,10 +160,13 @@ than failing mid-render, so keep these invariants when editing by hand:
 - Every segment has `outMs > inMs` and `inMs >= 0`.
 - Every `video` / `audio` on a segment names a real `sources[].id`. A `video` source must be
   `kind: "video"`.
+- Every segment needs a SOUND source: an explicit `audio` id, OR one source with
+  `role: "master-audio"` (used for every segment that omits `audio`), OR its own `video`
+  source to take sound from. A segment with none of the three is rejected.
 - For a **video** render (`output: "video"`) EVERY segment needs a `video` source; for an
   audio-only cut use `output: "audio"`.
-- `segments[0]` cannot carry a transition (nothing precedes it), and a segment carries at
-  most one transition field.
+- A segment carries at most one transition field. (A transition on `segments[0]` is harmless
+  — it is dropped automatically, since there is no predecessor to transition from.)
 - Only a `crossfade` consumes time, and its `durationMs` must be at most 0.9 × the shorter
   of the two adjacent segments (the ffmpeg crossfade limit).
 - At most one source may have `role: "master-audio"`.

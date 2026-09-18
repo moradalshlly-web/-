@@ -1370,6 +1370,108 @@ describe("video_audit verb", () => {
   })
 })
 
+describe("silence_detect verb", () => {
+  it("calls /v1/silence-detect with audio_url + snake_case → camelCase tuning", async () => {
+    const { fastify, received } = stubRoute("POST", "/v1/silence-detect", { jobId: "j-sd" })
+    const server = buildServer()
+    registerVerbs({ server, session: executeSession(), fastify })
+
+    const result = await callTool(server, "silence_detect", {
+      audio_url: "https://a/ep.mp3",
+      threshold_db: -40,
+      min_silence_ms: 500,
+      pad_ms: 80,
+    })
+
+    expect(result.isError).toBeUndefined()
+    expect((result.structuredContent as Record<string, unknown>)?.jobId).toBe("j-sd")
+    expect(received.body?.audioUrl).toBe("https://a/ep.mp3")
+    expect(received.body?.thresholdDb).toBe(-40)
+    expect(received.body?.minSilenceMs).toBe(500)
+    expect(received.body?.padMs).toBe(80)
+    expect(received.body?.mcp_client).toBe("Claude")
+    expect(received.body?.userId).toBe("u1")
+  })
+
+  it("does NOT register without workflows:execute scope", async () => {
+    const server = buildServer()
+    registerVerbs({ server, session: readOnlySession(), fastify: Fastify() })
+    const tools = await listTools(server)
+    expect(tools.map((t) => t.name)).not.toContain("silence_detect")
+  })
+})
+
+describe("apply_edl verb", () => {
+  const validEdl = {
+    version: 1,
+    clock: "master",
+    sources: [{ id: "s1", url: "https://a/v.mp4", kind: "video" }],
+    segments: [{ id: "seg1", inMs: 0, outMs: 2000, video: "s1" }],
+  }
+
+  it("calls /v1/apply-edl with a valid EDL object + snake_case → camelCase", async () => {
+    const { fastify, received } = stubRoute("POST", "/v1/apply-edl", { jobId: "j-ae" })
+    const server = buildServer()
+    registerVerbs({ server, session: executeSession(), fastify })
+
+    const result = await callTool(server, "apply_edl", {
+      edl: validEdl,
+      output: "video",
+      crossfade_ms: 100,
+    })
+
+    expect(result.isError).toBeUndefined()
+    expect((result.structuredContent as Record<string, unknown>)?.jobId).toBe("j-ae")
+    expect((received.body?.edl as Record<string, unknown>)?.clock).toBe("master")
+    expect(received.body?.output).toBe("video")
+    expect(received.body?.crossfadeMs).toBe(100)
+    expect(received.body?.mcp_client).toBe("Claude")
+    expect(received.body?.userId).toBe("u1")
+  })
+
+  it("accepts a JSON-STRING EDL (client serialization slip) and dispatches", async () => {
+    const { fastify, received } = stubRoute("POST", "/v1/apply-edl", { jobId: "j-ae-str" })
+    const server = buildServer()
+    registerVerbs({ server, session: executeSession(), fastify })
+
+    const result = await callTool(server, "apply_edl", { edl: JSON.stringify(validEdl) })
+
+    expect(result.isError).toBeUndefined()
+    expect((result.structuredContent as Record<string, unknown>)?.jobId).toBe("j-ae-str")
+    // The verb parses the string before dispatch, so the route receives an object.
+    expect((received.body?.edl as Record<string, unknown>)?.clock).toBe("master")
+  })
+
+  it("pre-validates and returns isError NAMING the segment + rule, never dispatching", async () => {
+    // A video render with a picture-less segment: the route would 400, but the
+    // MCP error formatter drops issues[] — so the verb pre-validates and surfaces
+    // the offending segment id + rule itself.
+    const { fastify, received } = stubRoute("POST", "/v1/apply-edl", { jobId: "j-bad" })
+    const server = buildServer()
+    registerVerbs({ server, session: executeSession(), fastify })
+
+    const badEdl = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "s1", url: "https://a/v.mp4", kind: "video" }],
+      segments: [{ id: "seg1", inMs: 0, outMs: 2000 }], // no video source
+    }
+    const result = await callTool(server, "apply_edl", { edl: badEdl, output: "video" })
+
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain("seg1")
+    expect((result.content[0] as { text: string }).text).toContain("video source")
+    expect(received.body).toBeUndefined() // never dispatched
+  })
+
+  it("does NOT register without workflows:execute scope", async () => {
+    const server = buildServer()
+    registerVerbs({ server, session: readOnlySession(), fastify: Fastify() })
+    const tools = await listTools(server)
+    expect(tools.map((t) => t.name)).not.toContain("apply_edl")
+  })
+})
+
 describe("image_collage verb", () => {
   it("forwards per-image labels + numbered as index-aligned imageLabels + numbered to /v1/image-collage", async () => {
     const { fastify, received } = stubRoute("POST", "/v1/image-collage", { jobId: "j-collage" })
