@@ -1,7 +1,7 @@
 ---
 node_type: transcribe
-generated_at: 2026-08-15T21:55:07.167Z
-generated_from: 150c80ac9
+generated_at: 2026-09-17T19:59:19.694Z
+generated_from: b3e49a12f
 ---
 
 # Transcribe
@@ -11,7 +11,7 @@ generated_from: 150c80ac9
 **Category:** ai
 **Credit cost:** 3
 **Inputs (target handles):** `audio`
-**Outputs (source handles):** `text`
+**Outputs (source handles):** `json`, `text`
 
 **Required data fields:**
 - `label: string`
@@ -26,8 +26,10 @@ generated_from: 150c80ac9
 - `currentJobProgress?: number`
 - `errorMessage?: string`
 - `generatedText?: string`
-- `generatedResults?: Array<{ text: string; language: string; jobId: string; timestamp: string }>`
+- `generatedResults?: Array<{ text: string; language: string; jobId: string; timestamp: string; transcript?: Transcript }>`
+- `generatedJson?: Transcript`
 - `activeResultIndex?: number`
+- `wordTimestamps?: boolean`
 
 **Default data:**
 ```json

@@ -38,6 +38,9 @@ const EXTRA_DATA: Record<string, Record<string, unknown>> = {
   "suno-upload-extend": { uploadUrl: "https://x/a.mp3" },
   "video-analysis": { videoUrl: "https://x/v.mp4" },
   "video-retake": { videoUrl: "https://x/v.mp4" },
+  // edit-plan throws before the prompt read without a transcript (json input);
+  // the media sources come from INPUTS.editPlanSources below.
+  "edit-plan": { transcript: { version: 1, words: [{ text: "hi", startMs: 0, endMs: 100 }] } },
   // edit-3d-scene refuses (correctly) when there is no scene to edit, before
   // the prompt is ever read. The minimal valid plan is the "non-prompt input".
   "edit-3d-scene": {
@@ -62,6 +65,8 @@ const INPUTS: ResolvedInputs = {
   imageUrl: "https://x/i.png",
   videoUrl: "https://x/v.mp4",
   audioUrl: "https://x/a.mp3",
+  // edit-plan's media sources (only edit-plan reads this key).
+  editPlanSources: [{ nodeId: "s1", url: "https://x/v.mp4", kind: "video" }],
 }
 const CTX = { userId: "u1" } as OrchestratorContext
 

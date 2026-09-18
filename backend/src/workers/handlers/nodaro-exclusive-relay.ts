@@ -49,6 +49,7 @@ const EXCLUSIVE_ROUTE_BY_JOB_TYPE: Readonly<Record<string, string>> = {
   "edit-video-pro": "/v1/edit-video-pro",
   "video-analysis": "/v1/video-analysis",
   "video-audit": "/v1/video-audit",
+  "edit-plan": "/v1/edit-plan",
 }
 
 /** Poll budgets per type. gvp/evp legitimately run an hour+; kept under the
@@ -59,6 +60,9 @@ const POLL_BUDGET_BY_JOB_TYPE: Readonly<Record<string, number>> = {
   "voice-changer-pro": 30 * 60 * 1000,
   "video-analysis": 30 * 60 * 1000,
   "video-audit": 30 * 60 * 1000,
+  // A multi-hour episode's plan is several windowed LLM passes — kept under the
+  // orchestrator's 90-min NODE_TIMEOUT_MS, matching gvp/evp.
+  "edit-plan": 85 * 60 * 1000,
 }
 
 export function isNodaroExclusiveJobType(jobType: string): boolean {
@@ -136,8 +140,14 @@ export async function finalizeExclusiveCloudOutput(args: {
     : {}
   const relayColumns = relayFieldsFrom(relayResult)
 
-  // JSON producers: the analysis IS the result — no media to re-host.
-  if (jobType === "video-analysis" || jobType === "video-audit") {
+  // JSON producers: the JSON IS the result — no media to re-host. edit-plan
+  // sits alongside the analysis pair: its output_data is the EDL plan (an `Edl`
+  // for tighten, an `EdlClipSet` for clips, a `{version, chapters}` for
+  // chapters) at the top level, carried through verbatim. The app-side unwrap
+  // to `data.generatedJson` (`unwrapEditPlanOutput`) happens in the output
+  // extractors, NOT here — output_data must stay the object shape the plugin
+  // wrote (a bare Edl[] here would be corrupted into numeric keys by any spread).
+  if (jobType === "video-analysis" || jobType === "video-audit" || jobType === "edit-plan") {
     return markJobCompleted(jobId, {
       output_data: { ...output, viaNodaroCloud: true },
       provider: "nodaro",

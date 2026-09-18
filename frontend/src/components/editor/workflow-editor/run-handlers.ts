@@ -22,7 +22,7 @@ import {
   type RunConfirmInfo,
 } from "./types";
 import { estimateRunCredits } from "./estimate-run-credits";
-import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, expandItemsWithRepeat, TRANSIENT_RUNTIME_KEYS, isExpandedClone } from "@nodaro/shared"
+import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, expandItemsWithRepeat, TRANSIENT_RUNTIME_KEYS, isExpandedClone, unwrapEditPlanOutput } from "@nodaro/shared"
 import type { NodeExecutionStatus as SharedNodeExecutionStatus, NodeExecutionStateWire } from "@nodaro/shared"
 import { collapseExpandedClones } from "./execution-graph";
 import { shouldAbandonNode } from "./abandon-guard";
@@ -948,6 +948,22 @@ function applyRestoredJobCompletion(
       executionStatus: "completed",
       ...(json && typeof json === "object" ? { generatedJson: json } : {}),
       ...(report && typeof report === "object" ? { lastAuditReport: report } : {}),
+      currentJobId: undefined,
+      currentJobProgress: undefined,
+      jobAwaitingReview: undefined,
+    });
+    toast.success(tx("run.backgroundJobCompleted"));
+    return;
+  }
+
+  // edit-plan: same JSON-result recovery gap — the EDL plan is the top-level
+  // output_data, unwrapped onto generatedJson (clips → bare Edl[], fans out).
+  // ONE unwrap rule shared with the live path + backend (unwrapEditPlanOutput).
+  if (nodeType === "edit-plan") {
+    const plan = unwrapEditPlanOutput(job.output_data);
+    updateNodeData(nodeId, {
+      executionStatus: "completed",
+      ...(plan !== undefined && plan !== null && typeof plan === "object" ? { generatedJson: plan } : {}),
       currentJobId: undefined,
       currentJobProgress: undefined,
       jobAwaitingReview: undefined,

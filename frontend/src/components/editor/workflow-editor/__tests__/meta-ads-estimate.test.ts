@@ -43,6 +43,11 @@ describe("meta-ads-scrape credit estimate parity", () => {
     ["5 advertisers × 100 ads → top tier", { mode: "advertiser", advertisers: advertisers(5), count: 100 }, "meta-ads-scrape:500"],
     ["advertiser mode with no picks yet counts as one source", { mode: "advertiser", advertisers: [], count: 20 }, "meta-ads-scrape:20"],
     ["stale picks do not count in keyword mode", { mode: "search", query: "shoes", advertisers: advertisers(5), count: 20 }, "meta-ads-scrape:20"],
+    // AI analysis folds into the same identifier, priced by the model's tier.
+    ["analysis on, default (economy) model", { mode: "search", query: "shoes", count: 20, analyze: true }, "meta-ads-scrape:20:analysis:economy"],
+    ["analysis on, standard model", { mode: "search", query: "shoes", count: 50, analyze: true, analysisModel: "claude-sonnet-4.6" }, "meta-ads-scrape:50:analysis"],
+    ["analysis on, premium model, 2 pages × 30", { mode: "pages", pageUrls: PAGES_3.split("\n").slice(0, 2).join("\n"), count: 30, analyze: true, analysisModel: "claude-opus-5" }, "meta-ads-scrape:100:analysis:premium"],
+    ["analysis toggled off keeps the plain tier even with a model set", { mode: "search", query: "shoes", count: 20, analyze: false, analysisModel: "claude-opus-5" }, "meta-ads-scrape:20"],
   ])("%s: run total id and card credits agree", (_label, data, expectedId) => {
     const node = metaAdsNode(data)
     expect(getModelIdentifier(node)).toBe(expectedId)

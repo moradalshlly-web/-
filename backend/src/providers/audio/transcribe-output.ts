@@ -19,7 +19,9 @@
  * (unexported) `WhisperSegment`, which requires it.
  */
 import type { Caption } from "@remotion/captions"
+import type { Transcript } from "@nodaro/shared"
 import { whisperWordsToCaptions, fastWhisperWordsToCaptions } from "./captions-mappers.js"
+import { buildTranscriptFromOutput } from "./transcript-normalize.js"
 
 export interface WhisperOutput {
   transcription?: string
@@ -43,6 +45,9 @@ export interface TranscribeOutputShape {
   language: string
   segments?: Array<{ start: number; end: number; text: string }>
   words?: Array<Caption & { speaker?: string }>
+  /** Normalized `Transcript` — the node's `json` output handle. Always set (the
+   *  worker reads it verbatim), so it is rebuilt on the reconcile path too. */
+  json?: Transcript
 }
 
 export function mapWhisperOutput(
@@ -59,6 +64,7 @@ export function mapWhisperOutput(
     const words = whisperWordsToCaptions(output)
     if (words.length) result.words = words
   }
+  result.json = buildTranscriptFromOutput(result)
   return result
 }
 
@@ -80,5 +86,6 @@ export function mapFastWhisperOutput(
     const words = fastWhisperWordsToCaptions(output)
     if (words.length) result.words = words
   }
+  result.json = buildTranscriptFromOutput(result)
   return result
 }

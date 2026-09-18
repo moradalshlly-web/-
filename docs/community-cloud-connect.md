@@ -29,7 +29,7 @@ How much of your generation the connection carries is **your choice** — see
 [Choose how nodaro.ai is used](#choose-how-nodaroai-is-used).
 
 **The vendor-direct nodes are covered too.** AI Avatar / Cinematic Avatar
-(HeyGen), Relight & Switch (Beeble), Web Scrape (Apify), the Suno music nodes
+(HeyGen), Relight & Switch (Beeble), Web Scrape and Meta Ads (Apify), the Suno music nodes
 (every operation, when you have no KIE key), Transcribe and the transcription
 step of the subtitle nodes (Replicate or ElevenLabs key, per the chosen
 engine) and Generate Script (any LLM key) do not go through the model

@@ -1,13 +1,13 @@
 import React from "react"
 import { useCurrentFrame, useVideoConfig, spring } from "remotion"
 import type { OverlayCommonProps } from "./subtitle-overlay"
-import { captionTop, captionLookStyle } from "./caption-look"
+import { captionAnchorStyle, captionLookStyle, captionWord } from "./caption-look"
 import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
 
 /** Sentence visible; each word springs vertically when it becomes active. */
 export const BouncyOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, strokeColor, strokeWidth, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY,
 }) => {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
@@ -18,10 +18,10 @@ export const BouncyOverlay: React.FC<OverlayCommonProps> = ({
   if (ms < startMs || ms > endMs) return null
   return (
     <div style={{
-      position: "absolute", left: "5%", right: "5%", top: captionTop(position, positionY),
-      transform: "translateY(-50%)", textAlign: "center",
+      position: "absolute", left: "5%", right: "5%",
+      ...captionAnchorStyle(position, positionY), textAlign: "center",
       fontSize, color, fontWeight: 700, lineHeight: 1.2,
-      ...captionLookStyle({ fontFamily, strokeColor, strokeWidth, uppercase }),
+      ...captionLookStyle({ fontFamily, fontWeight, strokeColor, strokeWidth, uppercase }),
       ...(backgroundColor ? { background: backgroundColor, padding: "0.3em 0.6em", borderRadius: "0.4em", display: "inline-block" } : {}),
       // Joined full-line text drives the row's base direction so word order
       // follows the language, reordering sibling word <span>s visually
@@ -46,7 +46,7 @@ export const BouncyOverlay: React.FC<OverlayCommonProps> = ({
             transform: `translateY(${dy}px)`,
             ...directionStyle(c.text),
           }}>
-            {c.text}
+            {captionWord(c.text, i)}
           </span>
         )
       })}

@@ -23,6 +23,7 @@ import { registerLocationsCommands } from "./commands/locations.js"
 import { registerObjectsCommands } from "./commands/objects.js"
 import { orgCommand } from "./commands/org.js"
 import { workspaceCommand } from "./commands/workspace.js"
+import { editCommand } from "./commands/edit.js"
 import { setWorkspaceFlag } from "./workspace.js"
 
 // Resolve the package version at runtime so we don't need to bake it in.
@@ -74,6 +75,7 @@ program.addCommand(shotsCommand())
 program.addCommand(recastCommand())
 program.addCommand(orgCommand())
 program.addCommand(workspaceCommand())
+program.addCommand(editCommand())
 registerLocationsCommands(program)
 registerObjectsCommands(program)
 

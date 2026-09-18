@@ -1,6 +1,6 @@
 "use client"
 
-import { useLocalizeNodeLabel } from "@/lib/i18n/labels"
+import { useLocalizeNodeLabel, useLocalizeHandleLabel } from "@/lib/i18n/labels"
 import { useT, tx, type MessageKey } from "@/lib/i18n"
 import { useState, useEffect, Suspense } from "react"
 import { lazyWithRetry } from "@/lib/lazy-with-retry"
@@ -19,12 +19,15 @@ import {
 import { AspectRatioSelector } from "./aspect-ratio-selector"
 import { COMPOSITION_RATIOS, COLLAGE_ASPECT_RATIOS } from "./model-options"
 import { CombineTransitionPicker } from "@/lib/picker-ui"
-import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT } from "@nodaro/shared"
+import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT, CAPTION_LOOK_IDS, DEFAULT_CAPTION_LOOK, SUPPORTED_FONT_NAMES, resolveCaptionLook, type CaptionLookId, type CaptionLookLevers, type SupportedFontName } from "@nodaro/shared"
 import { isCloud } from "@/lib/edition"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { WaveformAudioPlayer } from "@/components/audio-player"
 import type {
   CombineVideosData,
+  ApplyEdlData,
+  EditPlanNodeData,
+  EditPlanSourceConfig,
   ImageCollageData,
   AddCaptionsData,
   ResizeVideoData,
@@ -336,8 +339,25 @@ export function CombineVideosConfig({ data, onUpdate, sources }: ConfigProps<Com
   )
 }
 
+// Which explicit lever fields the config panel exposes as overrides (kinetic
+// only). `look`/`fontSize`/`color`/`position` have their own controls above.
+function explicitFromData(data: AddCaptionsData): CaptionLookLevers {
+  const e: CaptionLookLevers = {}
+  if (data.fontFamily !== undefined) e.fontFamily = data.fontFamily
+  if (data.fontWeight !== undefined) e.fontWeight = data.fontWeight
+  if (data.strokeColor !== undefined) e.strokeColor = data.strokeColor
+  if (data.strokeWidth !== undefined) e.strokeWidth = data.strokeWidth
+  if (data.highlightColor !== undefined) e.highlightColor = data.highlightColor
+  if (data.uppercase !== undefined) e.uppercase = data.uppercase
+  return e
+}
+
+const FONT_FAMILY_AUTO = "__auto"
+
 export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsData>) {
   const t = useT()
+  const localizeHandle = useLocalizeHandleLabel()
+  const isKinetic = data.style !== "subtitle"
   function handleStyleChange(next: AddCaptionsData["style"]) {
     const isKineticNext = next !== "subtitle"
     const update: Partial<AddCaptionsData> = { style: next }
@@ -348,6 +368,12 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
     }
     onUpdate(update)
   }
+
+  // What the caption will actually render as, so the controls below seed from
+  // the RESOLVED look (a control left untouched shows the preset's value; a
+  // change becomes an explicit override). Editing here only writes on user
+  // interaction, so switching to `clean` still drops the preset's levers.
+  const resolved = resolveCaptionLook(data.look, explicitFromData(data), data.fontSize ?? KINETIC_STYLE_FONT_DEFAULT)
 
   return (
     <div className="flex flex-col gap-3">
@@ -369,6 +395,24 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
         </Select>
       </div>
 
+      {isKinetic && (
+        <div>
+          <Label>{t("proccfg.look")}</Label>
+          <Select
+            value={data.look ?? DEFAULT_CAPTION_LOOK}
+            onValueChange={(v) => onUpdate({ look: v as CaptionLookId })}
+          >
+            <SelectTrigger aria-label={t("proccfg.look")}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CAPTION_LOOK_IDS.map((id) => (
+                <SelectItem key={id} value={id}>{t(`proccfg.look_${id}` as MessageKey)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-muted-foreground">{t("proccfg.lookHint")}</p>
+        </div>
+      )}
+
       <Suspense fallback={<div className="text-xs text-muted-foreground py-2">{t("proccfg.loadingPreview")}</div>}>
         <CaptionsStylePreview
           style={data.style}
@@ -376,6 +420,14 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
           fontSize={data.fontSize}
           color={data.color}
           backgroundColor={data.backgroundColor as string | undefined}
+          look={data.look}
+          fontFamily={data.fontFamily}
+          fontWeight={data.fontWeight}
+          strokeColor={data.strokeColor}
+          strokeWidth={data.strokeWidth}
+          highlightColor={data.highlightColor}
+          uppercase={data.uppercase}
+          positionY={data.positionY}
         />
       </Suspense>
 
@@ -401,10 +453,67 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
         <Label htmlFor="caption-color">{t("proccfg.color")}</Label>
         <Input id="caption-color" type="color" value={data.color} onChange={(e) => onUpdate({ color: e.target.value })} />
       </div>
-      {data.style !== "subtitle" && (
-        <div className="text-xs text-muted-foreground">
-          {t("proccfg.kineticStylesRenderViaRemotion5", { handle: "captions" })}
-        </div>
+      {isKinetic && (
+        <>
+          <div>
+            <Label>{t("proccfg.font")}</Label>
+            <Select
+              value={data.fontFamily ?? FONT_FAMILY_AUTO}
+              onValueChange={(v) => onUpdate({ fontFamily: v === FONT_FAMILY_AUTO ? undefined : (v as SupportedFontName) })}
+            >
+              <SelectTrigger aria-label={t("proccfg.font")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FONT_FAMILY_AUTO}>{t("proccfg.fontAuto")}</SelectItem>
+                {SUPPORTED_FONT_NAMES.map((f) => (
+                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="caption-uppercase">{t("proccfg.uppercase")}</Label>
+            <Switch
+              id="caption-uppercase"
+              checked={resolved.uppercase ?? false}
+              onCheckedChange={(v) => onUpdate({ uppercase: v })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="caption-highlight">{t("proccfg.highlightColor")}</Label>
+            <Input id="caption-highlight" type="color"
+              value={resolved.highlightColor ?? "#FFE600"}
+              onChange={(e) => onUpdate({ highlightColor: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="caption-stroke">{t("proccfg.strokeColor")}</Label>
+            <Input id="caption-stroke" type="color"
+              value={resolved.strokeColor ?? "#000000"}
+              onChange={(e) => onUpdate({ strokeColor: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="captions-word-level" className="text-xs font-medium">
+                {t("proccfg.wordLevelCaptions")}
+              </Label>
+              <Switch
+                id="captions-word-level"
+                // Default ON (word-level) — matches the mapper default. Store
+                // `false` only when turned off, so an untouched node stays
+                // byte-identical to a pre-feature workflow.
+                checked={data.wordLevel !== false}
+                onCheckedChange={(v) => onUpdate({ wordLevel: v ? undefined : false })}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {t("proccfg.wordLevelCaptionsHint")}
+            </p>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {t("proccfg.kineticStylesRenderViaRemotion5", { handle: localizeHandle("Transcript") })}
+          </div>
+        </>
       )}
     </div>
   )
@@ -489,6 +598,192 @@ export function TrimAudioConfig({ data, onUpdate }: ConfigProps<TrimAudioData>) 
           placeholder={t("proccfg.endOfFile")}
           value={(data.endTime as number | undefined) ?? ""}
           onChange={(e) => onUpdate({ endTime: e.target.value ? parseFloat(e.target.value) : undefined })}
+        />
+      </div>
+    </div>
+  )
+}
+
+export function ApplyEdlConfig({ data, onUpdate }: ConfigProps<ApplyEdlData>) {
+  const t = useT()
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] text-muted-foreground">
+        {t("proccfg.applyEdlHint")}
+      </p>
+      <div>
+        <Label>{t("proccfg.applyEdlOutput")}</Label>
+        <Select value={data.output ?? "video"} onValueChange={(v) => onUpdate({ output: v as "video" | "audio" })}>
+          <SelectTrigger aria-label={t("proccfg.applyEdlOutputMedium")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="video">{t("proccfg.applyEdlVideo")}</SelectItem>
+            <SelectItem value="audio">{t("proccfg.applyEdlAudioOnly")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>{t("proccfg.applyEdlQuality")}</Label>
+        <Select value={data.quality ?? "final"} onValueChange={(v) => onUpdate({ quality: v as "proxy" | "final" })}>
+          <SelectTrigger aria-label={t("proccfg.applyEdlRenderQuality")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="final">{t("proccfg.applyEdlFinal")}</SelectItem>
+            <SelectItem value="proxy">{t("proccfg.applyEdlProxy")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="apply-edl-crossfade">{t("proccfg.applyEdlCrossfade")}</Label>
+        <Input
+          id="apply-edl-crossfade"
+          type="number"
+          min={0}
+          max={5000}
+          step={50}
+          value={data.crossfadeMs ?? 0}
+          onChange={(e) => onUpdate({ crossfadeMs: Math.max(0, Math.min(5000, parseInt(e.target.value) || 0)) })}
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">{t("proccfg.applyEdlCrossfadeHint")}</p>
+      </div>
+    </div>
+  )
+}
+
+const EDIT_PLAN_ROLES = ["auto", "master-audio", "camera", "wide", "screen"] as const
+
+export function EditPlanConfig({ data, onUpdate, sources }: ConfigProps<EditPlanNodeData>) {
+  const t = useT()
+  const mode = data.mode ?? "tighten"
+  const sourceConfig = data.sourceConfig ?? {}
+  // Only the media wired into the `sources` handle (not the transcript/silence
+  // json edges) belongs in the source table.
+  const mediaSources = sources.filter((s) => s.targetHandle === "sources")
+
+  const setSourceRole = (nodeId: string, role: string) => {
+    const next: Record<string, EditPlanSourceConfig> = { ...sourceConfig }
+    const existing = next[nodeId] ?? {}
+    if (role === "auto") {
+      const { role: _drop, ...rest } = existing
+      if (Object.keys(rest).length === 0) delete next[nodeId]
+      else next[nodeId] = rest
+    } else {
+      next[nodeId] = { ...existing, role: role as EditPlanSourceConfig["role"] }
+    }
+    onUpdate({ sourceConfig: next })
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] text-muted-foreground">{t("proccfg.editPlanHint")}</p>
+
+      <div>
+        <Label>{t("proccfg.editPlanMode")}</Label>
+        <Select value={mode} onValueChange={(v) => onUpdate({ mode: v as EditPlanNodeData["mode"] })}>
+          <SelectTrigger aria-label={t("proccfg.editPlanModeAria")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tighten">{t("proccfg.editPlanModeTighten")}</SelectItem>
+            <SelectItem value="clips">{t("proccfg.editPlanModeClips")}</SelectItem>
+            <SelectItem value="chapters">{t("proccfg.editPlanModeChapters")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>{t("proccfg.editPlanTier")}</Label>
+        <Select value={data.planTier ?? "standard"} onValueChange={(v) => onUpdate({ planTier: v as EditPlanNodeData["planTier"] })}>
+          <SelectTrigger aria-label={t("proccfg.editPlanTierAria")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="economy">{t("proccfg.editPlanTierEconomy")}</SelectItem>
+            <SelectItem value="standard">{t("proccfg.editPlanTierStandard")}</SelectItem>
+            <SelectItem value="premium">{t("proccfg.editPlanTierPremium")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="edit-plan-instructions">{t("proccfg.editPlanInstructions")}</Label>
+        <Textarea
+          id="edit-plan-instructions"
+          value={data.instructions ?? ""}
+          placeholder={t("proccfg.editPlanInstructionsPlaceholder")}
+          rows={2}
+          onChange={(e) => onUpdate({ instructions: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="edit-plan-style-guide">{t("proccfg.editPlanStyleGuide")}</Label>
+        <Textarea
+          id="edit-plan-style-guide"
+          value={data.styleGuide ?? ""}
+          placeholder={t("proccfg.editPlanStyleGuidePlaceholder")}
+          rows={2}
+          onChange={(e) => onUpdate({ styleGuide: e.target.value })}
+        />
+      </div>
+
+      {mode === "clips" && (
+        <>
+          <div>
+            <Label htmlFor="edit-plan-count">{t("proccfg.editPlanCount")}</Label>
+            <Input
+              id="edit-plan-count"
+              type="number"
+              min={1}
+              max={50}
+              value={data.count ?? ""}
+              placeholder={t("proccfg.editPlanCountPlaceholder")}
+              onChange={(e) => onUpdate({ count: e.target.value ? Math.max(1, Math.min(50, parseInt(e.target.value) || 1)) : undefined })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-plan-target-duration">{t("proccfg.editPlanTargetDuration")}</Label>
+            <Input
+              id="edit-plan-target-duration"
+              type="number"
+              min={5}
+              max={180}
+              value={data.targetDurationSec ?? ""}
+              placeholder={t("proccfg.editPlanTargetDurationPlaceholder")}
+              onChange={(e) => onUpdate({ targetDurationSec: e.target.value ? Math.max(5, Math.min(180, parseInt(e.target.value) || 5)) : undefined })}
+            />
+          </div>
+          <div>
+            <Label>{t("proccfg.editPlanTargetAspect")}</Label>
+            <Select value={data.targetAspect ?? "none"} onValueChange={(v) => onUpdate({ targetAspect: v === "none" ? undefined : (v as EditPlanNodeData["targetAspect"]) })}>
+              <SelectTrigger aria-label={t("proccfg.editPlanTargetAspectAria")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("proccfg.editPlanTargetAspectAny")}</SelectItem>
+                <SelectItem value="16:9">16:9</SelectItem>
+                <SelectItem value="9:16">9:16</SelectItem>
+                <SelectItem value="1:1">1:1</SelectItem>
+                <SelectItem value="4:5">4:5</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <Label>{t("proccfg.editPlanSources")}</Label>
+        <ConnectedMediaList
+          sources={mediaSources}
+          mediaOrder={data.sourceOrder ?? []}
+          onUpdateOrder={(order) => onUpdate({ sourceOrder: order })}
+          mediaType="any"
+          emptyMessage={t("proccfg.editPlanSourcesEmpty")}
+          renderRowExtra={(entry) => (
+            <Select
+              value={sourceConfig[entry.id]?.role ?? "auto"}
+              onValueChange={(v) => setSourceRole(entry.id, v)}
+            >
+              <SelectTrigger aria-label={t("proccfg.editPlanRoleAria")} className="h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {EDIT_PLAN_ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>{t(`proccfg.editPlanRole.${r}` as MessageKey)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         />
       </div>
     </div>

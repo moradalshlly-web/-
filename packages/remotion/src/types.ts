@@ -51,7 +51,31 @@ export interface RenderVideoInputProps {
 }
 
 import type { Caption } from "@remotion/captions"
-import type { KineticCaptionStyle } from "@nodaro/shared"
+import type { KineticCaptionStyle, CaptionStyle } from "@nodaro/shared"
+
+/**
+ * One resolved caption segment: a self-contained time range with its own words
+ * and its fully-merged style. Its `style` may be ANY caption style (including
+ * `subtitle`) because a segmented render goes entirely through Remotion. The
+ * backend resolver fills every field, so nothing is left to fall back to here.
+ */
+export interface BurnCaptionsSegment {
+  startMs: number
+  endMs: number
+  style: CaptionStyle
+  position: "top" | "center" | "bottom"
+  fontSize: number
+  color: string
+  backgroundColor?: string
+  fontFamily?: string
+  fontWeight?: number
+  strokeColor?: string
+  strokeWidth?: number
+  highlightColor?: string
+  uppercase?: boolean
+  positionY?: number
+  captions: Caption[]
+}
 
 export interface BurnCaptionsPlan {
   planType: "burn-captions"
@@ -66,11 +90,16 @@ export interface BurnCaptionsPlan {
    *  Google-font face name, an outline, the spoken-word colour, casing, and a
    *  free vertical position (0-100 % of composition height). */
   fontFamily?: string
+  fontWeight?: number
   strokeColor?: string
   strokeWidth?: number
   highlightColor?: string
   uppercase?: boolean
   positionY?: number
+  /** Optional per-segment captions: when present the top-level `captions`/style
+   *  above are ignored and each segment renders its own words + style, gated to
+   *  its time range. */
+  segments?: BurnCaptionsSegment[]
   fps: number
   width: number
   height: number

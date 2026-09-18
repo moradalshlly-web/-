@@ -150,6 +150,19 @@ export const DYNAMIC_PRODUCER_TYPES: ReadonlySet<string> = new Set([
   // backend routes the correct lane by sourceHandle in getPrimaryOutput
   // (output-extractor.ts); the frontend does so in extractNodeOutput.
   "split-media",
+  // apply-edl renders an EDL into ONE media output whose type is decided at
+  // run time by the node's `output` setting (video OR audio) — so its static
+  // medium is genuinely unknown and it belongs here, letting canvas validators
+  // accept its default media handle on BOTH audio and video input handles. It
+  // ALSO emits a fixed `json` handle (the remapped Transcript); that half lives
+  // in JSON_PRODUCER_TYPES (frontend/src/lib/data-handles.ts). The FIRST node
+  // with both a dynamic media handle and a fixed json handle. Because
+  // getOutputType (presentation-utils.ts) deliberately returns "data" for
+  // DYNAMIC members, apply-edl is ALSO added to the literal VIDEO_OUTPUT_TYPES
+  // there so a published app renders the cut as video, mirroring the
+  // voice-changer/dubbing precedent. Asserted in producer-types.test.ts (the
+  // suite does not fail on omission).
+  "apply-edl",
 ])
 
 /**
@@ -216,4 +229,11 @@ export const FAN_OUT_EACH_TYPES: ReadonlySet<string> = new Set([
   "merge-lists",
   "sort-list",
   "selector",
+  // edit-plan `clips` mode emits a bare `Edl[]` on `data.generatedJson`, so an
+  // edge leaving it defaults to "each" — one downstream execution (typically an
+  // apply-edl render) per clip. The `tighten`/`chapters` modes emit an OBJECT,
+  // for which the list extractors return undefined, so an "each" edge falls back
+  // to the scalar `edl` value (no fan-out) — the same graceful degradation
+  // web-scrape relies on. See `unwrapEditPlanOutput` in `edl.ts`.
+  "edit-plan",
 ])

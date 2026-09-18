@@ -1,7 +1,7 @@
 ---
 node_type: add-captions
-generated_at: 2026-09-17T19:30:13.536Z
-generated_from: 2c2a2252b
+generated_at: 2026-09-18T07:26:59.160Z
+generated_from: 8d392afb1
 ---
 
 # Add Captions
@@ -10,7 +10,7 @@ generated_from: 2c2a2252b
 **Type:** `add-captions`
 **Category:** processing
 **Credit cost:** 2
-**Inputs (target handles):** `in`
+**Inputs (target handles):** `in`, `transcript`
 **Outputs (source handles):** `video`
 
 **Required data fields:**
@@ -30,6 +30,15 @@ generated_from: 2c2a2252b
 - `activeResultIndex?: number`
 - `autoTranscribe?: boolean`
 - `transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"`
+- `wordLevel?: boolean`
+- `look?: CaptionLookId`
+- `fontWeight?: number`
+- `fontFamily?: SupportedFontName`
+- `strokeColor?: string`
+- `strokeWidth?: number`
+- `highlightColor?: string`
+- `uppercase?: boolean`
+- `positionY?: number`
 
 **Default data:**
 ```json
@@ -37,7 +46,7 @@ generated_from: 2c2a2252b
   "label": "Add Captions",
   "style": "subtitle",
   "position": "bottom",
-  "fontSize": 24,
+  "fontSize": 32,
   "color": "#ffffff",
   "fieldMappings": {}
 }
@@ -63,12 +72,15 @@ generated_from: 2c2a2252b
 - `font_size`
 - `color`
 - `background_color`
+- `look`
 - `font_family`
+- `font_weight`
 - `stroke_color`
 - `stroke_width`
 - `highlight_color`
 - `uppercase`
 - `position_y`
+- `segments`
 <!-- AUTO-GEN:END mcp-call -->
 
 ## Common gotchas
@@ -90,7 +102,7 @@ generated_from: 2c2a2252b
     "label": "Add Captions",
     "style": "subtitle",
     "position": "bottom",
-    "fontSize": 24,
+    "fontSize": 32,
     "color": "#ffffff",
     "fieldMappings": {}
   }

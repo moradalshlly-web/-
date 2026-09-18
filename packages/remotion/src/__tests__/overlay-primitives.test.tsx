@@ -59,4 +59,25 @@ describe("CaptionOverlay", () => {
     },
   )
 
+  // Karaoke wipes each word with a stacked SOLID-fill clone (rest underneath,
+  // spoken on top clipped to the progress edge) instead of a background-clip
+  // gradient — so the look's outline stroke reads over a solid fill. At frame 30
+  // (ms=1000) both fixture words are fully spoken → t=1 → hidden=0 → clip fully
+  // open, clone painted in the spoken colour.
+  it("karaoke renders spoken clones in the highlight colour, clipped to progress", () => {
+    const html = renderToStaticMarkup(
+      <CaptionOverlay captions={fixture} style="karaoke" position="bottom" fontSize={32} color="#ffffff" highlightColor="#FFE600" />,
+    )
+    const clones = (html.match(/<span[^>]*>[^<]*<\/span>/g) ?? []).filter((s) => s.includes("position:absolute"))
+    expect(clones.length).toBe(2) // one spoken clone per fixture word
+    for (const c of clones) {
+      expect(c).toContain("clip-path:inset(0 0% 0 0)") // fully revealed
+      expect(c).toContain("color:#FFE600") // spoken = highlightColor
+      expect(c).toContain("white-space:pre") // trap: clone width must match the base
+    }
+    // The gradient/transparent-fill model is gone.
+    expect(html).not.toContain("background-clip")
+    expect(html).not.toContain("-webkit-text-fill-color")
+  })
+
 })

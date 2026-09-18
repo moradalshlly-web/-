@@ -1,4 +1,4 @@
-import { IMAGE_GEN_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_GEN_PROVIDERS, LIP_SYNC_PROVIDERS, VOICE_CHANGER_MODEL_IDS, GVP_SUPPORTED_PROVIDERS, SEEDANCE_2_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, MUSIC_PROVIDERS, hasContiguousSegmentDurations, isMinimaxH3Provider, MODEL_CATALOG, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, OVERLAY_PLATFORM_IDS } from "@nodaro/shared"
+import { IMAGE_GEN_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_GEN_PROVIDERS, LIP_SYNC_PROVIDERS, VOICE_CHANGER_MODEL_IDS, GVP_SUPPORTED_PROVIDERS, SEEDANCE_2_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, MUSIC_PROVIDERS, hasContiguousSegmentDurations, isMinimaxH3Provider, MODEL_CATALOG, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, OVERLAY_PLATFORM_IDS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
 import type { OutputType } from "@nodaro/shared"
 import { nodeSupportsPromptAffixes } from "@nodaro/prompts"
 import { STATIC_CREDIT_COSTS } from "../ee/billing/credits.js"
@@ -296,6 +296,41 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
         // output here to price under the cheaper `video-audit` family; leave it unwired
         // and the node auto-runs a fast analysis first (prices under `video-audit:auto`).
         { key: "analysis", type: "object" },
+      ],
+    },
+  },
+
+  {
+    type: "edit-plan",
+    label: "Edit Plan",
+    category: "processing",
+    // outputType: data — emits an edit-decision-list (EDL) plan via the `edl` (json)
+    // handle. tighten → one Edl (tightened timeline); clips → a bare Edl[] that fans
+    // out one downstream render per clip; chapters → a { version, chapters } list.
+    // Cloud-EXCLUSIVE (relayed). Duration-bucketed per-source-minute pricing × tier
+    // (+ a flat component on clips); PROVISIONAL placeholders finalized by a probe.
+    // See backend/src/ee/billing/credits.ts (EDIT_PLAN_STATIC) + migration 432.
+    description:
+      "Turn a transcript into an edit-decision-list plan: tighten a recording, find short clips, or mark chapters. Reads the transcript, never pixels; emits an EDL that Apply Edit renders.",
+    outputType: "data",
+    creditCost: "30-1480",
+    inputSchema: {
+      fields: [
+        { key: "mode", type: "select", required: true, options: [...EDIT_PLAN_MODES] },
+        { key: "planTier", type: "select", options: [...EDIT_PLAN_TIERS] },
+        // The timed word transcript (json) — required. Wire a Transcribe node's
+        // json output, or supply an inline Transcript object.
+        { key: "transcript", type: "object", required: true },
+        // Optional silence ranges (json) — wire a Silence Detect node's output.
+        { key: "silence", type: "object" },
+        // Free-text editing instructions (affix-capable).
+        { key: "instructions", type: "string" },
+        { key: "styleGuide", type: "string" },
+        // clips-only levers.
+        { key: "count", type: "number" },
+        { key: "targetDurationSec", type: "number" },
+        { key: "targetAspect", type: "select", options: ["16:9", "9:16", "1:1", "4:5"] },
+        { key: "platform", type: "string" },
       ],
     },
   },
@@ -719,8 +754,11 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     type: "transcribe",
     label: "Transcribe",
     category: "ai-text",
-    // outputType: text — input-resolver TEXT_SOURCE_NODE_TYPES.
-    description: "Convert spoken audio to text with optional speaker diarization and audio event tagging.",
+    // outputType: text — the PRIMARY output (input-resolver TEXT_SOURCE_NODE_TYPES;
+    // `{Label}` refs resolve the plain transcript). A second `json` handle emits
+    // the normalized Transcript (word/segment timings); the descriptor carries a
+    // single primary type, same as video-analysis (json+text) declaring "data".
+    description: "Convert spoken audio to text (plain transcript on `text`, a normalized Transcript with word/segment timings on `json`), with optional speaker diarization and audio event tagging.",
     outputType: "text",
   },
   {
@@ -1006,6 +1044,14 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     { key: "trimStartFrames", type: "number" },
     { key: "trimEndFrames", type: "number" },
   ] } },
+  { type: "apply-edl", label: "Apply EDL", category: "processing", description: "Render an edit decision list (EDL) into ONE media file (video OR audio, per `output`). The EDL's segment order is the output timeline; each segment names a source time-window on the master clock. Hard-cut boundaries abut, crossfade boundaries overlap (the rendered length is the overlap-compressed duration). When a transcript is wired, it is remapped through the cut on the `json` output handle so downstream captions stay aligned. Media resolves from each EdlSource.url; `sources` positionally overrides those URLs. Priced per minute of rendered output. Local ffmpeg, keyless.", outputType: "video", creditCost: "per-minute", inputSchema: { fields: [
+    { key: "edl", type: "json", required: true },
+    { key: "transcript", type: "json" },
+    { key: "sources", type: "video-url-array" },
+    { key: "output", type: "select", options: ["video", "audio"] },
+    { key: "quality", type: "select", options: ["proxy", "final"] },
+    { key: "crossfadeMs", type: "number" },
+  ] } },
   {
     type: "assemble-narrated-video",
     label: "Assemble Narrated Video",
@@ -1082,6 +1128,8 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
   { type: "mix-audio", label: "Mix Audio", category: "processing", description: "Blend multiple audio tracks with individual volume control.", outputType: "audio" },
   { type: "combine-audio", label: "Combine Audio", category: "processing", description: "Concatenate audio tracks end-to-end in order, with optional per-segment trim. (Mix Audio layers tracks; this joins them sequentially.)", outputType: "audio" },
   { type: "extract-audio", label: "Extract Audio", category: "processing", description: "Demux the audio track from a video to a standalone MP3.", outputType: "audio" },
+  // outputType: data — emits { version, ranges:[{startMs,endMs}], durationMs } JSON on the `json` handle (creditCost auto-filled from STATIC_CREDIT_COSTS = 1).
+  { type: "silence-detect", label: "Silence Detect", category: "processing", description: "Detect silent spans in an audio or video track (local FFmpeg silencedetect) and emit them as source-clock ranges.", outputType: "data" },
   { type: "adjust-volume", label: "Adjust Volume", category: "processing", description: "Change audio volume with optional normalize and fade-in / fade-out transitions (FFmpeg). (creditCost auto-filled from STATIC_CREDIT_COSTS = 1)", outputType: "audio" },
   {
     type: "audio-fx",

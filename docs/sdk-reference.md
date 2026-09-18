@@ -44,6 +44,7 @@ walkthrough-style introduction, see the [SDK Quickstart](./sdk-quickstart.md).
   - [`client.tutorials`](#clienttutorials)
   - [`client.organizations`](#clientorganizations)
   - [`client.workspaces`](#clientworkspaces)
+  - [`client.edit`](#clientedit)
 - [Type re-exports](#type-re-exports)
 
 ---
@@ -1575,6 +1576,37 @@ if ("jobId" in result) {
   console.log(job.output_data)
 }
 ```
+
+The input/source nodes work the same way. A scraper answers synchronously —
+the response carries both a `jobId` (for history) and the data — so you can use
+the result directly. Meta Ads (`meta-ads-scrape`), for example, pulls public
+Facebook + Instagram ads from Meta's Ad Library by keyword, advertiser or Page:
+
+```ts
+const result = await client.nodes.run("meta-ads-scrape", {
+  mode: "search",          // or "pages" (pageUrls) / "advertiser" (see below)
+  query: "running shoes",
+  count: 20,               // 1..100 ads; pricing is 1 credit per requested ad, tiered
+  period: "30d",           // 24h | 7d | 30d | all
+  // formats: ["vertical"],        // keep only phone/square/web creatives (may return fewer)
+  // analyze: true,                // attach a per-ad AI analysis object (extra credits per ad)
+})
+console.log(result.json)   // the array of ads (copy, CTA, images, videos, …)
+
+// By advertiser name instead of keyword — mode "pages" with advertiserNames,
+// resolved to Facebook Pages server-side (verified match first):
+const byAdvertiser = await client.nodes.run("meta-ads-scrape", {
+  mode: "pages",
+  advertiserNames: ["Nike", "Adidas"],
+  count: 30,
+})
+console.log(byAdvertiser.resolvedAdvertisers) // [{ name, pageId, url }, …]
+```
+
+> Needs an `APIFY_API_TOKEN` on the server, or a connected nodaro.ai account
+> (the scrape — including advertiser resolution and AI analysis — is relayed
+> and billed there). The CLI runs the identical path: `nodaro nodes run
+> meta-ads-scrape --param mode=search --param query="running shoes"`.
 
 > **Parameter corrections.** For the image node types (`generate-image`,
 > `image-to-image`, `edit-image`) the result may carry `adjustments` — one
@@ -3895,6 +3927,44 @@ Trim a video to a range (`POST /v1/trim-video`). Give the range in whichever
 unit fits: `startTime`/`endTime` seconds, `trim*Frames`, `trim*Seconds`, or
 `keepFirstSeconds`/`keepLastSeconds`.
 
+#### `addCaptions(input)`
+
+```ts
+addCaptions(input: {
+  videoUrl: string
+  text?: string
+  captions?: Array<{ text: string; startMs: number; endMs: number; timestampMs?: number | null; confidence?: number | null }>
+  autoTranscribe?: boolean            // transcribe the audio when no text/captions given (default true)
+  transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
+  style?: CaptionStyle                // "subtitle" (static) | "word-highlight" | "karaoke" | "tiktok-words" | "word-pop" | "bouncy"
+  position?: "bottom" | "top" | "center"
+  fontSize?: number
+  color?: string
+  backgroundColor?: string
+  // Kinetic-style look levers — rejected on the static "subtitle" style:
+  look?: "outline" | "clean"          // preset; UNSET renders as "outline"
+  fontFamily?: SupportedFontName
+  fontWeight?: number                 // 100–900 in 100s
+  strokeColor?: string
+  strokeWidth?: number
+  highlightColor?: string
+  uppercase?: boolean
+  positionY?: number                  // caption CENTER as % of height; overrides position
+  // Apply different treatments to non-overlapping time ranges in one call:
+  segments?: CaptionSegmentInput[]
+}): Promise<{ jobId: string }>
+```
+
+Burn captions into a video (`POST /v1/add-captions`). Give the words as `text`,
+word-timed `captions[]` (one entry per WORD for the kinetic styles), or let it
+transcribe (the default). The kinetic styles carry a `look` preset — `outline`
+(Montserrat 900, UPPERCASE, black outline, yellow spoken word — the TikTok read)
+or `clean`; an unset `look` renders as `outline`, and the explicit levers
+override individual fields of it. `segments[]` applies different treatments to
+non-overlapping time ranges; a segment that names its own `look` starts fresh
+from that preset and does not inherit the top-level explicit levers. Poll
+`jobs.get(jobId)`.
+
 #### `trimAudio(input)`
 
 ```ts
@@ -4797,6 +4867,114 @@ first, [`withWorkspace`](#clientwithworkspaceworkspaceid) is the second.
 | `usage(id, opts)` | `GET /v1/workspaces/:id/usage` | By `member`, `model` or `day`. A member sees their own runs; an admin sees everyone and may filter `userId`. |
 | `usageRows(id, opts)` | `GET /v1/workspaces/:id/usage?groupBy=none` | The runs behind a report, newest first, cursor-paged. |
 | `usageCsv(id, opts)` | `GET /v1/workspaces/:id/usage?format=csv` | The same report (or the rows) as CSV text. |
+
+---
+
+### `client.edit`
+
+Phase-1 editorial primitives for podcast / long-form video editing. Three
+request methods return `{ jobId }` (`EditJobResult`) — poll with
+[`client.jobs.getStatus(jobId)`](#getstatusid) — plus one pure local helper.
+
+| Method | Endpoint | Notes |
+|--------|----------|-------|
+| `silenceDetect(input)` | `POST /v1/silence-detect` | Keyless ffmpeg silence pass over an audio **or** video source. |
+| `applyEdl(input)` | `POST /v1/apply-edl` | Render an edit decision list (EDL) into a video or audio cut. |
+| `editPlan(input)` | `POST /v1/edit-plan` | Transcript-driven planner (tighten / clips / chapters). On a self-hosted install it relays to nodaro.ai (`503 nodaro_connection_required` when not connected). |
+| `remapTranscript(edl, transcript)` | — (local) | PURE client-side transform — remaps a transcript through an EDL. **No request.** |
+
+#### `silenceDetect(input)`
+
+```ts
+silenceDetect(input: SilenceDetectInput): Promise<EditJobResult>
+```
+
+**`SilenceDetectInput`:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `audioUrl` | `string` | yes | Audio or video source (the pass reads the shared audio proxy either way). |
+| `thresholdDb` | `number` | no | dBFS threshold, ≤ 0. Default `-35`. |
+| `minSilenceMs` | `number` | no | Minimum silence length to report. Default `700`. |
+| `padMs` | `number` | no | Padding kept around speech (shrinks each range inward). Default `120`. |
+| `workflowId` | `string` | no | Associates the run with a workflow (execution-history display). |
+
+The finished job's `output_data.json` is a `SilenceRanges` object
+(`{ version, ranges: [{ startMs, endMs }], durationMs }`) — pass that whole
+object as `editPlan`'s `silence`.
+
+#### `applyEdl(input)`
+
+```ts
+applyEdl(input: ApplyEdlInput): Promise<EditJobResult>
+```
+
+**`ApplyEdlInput`:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `edl` | `Edl` | yes | The edit decision list to render. Media resolves from each `edl.sources[i].url`. |
+| `sources` | `string[]` | no | Positional media-URL overrides for `edl.sources[i].url`. |
+| `transcript` | `Transcript` | no | Transcript remapped through the cut and returned on the job's `json` output. For a **large** transcript where you only need the re-timed result, use `remapTranscript` locally instead. |
+| `output` | `"video" \| "audio"` | no | Default `"video"`. |
+| `quality` | `"proxy" \| "final"` | no | Default `"final"`. |
+| `crossfadeMs` | `number` | no | Default crossfade on boundaries without an explicit transition; `0` = hard cuts. Default `0`. |
+| `workflowId` | `string` | no | Execution-history display. |
+
+The EDL is validated at ingress — an unresolvable source or a picture-less
+segment on a video edit throws a `NodaroError` (status 400,
+`code: "invalid_edl"`) before any credits are reserved.
+
+#### `editPlan(input)`
+
+```ts
+editPlan(input: EditPlanInput): Promise<EditJobResult>
+```
+
+**`EditPlanInput`:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mode` | `EditPlanMode` | yes | `"tighten"` \| `"clips"` \| `"chapters"`. |
+| `planTier` | `EditPlanTier` | yes | `"economy"` \| `"standard"` \| `"premium"` — affects quality and the credit bucket. |
+| `transcript` | `Transcript` | yes | The timed transcript driving the plan. |
+| `sources` | `EditPlanSource[]` | yes | 1–6 media sources. Each: `{ id, url, kind: "video" \| "audio", role?, speakers?, offsetMs? }`. |
+| `silence` | `SilenceRanges` | no | The silence-detect job's `output_data.json` — pass the whole object (an input without `ranges` is silently ignored). |
+| `instructions` | `string` | no | Free-text editing steer. |
+| `styleGuide` | `string` | no | Style-guide text. |
+| `count` | `number` | no | `"clips"` mode: how many clips to cut. |
+| `targetDurationSec` | `number` | no | `"clips"` mode: target duration per clip. |
+| `targetAspect` | `"16:9" \| "9:16" \| "1:1" \| "4:5"` | no | Clip aspect. |
+| `platform` | `string` | no | Target platform hint. |
+| `workflowId` | `string` | no | Execution-history display. |
+
+Read the finished job's `output_data` with `unwrapEditPlanOutput` — it returns
+an `Edl` (`tighten`), a bare `Edl[]` (`clips`, unwrapped from `EdlClipSet`), or a
+`ChapterSet` (`chapters`), stripping the relay's `viaNodaroCloud` marker.
+
+```ts
+const { jobId } = await client.edit.editPlan({
+  mode: "clips",
+  planTier: "standard",
+  transcript,                                  // from a transcribe job's output_data.json
+  sources: [{ id: "ep", url: masterUrl, kind: "video", role: "master-audio" }],
+  silence,                                      // a silence-detect job's output_data.json
+  count: 5,
+  targetAspect: "9:16",
+})
+const done = await client.jobs.getStatus(jobId)
+const plan = unwrapEditPlanOutput(done.data.output_data)  // Edl[] for clips
+```
+
+#### `remapTranscript(edl, transcript)`
+
+```ts
+remapTranscript(edl: Edl, transcript: Transcript): Transcript
+```
+
+A PURE local transform (no request): returns a new transcript whose word (and
+segment) timings are on the EDL's rendered output clock, dropping words in cut
+regions and clipping straddlers. The same remap `applyEdl` performs server-side.
 
 ---
 

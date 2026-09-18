@@ -41,6 +41,11 @@ describe("DYNAMIC_PRODUCER_TYPES — shared set contents", () => {
       // Dual-output time chunker ("Split into Chunks"): video chunks + audio
       // chunks on two handles; routed by sourceHandle at execution time.
       "split-media",
+      // apply-edl: renders an EDL to video OR audio (runtime-decided by the
+      // `output` setting) — dynamic so its media handle connects on both, while
+      // its `json` handle (the remapped transcript) is classified via
+      // JSON_PRODUCER_TYPES + VIDEO_OUTPUT_TYPES for getOutputType.
+      "apply-edl",
     ]))
   })
 

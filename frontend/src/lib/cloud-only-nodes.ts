@@ -29,6 +29,9 @@ export const NODARO_EXCLUSIVE_NODE_TYPES: ReadonlySet<string> = new Set([
   "video-analysis",
   // AI Audit ships in the SAME private plugin as video-analysis.
   "video-audit",
+  // Edit Plan (podcast editing) is born exclusive — the transcript-driven
+  // cut / clip / chapter planner runs in the private cloud plugin.
+  "edit-plan",
 ])
 
 /**

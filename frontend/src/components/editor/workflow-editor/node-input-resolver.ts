@@ -2,7 +2,7 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
 import { readSunoIds } from "@/lib/suno-ids";
 import { getParameterPromptHint } from "@nodaro/prompts"
-import { DYNAMIC_PRODUCER_TYPES, DEFAULT_CHARACTER_FACET, PARAMETER_NODE_TYPES, getParameterValue, OBJECT_PICKER_NODE_TYPES, parseGroupHandle, VIDEO_PRODUCER_TYPES, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, FAN_OUT_EACH_TYPES, extractAllGeneratedResults, extractGeneratedJsonAsList, splitGeneratedItems, SOCIAL_POST_NODE_TYPES, resolveSourceThroughConnectedList, VARIABLES_HANDLE_ID, extractReferencedLabels, canonicalVarName, characterMentionSlug, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
+import { DYNAMIC_PRODUCER_TYPES, DEFAULT_CHARACTER_FACET, PARAMETER_NODE_TYPES, getParameterValue, OBJECT_PICKER_NODE_TYPES, parseGroupHandle, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, editPlanSourceDurationSec, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, FAN_OUT_EACH_TYPES, extractAllGeneratedResults, extractGeneratedJsonAsList, splitGeneratedItems, SOCIAL_POST_NODE_TYPES, resolveSourceThroughConnectedList, VARIABLES_HANDLE_ID, extractReferencedLabels, canonicalVarName, characterMentionSlug, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
 import type { EntityKind, ConnectedReference } from "@nodaro/shared"
 import { buildNodeRefMap, resolveTextRefs } from "@/lib/node-refs";
 import type {
@@ -13,6 +13,7 @@ import type {
   VoiceChangerData,
   VoiceChangerProData,
   DubbingData,
+  ApplyEdlData,
   GeneratedResult,
   LoopNodeData,
 } from "@/types/nodes";
@@ -689,6 +690,19 @@ export interface FrontendResolvedInputs {
    *  `video-audit:auto`, where the node runs its own fast analysis first), so
    *  it must never be coerced to null/{}. */
   analysis?: unknown;
+  /** apply-edl: the EDL (stringified json) wired into the required `edl`
+   *  handle; the optional Transcript (stringified json) wired into `transcript`;
+   *  and positional `EdlSource.url` overrides wired into `sources`. Mirror of
+   *  backend ResolvedInputs.edl / transcript / sources. */
+  edl?: string;
+  transcript?: string;
+  sources?: string[];
+  /** edit-plan: the optional silence-ranges (stringified json) wired into the
+   *  `silence` handle, and the wired media sources (node id + url + kind) from
+   *  the `sources` handle. Mirror of backend ResolvedInputs.silence /
+   *  editPlanSources. */
+  silence?: string;
+  editPlanSources?: Array<{ nodeId: string; url: string; kind: "video" | "audio"; duration?: number }>;
   /** Fan-in input list — populated by the resolver for reduce-style targets.
    *  Carries the full upstream list (or `[singleOutput]` when upstream wasn't
    *  fanned out) so the reduce strategy can fold it into a single value.
@@ -878,6 +892,24 @@ export function extractNodeOutputAsList(
     const items = (data.items as string | undefined) || "";
     const lines = items.split("\n").filter((l: string) => l.trim().length > 0).map((l: string) => l.trim());
     return lines.length > 0 ? lines : undefined;
+  }
+  // Explicit `json` handle of a DUAL text+json producer (transcribe): surface
+  // the structured object as list items — an array spreads, a non-array object
+  // (a Transcript) becomes one stringified item — mirroring the backend
+  // collectItemsForEdge's `output.json` branch. Without this a Transcript OBJECT
+  // skips the Array-gated extractGeneratedJsonAsList below and falls to
+  // extractAllGeneratedResults (the plain .text), so the json handle would
+  // diverge from the backend (which stringifies the object). The `text`/default
+  // handle is deliberately NOT intercepted — it stays scalar-text-honest.
+  if (sourceHandle === "json" && data.generatedJson !== undefined && data.generatedJson !== null) {
+    const gj = data.generatedJson;
+    if (Array.isArray(gj)) {
+      const items = gj
+        .filter((e) => e !== undefined && e !== null)
+        .map((e) => (typeof e === "string" ? e : JSON.stringify(e)));
+      return items.length > 0 ? items : undefined;
+    }
+    if (typeof gj === "object") return [JSON.stringify(gj)];
   }
   // JSON array output (e.g. web-scrape generatedJson) — each element is one list item.
   const jsonItems = extractGeneratedJsonAsList(data);
@@ -1591,6 +1623,67 @@ export function resolveNodeInputs(
         const analysisJson = (src.data as { generatedJson?: unknown }).generatedJson;
         if (analysisJson !== undefined && analysisJson !== null) inputs.analysis = analysisJson;
       }
+      continue;
+    }
+
+    // apply-edl inputs: routed by targetHandle BEFORE the source-type chain
+    // (else the json `edl`/`transcript` edges fall into inputs.prompt and the
+    // media `sources` edges into inputs.videoUrl). `output` is the value
+    // extractNodeOutput already narrowed for that handle: a stringified
+    // EDL/Transcript for the json inputs, a media URL for a `sources` override.
+    // Gated on node.type so these handle names don't hijack same-named handles
+    // elsewhere. Mirror of the backend input-resolver apply-edl branch.
+    if (node.type === "apply-edl") {
+      if (srcEdge.targetHandle === "edl") {
+        inputs.edl = output;
+        continue;
+      }
+      if (srcEdge.targetHandle === "transcript") {
+        inputs.transcript = output;
+        continue;
+      }
+      if (srcEdge.targetHandle === "sources") {
+        inputs.sources = [...(inputs.sources ?? []), output];
+        continue;
+      }
+    }
+
+    // edit-plan inputs: routed by targetHandle before the source-type chain
+    // (else the json `transcript`/`silence` edges fall into inputs.prompt and the
+    // media `sources` edges into inputs.videoUrl). Each `sources` row keeps its
+    // source NODE id (the minted EdlSource id) + a kind derived from the producer
+    // type. Mirror of the backend input-resolver edit-plan branch.
+    if (node.type === "edit-plan") {
+      if (srcEdge.targetHandle === "transcript") {
+        inputs.transcript = output;
+        continue;
+      }
+      if (srcEdge.targetHandle === "silence") {
+        inputs.silence = output;
+        continue;
+      }
+      if (srcEdge.targetHandle === "sources") {
+        const srcType = src.type ?? "";
+        const kind: "video" | "audio" =
+          VIDEO_PRODUCER_TYPES.has(srcType) ? "video" : AUDIO_PRODUCER_TYPES.has(srcType) ? "audio" : "video";
+        // Carry the source's own duration (incl. the audio-master lane via
+        // metadata.durationSeconds) for parity with the backend reserve.
+        const duration = editPlanSourceDurationSec(src.data as Record<string, unknown>);
+        inputs.editPlanSources = [
+          ...(inputs.editPlanSources ?? []),
+          { nodeId: src.id, url: output, kind, ...(duration !== undefined ? { duration } : {}) },
+        ];
+        continue;
+      }
+    }
+
+    // add-captions `transcript` (json) input — routed by targetHandle before the
+    // source-type chain (apply-edl is a dynamic media producer, so its
+    // stringified Transcript would otherwise land in inputs.videoUrl). The `in`
+    // (video) handle keeps its normal video routing below. Mirror of the backend
+    // input-resolver add-captions branch.
+    if (node.type === "add-captions" && srcEdge.targetHandle === "transcript") {
+      inputs.transcript = output;
       continue;
     }
 
@@ -2391,6 +2484,45 @@ export function resolveNodeInputs(
           ...(inputs.audioSources ?? []),
           { url: output, sourceNodeId: src.id },
         ];
+      } else if (node.type === "manual-edit") {
+        appendManualEditAsset(inputs, src.id, output, "audio");
+      } else {
+        inputs.audioUrl = output;
+      }
+    } else if (src.type === "apply-edl" && resolvedSourceHandle !== "json") {
+      // Dual-handle. The `json` handle (remapped Transcript) is handled by the
+      // apply-edl / add-captions target interceptor above (or the generic json
+      // routing) — never here. The DEFAULT (media) handle carries video OR audio
+      // per the node's `output` setting; route it like the matching media source
+      // so a combine-videos / mix-audio consumer accumulates it. Mirror of the
+      // backend input-resolver apply-edl branch.
+      const aeData = src.data as ApplyEdlData;
+      const producedVideo = Boolean(aeData.generatedVideoUrl) || aeData.output !== "audio";
+      if (producedVideo) {
+        if (MULTI_VIDEO_INPUT_TYPES.has(node.type!)) {
+          inputs.videoUrls = [...(inputs.videoUrls ?? []), output];
+          inputs.videoUrlsWithSourceIds = [
+            ...(inputs.videoUrlsWithSourceIds ?? []),
+            { nodeId: src.id, url: output },
+          ];
+        } else if (node.type === "merge-video-audio") {
+          if (!inputs.videoUrl) inputs.videoUrl = output;
+          else inputs.audioSources = [...(inputs.audioSources ?? []), { url: output, sourceNodeId: src.id, sourceType: "video" as const }];
+        } else if (node.type === "manual-edit") {
+          appendManualEditAsset(inputs, src.id, output, "video");
+        } else {
+          inputs.videoUrl = output;
+        }
+      } else if (node.type === "suno-mashup") {
+        routeSunoMashupAudio(inputs, output);
+      } else if (MULTI_AUDIO_INPUT_TYPES.has(node.type!)) {
+        inputs.audioUrls = [...(inputs.audioUrls ?? []), output];
+        inputs.audioUrlsWithSourceIds = [
+          ...(inputs.audioUrlsWithSourceIds ?? []),
+          { nodeId: src.id, url: output },
+        ];
+      } else if (node.type === "merge-video-audio") {
+        inputs.audioSources = [...(inputs.audioSources ?? []), { url: output, sourceNodeId: src.id }];
       } else if (node.type === "manual-edit") {
         appendManualEditAsset(inputs, src.id, output, "audio");
       } else {

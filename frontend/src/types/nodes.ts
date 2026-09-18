@@ -1,7 +1,7 @@
 import type { Node, Edge } from "@xyflow/react"
 import { MODIFY_IMAGE_PROVIDERS, OVERLAY_ANCHORS } from "@nodaro/shared"
 import { MUSIC_GENRE_DEFAULT_DATA, MUSIC_MOOD_DEFAULT_DATA, INSTRUMENTATION_DEFAULT_DATA, VOICE_CHARACTER_DEFAULT_DATA, VOICE_DELIVERY_DEFAULT_DATA } from "@nodaro/prompts"
-import type { ImageI2IProvider, ImageGenProvider, ImageEditProvider, ModifyImageProvider, UpscaleImageProvider, ImageToVideoProvider, TextToVideoProvider, VideoToVideoProvider, VideoGenProvider, VideoUpscaleProvider, ExtendVideoProvider, FaceSwapProvider, TtsProvider, TextToAudioProvider, MusicProvider, TranscribeProvider, LipSyncProvider, ScriptProvider, QaCheckProvider, SunoModel, SunoAddTrackModel, VoiceDesignModel, VoiceChangerModel, CaptionStyle, ImageCriticMode, ReduceStrategyId, ReduceMeta, SelectorConfig, ScraperActorId, CharacterAspectRatio, AudioFxPreset, LocationReferencePhotoKind as SharedLocationReferencePhotoKind, PipelineFormat, PipelineMode, PipelinePinnableImageModel, PipelinePinnableScriptLlm, PipelinePinnableVideoModel, VideoCriticFrameMode, SceneNodeData as SharedSceneNodeData, PipelineState, ReferenceSheet, SheetType, SheetSkin, SheetFlavour, EntityKind, VideoAnalysisResult, ExposableField, ExposableOutput, ComponentMetadata, IdentityMeta, LlmReasoningEffort, Scene3DReference, OverlayLayerKind, OverlayTextStyle, OverlayQrStyle, OverlayShapeStyle, OverlayImageEffects, OverlayAnchor } from "@nodaro/shared"
+import type { ImageI2IProvider, ImageGenProvider, ImageEditProvider, ModifyImageProvider, UpscaleImageProvider, ImageToVideoProvider, TextToVideoProvider, VideoToVideoProvider, VideoGenProvider, VideoUpscaleProvider, ExtendVideoProvider, FaceSwapProvider, TtsProvider, TextToAudioProvider, MusicProvider, TranscribeProvider, LipSyncProvider, ScriptProvider, QaCheckProvider, SunoModel, SunoAddTrackModel, VoiceDesignModel, VoiceChangerModel, CaptionStyle, CaptionLookId, SupportedFontName, ImageCriticMode, ReduceStrategyId, ReduceMeta, SelectorConfig, ScraperActorId, CharacterAspectRatio, AudioFxPreset, LocationReferencePhotoKind as SharedLocationReferencePhotoKind, PipelineFormat, PipelineMode, PipelinePinnableImageModel, PipelinePinnableScriptLlm, PipelinePinnableVideoModel, VideoCriticFrameMode, SceneNodeData as SharedSceneNodeData, PipelineState, ReferenceSheet, SheetType, SheetSkin, SheetFlavour, EntityKind, VideoAnalysisResult, ExposableField, ExposableOutput, ComponentMetadata, IdentityMeta, LlmReasoningEffort, Scene3DReference, OverlayLayerKind, OverlayTextStyle, OverlayQrStyle, OverlayShapeStyle, OverlayImageEffects, OverlayAnchor, Transcript } from "@nodaro/shared"
 import type { WardrobeValue, TransitionPosition, TransitionDuration, TransitionIntensity, CharacterFxPosition, CharacterFxDuration, CharacterFxIntensity, CharacterMotionPosition, CharacterMotionPace, PersonValue, PickerApplyMode, PickerGaps, DirectionFields, StructuredPromptFields } from "@nodaro/prompts"
 import type { ReferencePhotoKind } from "@/lib/reference-photo-routing"
 import { IMAGE_STYLE_PRESETS, GVP_PROVIDERS, getAspectRatiosForVideoModel, getVideoResolutionOptions } from "@/components/editor/config-panels/model-options"
@@ -3163,8 +3163,20 @@ export type TranscribeData = {
   currentJobProgress?: number
   errorMessage?: string
   generatedText?: string
-  generatedResults?: Array<{ text: string; language: string; jobId: string; timestamp: string }>
+  /** Per-result normalized `Transcript` — the `json` output handle, stored
+   *  alongside each result's `text` so switching the active result carries its
+   *  own transcript (parity with the text path). */
+  generatedResults?: Array<{ text: string; language: string; jobId: string; timestamp: string; transcript?: Transcript }>
+  /** The active result's `Transcript` — the `json` output handle's bare field,
+   *  kept in sync with `activeResultIndex` exactly like `generatedText`. Named
+   *  `generatedJson` (not a bespoke field) so the json consumers that read a
+   *  producer's `data.generatedJson` directly (Extract Field / JSON Process)
+   *  resolve it, matching every other json producer. */
+  generatedJson?: Transcript
   activeResultIndex?: number
+  /** Set true by graph-aware request builders when the `json` handle is wired,
+   *  so the two whisper providers emit word timings for the transcript. */
+  wordTimestamps?: boolean
 }
 
 export interface DialogueLine {
@@ -3486,6 +3498,37 @@ export type CombineVideosData = {
   activeResultIndex?: number
 }
 
+/** apply-edl — render an EDL into ONE media file (video OR audio) plus, when a
+ *  transcript is wired, the transcript remapped through the cut on the `json`
+ *  output. The EDL resolves from the required `edl` (json) input; `sources`
+ *  positionally overrides `EdlSource.url`. The FIRST node with both a dynamic
+ *  media output handle (`media`) and a fixed `json` output handle. */
+export type ApplyEdlData = {
+  currentJobProgress?: number
+  [key: string]: unknown
+  label: string
+  /** Which medium to render. Decides the `media` output handle's type. */
+  output?: "video" | "audio"
+  /** proxy = 720p review render; final = full-quality delivery. */
+  quality?: "proxy" | "final"
+  /** Default crossfade (ms) on boundaries with no explicit transition;
+   *  per-boundary clamped to the ffmpeg-xfade limit. 0 = hard cuts. */
+  crossfadeMs?: number
+  /** Optional inline EDL (durable node config, used when nothing is wired to
+   *  the `edl` handle). */
+  edl?: unknown
+  fieldMappings: FieldMappings
+  executionStatus?: "idle" | "running" | "completed" | "failed"
+  errorMessage?: string
+  generatedVideoUrl?: string
+  generatedAudioUrl?: string
+  /** The remapped Transcript emitted on the `json` handle (stringified for
+   *  generic consumers by the extractors). */
+  generatedJson?: unknown
+  generatedResults?: readonly GeneratedResult[]
+  activeResultIndex?: number
+}
+
 export type ImageCollageData = {
   currentJobProgress?: number
   [key: string]: unknown
@@ -3703,6 +3746,23 @@ export type AddCaptionsData = {
   // NEW
   autoTranscribe?: boolean
   transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
+  // A Transcript wired into the `transcript` json handle is the caption source
+  // (from transcribe or apply-edl's remapped json). wordLevel picks word-level
+  // captions (one per word — karaoke/word-highlight) vs grouped lines; only
+  // meaningful with a kinetic style + a wired transcript.
+  wordLevel?: boolean
+  // Kinetic-style look levers (kinetic styles only; ignored by the static
+  // subtitle path). `look` selects a preset (outline/clean); an unset look
+  // resolves to the default preset at render. The explicit levers below (kept in
+  // [key: string]: unknown) override individual fields of it.
+  look?: CaptionLookId
+  fontWeight?: number
+  fontFamily?: SupportedFontName
+  strokeColor?: string
+  strokeWidth?: number
+  highlightColor?: string
+  uppercase?: boolean
+  positionY?: number
 }
 
 export type ResizeVideoData = {
@@ -5243,6 +5303,28 @@ export type WebScrapeNodeData = {
   lastGoodCount?: number
 }
 
+// --- Silence Detect Node Data ---
+
+export type SilenceDetectNodeData = {
+  [key: string]: unknown
+  label: string
+  /** dBFS threshold below which a span counts as silence (<= 0). Default -35. */
+  thresholdDb?: number
+  /** Minimum silence length to report, ms. Default 700. */
+  minSilenceMs?: number
+  /** Padding kept around speech, ms — shrinks each reported range inward. Default 120. */
+  padMs?: number
+  // execution state
+  executionStatus?: "idle" | "running" | "completed" | "failed"
+  errorMessage?: string
+  currentJobId?: string
+  currentJobProgress?: number
+  // execution result — single structured json output { version, ranges, durationMs }.
+  // Mirrors WebScrapeNodeData.generatedJson so the DAG extractors read it uniformly.
+  generatedJson?: unknown
+  fieldMappings?: Record<string, unknown>
+}
+
 // --- Meta Ads Scrape Node Data ---
 
 export type MetaAdsScrapeNodeData = {
@@ -5270,6 +5352,14 @@ export type MetaAdsScrapeNodeData = {
   featuredIndex?: number
   /** Results-side view filter by creative format ("all" or a format); the card's thumb strip follows it */
   viewFormat?: string
+  /** Copy EVERY returned ad's video into the library (the expensive bytes; opt-in) */
+  ingestAllVideos?: boolean
+  /** Per-ad AI analysis (the competitor-ad-analyst pass); priced per requested ad by the model's tier */
+  analyze?: boolean
+  /** Which image-capable structured-output model runs the analysis; absent = the feature default */
+  analysisModel?: string
+  /** Optional analyst focus appended to the fixed prompt */
+  analysisFocus?: string
   // execution state — same #765 contract as WebScrapeNodeData
   executionStatus?: "idle" | "running" | "completed" | "failed"
   errorMessage?: string
@@ -5340,6 +5430,56 @@ export type VideoAnalysisNodeData = PromptAffixFields & {
   currentJobProgress?: number
   // execution result — merged, validator-computed scene breakdown (shared contract)
   generatedJson?: VideoAnalysisResult
+}
+
+/** Per-source annotation for edit-plan's C1 source table, keyed by SOURCE NODE
+ *  ID (the id is minted once as the EdlSource id and never re-derived). */
+export type EditPlanSourceConfig = {
+  role?: "master-audio" | "camera" | "wide" | "screen"
+  speakers?: string[]
+  /** This source's origin on the master clock (masterMs = sourceMs + offsetMs). */
+  offsetMs?: number
+  /** Override the producer-derived medium. */
+  kind?: "video" | "audio"
+}
+
+/** edit-plan — a transcript-driven cut / clip / chapter PLANNER (podcast
+ *  editing). Cloud-EXCLUSIVE + relayed. Reads a timed transcript (+ optional
+ *  silence ranges) and the wired media sources, and emits an EDL plan on the
+ *  single `edl` (json) output: `tighten` → one Edl; `clips` → a bare Edl[] that
+ *  fans out one downstream render per clip; `chapters` → a { version, chapters }.
+ *  `instructions` is the affix-capable prompt (PromptAffixFields). */
+export type EditPlanNodeData = PromptAffixFields & {
+  [key: string]: unknown
+  label: string
+  mode?: "tighten" | "clips" | "chapters"
+  /** Reasoning tier — affects quality AND the credit bucket. */
+  planTier?: "economy" | "standard" | "premium"
+  /** Per-source annotations keyed by SOURCE NODE ID (see EditPlanSourceConfig). */
+  sourceConfig?: Record<string, EditPlanSourceConfig>
+  /** User-configured source ordering (source node ids), mirroring combine-videos'
+   *  `clipOrder` — drives the ConnectedMediaList reorder. */
+  sourceOrder?: string[]
+  /** Free-text editing steer — the affix-capable prompt field. */
+  instructions?: string
+  styleGuide?: string
+  // clips-only levers.
+  count?: number
+  targetDurationSec?: number
+  targetAspect?: "16:9" | "9:16" | "1:1" | "4:5"
+  platform?: string
+  /** Optional inline transcript / silence (durable config, used when nothing is
+   *  wired to the `transcript` / `silence` handles). */
+  transcript?: unknown
+  silence?: unknown
+  fieldMappings: FieldMappings
+  executionStatus?: "idle" | "running" | "completed" | "failed"
+  errorMessage?: string
+  currentJobId?: string
+  currentJobProgress?: number
+  /** The EDL plan (already unwrapped by the extractors): an Edl for tighten, a
+   *  bare Edl[] for clips (fans out), or a { version, chapters } for chapters. */
+  generatedJson?: unknown
 }
 
 // --- Video Audit ("AI Audit") Node Data ---
@@ -6108,6 +6248,7 @@ export type SceneNodeData =
   | VoiceDesignData
   | ForcedAlignmentData
   | CombineVideosData
+  | ApplyEdlData
   | ImageCollageData
   | ImageOverlayData
   | AssembleNarratedVideoData
@@ -6163,9 +6304,11 @@ export type SceneNodeData =
   | FaceNodeData
   | LLMChatData
   | WebScrapeNodeData
+  | SilenceDetectNodeData
   | MetaAdsScrapeNodeData
   | VideoAnalysisNodeData
   | VideoAuditNodeData
+  | EditPlanNodeData
   | ListNodeData
   | LoopNodeData
   | CombineTextNodeData
@@ -6303,6 +6446,8 @@ export type SceneNodeType =
   | "video-analysis"
   | "video-audit"
   | "combine-videos"
+  | "apply-edl"
+  | "edit-plan"
   | "image-collage"
   | "image-overlay"
   | "assemble-narrated-video"
@@ -6315,6 +6460,7 @@ export type SceneNodeType =
   | "trim-audio"
   | "split-media"
   | "extract-audio"
+  | "silence-detect"
   | "remove-audio"
   | "mix-audio"
   | "combine-audio"
@@ -7635,7 +7781,9 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     category: "ai",
     creditCost: 3,
     inputs: ["audio"],
-    outputs: ["text"],
+    // `json` = the normalized `Transcript` (word/segment timings); `text` = the
+    // plain transcript (unchanged). Mirrors video-analysis's dual json/text pair.
+    outputs: ["json", "text"],
     defaultData: { label: "Transcribe", provider: "elevenlabs-stt", language: "auto", fieldMappings: {} },
   },
   {
@@ -7888,6 +8036,36 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     defaultData: { label: "Combine Videos", transition: "cut", transitionDuration: 0.5, audioMode: "crossfade", audioCrossfadeDuration: 0.5, trimEndFrames: 2, trimStartFrames: 1, smartCutFramesPrev: 8, smartCutFramesNext: 8, fieldMappings: {} },
   },
   {
+    type: "apply-edl",
+    label: "Apply EDL",
+    category: "processing",
+    // Priced per minute of rendered output; the estimator shows the 1-minute
+    // floor until an EDL is wired.
+    creditCost: 10,
+    inputs: ["edl", "transcript", "sources"],
+    outputs: ["media", "json"],
+    defaultData: { label: "Apply EDL", output: "video", quality: "final", crossfadeMs: 0, fieldMappings: {} } as ApplyEdlData,
+  },
+  {
+    type: "edit-plan",
+    label: "Edit Plan",
+    category: "processing",
+    // Representative estimate (tighten · standard · 60-min bucket). The live
+    // per-run cost is dynamic (buildEditPlanCreditId → mode × tier × duration
+    // bucket) and PROVISIONAL until the launch probe.
+    creditCost: 240,
+    inputs: ["transcript", "silence", "sources"],
+    outputs: ["edl"],
+    defaultData: {
+      label: "Edit Plan",
+      mode: "tighten",
+      planTier: "standard",
+      instructions: "",
+      fieldMappings: {},
+      executionStatus: "idle",
+    } as EditPlanNodeData,
+  },
+  {
     type: "image-collage",
     label: "Image Collage",
     category: "processing",
@@ -7986,9 +8164,9 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     label: "Add Captions",
     category: "processing",
     creditCost: 2,
-    inputs: ["in"],
+    inputs: ["in", "transcript"],
     outputs: ["video"],
-    defaultData: { label: "Add Captions", style: "subtitle", position: "bottom", fontSize: 24, color: "#ffffff", fieldMappings: {} },
+    defaultData: { label: "Add Captions", style: "subtitle", position: "bottom", fontSize: 32, color: "#ffffff", fieldMappings: {} },
   },
   {
     type: "resize-video",
@@ -8043,6 +8221,15 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     inputs: ["in"],
     outputs: ["audio"],
     defaultData: { label: "Extract Audio", fieldMappings: {} },
+  },
+  {
+    type: "silence-detect",
+    label: "Silence Detect",
+    category: "processing",
+    creditCost: 1,
+    inputs: ["in"],
+    outputs: ["json"],
+    defaultData: { label: "Silence Detect", thresholdDb: -35, minSilenceMs: 700, padMs: 120, fieldMappings: {} } as SilenceDetectNodeData,
   },
   {
     type: "remove-audio",

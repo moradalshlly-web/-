@@ -33,6 +33,11 @@ export const HANDLE_OUTPUT_TYPES: Record<string, Partial<Record<string, HandleCo
   "edit-3d-scene": { composition: "control" },
   "pro-3d-render": { composition: "control", video: "video", stills: "image" },
   "ai-avatar": { video: "video" },
+  // media pip (video|audio) is runtime-typed — see DYNAMIC_SOURCE_NODES; only json is static.
+  "apply-edl": { json: "look" },
+  // edit-plan: single `edl` json output (the EDL plan). Same "look" data pip as
+  // apply-edl's json / video-analysis's json.
+  "edit-plan": { edl: "look" },
   "add-captions": { "video-out": "video" },
   "adjust-volume": { "video-out": "video", "audio-out": "audio" },
   "assemble-narrated-video": { video: "video" },
@@ -134,7 +139,7 @@ export const HANDLE_OUTPUT_TYPES: Record<string, Partial<Record<string, HandleCo
   "text-to-dialogue": { audio: "audio" },
   "text-to-speech": { audio: "audio" },
   "transcode-video": { video: "video" },
-  "transcribe": { text: "text" },
+  "transcribe": { json: "look", text: "text" },
   "trim-audio": { audio: "audio" },
   "trim-video": { "video-out": "video" },
   "upload-audio": { audio: "audio" },
@@ -155,6 +160,7 @@ export const HANDLE_OUTPUT_TYPES: Record<string, Partial<Record<string, HandleCo
   "voice-changer-pro": { audio: "audio", video: "video" },
   "voice-remix": { audio: "audio" },
   "web-scrape": { json: "look" },
+  "silence-detect": { json: "look" },
   "meta-ads-scrape": { json: "look", text: "text", image: "image", video: "video" },
   "webhook-output": { out: "approve" },
   "youtube-video": { video: "video" },

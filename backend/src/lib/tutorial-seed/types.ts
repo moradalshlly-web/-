@@ -22,6 +22,12 @@ export interface TutorialTemplateDoc {
   creatorDisplayName?: string | null
   previewMediaUrl?: string | null
   previewMediaType?: string | null
+  /** Where this template is first listed, applied on INSERT only (see
+   *  SEEDED_DEFAULTS + OPERATOR_OWNED_COLUMNS in index.ts). Absent → the default
+   *  `["tutorial"]` (Tutorials tab). A template meant for the marketplace browse
+   *  (`GET /v1/templates/browse`) declares `["marketplace"]`. Never re-applied on
+   *  reseed — thereafter the operator owns `listed_in`. */
+  listedIn?: Array<"tutorial" | "marketplace">
   /** Looked up by slug — migration 114 seeds the base categories; a pack
    *  declares any additional slug it uses in its manifest (see ensureTutorialCategory). */
   tutorialCategorySlug: string

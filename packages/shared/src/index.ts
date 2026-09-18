@@ -261,7 +261,7 @@ export {
 export type { NormalizedImageGen, PricedVideoSelection } from "./credit-identifiers.js"
 
 export * from "./credit-estimators/index.js"
-export { extractVideoDurationFromNode } from "./video-duration.js"
+export { extractVideoDurationFromNode, editPlanSourceDurationSec } from "./video-duration.js"
 
 export {
   resolveTopazUpscale,
@@ -655,9 +655,22 @@ export {
   resolveMetaAdsScrapeCreditId,
   META_ADS_NODE_MODES,
   META_ADS_ADVERTISER_MAX_RESULTS,
+  META_ADS_ANALYSIS_TIERS,
+  META_ADS_ANALYSIS_CREDITS_PER_AD,
+  META_ADS_ANALYSIS_CREDIT_ID,
+  META_ADS_ANALYSIS_FOCUS_MAX,
+  metaAdsAnalysisCreditId,
+  metaAdsAnalysisTier,
+  metaAdsAnalysisTierFrom,
+  adCreativeAnalysisFrom,
+  metaAdsScrapeCreditIdFromNode,
+  type MetaAdsAnalysisTier,
+  type AdCreativeAnalysis,
+  type MetaAdsNodeQuoteFields,
   metaAdsNodeMode,
   isFacebookPageUrl,
   isMetaCdnImageUrl,
+  splitMetaAdsAdvertiserNames,
   metaAdsAdvertisersFrom,
   metaAdsScrapeSources,
   metaAdsScrapeWireSources,
@@ -831,8 +844,14 @@ export {
   KINETIC_CAPTION_STYLES,
   ALL_CAPTION_STYLES,
   isKineticCaptionStyle,
+  CAPTION_LOOK_IDS,
+  CAPTION_LOOKS,
+  DEFAULT_CAPTION_LOOK,
+  KINETIC_ONLY_CAPTION_LEVER_KEYS,
+  autoStrokeWidth,
+  resolveCaptionLook,
 } from "./caption-styles.js"
-export type { StaticCaptionStyle, KineticCaptionStyle, CaptionStyle } from "./caption-styles.js"
+export type { StaticCaptionStyle, KineticCaptionStyle, CaptionStyle, CaptionLookId, CaptionLookLevers, KineticOnlyCaptionLeverKey } from "./caption-styles.js"
 
 // Sound parameter-node dimensions (music + voice pickers + backend hints)
 

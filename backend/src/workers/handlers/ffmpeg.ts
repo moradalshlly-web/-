@@ -8,6 +8,7 @@ import { renderQueue } from "../../lib/render-queue.js"
 import { supabase } from "../../lib/supabase.js"
 import { cleanupWorkDir, createWorkDir, downloadFile, runFfmpeg, BROWSER_SAFE_VIDEO_ARGS, probeVideoSource } from "../../providers/video/ffmpeg-utils.js"
 import { combineVideos } from "../../providers/video/combine-videos.js"
+import { applyEdl } from "../../providers/video/apply-edl.js"
 import { assembleNarratedVideo } from "../../providers/video/assemble-narrated-video.js"
 import { createImageCollage } from "../../providers/image/collage.js"
 import { createImageOverlay, type ImageOverlayParams } from "../../providers/image/overlay.js"
@@ -33,8 +34,10 @@ import { stillToVideo } from "../../providers/video/still-to-video.js"
 import { gifToVideo } from "../../providers/video/gif-to-video.js"
 import { slideshow } from "../../providers/video/slideshow.js"
 import { transcribe, type TranscribeProvider } from "../../providers/audio/transcribe.js"
+import { detectSilence } from "../../providers/audio/silence-detect.js"
 import { config } from "../../lib/config.js"
-import { syntheticCaptionsFromText } from "../../providers/audio/captions-mappers.js"
+import { syntheticCaptionsFromText, transcriptToCaptions } from "../../providers/audio/captions-mappers.js"
+import { resolveCaptionSegments, explicitLevers, type CaptionSegmentInput } from "../../providers/video/caption-segments.js"
 import {
   commitJobCredits,
   shouldSaveJobResult,
@@ -46,7 +49,7 @@ import {
   type HandlerFn,
   type JobContext,
 } from "../shared.js"
-import { isKineticCaptionStyle, type SupportedFontName } from "@nodaro/shared"
+import { isKineticCaptionStyle, normalizeTranscript, remapTranscriptThroughEdl, resolveCaptionLook, type Edl, type SupportedFontName, type Transcript, type CaptionLookId } from "@nodaro/shared"
 import { attachAssetToCharacter, resolveAssetColumn } from "../../lib/character-auto-attach.js"
 import { DrainAbortError } from "../../lib/worker-drain.js"
 
@@ -111,6 +114,79 @@ const handleCombineVideos: HandlerFn = async function handleCombineVideos(job, c
 
   await commitJobCredits(ctx.usageLogId, ctx.jobId)
   console.log(`[worker] Job ${ctx.jobId} completed: ${r2Url}`)
+}
+
+/** Parse a JSON string, returning undefined (never throwing) on bad input —
+ *  an unparseable wired transcript degrades to "no remap", not a failed render. */
+function safeParseJson(s: string): unknown {
+  try {
+    return JSON.parse(s)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * apply-edl: render the (already effective + validated) EDL into ONE media
+ * file, and — when a transcript was wired — the transcript remapped through the
+ * cut. Dual output_data: the media URL on `videoUrl`/`audioUrl`, the remapped
+ * Transcript on `json`. `completeFfmpegAudioJob` has no extra-output slot, so
+ * this handler writes its own `markJobCompleted` to carry `json` on both
+ * output modes.
+ */
+const handleApplyEdl: HandlerFn = async function handleApplyEdl(job, ctx) {
+  const { edl, transcript, output, quality } = job.data as {
+    jobId: string
+    edl: Edl
+    /** Optional upstream Transcript (JSON string OR object) to remap through
+     *  the cut for the `json` output handle. */
+    transcript?: unknown
+    output?: "video" | "audio"
+    quality?: "proxy" | "final"
+  }
+  const outputKind = output === "audio" ? "audio" : "video"
+  console.log(`[worker] apply-edl ${ctx.jobId}: ${edl.segments.length} segments, output=${outputKind}, quality=${quality ?? "final"}`)
+
+  const { outputPath } = await applyEdl({
+    edl,
+    output: outputKind,
+    quality: quality === "proxy" ? "proxy" : "final",
+    jobId: ctx.jobId,
+    jobUserId: ctx.jobUserId,
+    onProgress: (f) => {
+      void setJobProgress(job, ctx.jobId, Math.round(5 + f * 80)).catch(() => {})
+    },
+  })
+  await setJobProgress(job, ctx.jobId, 90)
+
+  // Remap the transcript through the SAME EDL the media was rendered from, so
+  // captions built downstream align to the cut (±80 ms under D17).
+  let remapped: Transcript | undefined
+  if (transcript !== undefined && transcript !== null) {
+    const raw = typeof transcript === "string" ? safeParseJson(transcript) : transcript
+    if (raw !== undefined) remapped = remapTranscriptThroughEdl(edl, normalizeTranscript(raw))
+  }
+
+  const mediaUrl = await uploadFileToR2(outputPath, ctx.jobId, outputKind, ctx.jobUserId)
+  await fs.rm(dirname(outputPath), { recursive: true, force: true }).catch(() => {})
+  await setJobProgress(job, ctx.jobId, 100)
+
+  const thumbUrl = outputKind === "video"
+    ? await generateAndUploadThumbnail(mediaUrl, ctx.jobId, ctx.jobUserId)
+    : undefined
+
+  if (!await shouldSaveJobResult(ctx.jobId)) return
+
+  const output_data: Record<string, unknown> = outputKind === "video"
+    ? { videoUrl: mediaUrl, ...(thumbUrl ? { thumbnailUrl: thumbUrl } : {}) }
+    : { audioUrl: mediaUrl }
+  if (remapped) output_data.json = remapped
+
+  const ok = await markJobCompleted(ctx.jobId, { output_data })
+  if (!ok) return
+
+  await commitJobCredits(ctx.usageLogId, ctx.jobId)
+  console.log(`[worker] Job ${ctx.jobId} completed: ${mediaUrl}${remapped ? " (+ remapped transcript)" : ""}`)
 }
 
 const handleAssembleNarratedVideo: HandlerFn = async function handleAssembleNarratedVideo(job, ctx) {
@@ -477,6 +553,8 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
     videoUrl: string
     text?: string
     captions?: Caption[]
+    transcript?: unknown
+    wordLevel?: boolean
     auto_transcribe?: boolean
     transcribe_provider?: TranscribeProvider
     style?: string
@@ -484,11 +562,31 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
     fontSize?: number
     color?: string
     backgroundColor?: string
+    look?: CaptionLookId
+    fontWeight?: number
+    fontFamily?: SupportedFontName
+    strokeColor?: string
+    strokeWidth?: number
+    highlightColor?: string
+    uppercase?: boolean
+    positionY?: number
+    segments?: CaptionSegmentInput[]
   }
   const style = data.style ?? "subtitle"
-  console.log(`[worker] add-captions ${ctx.jobId} style=${style}`)
+  const hasSegments = !!(data.segments && data.segments.length > 0)
+  const hasTranscript = data.transcript !== undefined && data.transcript !== null
+  console.log(`[worker] add-captions ${ctx.jobId} style=${style}${hasSegments ? ` segments=${data.segments!.length}` : ""}${hasTranscript ? " transcript" : ""}`)
 
-  if (isKineticCaptionStyle(style)) {
+  // DAG-path parity with the route's superRefine: a wired transcript is TIMED
+  // and only the kinetic (Remotion) path honours per-caption timing. The
+  // orchestrator bypasses the route, so guard the same combination here rather
+  // than let the transcript be silently dropped on the static subtitle path.
+  if (hasTranscript && !hasSegments && !isKineticCaptionStyle(style)) {
+    throw new Error(`a wired transcript needs a kinetic caption style; the "${style}" style ignores it`)
+  }
+
+  // Per-segment captions always render via Remotion (each segment its own style).
+  if (hasSegments || isKineticCaptionStyle(style)) {
     return dispatchKineticCaptions(job, ctx, data)
   }
   if (style !== "subtitle") {
@@ -517,6 +615,8 @@ async function dispatchKineticCaptions(
     videoUrl: string
     text?: string
     captions?: Caption[]
+    transcript?: unknown
+    wordLevel?: boolean
     auto_transcribe?: boolean
     transcribe_provider?: TranscribeProvider
     style?: string
@@ -525,11 +625,14 @@ async function dispatchKineticCaptions(
     color?: string
     backgroundColor?: string
     fontFamily?: SupportedFontName
+    fontWeight?: number
     strokeColor?: string
     strokeWidth?: number
     highlightColor?: string
     uppercase?: boolean
     positionY?: number
+    look?: CaptionLookId
+    segments?: CaptionSegmentInput[]
   },
 ): Promise<void> {
   const fps = 30
@@ -537,8 +640,18 @@ async function dispatchKineticCaptions(
   let height = 1080
   let videoDurationSeconds = 0
 
-  // Probe + transcribe in parallel — both depend only on data.videoUrl
-  const needTranscribe = !data.captions?.length && data.auto_transcribe !== false
+  // Per-segment captions: the shared transcript is only needed for segments that
+  // don't carry their own text/captions. If every segment is self-sourced, skip
+  // transcription entirely.
+  const hasSegments = !!(data.segments && data.segments.length > 0)
+  const hasTranscript = data.transcript !== undefined && data.transcript !== null
+  const someSegmentNeedsShared =
+    hasSegments && data.segments!.some((s) => !(s.text || (s.captions && s.captions.length > 0)))
+  // Probe + transcribe in parallel — both depend only on data.videoUrl. A wired
+  // transcript IS the shared caption source, so skip the vendor call entirely
+  // (otherwise we would pay for a transcription we then discard).
+  const needTranscribe =
+    !data.captions?.length && !hasTranscript && data.auto_transcribe !== false && (!hasSegments || someSegmentNeedsShared)
 
   // THE SAME THREE-WAY LADDER handleTranscribe uses (workers/handlers/audio-ai.ts),
   // for the same reason (#761): transcription calls a vendor client straight
@@ -602,6 +715,21 @@ async function dispatchKineticCaptions(
   let captions: Caption[]
   if (data.captions && data.captions.length > 0) {
     captions = data.captions
+  } else if (hasTranscript) {
+    // A wired Transcript (json handle) — object or stringified — reshaped into
+    // the caption list. wordLevel:true (default) = one caption per word for the
+    // per-word kinetic styles; false groups words into lines. Both ingress paths
+    // (route + payload-builder) already reject a non-JSON / empty transcript
+    // before credits reserve; these throws are defence-in-depth with the SAME
+    // split messages so a bypass still fails clearly, not misleadingly.
+    const raw = typeof data.transcript === "string" ? safeParseJson(data.transcript) : data.transcript
+    if (typeof data.transcript === "string" && raw === undefined) {
+      throw new Error("transcript input is not JSON — wire the Transcript (json) output")
+    }
+    captions = transcriptToCaptions(normalizeTranscript(raw), { wordLevel: data.wordLevel })
+    if (captions.length === 0) {
+      throw new Error("wired transcript has no words to caption")
+    }
   } else if (needTranscribe) {
     if (transcribeResult.status === "rejected") {
       // Identity invariant (B6b): a DrainAbortError must never be rewrapped —
@@ -627,13 +755,52 @@ async function dispatchKineticCaptions(
   } else if (data.text) {
     const fallbackEndMs = videoDurationSeconds > 0 ? videoDurationSeconds * 1000 : 5000
     captions = syntheticCaptionsFromText(data.text, { startMs: 0, endMs: fallbackEndMs })
+  } else if (hasSegments) {
+    // No shared transcript needed — every segment carries its own words.
+    captions = []
   } else {
     throw new Error("Kinetic style requires captions, text, or auto_transcribe")
   }
 
+  // Resolve the top-level look → concrete levers (font/weight/colour/outline/
+  // spoken-word/casing). The caller's EXPLICIT levers win over the look; the
+  // outline auto-sizes to the font when the look supplies it.
+  const topFontSize = data.fontSize ?? 32
+  const topExplicit = explicitLevers({
+    fontFamily: data.fontFamily,
+    fontWeight: data.fontWeight,
+    color: data.color,
+    backgroundColor: data.backgroundColor,
+    strokeColor: data.strokeColor,
+    strokeWidth: data.strokeWidth,
+    highlightColor: data.highlightColor,
+    uppercase: data.uppercase,
+  })
+  const topLevers = resolveCaptionLook(data.look, topExplicit, topFontSize)
+
+  // Per-segment captions: resolve each segment to its own words + merged levers.
+  // The composition renders these instead of the top-level captions/style.
+  const resolvedSegments = hasSegments
+    ? resolveCaptionSegments(captions, data.segments!, {
+        style: data.style ?? "subtitle",
+        position: (data.position as "top" | "center" | "bottom" | undefined) ?? "bottom",
+        positionY: data.positionY,
+        fontSize: topFontSize,
+        look: data.look,
+        explicit: topExplicit,
+      })
+    : undefined
+
   await setJobProgress(job, ctx.jobId, 30)
 
-  const lastCaptionEndMs = captions[captions.length - 1]?.endMs ?? 0
+  // burnCaptionsPlanSchema requires a non-empty top-level `captions`; the
+  // composition ignores it when segments are present, so fall back to the
+  // segments' own words when there is no shared transcript.
+  const planCaptions =
+    captions.length > 0 ? captions : (resolvedSegments?.flatMap((s) => s.captions) ?? captions)
+
+  const segmentsLastEndMs = resolvedSegments?.reduce((m, s) => Math.max(m, s.endMs), 0) ?? 0
+  const lastCaptionEndMs = Math.max(captions[captions.length - 1]?.endMs ?? 0, segmentsLastEndMs)
   const captionsDurationSeconds = lastCaptionEndMs / 1000
   const targetDurationSeconds = Math.max(captionsDurationSeconds, videoDurationSeconds)
   const durationInFrames = Math.max(30, Math.ceil(targetDurationSeconds * fps))
@@ -666,18 +833,24 @@ async function dispatchKineticCaptions(
       plan: {
         planType: "burn-captions",
         sourceVideo: data.videoUrl,
-        captions,
-        style: data.style,
+        captions: planCaptions,
+        // The plan's top-level style must be kinetic. With segments it is ignored
+        // (the composition renders segments), so coerce a non-kinetic default to a
+        // valid placeholder rather than fail plan validation.
+        style: isKineticCaptionStyle(data.style) ? data.style : "word-pop",
         position: data.position ?? "bottom",
-        fontSize: data.fontSize ?? 32,
-        color: data.color ?? "#ffffff",
-        backgroundColor: data.backgroundColor,
-        fontFamily: data.fontFamily,
-        strokeColor: data.strokeColor,
-        strokeWidth: data.strokeWidth,
-        highlightColor: data.highlightColor,
-        uppercase: data.uppercase,
+        fontSize: topFontSize,
+        // Resolved look levers (default look = outline unless the caller set one).
+        color: topLevers.color ?? "#ffffff",
+        backgroundColor: topLevers.backgroundColor,
+        fontFamily: topLevers.fontFamily,
+        fontWeight: topLevers.fontWeight,
+        strokeColor: topLevers.strokeColor,
+        strokeWidth: topLevers.strokeWidth,
+        highlightColor: topLevers.highlightColor,
+        uppercase: topLevers.uppercase,
         positionY: data.positionY,
+        ...(resolvedSegments ? { segments: resolvedSegments } : {}),
         fps,
         width,
         height,
@@ -809,6 +982,34 @@ const handleSplitMedia: HandlerFn = async function handleSplitMedia(job, ctx) {
   if (!ok) return
   await commitJobCredits(ctx.usageLogId, ctx.jobId)
   console.log(`[worker] Job ${ctx.jobId} completed: ${videoUrls.length} video chunks, ${audioUrls.length} audio chunks`)
+}
+
+const handleSilenceDetect: HandlerFn = async function handleSilenceDetect(job, ctx) {
+  const { audioUrl, thresholdDb, minSilenceMs, padMs } = job.data as {
+    jobId: string
+    audioUrl: string
+    thresholdDb?: number
+    minSilenceMs?: number
+    padMs?: number
+  }
+  console.log(`[worker] silence-detect ${ctx.jobId} (threshold=${thresholdDb ?? -35}dB, minSilence=${minSilenceMs ?? 700}ms, pad=${padMs ?? 120}ms)`)
+
+  const result = await detectSilence(audioUrl, {
+    thresholdDb: thresholdDb ?? -35,
+    minSilenceMs: minSilenceMs ?? 700,
+    padMs: padMs ?? 120,
+  })
+  await setJobProgress(job, ctx.jobId, 100)
+
+  if (!await shouldSaveJobResult(ctx.jobId)) return
+  // Stored under `json` so the DAG extractors (getPrimaryOutput / the frontend
+  // extractNodeOutput) read + stringify it exactly like web-scrape/video-analysis.
+  const ok = await markJobCompleted(ctx.jobId, {
+    output_data: { json: result },
+  })
+  if (!ok) return
+  await commitJobCredits(ctx.usageLogId, ctx.jobId)
+  console.log(`[worker] Job ${ctx.jobId} completed: ${result.ranges.length} silence range(s)`)
 }
 
 const handleExtractAudio: HandlerFn = async function handleExtractAudio(job, ctx) {
@@ -1066,6 +1267,7 @@ const handleSlideshow: HandlerFn = async function handleSlideshow(job, ctx) {
 
 export const ffmpegHandlers: Record<string, HandlerFn> = {
   "combine-videos": handleCombineVideos,
+  "apply-edl": handleApplyEdl,
   "assemble-narrated-video": handleAssembleNarratedVideo,
   "image-collage": handleImageCollage,
   "image-overlay": handleImageOverlay,
@@ -1090,4 +1292,5 @@ export const ffmpegHandlers: Record<string, HandlerFn> = {
   "split-media": handleSplitMedia,
   "extract-audio": handleExtractAudio,
   "remove-audio": handleRemoveAudio,
+  "silence-detect": handleSilenceDetect,
 }

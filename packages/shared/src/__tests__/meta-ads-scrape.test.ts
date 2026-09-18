@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest"
+import { LLM_FEATURE_DEFAULTS, STRUCTURED_VISION_MODELS, getLlmModel } from "../llm-models.js"
 import {
+  META_ADS_ANALYSIS_CREDITS_PER_AD,
+  META_ADS_ANALYSIS_TIERS,
   META_ADS_SCRAPE_CREDIT_COSTS,
+  adCreativeAnalysisFrom,
+  metaAdsAnalysisCreditId,
+  metaAdsAnalysisTier,
+  metaAdsScrapeCreditIdFromNode,
   META_ADS_SCRAPE_FALLBACK_CREDIT_ID,
   META_ADS_SCRAPE_MAX_COUNT,
   META_ADS_SCRAPE_MAX_SOURCES,
@@ -15,6 +22,7 @@ import {
   META_ADS_SCRAPE_MODES,
   metaAdsAdvertisersFrom,
   metaAdsNodeMode,
+  splitMetaAdsAdvertiserNames,
   metaAdsScrapeSources,
   metaAdsScrapeTier,
   metaAdsScrapeWireSources,
@@ -59,6 +67,58 @@ describe("meta-ads-scrape credit identifiers", () => {
     }
     expect(META_ADS_SCRAPE_CREDIT_COSTS["meta-ads-scrape"]).toBe(20)
     expect(META_ADS_SCRAPE_CREDIT_COSTS[META_ADS_SCRAPE_FALLBACK_CREDIT_ID]).toBeDefined()
+  })
+
+  describe("per-ad AI analysis pricing (folded into the same identifier)", () => {
+    it("the analysis SKU is tier × (1 + per-ad credits of the model's tier), and every combination is priced", () => {
+      expect(buildMetaAdsScrapeCreditId({ count: 20, sources: 1, analysis: "standard" })).toBe("meta-ads-scrape:20:analysis")
+      expect(buildMetaAdsScrapeCreditId({ count: 20, sources: 1, analysis: "economy" })).toBe("meta-ads-scrape:20:analysis:economy")
+      expect(buildMetaAdsScrapeCreditId({ count: 30, sources: 2, analysis: "premium" })).toBe("meta-ads-scrape:100:analysis:premium")
+      expect(buildMetaAdsScrapeCreditId({ count: 20, sources: 1, analysis: null })).toBe("meta-ads-scrape:20")
+      for (const tier of META_ADS_SCRAPE_TIERS) {
+        for (const a of META_ADS_ANALYSIS_TIERS) {
+          const suffix = a === "standard" ? ":analysis" : `:analysis:${a}`
+          const id = `meta-ads-scrape:${tier}${suffix}`
+          expect(META_ADS_SCRAPE_CREDIT_COSTS[id], id).toBe(tier * (1 + META_ADS_ANALYSIS_CREDITS_PER_AD[a]))
+        }
+      }
+      // The per-ad settlement rows.
+      expect(META_ADS_SCRAPE_CREDIT_COSTS[metaAdsAnalysisCreditId("economy")]).toBe(1)
+      expect(META_ADS_SCRAPE_CREDIT_COSTS[metaAdsAnalysisCreditId("standard")]).toBe(3)
+      expect(META_ADS_SCRAPE_CREDIT_COSTS[metaAdsAnalysisCreditId("premium")]).toBe(4)
+      expect(metaAdsAnalysisCreditId("standard")).toBe("meta-ads-analysis")
+      // Worked example the docs quote: 20 ads, economy model → 20 + 20 × 1 = 40.
+      expect(META_ADS_SCRAPE_CREDIT_COSTS["meta-ads-scrape:20:analysis:economy"]).toBe(40)
+    })
+
+    it("the analysis tier follows the model; the default model is economy and image-capable with structured output", () => {
+      expect(metaAdsAnalysisTier(undefined)).toBe("economy")
+      expect(metaAdsAnalysisTier("claude-sonnet-4.6")).toBe("standard")
+      expect(metaAdsAnalysisTier("claude-opus-5")).toBe("premium")
+      const def = getLlmModel(LLM_FEATURE_DEFAULTS["meta-ads-analysis"])
+      expect(def?.supportsImages).toBe(true)
+      expect(def?.structuredOutputMode).toBeTruthy()
+      expect(STRUCTURED_VISION_MODELS.some((m) => m.id === def?.id)).toBe(true)
+    })
+
+    it("metaAdsScrapeCreditIdFromNode: the ONE identifier a node's settings quote (also the wire resolver's answer)", () => {
+      expect(metaAdsScrapeCreditIdFromNode({})).toBe("meta-ads-scrape:20")
+      expect(metaAdsScrapeCreditIdFromNode({ mode: "search", count: 50, analyze: true })).toBe("meta-ads-scrape:50:analysis:economy")
+      expect(metaAdsScrapeCreditIdFromNode({ mode: "pages", pageUrls: "a\nb", count: 30, analyze: true, analysisModel: "claude-sonnet-4.6" })).toBe("meta-ads-scrape:100:analysis")
+      expect(metaAdsScrapeCreditIdFromNode({ mode: "search", count: 20, analyze: false, analysisModel: "claude-opus-5" })).toBe("meta-ads-scrape:20")
+      // The wire resolver lands on the same SKU for the request the node would send.
+      expect(resolveMetaAdsScrapeCreditId({ mode: "search", query: "x", count: 50, analyze: true })).toBe("meta-ads-scrape:50:analysis:economy")
+      expect(resolveMetaAdsScrapeCreditId({ mode: "search", query: "x", analyze: true, analysisModel: "claude-opus-5" })).toBe("meta-ads-scrape:20:analysis:premium")
+    })
+
+    it("adCreativeAnalysisFrom reads a stored analysis defensively", () => {
+      const raw = { assetType: "motion", format: "reel", visualHooks: ["face", 3, ""], audiences: [], graphicIdentity: "", copywritingHooks: ["urgency"], usps: [], cta: "Install", summary: "Sells an app." }
+      expect(adCreativeAnalysisFrom(raw)).toEqual({ ...raw, visualHooks: ["face"] })
+      expect(adCreativeAnalysisFrom({ ...raw, assetType: "gif" })?.assetType).toBe("unknown")
+      expect(adCreativeAnalysisFrom({ ...raw, summary: "" })).toBeNull()
+      expect(adCreativeAnalysisFrom(null)).toBeNull()
+      expect(adCreativeAnalysisFrom("x")).toBeNull()
+    })
   })
 
   it("featuredMetaAdOutputs: the featured ad's copy, first image (else poster) and first video", () => {
@@ -161,10 +221,23 @@ describe("meta-ads-scrape credit identifiers", () => {
       expect(metaAdsScrapeSources({ mode: "pages", pageUrls: "a", advertisers: [openart, nike] })).toBe(1)
     })
 
+    it("splitMetaAdsAdvertiserNames: one per line or comma, keeps spaces, dedupes, caps at MAX_SOURCES", () => {
+      expect(splitMetaAdsAdvertiserNames("OpenArt AI\nNike, Adidas")).toEqual(["OpenArt AI", "Nike", "Adidas"])
+      expect(splitMetaAdsAdvertiserNames("Nike\nnike\nNIKE")).toEqual(["Nike"]) // case-insensitive dedupe
+      expect(splitMetaAdsAdvertiserNames("x")).toEqual([]) // under 2 chars
+      expect(splitMetaAdsAdvertiserNames(["  Meta ", "", "Threads"])).toEqual(["Meta", "Threads"])
+      expect(splitMetaAdsAdvertiserNames(Array.from({ length: 9 }, (_, i) => `Brand ${i}`))).toHaveLength(META_ADS_SCRAPE_MAX_SOURCES)
+      expect(splitMetaAdsAdvertiserNames(undefined)).toEqual([])
+    })
+
     it("metaAdsScrapeWireSources: advertiser picks run as their Page urls; the route never sees 'advertiser'", () => {
       expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [openart, nike] })).toEqual({ mode: "pages", pageUrls: [openart.url, nike.url] })
-      // No upstream fallback for picks — an empty pick list is an empty page list (the route's 400).
-      expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [] }, "https://www.facebook.com/x")).toEqual({ mode: "pages", pageUrls: [] })
+      // No picks + upstream text → the `in` value is advertiser NAME(s) to resolve at run time.
+      expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [] }, "OpenArt AI, Nike")).toEqual({ mode: "pages", pageUrls: [], advertiserNames: ["OpenArt AI", "Nike"] })
+      // No picks, no upstream → empty (the editor blocks the run before here).
+      expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [] })).toEqual({ mode: "pages", pageUrls: [], advertiserNames: [] })
+      // Picks win over upstream text.
+      expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [nike] }, "OpenArt AI")).toEqual({ mode: "pages", pageUrls: [nike.url] })
       expect(metaAdsScrapeWireSources({ mode: "pages", pageUrls: "" }, "facebook.com/a, facebook.com/b")).toEqual({ mode: "pages", pageUrls: ["facebook.com/a", "facebook.com/b"] })
       expect(metaAdsScrapeWireSources({ mode: "pages", pageUrls: "https://www.facebook.com/own" }, "facebook.com/up")).toEqual({ mode: "pages", pageUrls: ["https://www.facebook.com/own"] })
       expect(metaAdsScrapeWireSources({ mode: "search", query: "" }, "shoes")).toEqual({ mode: "search", query: "shoes" })
@@ -177,6 +250,11 @@ describe("meta-ads-scrape credit identifiers", () => {
     it("reads mode + count + pageUrls", () => {
       expect(resolveMetaAdsScrapeCreditId({ mode: "search", query: "nike", count: 50 })).toBe("meta-ads-scrape:50")
       expect(resolveMetaAdsScrapeCreditId({ mode: "pages", pageUrls: ["a", "b"], count: 30 })).toBe("meta-ads-scrape:100")
+    })
+
+    it("counts advertiser names as sources (they resolve to Page urls at run time)", () => {
+      expect(resolveMetaAdsScrapeCreditId({ mode: "pages", pageUrls: [], advertiserNames: ["OpenArt AI", "Nike"], count: 30 })).toBe("meta-ads-scrape:100")
+      expect(resolveMetaAdsScrapeCreditId({ mode: "pages", pageUrls: ["a"], advertiserNames: ["Nike"], count: 20 })).toBe("meta-ads-scrape:50") // (1+1)×20=40→50 tier
     })
 
     it("an OMITTED count is the route default, so the guard lands on the reservation's tier", () => {

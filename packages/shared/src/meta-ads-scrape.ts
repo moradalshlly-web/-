@@ -18,6 +18,8 @@
  * can never land outside the tier set — an identifier missing from
  * `model_pricing` is a 503 `price_not_configured`, never a silent fallback.
  */
+import { LLM_FEATURE_DEFAULTS, getLlmTier } from "./llm-models.js"
+
 export const META_ADS_SCRAPE_NODE_TYPE = "meta-ads-scrape" as const
 
 /** The WIRE modes — what `POST /v1/meta-ads-scrape` accepts. */
@@ -186,19 +188,100 @@ export const META_ADS_SCRAPE_TIERS = [10, 20, 50, 100, 200, 500] as const
 export type MetaAdsScrapeTier = (typeof META_ADS_SCRAPE_TIERS)[number]
 
 /**
- * Credit cost per composite SKU — mirror of the backend `STATIC_CREDIT_COSTS`
- * rows for the frontend badge / estimator. 1 credit per requested ad at every
- * tier; the bare identifier is the pre-Zod fallback (mid tier, never the max).
+ * Optional per-ad AI analysis — the "expert competitor ad analyst" pass.
+ * Priced per REQUESTED ad like the scrape, by the analysing model's tier,
+ * and folded into the SAME tiered identifier so every quote (guard,
+ * reservation, card badge, run total, backend estimator) stays one SKU:
+ *
+ *   meta-ads-scrape:<tier>                             tier
+ *   meta-ads-scrape:<tier>:analysis                    tier × (1 + 3)   standard models
+ *   meta-ads-scrape:<tier>:analysis:economy            tier × (1 + 1)
+ *   meta-ads-scrape:<tier>:analysis:premium            tier × (1 + 4)
+ *
+ * The per-ad SKUs (`meta-ads-analysis[:economy|:premium]`) price the
+ * SETTLEMENT: a run commits tier + per-ad × ads actually analysed and
+ * refunds the rest (an ad the model failed on, or one the deadline skipped).
  */
-export const META_ADS_SCRAPE_CREDIT_COSTS: Record<string, number> = {
-  "meta-ads-scrape": 20,
-  "meta-ads-scrape:10": 10,
-  "meta-ads-scrape:20": 20,
-  "meta-ads-scrape:50": 50,
-  "meta-ads-scrape:100": 100,
-  "meta-ads-scrape:200": 200,
-  "meta-ads-scrape:500": 500,
+export const META_ADS_ANALYSIS_TIERS = ["economy", "standard", "premium"] as const
+export type MetaAdsAnalysisTier = (typeof META_ADS_ANALYSIS_TIERS)[number]
+export const META_ADS_ANALYSIS_CREDITS_PER_AD: Record<MetaAdsAnalysisTier, number> = { economy: 1, standard: 3, premium: 4 }
+export const META_ADS_ANALYSIS_CREDIT_ID = "meta-ads-analysis" as const
+/** The user's optional analyst focus, appended to the fixed prompt. */
+export const META_ADS_ANALYSIS_FOCUS_MAX = 500
+
+/** The per-ad settlement SKU for a tier (the bare id is the standard tier). */
+export function metaAdsAnalysisCreditId(tier: MetaAdsAnalysisTier): string {
+  return tier === "standard" ? META_ADS_ANALYSIS_CREDIT_ID : `${META_ADS_ANALYSIS_CREDIT_ID}:${tier}`
 }
+
+/** The analysing model's tier; an absent model is the feature default. */
+export function metaAdsAnalysisTier(modelId?: unknown): MetaAdsAnalysisTier {
+  const id = typeof modelId === "string" && modelId ? modelId : LLM_FEATURE_DEFAULTS["meta-ads-analysis"]
+  return getLlmTier(id)
+}
+
+/** What one analysed ad carries (`ad.analysis`); fixed fields + string lists only — never a map (Gemini via KIE drops map fields). */
+export interface AdCreativeAnalysis {
+  readonly assetType: "static" | "motion" | "carousel" | "unknown"
+  readonly format: string
+  readonly visualHooks: readonly string[]
+  readonly audiences: readonly string[]
+  readonly graphicIdentity: string
+  readonly copywritingHooks: readonly string[]
+  readonly usps: readonly string[]
+  readonly cta: string
+  readonly summary: string
+}
+
+const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s.trim().length > 0) : [])
+const str = (v: unknown): string => (typeof v === "string" ? v : "")
+
+/** Read a stored analysis back defensively (a node's saved JSON is untrusted shape); null when there is none. */
+export function adCreativeAnalysisFrom(raw: unknown): AdCreativeAnalysis | null {
+  if (!raw || typeof raw !== "object") return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.summary !== "string" || !r.summary.trim()) return null
+  const assetType = r.assetType === "static" || r.assetType === "motion" || r.assetType === "carousel" ? r.assetType : "unknown"
+  return {
+    assetType,
+    format: str(r.format),
+    visualHooks: strList(r.visualHooks),
+    audiences: strList(r.audiences),
+    graphicIdentity: str(r.graphicIdentity),
+    copywritingHooks: strList(r.copywritingHooks),
+    usps: strList(r.usps),
+    cta: str(r.cta),
+    summary: r.summary,
+  }
+}
+
+/** The `:analysis[:tier]` suffix on a scrape SKU for an analysis tier. */
+function analysisSuffix(tier: MetaAdsAnalysisTier): string {
+  return tier === "standard" ? ":analysis" : `:analysis:${tier}`
+}
+
+function buildMetaAdsCreditCostTable(): Record<string, number> {
+  const table: Record<string, number> = { [META_ADS_SCRAPE_NODE_TYPE]: 20 }
+  for (const tier of META_ADS_ANALYSIS_TIERS) table[metaAdsAnalysisCreditId(tier)] = META_ADS_ANALYSIS_CREDITS_PER_AD[tier]
+  // Key by the TIER value directly (not via a count that clamps at MAX_COUNT):
+  // the 200 / 500 tiers are reachable through sources > 1, so their analysis
+  // rows must exist and be tier-based, not count-based.
+  for (const t of META_ADS_SCRAPE_TIERS) {
+    table[`${META_ADS_SCRAPE_NODE_TYPE}:${t}`] = t
+    for (const tier of META_ADS_ANALYSIS_TIERS) {
+      table[`${META_ADS_SCRAPE_NODE_TYPE}:${t}${analysisSuffix(tier)}`] = t * (1 + META_ADS_ANALYSIS_CREDITS_PER_AD[tier])
+    }
+  }
+  return table
+}
+
+/**
+ * Credit cost per SKU — mirror of the backend `STATIC_CREDIT_COSTS` rows and
+ * migrations 428 / 429, for the frontend badge / estimator. 1 credit per
+ * requested ad at every tier, plus the analysis multiples above; the bare
+ * identifier is the pre-Zod fallback (mid tier, never the max).
+ */
+export const META_ADS_SCRAPE_CREDIT_COSTS: Record<string, number> = buildMetaAdsCreditCostTable()
 
 export const META_ADS_SCRAPE_FALLBACK_CREDIT_ID = "meta-ads-scrape:20"
 
@@ -218,6 +301,32 @@ export function splitMetaAdsPageUrls(value: unknown): string[] {
 
 export function isMetaAdsScrapeMode(value: unknown): value is MetaAdsScrapeMode {
   return typeof value === "string" && (META_ADS_SCRAPE_MODES as readonly string[]).includes(value)
+}
+
+/**
+ * Advertiser NAMES to resolve at run time (advertiser mode driven by the `in`
+ * input) — one per line or comma-separated. Unlike page urls, a name contains
+ * spaces, so this never splits on whitespace. Trimmed, de-duped, each 2..100
+ * chars, capped at `MAX_SOURCES`.
+ */
+export function splitMetaAdsAdvertiserNames(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : typeof value === "string"
+      ? value.split(/[\n,]+/)
+      : []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of raw) {
+    const name = item.trim()
+    if (name.length < 2 || name.length > META_ADS_SCRAPE_MAX_QUERY_LENGTH) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(name)
+    if (out.length >= META_ADS_SCRAPE_MAX_SOURCES) break
+  }
+  return out
 }
 
 /** The node-data fields that decide what a run scrapes (and therefore what it costs). Index-signature so any node-data bag is accepted as-is. */
@@ -249,7 +358,7 @@ export function metaAdsScrapeSources(data: MetaAdsNodeSourceFields): number {
 
 export type MetaAdsWireSources =
   | { readonly mode: "search"; readonly query: string | undefined }
-  | { readonly mode: "pages"; readonly pageUrls: string[] }
+  | { readonly mode: "pages"; readonly pageUrls: string[]; readonly advertiserNames?: string[] }
 
 /**
  * The wire half of a request from node data — ONE mapping for the editor's
@@ -265,8 +374,15 @@ export function metaAdsScrapeWireSources(data: MetaAdsNodeSourceFields, upstream
       const own = splitMetaAdsPageUrls(data.pageUrls)
       return { mode: "pages", pageUrls: own.length > 0 ? own : splitMetaAdsPageUrls(upstreamText) }
     }
-    case "advertiser":
-      return { mode: "pages", pageUrls: metaAdsAdvertisersFrom(data.advertisers).map((a) => a.url) }
+    case "advertiser": {
+      // Explicit picks run as their Page urls. With no picks but upstream
+      // text, the `in` value is advertiser NAME(s) to resolve at run time
+      // (the route looks each up and picks the verified/first Page).
+      const picks = metaAdsAdvertisersFrom(data.advertisers)
+      if (picks.length > 0) return { mode: "pages", pageUrls: picks.map((a) => a.url) }
+      const names = splitMetaAdsAdvertiserNames(upstreamText)
+      return { mode: "pages", pageUrls: [], advertiserNames: names }
+    }
     default: {
       const own = typeof data.query === "string" ? data.query : ""
       return { mode: "search", query: own || upstreamText }
@@ -290,12 +406,20 @@ export interface MetaAdsScrapeCreditInput {
   count: number
   /** Number of input URLs in pages mode; 1 for a keyword search. */
   sources: number
+  /** The analysing model's tier when per-ad analysis is on; absent / null = scrape only. */
+  analysis?: MetaAdsAnalysisTier | null
 }
 
 export function buildMetaAdsScrapeCreditId(input: MetaAdsScrapeCreditInput): string {
   const sources = Math.min(Math.max(Math.trunc(input.sources) || 1, 1), META_ADS_SCRAPE_MAX_SOURCES)
   const count = Math.min(Math.max(Math.trunc(input.count) || 1, 1), META_ADS_SCRAPE_MAX_COUNT)
-  return `${META_ADS_SCRAPE_NODE_TYPE}:${metaAdsScrapeTier(count * sources)}`
+  const base = `${META_ADS_SCRAPE_NODE_TYPE}:${metaAdsScrapeTier(count * sources)}`
+  return input.analysis ? `${base}${analysisSuffix(input.analysis)}` : base
+}
+
+/** The analysis tier a request / node asks for, or null when analysis is off. */
+export function metaAdsAnalysisTierFrom(data: { readonly analyze?: unknown; readonly analysisModel?: unknown }): MetaAdsAnalysisTier | null {
+  return data.analyze === true ? metaAdsAnalysisTier(data.analysisModel) : null
 }
 
 /**
@@ -306,13 +430,34 @@ export function buildMetaAdsScrapeCreditId(input: MetaAdsScrapeCreditInput): str
  * the fixed mid tier, and the route then rejects it with a 400 and refunds.
  */
 export function resolveMetaAdsScrapeCreditId(body: unknown): string {
-  const raw = body as { mode?: unknown; count?: unknown; pageUrls?: unknown } | null | undefined
+  const raw = body as { mode?: unknown; count?: unknown; pageUrls?: unknown; advertiserNames?: unknown; analyze?: unknown; analysisModel?: unknown } | null | undefined
   if (!raw || typeof raw !== "object") return META_ADS_SCRAPE_FALLBACK_CREDIT_ID
   const count = raw.count === undefined ? META_ADS_SCRAPE_DEFAULT_COUNT : raw.count
   if (!isMetaAdsScrapeCount(count)) return META_ADS_SCRAPE_FALLBACK_CREDIT_ID
+  // Pages mode bills per source: the page urls PLUS any advertiser names the
+  // route will resolve to page urls at run time. Counting names may over-check
+  // when one doesn't resolve — the safe direction (the reservation trues down).
   const sources = raw.mode === "pages"
-    ? (Array.isArray(raw.pageUrls) ? raw.pageUrls.length : 0)
+    ? (Array.isArray(raw.pageUrls) ? raw.pageUrls.length : 0) + (Array.isArray(raw.advertiserNames) ? raw.advertiserNames.length : 0)
     : 1
   if (sources < 1 || sources > META_ADS_SCRAPE_MAX_SOURCES) return META_ADS_SCRAPE_FALLBACK_CREDIT_ID
-  return buildMetaAdsScrapeCreditId({ count, sources })
+  return buildMetaAdsScrapeCreditId({ count, sources, analysis: metaAdsAnalysisTierFrom(raw) })
+}
+
+/** The node-data fields a quote reads: what a run scrapes, how many, and whether it analyses. */
+export interface MetaAdsNodeQuoteFields extends MetaAdsNodeSourceFields {
+  readonly count?: unknown
+  readonly analyze?: unknown
+  readonly analysisModel?: unknown
+}
+
+/**
+ * The ONE credit identifier for a node's current settings — the card badge,
+ * the run total, the pre-run estimator and the backend quote all read this,
+ * and it is the same builder the route's guard + reservation use on the wire
+ * body, so no surface can quote a different SKU than the one reserved.
+ */
+export function metaAdsScrapeCreditIdFromNode(data: MetaAdsNodeQuoteFields): string {
+  const count = typeof data.count === "number" ? data.count : META_ADS_SCRAPE_DEFAULT_COUNT
+  return buildMetaAdsScrapeCreditId({ count, sources: metaAdsScrapeSources(data), analysis: metaAdsAnalysisTierFrom(data) })
 }

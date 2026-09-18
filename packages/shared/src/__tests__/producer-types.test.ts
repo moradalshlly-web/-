@@ -4,6 +4,7 @@ import {
   VIDEO_PRODUCER_TYPES,
   DYNAMIC_PRODUCER_TYPES,
 } from "../producer-types.js"
+import { getOutputType } from "../presentation-utils.js"
 
 /**
  * Producer-set membership is what every downstream node's typed-handle
@@ -76,5 +77,23 @@ describe("producer-types", () => {
         `voice-changer-pro must match voice-changer in ${name}`,
       ).toBe(set.has("voice-changer"))
     }
+  })
+
+  // apply-edl is the FIRST node with BOTH a dynamic media output handle (its
+  // `output` setting decides video|audio) AND a fixed `json` handle (the
+  // remapped Transcript). The dynamic media half MUST be a DYNAMIC producer so
+  // its default handle is accepted on both audio and video inputs; explicit
+  // assertion because the suite does not fail on omission.
+  it("registers apply-edl as a dynamic producer (video|audio decided at run time)", () => {
+    expect(DYNAMIC_PRODUCER_TYPES.has("apply-edl")).toBe(true)
+  })
+
+  // getOutputType deliberately ignores DYNAMIC_PRODUCER_TYPES and answers
+  // "data" for its members, so a published app would render apply-edl's cut as
+  // a JSON blob. apply-edl is therefore ALSO in the literal VIDEO_OUTPUT_TYPES
+  // (presentation-utils.ts), mirroring voice-changer/dubbing — this pins that
+  // the classifier answers "video", not "data".
+  it("classifies apply-edl as a video output (literal VIDEO_OUTPUT_TYPES wins over DYNAMIC 'data')", () => {
+    expect(getOutputType("apply-edl")).toBe("video")
   })
 })

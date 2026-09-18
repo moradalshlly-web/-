@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase"
-import { WORKSPACE_HEADER, DEFAULT_SUNO_MODEL } from "@nodaro/shared"
+import { WORKSPACE_HEADER, DEFAULT_SUNO_MODEL, isKineticCaptionStyle, KINETIC_ONLY_CAPTION_LEVER_KEYS } from "@nodaro/shared"
 import { clearActiveWorkspaceAfterRefusal, getActiveWorkspaceId } from "@/lib/workspace-context"
 import { nodaroClient } from "@/lib/nodaro-client"
 import type { SubWorkflowRouteSnapshot, SocialConnection, CharacterVoice, JobErrorHint } from "@/types/nodes"
@@ -3247,6 +3247,77 @@ export async function combineVideos(
 }
 
 /**
+ * apply-edl: render an EDL into ONE media file (video OR audio) plus, when a
+ * transcript is provided, the transcript remapped through the cut on the job's
+ * `json` output. The EDL is validated at the route (a bad/unresolvable source
+ * is a 400 naming it, never a mid-render failure). Sources resolve from each
+ * `EdlSource.url`; `sources` positionally overrides those URLs.
+ */
+export async function applyEdl(params: {
+  edl: unknown
+  output?: "video" | "audio"
+  quality?: "proxy" | "final"
+  crossfadeMs?: number
+  sources?: string[]
+  transcript?: unknown
+  userId?: string
+}): Promise<{ jobId: string }> {
+  const body: Record<string, unknown> = { edl: params.edl }
+  if (params.output) body.output = params.output
+  if (params.quality) body.quality = params.quality
+  if (typeof params.crossfadeMs === "number") body.crossfadeMs = params.crossfadeMs
+  if (params.sources && params.sources.length > 0) body.sources = params.sources
+  if (params.transcript !== undefined) body.transcript = params.transcript
+  if (params.userId) body.userId = params.userId
+  return apiJson("/v1/apply-edl", {
+    body,
+    workflowId: true,
+    label: "Failed to start EDL render",
+  })
+}
+
+/**
+ * edit-plan (podcast editing): turn a timed transcript into an EDL plan
+ * (tighten / clips / chapters). Cloud-EXCLUSIVE + relayed — on a self-host the
+ * route relays to nodaro.ai. `transcript` is sent as an OBJECT (the plugin
+ * coerces an object, never a string); `sources` carries {id,url,kind,role,…}.
+ */
+export async function editPlan(params: {
+  mode: "tighten" | "clips" | "chapters"
+  planTier?: "economy" | "standard" | "premium"
+  transcript: unknown
+  silence?: unknown
+  sources: Array<Record<string, unknown>>
+  instructions?: string
+  styleGuide?: string
+  count?: number
+  targetDurationSec?: number
+  targetAspect?: string
+  platform?: string
+  userId?: string
+}): Promise<{ jobId: string }> {
+  const body: Record<string, unknown> = {
+    mode: params.mode,
+    transcript: params.transcript,
+    sources: params.sources,
+  }
+  if (params.planTier) body.planTier = params.planTier
+  if (params.silence !== undefined) body.silence = params.silence
+  if (params.instructions) body.instructions = params.instructions
+  if (params.styleGuide) body.styleGuide = params.styleGuide
+  if (typeof params.count === "number") body.count = params.count
+  if (typeof params.targetDurationSec === "number") body.targetDurationSec = params.targetDurationSec
+  if (params.targetAspect) body.targetAspect = params.targetAspect
+  if (params.platform) body.platform = params.platform
+  if (params.userId) body.userId = params.userId
+  return apiJson("/v1/edit-plan", {
+    body,
+    workflowId: true,
+    label: "Failed to start edit plan",
+  })
+}
+
+/**
  * Image Overlay: base image + 1–12 layers → one composited image (local sharp).
  * Every layer position/size is in % of the base image; see ImageOverlayData.
  */
@@ -3428,6 +3499,22 @@ export async function removeAudioApi(videoUrl: string, userId?: string): Promise
     body,
     workflowId: true,
     label: "Failed to start remove-audio",
+  })
+}
+
+export async function silenceDetectApi(
+  params: { audioUrl: string; thresholdDb?: number; minSilenceMs?: number; padMs?: number; userId?: string },
+): Promise<{ jobId: string }> {
+  const { audioUrl, thresholdDb, minSilenceMs, padMs, userId } = params
+  const body: Record<string, unknown> = { audioUrl }
+  if (thresholdDb !== undefined) body.thresholdDb = thresholdDb
+  if (minSilenceMs !== undefined) body.minSilenceMs = minSilenceMs
+  if (padMs !== undefined) body.padMs = padMs
+  if (userId) body.userId = userId
+  return apiJson("/v1/silence-detect", {
+    body,
+    workflowId: true,
+    label: "Failed to start silence-detect",
   })
 }
 
@@ -3738,7 +3825,11 @@ export async function audioFxApi(params: {
   })
 }
 
-export async function addCaptionsApi(videoUrl: string, text: string, style?: string, position?: string, fontSize?: number, color?: string, backgroundColor?: string, userId?: string, opts?: { autoTranscribe?: boolean; transcribeProvider?: string }): Promise<{ jobId: string }> {
+export async function addCaptionsApi(videoUrl: string, text: string, style?: string, position?: string, fontSize?: number, color?: string, backgroundColor?: string, userId?: string, opts?: {
+  autoTranscribe?: boolean; transcribeProvider?: string; transcript?: unknown; wordLevel?: boolean;
+  // Kinetic-style look levers (see AddCaptionsData). Sent only for a kinetic style.
+  look?: string; fontFamily?: string; fontWeight?: number; strokeColor?: string; strokeWidth?: number; highlightColor?: string; uppercase?: boolean; positionY?: number;
+}): Promise<{ jobId: string }> {
   // text is OMITTED when empty — the route's schema is `min(1).optional()`,
   // so sending `text: ""` fails validation even though absent-text is the
   // normal auto-transcribe request (#759's second half: with the guard fixed,
@@ -3755,6 +3846,35 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
   }
   if (opts?.transcribeProvider) {
     body.transcribe_provider = opts.transcribeProvider
+  }
+  // A Transcript wired into the node's `transcript` handle (resolved by the
+  // input-resolver) — the caption source for a single-node Run, matching DAG
+  // runs. wordLevel picks word-level captions vs grouped lines.
+  if (opts?.transcript !== undefined && opts.transcript !== null) {
+    body.transcript = opts.transcript
+  }
+  if (opts?.wordLevel !== undefined) {
+    body.wordLevel = opts.wordLevel
+  }
+  // Kinetic-only look levers: send ONLY for a kinetic style. A subtitle node may
+  // still carry stale look levers in its data (the config panel hides them but
+  // doesn't clear them), and the route Zod REJECTS a look lever on the static
+  // style — so a stale value would 400 the run. The strip list is the same
+  // shared constant the route rejects on (KINETIC_ONLY_CAPTION_LEVER_KEYS).
+  if (opts && isKineticCaptionStyle(style)) {
+    const leverVals: Record<(typeof KINETIC_ONLY_CAPTION_LEVER_KEYS)[number], unknown> = {
+      look: opts.look,
+      fontFamily: opts.fontFamily,
+      fontWeight: opts.fontWeight,
+      strokeColor: opts.strokeColor,
+      strokeWidth: opts.strokeWidth,
+      highlightColor: opts.highlightColor,
+      uppercase: opts.uppercase,
+      positionY: opts.positionY,
+    }
+    for (const k of KINETIC_ONLY_CAPTION_LEVER_KEYS) {
+      if (leverVals[k] !== undefined) body[k] = leverVals[k]
+    }
   }
   return apiJson("/v1/add-captions", {
     body,
@@ -4258,6 +4378,8 @@ export async function metaAdsScrape(params: {
   mode: import("@nodaro/shared").MetaAdsScrapeMode
   query?: string
   pageUrls?: string[]
+  /** Advertiser names to resolve to Page urls server-side (advertiser mode driven by `in`). */
+  advertiserNames?: string[]
   count?: number
   period?: import("@nodaro/shared").MetaAdsScrapePeriod
   activeStatus?: import("@nodaro/shared").MetaAdsScrapeStatus
@@ -4267,8 +4389,14 @@ export async function metaAdsScrape(params: {
   featuredIndex?: number
   /** Copy the featured ad's video into the library too — set only when the node's video output is wired. */
   ingestVideo?: boolean
+  /** Copy every returned ad's video into the library (opt-in). */
+  ingestAllVideos?: boolean
+  /** Per-ad AI analysis. */
+  analyze?: boolean
+  analysisModel?: string
+  analysisFocus?: string
   workflowId?: string
-}): Promise<{ jobId: string; json: unknown; text?: string; imageUrl?: string; videoUrl?: string; mediaStorage?: unknown }> {
+}): Promise<{ jobId: string; json: unknown; text?: string; imageUrl?: string; videoUrl?: string; mediaStorage?: unknown; analysis?: unknown }> {
   return apiJson("/v1/meta-ads-scrape", {
     body: params,
     workflowId: true,
@@ -4674,13 +4802,16 @@ export async function sunoVoiceRecordInfoApi(taskId: string): Promise<SunoVoiceR
   })
 }
 
-export async function transcribeApi(audioUrl: string, provider?: string, language?: string, userId?: string, diarize?: boolean, tagAudioEvents?: boolean): Promise<{ jobId: string }> {
+export async function transcribeApi(audioUrl: string, provider?: string, language?: string, userId?: string, diarize?: boolean, tagAudioEvents?: boolean, wordTimestamps?: boolean): Promise<{ jobId: string }> {
   const body: Record<string, unknown> = { audioUrl }
   if (provider) body.provider = provider
   if (language) body.language = language
   if (userId) body.userId = userId
   if (diarize != null) body.diarize = diarize
   if (tagAudioEvents != null) body.tagAudioEvents = tagAudioEvents
+  // Word timings feed the `json` (Transcript) handle; the two whisper providers
+  // omit them unless asked. Only sent when the json handle is wired.
+  if (wordTimestamps) body.wordTimestamps = wordTimestamps
   return apiJson("/v1/transcribe", {
     body,
     workflowId: true,

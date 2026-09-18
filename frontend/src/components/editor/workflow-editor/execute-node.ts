@@ -65,6 +65,7 @@ import {
   splitMediaApi,
   extractAudioApi,
   removeAudioApi,
+  silenceDetectApi,
   trimVideoApi,
   extractFrameApi,
   transcodeVideoApi,
@@ -98,22 +99,23 @@ import {
   metaAdsScrape,
   startVideoAnalysis,
   runVideoAudit,
+  editPlan,
   executeReduce,
 } from "@/lib/api";
 import { applyWebScrapeFailure, applyWebScrapeResult, webScrapeRunStartPatch } from "@/components/nodes/web-scrape-run-state";
 import { applyMetaAdsScrapeFailure, applyMetaAdsScrapeResult, metaAdsScrapeRunStartPatch } from "@/components/nodes/meta-ads-scrape-run-state";
-import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources } from "@nodaro/shared";
+import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, splitMetaAdsAdvertiserNames } from "@nodaro/shared";
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
-  readPromptAffixes, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN } from "@nodaro/shared"
+  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN } from "@nodaro/shared"
 import { applyPromptAffixes, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
   collectScene3DLayoutReferences,
   scene3DLayoutVideoCaptions,
 } from "@/lib/scene3d/reference-scoping"
-import type { CharacterDef, ConnectedReference, ReferenceSource, ExtraRefCharacterContext } from "@nodaro/shared"
+import type { CharacterDef, ConnectedReference, ReferenceSource, ExtraRefCharacterContext, Transcript } from "@nodaro/shared"
 import { scene3DAdvancedEngines } from "@/lib/scene3d-pro-availability"
 import { ANALYZABLE_PICKER_HINT } from "@/lib/picker-labels";
 import { getGenerateTextTemplate } from "@/lib/generate-text-templates";
@@ -178,6 +180,8 @@ import type {
   CompositeData,
   RenderVideoData,
   CombineVideosData,
+  ApplyEdlData,
+  EditPlanNodeData,
   AssembleNarratedVideoData,
   ImageCollageData,
   ImageOverlayData,
@@ -186,6 +190,7 @@ import type {
   SplitMediaData,
   ExtractAudioData,
   RemoveAudioData,
+  SilenceDetectNodeData,
   TrimVideoData,
   ExtractFrameData,
   TranscodeVideoData,
@@ -287,6 +292,7 @@ import {
   runScriptGeneration,
   runLottiePlanGeneration,
   runCombineVideos,
+  runApplyEdl,
 } from "./node-executors";
 import {
   runCharacterGeneration,
@@ -431,6 +437,10 @@ export function buildMetaAdsScrapeParams(
     // The creative video is the expensive bytes — copied into the library
     // only when something downstream will actually consume it.
     ingestVideo: opts.videoWired === true,
+    ingestAllVideos: data.ingestAllVideos === true ? true : undefined,
+    analyze: data.analyze === true ? true : undefined,
+    analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
+    analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,
   };
   return params;
 }
@@ -4695,6 +4705,12 @@ function executeNodeCore(
           setForcePrivate(forcePrivate);
           setCurrentNodeId(node.id);
           setUserPromptTemplate(undefined);
+          // Word timings only matter when the `json` (Transcript) handle is
+          // consumed; the two whisper providers omit them otherwise. Graph-aware
+          // default, mirroring payload-builder's server-side check.
+          const jsonWired = useWorkflowStore
+            .getState()
+            .edges.some((e) => e.source === node.id && e.sourceHandle === "json");
           return transcribeApi(
             audioUrl,
             d.provider || undefined,
@@ -4702,6 +4718,7 @@ function executeNodeCore(
             ctx.userId,
             d.diarize,
             d.tagAudioEvents,
+            jsonWired || d.wordTimestamps,
           );
         })
         .then(({ jobId }) => {
@@ -4769,15 +4786,23 @@ function executeNodeCore(
                           timestamp: string;
                         }>
                       | undefined) ?? [];
+                  // The `json` output handle: the normalized Transcript the
+                  // worker wrote onto output_data.json. Stored per-result (so
+                  // switching the active result carries its own transcript) and
+                  // as the bare active-result field `generatedJson` — the field
+                  // name every json producer/consumer uses. Parity with `text`.
+                  const transcript = job.output_data?.json as Transcript | undefined;
                   const newResult = {
                     text,
                     language,
                     jobId,
                     timestamp: new Date().toISOString(),
+                    ...(transcript !== undefined ? { transcript } : {}),
                   };
                   updateNodeData(node.id, {
                     executionStatus: "completed",
                     generatedText: text,
+                    generatedJson: transcript,
                     generatedResults: [newResult, ...existingResults],
                     activeResultIndex: 0,
                     currentJobId: undefined,
@@ -5105,10 +5130,15 @@ function executeNodeCore(
   if (node.type === "meta-ads-scrape") {
     const d = node.data as MetaAdsScrapeNodeData;
     const { updateNodeData, edges: liveEdges } = useWorkflowStore.getState();
-    // Advertiser mode with nothing picked would reach the route as an empty
-    // page list — a 400 about a field the user never saw (and an admin
-    // validation-reject report). Say the real thing here, before any request.
-    if (metaAdsNodeMode(d.mode) === "advertiser" && metaAdsAdvertisersFrom(d.advertisers).length === 0) {
+    // Advertiser mode with no picks AND no upstream name would reach the route
+    // as an empty page list — a 400 about a field the user never saw. Say the
+    // real thing here, before any request. An upstream `in` name is fine: the
+    // route resolves it to a Page at run time.
+    if (
+      metaAdsNodeMode(d.mode) === "advertiser" &&
+      metaAdsAdvertisersFrom(d.advertisers).length === 0 &&
+      splitMetaAdsAdvertiserNames(inputs.prompt).length === 0
+    ) {
       const message = tx("cfgext.metaAdsAdvertiserNeeded");
       updateNodeData(node.id, applyMetaAdsScrapeFailure(message));
       guardedToast.error(message);
@@ -6489,6 +6519,177 @@ function executeNodeCore(
     );
   }
 
+  if (node.type === "apply-edl") {
+    const aeData = node.data as ApplyEdlData;
+    // EDL from the wired `edl` handle (a json string) or an inline node config.
+    const edlRaw = inputs.edl ?? aeData.edl;
+    if (edlRaw === undefined || edlRaw === null || edlRaw === "") {
+      toast.error(`Node "${aeData.label}": connect an EDL to the "EDL" input`);
+      return Promise.reject(new Error("apply-edl requires an EDL"));
+    }
+    const parseMaybe = (v: unknown): unknown => {
+      if (typeof v !== "string") return v;
+      try { return JSON.parse(v); } catch { return undefined; }
+    };
+    const edl = parseMaybe(edlRaw);
+    const transcript = inputs.transcript !== undefined ? parseMaybe(inputs.transcript) : undefined;
+    setUserPromptTemplate(undefined);
+    return runApplyEdl(
+      node.id,
+      {
+        edl,
+        output: aeData.output ?? "video",
+        quality: aeData.quality ?? "final",
+        crossfadeMs: aeData.crossfadeMs,
+        sources: inputs.sources,
+        transcript,
+      },
+      ctx,
+    );
+  }
+
+  if (node.type === "edit-plan") {
+    const epData = node.data as EditPlanNodeData;
+    const parseMaybe = (v: unknown): unknown => {
+      if (typeof v !== "string") return v;
+      try { return JSON.parse(v); } catch { return undefined; }
+    };
+    // The plugin coerces an OBJECT transcript — parse the stringified json from
+    // the `transcript` handle (or an inline object), never send a raw string.
+    const transcript = inputs.transcript !== undefined ? parseMaybe(inputs.transcript) : epData.transcript;
+    if (transcript === undefined || transcript === null) {
+      toast.error(`Node "${epData.label}": connect a transcript to the "Transcript" input`);
+      return Promise.reject(new Error("edit-plan requires a transcript"));
+    }
+    const silence = inputs.silence !== undefined ? parseMaybe(inputs.silence) : epData.silence;
+    // Build the annotated sources array. The source NODE id is the EdlSource id
+    // (minted once, never re-derived). Order by the config-panel sourceOrder
+    // (listed first, then unlisted in wire order — the combine-videos precedent).
+    const wired = inputs.editPlanSources ?? [];
+    const order = epData.sourceOrder ?? [];
+    const orderedWired = order.length
+      ? [
+          ...order.flatMap((nid) => wired.filter((w) => w.nodeId === nid)),
+          ...wired.filter((w) => !order.includes(w.nodeId)),
+        ]
+      : wired;
+    const sources = orderedWired.map((row) => {
+      const c = epData.sourceConfig?.[row.nodeId] ?? {};
+      const s: Record<string, unknown> = { id: row.nodeId, url: row.url, kind: c.kind ?? row.kind };
+      if (c.role) s.role = c.role;
+      if (c.speakers && c.speakers.length > 0) s.speakers = c.speakers;
+      if (typeof c.offsetMs === "number") s.offsetMs = c.offsetMs;
+      return s;
+    });
+    if (sources.length === 0) {
+      toast.error(`Node "${epData.label}": connect the recording's media to the "Sources" input`);
+      return Promise.reject(new Error("edit-plan requires at least one source"));
+    }
+    const mode = asEditPlanMode(epData.mode);
+    const { updateNodeData } = useWorkflowStore.getState();
+    updateNodeData(node.id, { ...RUN_START_RESET, generatedJson: undefined, currentJobProgress: undefined });
+    setUserPromptTemplate(epData.instructions?.trim() || undefined);
+    return new Promise<string>((resolve, reject) => {
+      editPlan({
+        mode,
+        planTier: asEditPlanTier(epData.planTier),
+        transcript,
+        silence,
+        sources,
+        instructions: applyPromptAffixes(epData.instructions, readPromptAffixes(epData), refMap),
+        styleGuide: epData.styleGuide?.trim() || undefined,
+        count: mode === "clips" && typeof epData.count === "number" ? epData.count : undefined,
+        targetDurationSec: mode === "clips" && typeof epData.targetDurationSec === "number" ? epData.targetDurationSec : undefined,
+        targetAspect: epData.targetAspect,
+        platform: epData.platform?.trim() || undefined,
+        userId: ctx.userId,
+      })
+        .then(({ jobId }) => {
+          guardedToast.info("Edit plan started", { description: `Job ID: ${jobId}` });
+          updateNodeData(node.id, { currentJobId: jobId });
+          let pollFailures = 0;
+          const poll = ctx.trackInterval(
+            setInterval(async () => {
+              if (ctx.isWorkflowStale()) {
+                ctx.untrackInterval(poll);
+                reject(new WorkflowStaleError());
+                return;
+              }
+              try {
+                const job = await getJobStatusLeanForNode(jobId, node.id);
+                pollFailures = 0;
+                if (job.status === "processing" && job.progress != null) {
+                  updateProgressIfChanged(node.id, job.progress, updateNodeData);
+                }
+                if (job.status === "completed" || job.status === "failed") {
+                  if (shouldAbandonNode(node.id, jobId)) {
+                    ctx.untrackInterval(poll);
+                    resolve("");
+                    return;
+                  }
+                }
+                if (job.status === "completed") {
+                  ctx.untrackInterval(poll);
+                  // Unwrap the EDL plan: clips → bare Edl[] (fans out), tighten →
+                  // Edl, chapters → { version, chapters }. ONE rule shared with the
+                  // backend + reconcile (unwrapEditPlanOutput).
+                  const plan = unwrapEditPlanOutput(job.output_data);
+                  updateNodeData(node.id, {
+                    executionStatus: "completed",
+                    generatedJson: plan,
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.success("Edit plan complete");
+                  resolve(plan === undefined ? "" : JSON.stringify(plan));
+                } else if (job.status === "failed") {
+                  ctx.untrackInterval(poll);
+                  const errMsg = job.error_message ?? "Edit plan failed";
+                  updateNodeData(node.id, {
+                    executionStatus: "failed",
+                    errorMessage: errMsg,
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.error("Edit plan failed", { description: errMsg });
+                  reject(new Error(errMsg));
+                }
+              } catch (err) {
+                pollFailures++;
+                if (pollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+                  ctx.untrackInterval(poll);
+                  if (shouldAbandonNode(node.id, jobId)) {
+                    resolve("");
+                    return;
+                  }
+                  updateNodeData(node.id, {
+                    executionStatus: "failed",
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.error("Failed to check edit plan status");
+                  reject(err);
+                }
+              }
+            }, 2000),
+          );
+        })
+        .catch((err) => {
+          updateNodeData(node.id, {
+            executionStatus: "failed",
+            currentJobId: undefined,
+            currentJobProgress: undefined,
+          });
+          if (!checkStorageError(err, ctx)) {
+            guardedToast.error("Failed to start edit plan", {
+              description: err instanceof Error ? err.message : "Unknown error",
+            });
+          }
+          reject(err);
+        });
+    });
+  }
+
   if (node.type === "assemble-narrated-video") {
     const assembleData = node.data as AssembleNarratedVideoData;
     const videoUrls = inputs.videoUrls ?? [];
@@ -6638,6 +6839,112 @@ function executeNodeCore(
       "Remove Audio",
       ctx,
     );
+  }
+
+  if (node.type === "silence-detect") {
+    const d = node.data as SilenceDetectNodeData;
+    // Accepts an audio OR a video source (the worker reads the shared audio
+    // proxy either way).
+    const sourceUrl = overrideMediaUrl ?? inputs.audioUrl ?? inputs.videoUrl;
+    if (!sourceUrl) {
+      toast.error(`Node "${d.label}": connect an audio or video source`);
+      return Promise.reject(new Error("No audio/video source"));
+    }
+    const { updateNodeData } = useWorkflowStore.getState();
+    // Clear any stale result so a prior range table can't co-render with a
+    // fresh running/failed state (mirrors video-analysis).
+    updateNodeData(node.id, { ...RUN_START_RESET, generatedJson: undefined, currentJobProgress: undefined });
+    setUserPromptTemplate(undefined);
+    return new Promise<string>((resolve, reject) => {
+      silenceDetectApi({
+        audioUrl: sourceUrl,
+        thresholdDb: d.thresholdDb,
+        minSilenceMs: d.minSilenceMs,
+        padMs: d.padMs,
+        userId: ctx.userId,
+      })
+        .then(({ jobId }) => {
+          guardedToast.info("Silence detect started", { description: `Job ID: ${jobId}` });
+          updateNodeData(node.id, { currentJobId: jobId });
+
+          let pollFailures = 0;
+          const poll = ctx.trackInterval(
+            setInterval(async () => {
+              if (ctx.isWorkflowStale()) {
+                ctx.untrackInterval(poll);
+                reject(new WorkflowStaleError());
+                return;
+              }
+              try {
+                const job = await getJobStatusLeanForNode(jobId, node.id);
+                pollFailures = 0;
+                if (job.status === "processing" && job.progress != null) {
+                  updateProgressIfChanged(node.id, job.progress, updateNodeData);
+                }
+                if (job.status === "completed" || job.status === "failed") {
+                  if (shouldAbandonNode(node.id, jobId)) {
+                    ctx.untrackInterval(poll);
+                    resolve("");
+                    return;
+                  }
+                }
+                if (job.status === "completed") {
+                  ctx.untrackInterval(poll);
+                  const json = (job.output_data as Record<string, unknown> | undefined)?.json;
+                  updateNodeData(node.id, {
+                    executionStatus: "completed",
+                    generatedJson: json,
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.success("Silence detect complete");
+                  resolve(json === undefined ? "" : JSON.stringify(json));
+                } else if (job.status === "failed") {
+                  ctx.untrackInterval(poll);
+                  const errMsg = job.error_message ?? "Silence detect failed";
+                  updateNodeData(node.id, {
+                    executionStatus: "failed",
+                    errorMessage: errMsg,
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.error("Silence detect failed", { description: errMsg });
+                  reject(new Error(errMsg));
+                }
+              } catch (err) {
+                pollFailures++;
+                if (pollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+                  ctx.untrackInterval(poll);
+                  if (shouldAbandonNode(node.id, jobId)) {
+                    resolve("");
+                    return;
+                  }
+                  updateNodeData(node.id, {
+                    executionStatus: "failed",
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.error("Failed to check silence detect status");
+                  reject(err);
+                }
+              }
+            }, 2000),
+          );
+        })
+        .catch((err) => {
+          updateNodeData(node.id, {
+            executionStatus: "failed",
+            currentJobId: undefined,
+            currentJobProgress: undefined,
+          });
+          if (!checkStorageError(err, ctx)) {
+            guardedToast.error("Failed to start silence detect", {
+              description: err instanceof Error ? err.message : "Unknown error",
+            });
+          }
+          reject(err);
+        });
+    });
   }
 
   if (node.type === "split-media") {
@@ -7218,7 +7525,23 @@ function executeNodeCore(
           d.color,
           d.backgroundColor as string | undefined,
           ctx.userId,
-          { autoTranscribe: d.autoTranscribe, transcribeProvider: d.transcribeProvider },
+          {
+            autoTranscribe: d.autoTranscribe,
+            transcribeProvider: d.transcribeProvider,
+            // Transcript wired into the `transcript` handle (resolver output);
+            // wordLevel is node data. Matches the DAG payload-builder.
+            transcript: inputs.transcript,
+            wordLevel: d.wordLevel,
+            // Kinetic look levers — addCaptionsApi drops them for a static style.
+            look: d.look,
+            fontFamily: d.fontFamily,
+            fontWeight: d.fontWeight,
+            strokeColor: d.strokeColor,
+            strokeWidth: d.strokeWidth,
+            highlightColor: d.highlightColor,
+            uppercase: d.uppercase,
+            positionY: d.positionY,
+          },
         ),
       "generatedVideoUrl",
       "Add Captions",

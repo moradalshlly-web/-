@@ -934,6 +934,39 @@ describe("addCaptionsApi", () => {
     expect(body.backgroundColor).toBe("#000000")
   })
 
+  it("sends kinetic look levers (look/fontWeight/…) for a kinetic style", async () => {
+    noSession()
+    const mock = mockFetchJson({ jobId: "jk" })
+    vi.stubGlobal("fetch", mock)
+
+    await addCaptionsApi("http://vid.mp4", "hi", "word-pop", "bottom", 64, "#fff", undefined, undefined, {
+      look: "outline", fontFamily: "Montserrat", fontWeight: 900, highlightColor: "#FFE600", uppercase: true, positionY: 65,
+    })
+
+    const body = JSON.parse(mock.mock.calls[0][1].body as string)
+    expect(body.look).toBe("outline")
+    expect(body.fontWeight).toBe(900)
+    expect(body.highlightColor).toBe("#FFE600")
+    expect(body.uppercase).toBe(true)
+    expect(body.positionY).toBe(65)
+  })
+
+  it("STRIPS look levers for the static subtitle style (they'd 400 the route)", async () => {
+    noSession()
+    const mock = mockFetchJson({ jobId: "js" })
+    vi.stubGlobal("fetch", mock)
+
+    // A subtitle node can carry stale look levers in its data; they must not ship.
+    await addCaptionsApi("http://vid.mp4", "hi", "subtitle", "bottom", 32, "#fff", undefined, undefined, {
+      look: "outline", fontFamily: "Montserrat", fontWeight: 900, highlightColor: "#FFE600", uppercase: true, positionY: 65,
+    })
+
+    const body = JSON.parse(mock.mock.calls[0][1].body as string)
+    for (const k of ["look", "fontFamily", "fontWeight", "highlightColor", "uppercase", "positionY"]) {
+      expect(body[k]).toBeUndefined()
+    }
+  })
+
   it("throws on error response", async () => {
     noSession()
     vi.stubGlobal(

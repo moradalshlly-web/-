@@ -13,9 +13,10 @@ import { applyOrgEntitlements } from "./org-entitlements.js"
 import type { BillingContext } from "../../lib/billing-context.js"
 import { hasCredits } from "../../lib/config.js"
 import { getAppSettings } from "../../lib/app-settings.js"
+import { APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE } from "../../lib/apply-edl-plan.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
 import { FREE_TIER_RESTRICTIONS, TIER_STORAGE_LIMITS } from "./stripe-config.js"
-import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, buildMetaAdsScrapeCreditId, metaAdsScrapeSources, META_ADS_SCRAPE_DEFAULT_COUNT } from "@nodaro/shared"
+import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, EDIT_PLAN_BUCKET_MINUTES, buildEditPlanCreditId, type EditPlanTier } from "@nodaro/shared"
 // Provider-$ cost formulas — CORE lib (not @nodaro/shared, an irrevocably
 // published Apache package). See the 2026-07-06 public-flip IP audit, S5.
 import { flux2BaseCredits } from "../../lib/pricing/flux2-cost.js"
@@ -158,6 +159,53 @@ for (const analysisProvided of [true, false]) {
       VIDEO_AUDIT_BUCKET_CREDITS[buildVideoAuditCreditId({ analysisProvided, durationSec: bucketSec })]!
   }
 }
+
+// ── Edit Plan (podcast editing, edit-plan node) — per-source-minute × tier
+// duration-bucketed reserve holds, plus a flat component on `clips` only.
+// Cloud-EXCLUSIVE + relayed: billing happens on the connected cloud account, so
+// these are the DB-down fallback (a seeded model_pricing row wins at runtime —
+// migration 432). The scheme MUST match the plugin's `editPlanStaticCreditCosts()`
+// exactly (id shape `edit-plan:<mode>:<tier>:<bucket>m`, 3 modes × 3 tiers × 6
+// buckets = 54 composites + the bare `edit-plan` = the MAX of the whole table).
+//
+// ⚠️ ALL VALUES BELOW ARE PLACEHOLDERS — finalized by the 3-hour staging probe
+// (measure LLM tokens/source-minute per tier, RE-DERIVED not scaled; memory:
+// rederive-formula-values). Only the two per-tier constant maps move; the id
+// structure and the migration's row set stay.
+// Id scheme (modes/tiers/bucket ladder + builder) is the single source of truth
+// in @nodaro/shared; only the placeholder VALUES live here.
+type EditPlanTierT = EditPlanTier
+// TODO(probe): placeholder — set from the 3-hour staging probe, re-derive don't scale
+const EDIT_PLAN_CREDITS_PER_MINUTE_BY_TIER: Readonly<Record<EditPlanTierT, number>> = {
+  economy: 2,
+  standard: 4,
+  premium: 8,
+}
+// TODO(probe): placeholder — flat component added to `clips` only (the per-clip
+// scoring/hook pass); tighten and chapters have no flat term.
+const EDIT_PLAN_CLIPS_FLAT_BY_TIER: Readonly<Record<EditPlanTierT, number>> = {
+  economy: 10,
+  standard: 20,
+  premium: 40,
+}
+function editPlanCredits(mode: string, tier: EditPlanTierT, bucketMinutes: number): number {
+  const perMinute = EDIT_PLAN_CREDITS_PER_MINUTE_BY_TIER[tier] * bucketMinutes
+  const flat = mode === "clips" ? EDIT_PLAN_CLIPS_FLAT_BY_TIER[tier] : 0
+  return Math.max(1, Math.ceil(perMinute + flat))
+}
+const EDIT_PLAN_STATIC: Record<string, number> = {}
+for (const mode of EDIT_PLAN_MODES) {
+  for (const tier of EDIT_PLAN_TIERS) {
+    for (const bucket of EDIT_PLAN_BUCKET_MINUTES) {
+      // bucket is in MINUTES; buildEditPlanCreditId takes seconds → ×60 covers it exactly.
+      EDIT_PLAN_STATIC[buildEditPlanCreditId(mode, tier, bucket * 60)] = editPlanCredits(mode, tier, bucket)
+    }
+  }
+}
+// Bare fallback = the MAX of the whole table (= premium clips 180m = 1480): the
+// unknown-mode-AND-unknown-duration id feeds a pre-run balance gate, so it must
+// bound every row (mirrors the video-analysis bare-id rationale + the plugin).
+EDIT_PLAN_STATIC["edit-plan"] = Math.max(...Object.values(EDIT_PLAN_STATIC))
 
 // ============================================================
 // Types
@@ -410,6 +458,10 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // precomputed VIDEO_AUDIT_BUCKET_CREDITS table in @nodaro/shared, written to
   // model_pricing by migration 302.
   ...VIDEO_AUDIT_STATIC,
+  // ── Edit Plan (podcast editing) — PROVISIONAL placeholder pricing (see the
+  // EDIT_PLAN_STATIC block above). Bare `edit-plan` + all 54 composites, written
+  // to model_pricing by migration 432; the DB rows win at runtime.
+  ...EDIT_PLAN_STATIC,
   "flux-lora-character": 20,      // flux-dev-lora inference via Replicate. Internal-only id selected by payload-builder when a single trained @character is mentioned.
   "character-lora-training": 1500, // Replicate ostris/flux-dev-lora-trainer (1000 steps, one-shot). Refunded by webhook on failure/cancel.
   // ── Image Editing ──
@@ -1429,15 +1481,12 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   "web-scrape:tiktok": 10,
   "web-scrape:rss": 10,
   // Meta Ads scraper: 1 credit per REQUESTED ad, rounded up to a tier of
-  // count × sources (packages/shared/src/meta-ads-scrape.ts is the formula;
-  // the bare id is the pre-Zod guard fallback). Migration 428.
-  "meta-ads-scrape": 20,
-  "meta-ads-scrape:10": 10,
-  "meta-ads-scrape:20": 20,
-  "meta-ads-scrape:50": 50,
-  "meta-ads-scrape:100": 100,
-  "meta-ads-scrape:200": 200,
-  "meta-ads-scrape:500": 500,
+  // count × sources, plus the optional per-ad analysis multiples and their
+  // per-ad settlement rows (packages/shared/src/meta-ads-scrape.ts is the
+  // formula AND the table — one source for this fallback, the frontend
+  // badge and the docs; the bare id is the pre-Zod guard fallback).
+  // Migrations 428 + 429.
+  ...META_ADS_SCRAPE_CREDIT_COSTS,
   "qa-check": 10,
   "qa-check:economy": 1,
   "qa-check:premium": 10,
@@ -1447,6 +1496,14 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   //    use the computeCredits hook in creditGuard. Their model_pricing rows
   //    (also 0) are likewise unreachable.
   "combine-videos": 30,
+  // apply-edl — render an EDL into ONE media file (local ffmpeg, no provider
+  // cost). Priced PER MINUTE of rendered output: the route's computeCredits and
+  // the DAG's applyEdlCreditOverride both reserve `this × ceil(edlDurationMs/
+  // 60000)`. The bare row here is the estimator fallback (1-minute floor).
+  // Value is the single source of truth `APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE`
+  // (lib/apply-edl-plan.ts); the model_pricing row (migration 429) mirrors it.
+  // PROVISIONAL — the 3-hour staging probe sets the final per-minute number.
+  "apply-edl": APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE,
   // Image Collage — composites N images into one 2K/4K image (local ffmpeg,
   // no provider cost). Priced by resolution. Base + resolution composites;
   // the single-node route uses computeCredits, workflow runs reserve the
@@ -1471,6 +1528,9 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   "add-captions:kinetic": 50,
   "resize-video": 20,
   "trim-audio": 10,
+  // Silence Detect — one local ffmpeg `silencedetect` pass over the audio
+  // proxy, no external provider. Flat 1cr (keyless; community works).
+  "silence-detect": 1,
   "split-media": 20,
   "extract-audio": 10,
   "remove-audio": 20,
@@ -3275,11 +3335,10 @@ function getNodeModelIdentifier(node: { type: string; data?: Record<string, unkn
   // estimate never under-quotes a multi-page scrape (page urls are stored one
   // per line on the node).
   if (nodeType === "meta-ads-scrape") {
-    const count = typeof data.count === "number" ? data.count : META_ADS_SCRAPE_DEFAULT_COUNT
-    // ONE source count (packages/shared) for pages AND advertiser picks, so
-    // this quote can never say one source while the reservation bills five.
-    const sources = metaAdsScrapeSources(data)
-    return buildMetaAdsScrapeCreditId({ count, sources })
+    // ONE identifier (packages/shared) from count × sources × analysis, the
+    // same builder the route's guard + reservation use — this quote can never
+    // say one source (or no analysis) while the reservation bills otherwise.
+    return metaAdsScrapeCreditIdFromNode(data)
   }
 
   // AI Audit: the credit FAMILY is a GRAPH fact (is an analysis wired into the

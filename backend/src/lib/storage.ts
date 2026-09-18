@@ -37,6 +37,26 @@ export function resolveStorageEndpoint(cfg: {
  * them — either a custom endpoint or an R2 account id. Single source of
  * truth shared with the /v1/setup/status probe.
  */
+/**
+ * A quota-reserved upload refused because the user is at their storage limit.
+ * A TYPED signal (not a message grep) so callers that must stop copying more
+ * on quota — meta-ads copy-all-videos — detect it without coupling to the
+ * thrown string. The `storage-limit-exceeded:` message prefix is kept for the
+ * existing log/telemetry paths.
+ */
+export class StorageLimitError extends Error {
+  readonly code = "storage-limit-exceeded"
+  constructor(bytes: number) {
+    super(`storage-limit-exceeded: atomic reservation of ${bytes} bytes refused`)
+    this.name = "StorageLimitError"
+  }
+}
+
+/** True when `err` is a storage-quota refusal (typed, or the legacy message prefix). */
+export function isStorageLimitError(err: unknown): boolean {
+  return err instanceof StorageLimitError || (err instanceof Error && err.message.includes("storage-limit-exceeded"))
+}
+
 export function isStorageConfigured(): boolean {
   return Boolean(
     config.R2_ACCESS_KEY_ID &&
@@ -400,9 +420,7 @@ export async function uploadToR2(
     reserved = await reserveStorageIfWithinLimit(trackUserId, effectiveCap)
     if (!reserved) {
       try { await response.body?.cancel() } catch { /* best effort */ }
-      throw new Error(
-        `storage-limit-exceeded: atomic reservation of ${effectiveCap} bytes refused`,
-      )
+      throw new StorageLimitError(effectiveCap)
     }
   }
 

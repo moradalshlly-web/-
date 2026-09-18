@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { safeUrlSchema } from "./url-validator.js"
-import { KINETIC_CAPTION_STYLES, SUPPORTED_FONT_NAMES, scene3DAnyPlanSchema } from "@nodaro/shared"
+import { KINETIC_CAPTION_STYLES, ALL_CAPTION_STYLES, SUPPORTED_FONT_NAMES, scene3DAnyPlanSchema } from "@nodaro/shared"
 import type { BrandTokens } from "@nodaro/prompts"
 import type { ShotElement } from "@nodaro/shared"
 import { cdnMediaUrlSchema } from "./cdn-media-url.js"
@@ -472,11 +472,41 @@ const captionSchema = z.object({
   confidence: z.number().min(0).max(1).nullable(),
 })
 
+// CSS numeric font weight (100–900 in 100 steps). Exported so the add-captions
+// route Zod imports the SAME constraint — the wire body and the render plan
+// can't drift on what a valid weight is.
+export const captionFontWeightSchema = z.number().int().min(100).max(900).multipleOf(100)
+
+// One resolved caption segment on the render plan. `style` is ALL styles (not
+// just kinetic): a segmented render is entirely Remotion, so `subtitle` renders
+// via the Remotion SubtitleOverlay. The backend resolver fills every field.
+const burnCaptionsSegmentSchema = z.object({
+  startMs: z.number().min(0),
+  endMs: z.number().min(0),
+  style: z.enum(ALL_CAPTION_STYLES),
+  position: z.enum(["top", "center", "bottom"]),
+  fontSize: z.number().min(12).max(200),
+  color: z.string(),
+  backgroundColor: z.string().optional(),
+  fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+  fontWeight: captionFontWeightSchema.optional(),
+  strokeColor: z.string().optional(),
+  strokeWidth: z.number().min(0).max(40).optional(),
+  highlightColor: z.string().optional(),
+  uppercase: z.boolean().optional(),
+  positionY: z.number().min(0).max(100).optional(),
+  captions: z.array(captionSchema),
+})
+
 export const burnCaptionsPlanSchema = z
   .object({
     planType: z.literal("burn-captions"),
     sourceVideo: safeUrlSchema,
-    captions: z.array(captionSchema).min(1),
+    // Non-empty in the normal path; may be empty ONLY when `segments` carry the
+    // words instead (the composition ignores top-level captions then) — see the
+    // refine below. This keeps a degenerate all-self-sourced segmented render
+    // from failing plan validation AFTER credits reserve.
+    captions: z.array(captionSchema),
     style: z.enum(KINETIC_CAPTION_STYLES),
     position: z.enum(["top", "center", "bottom"]),
     fontSize: z.number().min(12).max(200),
@@ -484,17 +514,27 @@ export const burnCaptionsPlanSchema = z
     backgroundColor: z.string().optional(),
     // Optional look levers — every one defaults to the prior render when unset.
     fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+    fontWeight: captionFontWeightSchema.optional(),
     strokeColor: z.string().optional(),
     strokeWidth: z.number().min(0).max(40).optional(),
     highlightColor: z.string().optional(),
     uppercase: z.boolean().optional(),
     positionY: z.number().min(0).max(100).optional(),
+    // Optional per-segment captions (resolved): when present the composition
+    // renders these instead of the top-level captions/style above.
+    segments: z.array(burnCaptionsSegmentSchema).optional(),
     fps: z.number().min(15).max(60),
     width: z.number().min(100).max(3840),
     height: z.number().min(100).max(3840),
     durationInFrames: z.number().min(1).max(108000),
   })
   .passthrough()
+  .superRefine((v, ctx) => {
+    // At least one word source: the top-level captions, or per-segment words.
+    if (v.captions.length === 0 && !(v.segments && v.segments.length > 0)) {
+      ctx.addIssue({ code: "custom", path: ["captions"], message: "captions must contain at least 1 element (or provide segments)" })
+    }
+  })
 
 // ── Scene Graph Plan (for plan-based render pipeline) ──────────────────
 

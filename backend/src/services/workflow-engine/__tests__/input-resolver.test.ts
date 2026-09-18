@@ -57,6 +57,27 @@ describe("resolveNodeInputs", () => {
     expect(result.prompt).toBe("line one\nline two")
   })
 
+  it("meta-ads: text AND image from one node into one consumer both land (per-edge, per-handle)", () => {
+    // The gap that looked open: wiring both the featured ad's copy and its
+    // creative from a single Meta Ads node to the same target. The resolver
+    // walks edges, not unique sources, and routes each by its own handle — so
+    // prompt and image are set independently, never one clobbering the other.
+    const target = node("t", "generate-image")
+    const src = node("s", "meta-ads-scrape")
+    const states: Record<string, NodeExecutionState> = {
+      s: { status: "completed", output: { json: [{}], text: "Just do it.", imageUrl: "https://cdn/creative.jpg" } },
+    }
+    const result = resolveNodeInputs(
+      target,
+      [edge("s", "t", "text", "prompt"), edge("s", "t", "image", "image")],
+      states,
+      [src, target],
+    )
+    expect(result.prompt).toBe("Just do it.")
+    const imageLanded = result.imageUrl === "https://cdn/creative.jpg" || (result.referenceImageUrls ?? []).includes("https://cdn/creative.jpg")
+    expect(imageLanded).toBe(true)
+  })
+
   it("resolves text from completed state over source data", () => {
     const target = node("t", "generate-image")
     const src = node("s", "text-prompt", { text: "old" })

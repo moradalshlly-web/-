@@ -108,6 +108,8 @@ import { ImageToTextNode } from "./image-to-text-node";
 import { DescribeToPickerNode } from "./describe-to-picker-node";
 import { LLMChatNode } from "./llm-chat-node";
 import { CombineVideosNode } from "./combine-videos-node";
+import { ApplyEdlNode } from "./apply-edl-node";
+import { EditPlanNode } from "./edit-plan-node";
 import { ImageCollageNode } from "./image-collage-node";
 import { ImageOverlayNode } from "./image-overlay-node";
 import { AssembleNarratedVideoNode } from "./assemble-narrated-video-node";
@@ -118,6 +120,7 @@ import { SocialMediaFormatNode } from "./social-media-format-node";
 import { TrimAudioNode } from "./trim-audio-node";
 import { SplitMediaNode } from "./split-media-node";
 import { ExtractAudioNode } from "./extract-audio-node";
+import { SilenceDetectNode } from "./silence-detect-node";
 import { RemoveAudioNode } from "./remove-audio-node";
 import { MixAudioNode } from "./mix-audio-node";
 import { CombineAudioNode } from "./combine-audio-node";
@@ -314,6 +317,8 @@ export const nodeTypes: Record<SceneNodeType, React.ComponentType<any>> = {
   "llm-chat": LLMChatNode,
   // Processing
   "combine-videos": CombineVideosNode,
+  "apply-edl": ApplyEdlNode,
+  "edit-plan": EditPlanNode,
   "image-collage": ImageCollageNode,
   "image-overlay": ImageOverlayNode,
   "assemble-narrated-video": AssembleNarratedVideoNode,
@@ -324,6 +329,7 @@ export const nodeTypes: Record<SceneNodeType, React.ComponentType<any>> = {
   "trim-audio": TrimAudioNode,
   "split-media": SplitMediaNode,
   "extract-audio": ExtractAudioNode,
+  "silence-detect": SilenceDetectNode,
   "remove-audio": RemoveAudioNode,
   "mix-audio": MixAudioNode,
   "combine-audio": CombineAudioNode,

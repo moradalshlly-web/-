@@ -232,6 +232,47 @@ const SCENE3D_REVIEW_UNUSABLE_BYTES = 60
 // base = 1_867 B, which preserves the same 1_287 B of headroom the list had
 // before this raise.
 const CAPTION_LOOK_LEVERS_BYTES = 1_867
+//
+// RAISED 2026-09-18 by the add-captions PER-SEGMENT captions argument and nothing
+// else. `add_captions` gained a `segments[]` argument — a time range plus the
+// full style/look override set plus its own optional text/captions — so one call
+// can apply different caption treatments to different parts of a video (a large
+// top intro, then a one-word bottom body). It is one nested-object argument on
+// one existing tool; no tool was added, so the membership fixture does NOT move,
+// and add_captions is 6_197 B, well under the 8_192 B per-tool budget. Measured
+// by this suite: 352_955 total − 351_005 base = 1_950 B, which preserves the
+// same 941 B of headroom the list had before this raise.
+const CAPTION_SEGMENTS_BYTES = 1_950
+// plan_edit (podcast editing) — a NEW cloud-only, execute-scoped tool (PR #9).
+// One tool added: the cloud/all membership fixture moves (it names plan_edit),
+// and this raises the total by the tool's full serialized size. Measured by this
+// suite: 356_058 total − 353_896 base = 2_162 B; well under the 8_192 B per-tool
+// budget.
+const PLAN_EDIT_TOOL_BYTES = 2_162
+//
+// RAISED 2026-09-18 by silence_detect + apply_edl (podcast editing) and nothing
+// else — two NEW core, execute-scoped tools (PR #11). Unlike plan_edit these are
+// UNGATED, so BOTH the cloud/all AND the community/all membership fixtures move
+// (each names both verbs), and this raises the total by the two tools' full
+// serialized sizes. The sizes include the code-review round: apply_edl carries a
+// union `edl` (object OR JSON string) + the "rejected up front naming the segment
+// and rule" clause, and both descriptions name the `output_data.json` handoff.
+// measured by this suite: 360_886 total − 356_058 base = 4_828 B (silence_detect
+// 2_108 + apply_edl 2_720); both are well under the 8_192 B per-tool budget.
+const SILENCE_DETECT_TOOL_BYTES = 2_108
+const APPLY_EDL_TOOL_BYTES = 2_720
+//
+// RAISED 2026-09-18 by the add-captions LOOK PRESET (`look`) + `font_weight` and
+// nothing else. `add_captions` gained a `look` enum (outline/clean) and a
+// `font_weight` number — on BOTH the top-level tool AND each `segments[]` item —
+// plus two extra description paragraphs leading with the preset (the original
+// complaint was an MCP caller who couldn't reach the TikTok look). It is two
+// optional args on one existing tool; no tool was added, so the membership
+// fixture does NOT move, and add_captions is 7_904 B, still under the 8_192 B
+// per-tool budget. Re-measured against current dev (which already carries the
+// podcast-editing tools + transcript caption work above): 362_590 total −
+// 360_886 dev = 1_704 B.
+const CAPTION_LOOK_PRESETS_BYTES = 1_704
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -247,7 +288,12 @@ export const TOOL_WIRE_BUDGET = {
     SCENE3D_RETAINED_FAILURE_BYTES +
     SCENE3D_MECHANICAL_PASSES_BYTES +
     SCENE3D_REVIEW_UNAVAILABLE_BYTES +
-    CAPTION_LOOK_LEVERS_BYTES,
+    CAPTION_LOOK_LEVERS_BYTES +
+    CAPTION_SEGMENTS_BYTES +
+    PLAN_EDIT_TOOL_BYTES +
+    SILENCE_DETECT_TOOL_BYTES +
+    APPLY_EDL_TOOL_BYTES +
+    CAPTION_LOOK_PRESETS_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

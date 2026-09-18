@@ -1,4 +1,5 @@
 import type { Caption } from "@remotion/captions"
+import type { Transcript } from "@nodaro/shared"
 
 interface FastWhisperOutput {
   text?: string
@@ -75,6 +76,92 @@ export function scribeWordsToCaptions(
     confidence: null,
     ...(w.speaker ? { speaker: w.speaker } : {}),
   }))
+}
+
+// Line-grouping thresholds for `transcriptToCaptions({ wordLevel: false })`.
+// Exported so the mapper test can pin each break rule to an exact boundary
+// (the values are deliberately the ONLY source — the mapper reads these, never
+// inline literals).
+/** A grouped line flushes once it reaches this many words. */
+export const CAPTION_LINE_MAX_WORDS = 8
+/** A silence longer than this (ms) between two words starts a new line. */
+export const CAPTION_LINE_GAP_MS = 700
+/** A word whose text ends a sentence closes its line (optional trailing quote/bracket). */
+const CAPTION_SENTENCE_END = /[.!?]["'”’)\]]?\s*$/
+
+/**
+ * Map a normalized `Transcript`'s words onto the Caption[] the burn-in expects.
+ * The transcript is the SAME shape `transcribe` / `apply-edl`'s json handle
+ * emit, so timings are already remapped through any upstream cut (D17): this
+ * mapper only reshapes, it never re-times.
+ *
+ *  - `wordLevel: true` (default) → one Caption per word, for the kinetic
+ *    per-word styles (karaoke / word-highlight / tiktok-words). Word timings
+ *    pass through 1:1 (rounded to integer ms).
+ *  - `wordLevel: false` → consecutive words grouped into lines. A line closes on
+ *    a speaker change, a sentence-ending word, a gap > CAPTION_LINE_GAP_MS, or
+ *    CAPTION_LINE_MAX_WORDS words — whichever comes first. Each line spans its
+ *    first word's start to its last word's end.
+ *
+ * Spacing follows the @remotion/captions spec (a leading space is the token
+ * delimiter): the first token/line carries no leading space, every later one
+ * does, so the overlays and `createTikTokStyleCaptions` concatenate `text`
+ * verbatim without gluing words together (the scribe-mapper rule).
+ */
+export function transcriptToCaptions(
+  transcript: Transcript,
+  opts?: { wordLevel?: boolean },
+): Caption[] {
+  const wordLevel = opts?.wordLevel ?? true
+  // Sort by start time so grouped-line spans never invert (endMs < startMs) and
+  // word-level output stays monotonic, even when an upstream remap (a clips-mode
+  // / reordered EDL) emits words in source order. Copy first — `transcript.words`
+  // is readonly; JS sort is stable, so equal-startMs words keep their order.
+  const words = [...transcript.words].sort((a, b) => a.startMs - b.startMs)
+  if (words.length === 0) return []
+
+  const lead = (text: string, isFirst: boolean): string =>
+    isFirst || /^\s/.test(text) ? text : ` ${text}`
+
+  if (wordLevel) {
+    return words.map((w, i): Caption => ({
+      text: lead(w.text, i === 0),
+      startMs: Math.round(w.startMs),
+      endMs: Math.round(w.endMs),
+      timestampMs: Math.round(w.startMs),
+      confidence: w.confidence ?? null,
+    }))
+  }
+
+  // Grouped lines.
+  const lines: Caption[] = []
+  let buf: Transcript["words"][number][] = []
+  const flush = () => {
+    if (buf.length === 0) return
+    // Clean each word to a bare token, then join with single spaces so the line
+    // reads naturally regardless of the source's own spacing.
+    const body = buf.map((w) => w.text.trim()).filter(Boolean).join(" ")
+    if (body.length > 0) {
+      lines.push({
+        text: lead(body, lines.length === 0),
+        startMs: Math.round(buf[0].startMs),
+        endMs: Math.round(buf[buf.length - 1].endMs),
+        timestampMs: Math.round(buf[0].startMs),
+        confidence: null,
+      })
+    }
+    buf = []
+  }
+  for (const w of words) {
+    const prev = buf[buf.length - 1]
+    const speakerChange = !!prev && (prev.speaker ?? "") !== (w.speaker ?? "")
+    const gapBreak = !!prev && w.startMs - prev.endMs > CAPTION_LINE_GAP_MS
+    if (speakerChange || gapBreak) flush()
+    buf.push(w)
+    if (buf.length >= CAPTION_LINE_MAX_WORDS || CAPTION_SENTENCE_END.test(w.text)) flush()
+  }
+  flush()
+  return lines
 }
 
 /** Fallback: split a sentence by whitespace and evenly slice the duration. */

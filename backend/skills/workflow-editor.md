@@ -1,6 +1,6 @@
 ---
-generated_at: 2026-09-17T13:05:08.497Z
-generated_from: 77b8d2eae
+generated_at: 2026-09-18T01:36:02.725Z
+generated_from: a48b46290
 ---
 
 # Nodaro Workflow Editor — General Patterns
@@ -81,6 +81,7 @@ Call `get_node_skill(<type>)` for the full schema of any node type:
 - `after-effects` — After Effects
 - `ai-avatar` — AI Avatar
 - `animal` — Animal
+- `apply-edl` — Apply EDL
 - `aspect-ratio` — Aspect Ratio
 - `assemble-narrated-video` — Assemble Narrated Video
 - `atmosphere` — Atmosphere
@@ -108,6 +109,7 @@ Call `get_node_skill(<type>)` for the full schema of any node type:
 - `dubbing` — Dubbing
 - `duration` — Duration
 - `edit-3d-scene` — Edit 3D Scene
+- `edit-plan` — Edit Plan
 - `edit-video-pro` — Edit Video Pro
 - `era` — Era / Period
 - `exposure-settings` — Exposure Settings
@@ -194,6 +196,7 @@ Call `get_node_skill(<type>)` for the full schema of any node type:
 - `schedule-trigger` — Schedule Trigger
 - `selector` — Selector
 - `setting` — Setting
+- `silence-detect` — Silence Detect
 - `slideshow` — Slideshow
 - `social-media-format` — Social Media Format
 - `sort-list` — Sort List

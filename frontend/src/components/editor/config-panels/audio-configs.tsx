@@ -34,6 +34,7 @@ import type {
   SunoLyricsData,
   SunoSeparateData,
   AudioSeparationData,
+  SilenceDetectNodeData,
   AudioFxData,
   SunoMusicVideoData,
   SunoMashupData,
@@ -1022,6 +1023,32 @@ export function AudioFxConfig({ data, onUpdate }: { readonly data: AudioFxData; 
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+export function SilenceDetectConfig({ data, onUpdate }: { readonly data: SilenceDetectNodeData; readonly onUpdate: (updates: Partial<SilenceDetectNodeData>) => void }) {
+  const t = useT()
+  const thresholdDb = data.thresholdDb ?? -35
+  const minSilenceMs = data.minSilenceMs ?? 700
+  const padMs = data.padMs ?? 120
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-medium text-muted-foreground">{t("audiocfg.silenceThreshold")}: {thresholdDb}</label>
+        <Slider min={-60} max={-10} step={1} value={[thresholdDb]} onValueChange={(vals) => onUpdate({ thresholdDb: vals[0] })} />
+        <p className="text-[10px] text-muted-foreground">{t("audiocfg.silenceThresholdHint")}</p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-medium text-muted-foreground">{t("audiocfg.silenceMinSilence")}: {minSilenceMs}</label>
+        <Slider min={100} max={3000} step={50} value={[minSilenceMs]} onValueChange={(vals) => onUpdate({ minSilenceMs: vals[0] })} />
+        <p className="text-[10px] text-muted-foreground">{t("audiocfg.silenceMinSilenceHint")}</p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-medium text-muted-foreground">{t("audiocfg.silencePadding")}: {padMs}</label>
+        <Slider min={0} max={1000} step={10} value={[padMs]} onValueChange={(vals) => onUpdate({ padMs: vals[0] })} />
+        <p className="text-[10px] text-muted-foreground">{t("audiocfg.silencePaddingHint")}</p>
+      </div>
     </div>
   )
 }

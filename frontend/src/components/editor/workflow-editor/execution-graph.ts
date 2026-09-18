@@ -1,6 +1,6 @@
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
-import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs } from "@nodaro/shared";
+import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs, type Transcript } from "@nodaro/shared";
 import { getParameterPromptHint } from "@nodaro/prompts"
 import type {
   WorkflowNode,
@@ -11,9 +11,11 @@ import type {
   LoopNodeData,
   SelectorNodeData,
   WebScrapeNodeData,
+  SilenceDetectNodeData,
   VideoAnalysisNodeData,
   VideoAuditNodeData,
   DescribeToPickerData,
+  TranscribeData,
 } from "@/types/nodes";
 import { entityActiveImageUrl } from "@/lib/entity-output-url";
 
@@ -476,6 +478,19 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     return data.generatedText as string | undefined;
   }
   if (type === "transcribe") {
+    const d = node.data as TranscribeData;
+    // `json` handle → the normalized Transcript (per-result, falling back to the
+    // bare active-result field). Stringify for generic consumers; Extract Field
+    // / JSON Process read d.generatedJson directly. Mirrors web-scrape's json
+    // branch and the backend output-extractor transcribe branch.
+    if (sourceHandle === "json") {
+      const jsonResults =
+        (d.generatedResults as Array<{ transcript?: Transcript }> | undefined) ?? [];
+      const jsonActive = (d.activeResultIndex as number | undefined) ?? 0;
+      const transcript = jsonResults[jsonActive]?.transcript ?? d.generatedJson;
+      return transcript === undefined ? undefined : JSON.stringify(transcript);
+    }
+    // `text` / no-handle → the plain transcript, UNCHANGED.
     const tResults =
       (data.generatedResults as Array<{ text: string }> | undefined) ?? [];
     const tActiveIndex = (data.activeResultIndex as number | undefined) ?? 0;
@@ -547,6 +562,25 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     const audioUrls = (data.generatedAudioUrls as string[] | undefined) ?? [];
     if (sourceHandle === "audio" || sourceHandle === "audio-out") return audioUrls[0];
     return videoUrls[0] ?? audioUrls[0];
+  }
+  if (type === "apply-edl") {
+    // Dual-handle: the `json` handle carries the remapped Transcript
+    // (data.generatedJson, stringified for generic consumers). Every other
+    // handle — the default (`!sourceHandle`) and the `media` handle — is the
+    // rendered cut (video OR audio per the node's `output` setting). Mirrors
+    // backend getPrimaryOutput; the media default is what node-input-resolver
+    // taps when no sourceHandle is set (C4).
+    if (sourceHandle === "json") {
+      const json = data.generatedJson;
+      return json === undefined ? undefined : JSON.stringify(json);
+    }
+    const results = (data.generatedResults as GeneratedResult[] | undefined) ?? [];
+    const activeIndex = (data.activeResultIndex as number | undefined) ?? 0;
+    return (
+      results[activeIndex]?.url ??
+      (data.generatedVideoUrl as string | undefined) ??
+      (data.generatedAudioUrl as string | undefined)
+    );
   }
   if (type === "trim-audio" || type === "mix-audio" || type === "combine-audio" || type === "extract-audio") {
     const results =
@@ -695,6 +729,16 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     }
     return undefined;
   }
+  if (type === "silence-detect") {
+    const d = node.data as SilenceDetectNodeData;
+    // Single json handle carrying { version, ranges, durationMs } — stringify
+    // for text consumers; an EDL/Extract Field consumer reads d.generatedJson
+    // directly (bypasses extractNodeOutput). Mirrors web-scrape's json branch.
+    if (sourceHandle === "json" || !sourceHandle) {
+      return d.generatedJson === undefined ? undefined : JSON.stringify(d.generatedJson);
+    }
+    return undefined;
+  }
   // video-audit shares this branch on purpose: its output IS an analysis (the
   // CORRECTED one), in the same field on the same `json`/`text` handle pair.
   // One branch, so a downstream consumer can never tell an audited analysis
@@ -709,6 +753,21 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
       return d.generatedJson === undefined ? undefined : JSON.stringify(d.generatedJson);
     }
     return undefined;
+  }
+  // edit-plan: single `edl` (json) output — the EDL plan (already unwrapped onto
+  // generatedJson: an Edl for tighten, a bare Edl[] for clips, a
+  // { version, chapters } for chapters). The clips FAN-OUT (>1 clip) reads the
+  // array per-item via extractNodeOutputAsList; this SCALAR path (N=1, empty, or
+  // an explicit "last"/first edge) must NEVER stringify the ARRAY — apply-edl's
+  // normalizeEdl would treat `[edl]` as an EDL with no sources/segments →
+  // validate 400. Emit the FIRST clip (one valid EDL), or nothing when empty.
+  // Mirrors the backend getPrimaryOutput edit-plan branch.
+  if (type === "edit-plan") {
+    const d = node.data as { generatedJson?: unknown };
+    const plan = d.generatedJson;
+    if (plan === undefined || plan === null) return undefined;
+    if (Array.isArray(plan)) return plan.length > 0 ? JSON.stringify(plan[0]) : undefined;
+    return JSON.stringify(plan);
   }
   if (type === "describe-to-picker") {
     const d = node.data as DescribeToPickerData;
@@ -1082,6 +1141,15 @@ export function detectPreviewItemType(
   // stay paired — video-audit's type string contains "video", so dropping it
   // here would classify an audited analysis as a video by the fallthrough.
   if (nodeType === "video-analysis" || nodeType === "video-audit") return "data"
+  // Silence-detect emits a { version, ranges, durationMs } JSON object, never a
+  // media URL — classify it as data so its preview isn't mis-typed by the URL
+  // fallthrough below.
+  if (nodeType === "silence-detect") return "data"
+  // edit-plan emits an EDL plan (json), never a media URL — classify as data.
+  if (nodeType === "edit-plan") return "data"
+  // apply-edl `json` handle = the remapped Transcript (data). Its media handle
+  // falls through to the URL regex below (mp4 → video, m4a → audio).
+  if (nodeType === "apply-edl" && sourceHandle === "json") return "data"
   if (value) {
     if (IMAGE_URL_RE.test(value)) return "image"
     if (VIDEO_URL_RE.test(value)) return "video"

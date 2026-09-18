@@ -8,21 +8,81 @@ import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
-import { ALL_CAPTION_STYLES, isKineticCaptionStyle, SUPPORTED_FONT_NAMES } from "@nodaro/shared"
+import {
+  ALL_CAPTION_STYLES,
+  isKineticCaptionStyle,
+  SUPPORTED_FONT_NAMES,
+  CAPTION_LOOK_IDS,
+  KINETIC_ONLY_CAPTION_LEVER_KEYS,
+  normalizeTranscript,
+} from "@nodaro/shared"
+import { captionFontWeightSchema } from "../lib/plan-schemas.js"
+import { findSegmentOverlap } from "../providers/video/caption-segments.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 
+/** Parse a stringified Transcript before normalization so this ingress behaves
+ *  identically to the DAG payload-builder (which parses the stringified json
+ *  handle value). A non-string passes through; unparseable → undefined → an
+ *  empty (zero-word) transcript → 400. */
+function safeParseJsonForTranscript(v: string): unknown {
+  try {
+    return JSON.parse(v)
+  } catch {
+    return undefined
+  }
+}
+
+// A text caption source must carry a visible glyph — whitespace-only text
+// synthesises to zero words (splitWithLeadingSpace drops it) and would leave the
+// render with no captions, failing plan validation AFTER credits reserve. Reject
+// it as a clean 400 instead.
+const nonBlankText = z.string().min(1).refine((t) => /\S/.test(t), { message: "text must contain a non-whitespace character" })
+
 const captionInputSchema = z.object({
   text: z.string(),
+  // Word-timed entry (one per word for the kinetic styles). startMs/endMs are
+  // the visibility window and drive the highlight; timestampMs is the word
+  // timestamp used by tiktok-words token timing; confidence is metadata,
+  // ignored by rendering. timestampMs/confidence are optional (default null).
   startMs: z.number().min(0),
   endMs: z.number().min(0),
-  timestampMs: z.number().min(0).nullable(),
-  confidence: z.number().min(0).max(1).nullable(),
+  timestampMs: z.number().min(0).nullable().default(null),
+  confidence: z.number().min(0).max(1).nullable().default(null),
 })
+
+// One caption SEGMENT: a time range with optional style/look overrides (each
+// inherits the top-level value when omitted) and optional own words (`text` or
+// `captions[]`; falls back to the shared transcript filtered to the range).
+// A segmented render is entirely Remotion, so any `style` (incl. subtitle) and
+// any look lever is valid on a segment.
+const captionSegmentInputSchema = z.object({
+  startMs: z.number().min(0),
+  endMs: z.number().min(0),
+  style: z.enum(ALL_CAPTION_STYLES).optional(),
+  position: z.enum(["bottom", "top", "center"]).optional(),
+  fontSize: z.number().min(12).max(200).optional(),
+  color: z.string().optional(),
+  backgroundColor: z.string().optional(),
+  // A named look preset (outline/clean); explicit levers below override it.
+  look: z.enum(CAPTION_LOOK_IDS).optional(),
+  fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+  fontWeight: captionFontWeightSchema.optional(),
+  strokeColor: z.string().optional(),
+  strokeWidth: z.number().min(0).max(40).optional(),
+  highlightColor: z.string().optional(),
+  uppercase: z.boolean().optional(),
+  positionY: z.number().min(0).max(100).optional(),
+  text: nonBlankText.optional(),
+  captions: z.array(captionInputSchema).optional(),
+}).refine((s) => s.endMs > s.startMs, { message: "segment endMs must be greater than startMs" })
 
 function buildAddCaptionsCreditId(body: unknown): string {
   if (!body || typeof body !== "object") return "add-captions"
-  const style = (body as Record<string, unknown>).style
+  const b = body as Record<string, unknown>
+  // Per-segment captions always render via Remotion, same as a kinetic style.
+  if (Array.isArray(b.segments) && b.segments.length > 0) return "add-captions:kinetic"
+  const style = b.style
   if (typeof style === "string" && isKineticCaptionStyle(style)) return "add-captions:kinetic"
   return "add-captions"
 }
@@ -33,8 +93,16 @@ function buildAddCaptionsCreditId(body: unknown): string {
 // dropping them (a silent no-op is the failure this guards against).
 export const addCaptionsBody = z.object({
   videoUrl: safeUrlSchema,
-  text: z.string().min(1).optional(),
+  text: nonBlankText.optional(),
   captions: z.array(captionInputSchema).optional(),
+  // A wired upstream Transcript (from `transcribe` or `apply-edl`'s json
+  // handle) used as the caption source. Object or JSON string — normalized +
+  // word-checked at ingress below. The mapper (captions-mappers.ts) reshapes
+  // its words into the caption list the kinetic burn-in expects.
+  transcript: z.unknown().optional(),
+  // Word-level (one caption per word — karaoke/word-highlight) vs grouped lines.
+  // Only meaningful with a wired `transcript`; defaults to word-level.
+  wordLevel: z.boolean().optional(),
   auto_transcribe: z.boolean().optional(),
   transcribe_provider: z.enum(["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]).optional(),
   style: z.enum(ALL_CAPTION_STYLES).optional().default("subtitle"),
@@ -42,43 +110,69 @@ export const addCaptionsBody = z.object({
   fontSize: z.number().min(12).max(200).optional().default(32),
   color: z.string().optional().default("white"),
   backgroundColor: z.string().optional(),
-  // Kinetic-style look levers (kinetic styles only — see LOOK_LEVER_KEYS).
+  // Kinetic-style look levers (kinetic styles only — see KINETIC_ONLY_CAPTION_LEVER_KEYS).
+  // `look` selects a named preset (outline/clean); the explicit levers below
+  // override individual fields of it. An unset `look` resolves to the default
+  // preset in the worker (resolveCaptionLook), so it is NOT defaulted here.
+  look: z.enum(CAPTION_LOOK_IDS).optional(),
   fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+  fontWeight: captionFontWeightSchema.optional(),
   strokeColor: z.string().optional(),
   strokeWidth: z.number().min(0).max(40).optional(),
   highlightColor: z.string().optional(),
   uppercase: z.boolean().optional(),
   positionY: z.number().min(0).max(100).optional(),
+  // Optional per-segment captions: apply DIFFERENT treatments to time ranges of
+  // the same video in one call (e.g. a large top intro, then a bottom body).
+  segments: z.array(captionSegmentInputSchema).min(1).optional(),
   userId: z.string().uuid().optional(),
 }).superRefine((v, ctx) => {
+  const hasSegments = !!(v.segments && v.segments.length > 0)
+  const hasTranscript = v.transcript !== undefined && v.transcript !== null
   // Need at least one caption source. auto_transcribe defaults to undefined,
   // which the worker treats as true — so absent flag = transcribe attempted.
-  const hasSource = v.text || (v.captions && v.captions.length > 0) || v.auto_transcribe !== false
-  if (!hasSource) {
+  // With segments, a segment that carries its OWN text/captions is self-sourced.
+  const hasTopLevelSource = !!(v.text || (v.captions && v.captions.length > 0) || hasTranscript || v.auto_transcribe !== false)
+  const everySegmentSelfSourced = hasSegments && v.segments!.every((s) => s.text || (s.captions && s.captions.length > 0))
+  if (!hasTopLevelSource && !everySegmentSelfSourced) {
     ctx.addIssue({
       code: "custom",
-      message: "Provide text, captions, or set auto_transcribe (default true for kinetic styles)",
+      message: "Provide text, captions, auto_transcribe, or give each segment its own text/captions",
     })
   }
-  // Look levers only apply to the Remotion kinetic path. `style` is already
-  // defaulted to "subtitle" here, so an unset style rejects a stray look lever.
-  if (!isKineticCaptionStyle(v.style)) {
-    const looks: Array<[string, unknown]> = [
-      ["fontFamily", v.fontFamily],
-      ["strokeColor", v.strokeColor],
-      ["strokeWidth", v.strokeWidth],
-      ["highlightColor", v.highlightColor],
-      ["uppercase", v.uppercase],
-      ["positionY", v.positionY],
-    ]
-    for (const [k, val] of looks) {
-      if (val !== undefined) {
+  // Segments must be non-overlapping (each renders its own overlay; overlapping
+  // ranges would draw two captions at once).
+  if (hasSegments) {
+    const overlap = findSegmentOverlap(v.segments!)
+    if (overlap) ctx.addIssue({ code: "custom", path: ["segments"], message: overlap })
+  }
+  // Top-level look levers only apply to the Remotion kinetic path. With segments
+  // the whole render is Remotion (so any style + look is fine); without them the
+  // static `subtitle` (FFmpeg) path can't honour a look lever, so reject it. The
+  // key list is shared (KINETIC_ONLY_CAPTION_LEVER_KEYS) so a new lever is
+  // covered here and in the frontend strip by adding it once; iterating `v[k]`
+  // also makes tsc fail if a key isn't a field of this body (totality guard).
+  if (!hasSegments && !isKineticCaptionStyle(v.style)) {
+    for (const k of KINETIC_ONLY_CAPTION_LEVER_KEYS) {
+      if (v[k] !== undefined) {
         ctx.addIssue({
           code: "custom",
           path: [k],
           message: `${k} only applies to kinetic caption styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy); the "${v.style}" style ignores it`,
         })
       }
+    }
+    // A wired Transcript produces TIMED captions — only the Remotion kinetic
+    // path honours per-caption timing. The static `subtitle` (FFmpeg drawtext)
+    // path burns one fixed overlay, so it would silently drop the transcript.
+    // Reject with a clean 400 rather than coerce the style (a silent look
+    // change), mirroring the look-lever rule above.
+    if (hasTranscript) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["transcript"],
+        message: `a wired transcript renders as timed captions and needs a kinetic caption style (word-highlight, karaoke, tiktok-words, word-pop, bouncy); the "${v.style}" style ignores it`,
+      })
     }
   }
 })
@@ -99,6 +193,25 @@ export async function addCaptionsRoutes(app: FastifyInstance) {
       return reply.status(401).send({
         error: { code: "unauthorized", message: "Authentication required" },
       })
+    }
+
+    // Validate the wired transcript at ingress (apply-edl's rule) so we never
+    // reserve credits for a render that would die producing an empty caption
+    // plan. Two distinct failures: a non-JSON input (someone wired a text/media
+    // pip into the json handle) vs a genuinely empty transcript.
+    if (parsed.data.transcript !== undefined && parsed.data.transcript !== null) {
+      const t = parsed.data.transcript
+      const raw = typeof t === "string" ? safeParseJsonForTranscript(t) : t
+      if (typeof t === "string" && raw === undefined) {
+        return reply.status(400).send({
+          error: { code: "invalid_transcript", message: "transcript input is not JSON — wire the Transcript (json) output" },
+        })
+      }
+      if (normalizeTranscript(raw).words.length === 0) {
+        return reply.status(400).send({
+          error: { code: "invalid_transcript", message: "transcript has no words to caption" },
+        })
+      }
     }
 
     const modelIdentifier = buildAddCaptionsCreditId(parsed.data)

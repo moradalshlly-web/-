@@ -39,10 +39,11 @@ const ALL_FFMPEG: ReadonlyArray<string> = [
   "mix-audio",
   "extract-audio",
   "remove-audio",
+  "silence-detect",
 ]
 
 describe("FFMPEG_NODE_TYPES set contents", () => {
-  it("contains exactly the 14 expected node types", () => {
+  it("contains exactly the 15 expected node types", () => {
     expect(new Set(FFMPEG_NODE_TYPES)).toEqual(new Set(ALL_FFMPEG))
   })
 })
@@ -66,6 +67,7 @@ describe("isValidFfmpegConnection switch coverage", () => {
     "mix-audio":          "upload-audio",
     "extract-audio":      "upload-video",
     "remove-audio":       "upload-video",
+    "silence-detect":     "upload-audio",
   }
 
   it("every node in FFMPEG_NODE_TYPES has a switch case that accepts at least one source", () => {
@@ -85,6 +87,24 @@ describe("isValidFfmpegConnection switch coverage", () => {
 
   it("rejects unknown node types via default", () => {
     expect(isValidFfmpegConnection("unknown-ffmpeg-node", "in", "upload-video")).toBe(false)
+  })
+
+  // add-captions grew a second target handle: `transcript` (json). Without its
+  // own case it would have fallen through the shared `in`-only branch and every
+  // transcribe/apply-edl → add-captions.transcript drop would be rejected at the
+  // canvas.
+  describe("add-captions transcript handle", () => {
+    it("accepts json producers on `transcript`", () => {
+      expect(isValidFfmpegConnection("add-captions", "transcript", "transcribe")).toBe(true)
+      expect(isValidFfmpegConnection("add-captions", "transcript", "apply-edl")).toBe(true)
+    })
+    it("still accepts video on `in`, and rejects a video source on `transcript`", () => {
+      expect(isValidFfmpegConnection("add-captions", "in", "upload-video")).toBe(true)
+      expect(isValidFfmpegConnection("add-captions", "transcript", "upload-video")).toBe(false)
+    })
+    it("rejects a json source on the video `in` handle", () => {
+      expect(isValidFfmpegConnection("add-captions", "in", "transcribe")).toBe(false)
+    })
   })
 })
 

@@ -96,3 +96,6 @@ export * from "./surround-fill.js"
 // --- Start/end frame delivery: one plan for the dispatch and the editor ---
 export * from "./frame-delivery.js"
 export * from "./character-motion-diagnostics.js"
+
+// --- Per-ad creative analysis for the social scraper nodes ---
+export * from "./ad-creative-analysis.js"

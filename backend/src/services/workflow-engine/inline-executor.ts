@@ -327,7 +327,13 @@ function collectItemsForEdge(
   // whole array into a single stringified blob and per-item conditions
   // couldn't match. Explicit `json: null` means "no items" — we must not
   // fall through or getPrimaryOutput would surface the literal "null".
-  if (output.json !== undefined) {
+  //
+  // Handle-aware: a DUAL text+json producer (transcribe) must NOT surface its
+  // structured `json` on the TEXT handle — that edge falls through to
+  // getPrimaryOutput (the plain text), matching the frontend collector
+  // (extractNodeOutputAsList). json-only producers (web-scrape, video-analysis)
+  // carry no "text" handle, so they are unaffected.
+  if (output.json !== undefined && resolvedEdge.sourceHandle !== "text") {
     const json = output.json
     if (json !== null) {
       if (Array.isArray(json)) {

@@ -686,6 +686,40 @@ describe("buildPayload", () => {
       expect(result.payload.style).toBe("word-pop")
     })
 
+    // A wired Transcript is validated at BUILD time (before node-executor
+    // reserves credits), mirroring apply-edl's throw — so a DAG run fails at
+    // ingress exactly like the route's 400, never after reserving credits and
+    // dying in the worker. See apply-edl-dag.test.ts for the sibling contract.
+    const TRANSCRIPT_JSON = JSON.stringify({ version: 1, words: [{ text: "hi", startMs: 0, endMs: 300 }] })
+
+    it("add-captions threads a wired transcript + wordLevel to the payload (kinetic style)", () => {
+      const n = node("n1", "add-captions", { style: "karaoke", wordLevel: false })
+      const inputs: ResolvedInputs = { videoUrl: "https://v.mp4", transcript: TRANSCRIPT_JSON }
+      const result = buildPayload(n, jobId, inputs)
+      expect(result.jobName).toBe("add-captions")
+      expect(result.payload.transcript).toBe(TRANSCRIPT_JSON)
+      expect(result.payload.wordLevel).toBe(false)
+      expect(result.payload.style).toBe("karaoke")
+    })
+
+    it("add-captions throws at build (before reservation) for a transcript on a non-kinetic style", () => {
+      const n = node("n1", "add-captions", { style: "subtitle" })
+      const inputs: ResolvedInputs = { videoUrl: "https://v.mp4", transcript: TRANSCRIPT_JSON }
+      expect(() => buildPayload(n, jobId, inputs)).toThrow(/kinetic caption style/)
+    })
+
+    it("add-captions throws at build for an empty-words transcript", () => {
+      const n = node("n1", "add-captions", { style: "karaoke" })
+      const inputs: ResolvedInputs = { videoUrl: "https://v.mp4", transcript: JSON.stringify({ version: 1, words: [] }) }
+      expect(() => buildPayload(n, jobId, inputs)).toThrow(/no words to caption/)
+    })
+
+    it("add-captions throws at build for a non-JSON transcript input (wrong pip wired)", () => {
+      const n = node("n1", "add-captions", { style: "karaoke" })
+      const inputs: ResolvedInputs = { videoUrl: "https://v.mp4", transcript: "plain text, not json" }
+      expect(() => buildPayload(n, jobId, inputs)).toThrow(/not JSON/)
+    })
+
     it("mix-audio", () => {
       const n = node("n1", "mix-audio", {})
       const inputs: ResolvedInputs = { audioUrls: ["https://a1.mp3", "https://a2.mp3"] }

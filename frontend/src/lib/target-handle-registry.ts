@@ -18,6 +18,7 @@ import {
   isValidSelectorConnection,
   isDataProducer,
   ACCEPTS_ANALYSIS,
+  ACCEPTS_JSON,
 } from "./data-handles"
 import { VISUAL_PARAMETER_PICKER_NODE_TYPES, isVisualPickerType } from "./parameter-picker-types"
 import { SCENE3D_HANDLE_LABELS, isValidScene3DConnection } from "./scene3d-handles"
@@ -352,10 +353,22 @@ const BASE_TARGET_HANDLE_ACCEPTS: Record<string, ReadonlyArray<TargetHandleEntry
     { handleId: "analysis", label: "Analysis", accepts: ACCEPTS_ANALYSIS },
   ],
   "combine-videos":     [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
+  // apply-edl: a required EDL (json), an optional Transcript (json), and
+  // optional positional media-URL overrides (video or audio).
+  "apply-edl":          [
+    { handleId: "edl", label: "EDL", accepts: ACCEPTS_JSON },
+    { handleId: "transcript", label: "Transcript", accepts: ACCEPTS_JSON },
+    { handleId: "sources", label: "Sources", accepts: ACCEPTS_MEDIA },
+  ],
   "extract-frame":      [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "loop-video":         [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "resize-video":       [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
-  "add-captions":       [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
+  // add-captions: the video to caption, plus an optional Transcript (json) —
+  // from transcribe or apply-edl's remapped json — burned in as timed captions.
+  "add-captions":       [
+    { handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO },
+    { handleId: "transcript", label: "Transcript", accepts: ACCEPTS_JSON },
+  ],
   "extract-audio":      [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "remove-audio":       [{ handleId: "in", label: "Video", accepts: ACCEPTS_VIDEO }],
   "trim-audio":         [{ handleId: "in", label: "Audio", accepts: ACCEPTS_AUDIO }],
@@ -364,6 +377,7 @@ const BASE_TARGET_HANDLE_ACCEPTS: Record<string, ReadonlyArray<TargetHandleEntry
   "audio-fx":           [{ handleId: "in", label: "Audio", accepts: ACCEPTS_AUDIO }],
   "merge-video-audio":  [{ handleId: "in", label: "Video + Audio", accepts: ACCEPTS_MEDIA }],
   "adjust-volume":      [{ handleId: "in", label: "Video or Audio", accepts: ACCEPTS_MEDIA }],
+  "silence-detect":     [{ handleId: "in", label: "Audio or Video", accepts: ACCEPTS_MEDIA }],
 
   // Assemble Narrated Video — TWO distinct typed handles (video clips list,
   // voice audio list) rather than the ffmpeg family's shared single `in`, so

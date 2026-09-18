@@ -63,6 +63,20 @@ describe("buildSyncHttpBody — meta-ads-scrape goes through the ONE shared sour
     expect(body.userId).toBe("user-1")
   })
 
+  it("forwards the analysis settings (and leaves them out when analysis is off)", () => {
+    const on = buildSyncHttpBody(
+      node("meta-ads-scrape", { mode: "search", query: "nike", analyze: true, analysisModel: "gemini-3.6-flash", analysisFocus: "  vs our brand " }),
+      {},
+      CTX,
+    )
+    expect(on.analyze).toBe(true)
+    expect(on.analysisModel).toBe("gemini-3.6-flash")
+    expect(on.analysisFocus).toBe("  vs our brand ")
+    const off = buildSyncHttpBody(node("meta-ads-scrape", { mode: "search", query: "nike", analyze: false, analysisFocus: "   " }), {}, CTX)
+    expect(off.analyze).toBeUndefined()
+    expect(off.analysisFocus).toBeUndefined()
+  })
+
   it("keyword and page list fall back to the upstream text", () => {
     const search = buildSyncHttpBody(node("meta-ads-scrape", { mode: "search", query: "" }), { prompt: "running shoes" }, CTX)
     expect(search.mode).toBe("search")

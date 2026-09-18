@@ -15,8 +15,8 @@ import {
   TEXT_SOURCE_TYPES,
 } from "./execution-graph.js"
 import {
-  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs } from "@nodaro/shared"
-import type { SceneData } from "@nodaro/shared"
+  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs, unwrapEditPlanOutput } from "@nodaro/shared"
+import type { SceneData, Transcript } from "@nodaro/shared"
 import { buildScenePrompt } from "@nodaro/prompts"
 export { extractVideoDurationFromNode } from "@nodaro/shared"
 export { extractAllGeneratedResults }
@@ -676,6 +676,14 @@ export function getPrimaryOutput(
     return output.json === undefined ? undefined : JSON.stringify(output.json)
   }
 
+  // Silence-detect: single `json` output handle carrying { version, ranges,
+  // durationMs }. Stringify for generic text consumers; Extract Field / an EDL
+  // consumer read state.output.json directly (bypassing getPrimaryOutput).
+  // Mirrors the web-scrape json branch.
+  if (sourceType === "silence-detect") {
+    return output.json === undefined ? undefined : JSON.stringify(output.json)
+  }
+
   // Meta Ads scraper: `json` (the whole ad array, stringified for text
   // consumers) plus the FEATURED ad's `text` / `image` / `video` — the route
   // writes those three onto output_data, and extractSavedNodeOutput re-derives
@@ -704,11 +712,37 @@ export function getPrimaryOutput(
     return output.json === undefined ? undefined : JSON.stringify(output.json)
   }
 
+  // Edit Plan: single `edl` (json) output handle carrying the EDL plan — an
+  // `Edl` for tighten, a bare `Edl[]` for clips, a `{version, chapters}` for
+  // chapters (already unwrapped onto output.json / data.generatedJson). The clips
+  // FAN-OUT (the primary path, >1 clip) reads the array per-item via
+  // getListInputForNode, so this SCALAR path is only hit for N=1, an empty clip
+  // set, or an explicit "last"/first edge. It must NEVER stringify the ARRAY — a
+  // downstream `edl` input's normalizeEdl would treat `[edl]` as an EDL with no
+  // sources/segments → validateEdl 400. Emit the FIRST clip (one valid EDL), or
+  // nothing for an empty set. Mirrors the frontend extractNodeOutput branch.
+  if (sourceType === "edit-plan") {
+    const plan = output.json
+    if (plan === undefined || plan === null) return undefined
+    if (Array.isArray(plan)) return plan.length > 0 ? JSON.stringify(plan[0]) : undefined
+    return JSON.stringify(plan)
+  }
+
   // Describe-to-picker: single `picker-json` output (a structured catalog JSON
   // object). Stringify for generic text consumers; Extract Field / the picker
   // consumer read state.output.json directly (bypassing getPrimaryOutput).
   // Mirrors the web-scrape `json` branch — it is a data/JSON producer, not text.
   if (sourceType === "describe-to-picker") {
+    return output.json === undefined ? undefined : JSON.stringify(output.json)
+  }
+
+  // Transcribe: dual output. `json` handle → the normalized `Transcript`
+  // (stringified for generic consumers; Extract Field reads state.output.json
+  // directly). `text` / no-handle fall through to TEXT_SOURCE_TYPES below and
+  // return output.text UNCHANGED — the `text` handle and `{Label}` refs keep
+  // resolving the plain transcript exactly as before. Mirrors web-scrape's json
+  // branch and the frontend execution-graph.ts transcribe branch.
+  if (sourceType === "transcribe" && sourceHandle === "json") {
     return output.json === undefined ? undefined : JSON.stringify(output.json)
   }
 
@@ -797,6 +831,19 @@ export function getPrimaryOutput(
   if (sourceType === "split-media") {
     if (sourceHandle === "audio" || sourceHandle === "audio-out") return output.audioUrl
     if (sourceHandle === "video" || sourceHandle === "video-out") return output.videoUrl
+    return output.videoUrl || output.audioUrl
+  }
+
+  // apply-edl: dual-handle. The `json` handle carries the remapped Transcript
+  // (stringify for generic consumers; Extract Field reads state.output.json
+  // directly). The DEFAULT (media) handle is the rendered cut — video OR audio
+  // per the node's `output` setting. Without this branch the json edge resolves
+  // to the video URL via the generic tail (the C4 audit-dag parity break).
+  // Mirrors the frontend extractNodeOutput apply-edl branch.
+  if (sourceType === "apply-edl") {
+    if (sourceHandle === "json") {
+      return output.json === undefined ? undefined : JSON.stringify(output.json)
+    }
     return output.videoUrl || output.audioUrl
   }
 
@@ -1141,6 +1188,27 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
     return audioUrl ? { audioUrl } : undefined
   }
 
+  // apply-edl (dual-handle): expose the rendered media (video OR audio per the
+  // node's `output` setting) AND the remapped Transcript (data.generatedJson)
+  // so a skipped / "Run from here" apply-edl hydrates BOTH handles from saved
+  // node data without re-running. getPrimaryOutput then routes the media on the
+  // default handle and the transcript on `json`. Mirrors the frontend
+  // extractNodeOutput apply-edl branch and the live getPrimaryOutput branch.
+  if (type === "apply-edl") {
+    const out: NodeOutput = {}
+    const videoUrl = data.generatedVideoUrl as string | undefined
+    const audioUrl = data.generatedAudioUrl as string | undefined
+    if (videoUrl) out.videoUrl = videoUrl
+    else if (audioUrl) out.audioUrl = audioUrl
+    else {
+      const fallback = getActiveResultUrl(data)
+      if (fallback) out.videoUrl = fallback
+    }
+    const json = data.generatedJson
+    if (json !== undefined) out.json = json
+    return out.videoUrl || out.audioUrl || out.json !== undefined ? out : undefined
+  }
+
   // Voice-changer is dual-mode: audio in → audio out; video in → video out (+
   // the revoiced audio). Prefer the video result so "Run from here" hydrates
   // downstream video consumers; expose audioUrl too for the audio handle.
@@ -1295,6 +1363,15 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
     return json === undefined ? undefined : { json }
   }
 
+  // Silence-detect: single `json` output (the { version, ranges, durationMs }
+  // object, persisted on data.generatedJson). Mirrors web-scrape's json branch
+  // so a skipped / "Run from here" node hydrates the json handle from saved
+  // node data without re-running the ffmpeg pass.
+  if (type === "silence-detect") {
+    const json = data.generatedJson
+    return json === undefined ? undefined : { json }
+  }
+
   // Meta Ads scraper: `json` (the normalized ad array persisted on
   // data.generatedJson) plus the featured ad's text / image / video, derived
   // from `data.featuredIndex` so picking another thumb re-hydrates the typed
@@ -1317,6 +1394,21 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
   if (ANALYSIS_PRODUCER_TYPES.has(type)) {
     const json = data.generatedJson
     return json === undefined ? undefined : { json }
+  }
+
+  // Edit Plan: the EDL plan is persisted (already unwrapped) on
+  // data.generatedJson — the `Edl` for tighten, the bare `Edl[]` for clips, the
+  // `{version, chapters}` for chapters. Expose it on the `json` output so a
+  // skipped / "Run from here" node hydrates the `edl` handle without re-running;
+  // for the clips array, ALSO expose listResults so the fan-out has its per-item
+  // list off saved state. Mirrors the analysis json branch + the live
+  // buildNodeOutputFromJobData path.
+  if (type === "edit-plan") {
+    const json = data.generatedJson
+    if (json === undefined) return undefined
+    const out: NodeOutput = { json }
+    if (Array.isArray(json)) out.listResults = json.map((c) => JSON.stringify(c))
+    return out
   }
 
   // Describe-to-picker: single `json` output (the emitted catalog picker JSON,
@@ -1388,7 +1480,26 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
     return { text: listResults[0], listResults }
   }
 
-  if (type === "transcribe" || type === "image-to-text") {
+  // Transcribe: `text` (the transcript) + `json` (the normalized `Transcript`).
+  // The transcript is stored per-result on `generatedResults[i].transcript` (so
+  // switching the active result carries its own json, exactly like `text`);
+  // `generatedJson` is the bare active-result field (the name every json
+  // producer uses). Mirrors web-scrape's saved-json branch and the frontend
+  // extractNodeOutput transcribe branch.
+  if (type === "transcribe") {
+    const text =
+      getActiveResultText(data) ??
+      (data.generatedText as string | undefined)
+    const results = (data.generatedResults as Array<{ transcript?: Transcript }> | undefined) ?? []
+    const activeIndex = (data.activeResultIndex as number | undefined) ?? 0
+    const transcript = results[activeIndex]?.transcript ?? (data.generatedJson as Transcript | undefined)
+    const out: NodeOutput = {}
+    if (text) out.text = text
+    if (transcript !== undefined) out.json = transcript
+    return out.text !== undefined || out.json !== undefined ? out : undefined
+  }
+
+  if (type === "image-to-text") {
     const text =
       getActiveResultText(data) ??
       (data.generatedText as string | undefined)
@@ -1518,6 +1629,22 @@ export function buildNodeOutputFromJobData(
   for (const key of DIRECT_OUTPUT_KEYS) {
     if (outputData[key] != null) {
       ;(output as Record<string, unknown>)[key] = outputData[key]
+    }
+  }
+
+  // Edit Plan: the plugin/relay writes the EDL plan at the TOP LEVEL of
+  // output_data (an `Edl` for tighten, an `EdlClipSet` for clips, a
+  // `{version, chapters}` for chapters) + `viaNodaroCloud` — NOT under a `json`
+  // key, so the DIRECT_OUTPUT_KEYS loop above never picks it up. Unwrap it into
+  // `output.json` (what getPrimaryOutput stringifies on the `edl` handle) and,
+  // for the clips array, into `output.listResults` (the live fan-out reads
+  // `state.output.listResults`). ONE unwrap rule shared with every save-side site
+  // (`unwrapEditPlanOutput` in @nodaro/shared) so DAG and single-node runs agree.
+  if (nodeType === "edit-plan") {
+    const plan = unwrapEditPlanOutput(outputData)
+    if (plan !== undefined) {
+      output.json = plan
+      if (Array.isArray(plan)) output.listResults = plan.map((c) => JSON.stringify(c))
     }
   }
 

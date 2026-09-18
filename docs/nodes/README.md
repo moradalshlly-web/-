@@ -51,7 +51,7 @@ the foot of the list.
 | **Story & Script** | Story → Video · Scene · Generate Script |
 | **Animate & Perform** | AI Avatar · Cinematic Avatar · Lip Sync · Speech to Video · Motion Transfer · Face Swap |
 | **Continue & Restyle** | Extend Video · Edit Video Pro · Retake Video · Video to Video · Relight & Switch |
-| **Cut & Assemble** | Trim Video · Combine Videos · Assemble Narrated Video · Adjust Speed · Loop Video · Fade In/Out · Composite · Compose Video · Split into Chunks · Manual Edit |
+| **Cut & Assemble** | Trim Video · Combine Videos · Apply EDL · Assemble Narrated Video · Adjust Speed · Loop Video · Fade In/Out · Composite · Compose Video · Split into Chunks · Manual Edit |
 | **Sound for Video** | Video SFX · Merge Video & Audio · Extract Audio · Remove Audio |
 | **Titles, Graphics & Captions** | 3D Title · Motion Graphics · After Effects · Lottie Overlay · Add Captions · Render Video |
 | **Format & Export** | Resize Video · Social Media Format · Upscale Video · Transcode Video · Gif to Video |
@@ -66,7 +66,7 @@ the foot of the list.
 | **Voices** | Voice Changer · Voice Changer Pro · Voice Design · Voice Remix · Dubbing |
 | **Music** | Suno Create Music · Generate Music · Suno Lyrics · Suno Cover · Suno Extend · Suno Mashup · Suno Replace Section · Suno Add Vocals · Suno Add Instrumental · Suno Upload Extend · Suno Style Boost · Suno Convert WAV |
 | **Sound Effects** | Text to Audio |
-| **Clean & Separate** | Voice Extractor · Audio Separation · Suno Separate |
+| **Clean & Separate** | Voice Extractor · Audio Separation · Suno Separate · Silence Detect |
 | **Edit Audio** | Trim Audio · Combine Audio · Mix Audio · Adjust Volume · Audio FX |
 | **Transcribe** | Transcribe · Forced Alignment |
 
@@ -376,6 +376,8 @@ FFmpeg-based video manipulation.
 | Node | Description | When to Use |
 |------|-------------|-------------|
 | [Combine Videos](./processing-video/combine-videos.md) | Concatenate videos with transitions | Join multiple clips with ~50 FFmpeg `xfade` transitions: cuts, fades, dips, wipes, slides, irises, slices, reveals, covers, blurs, and zooms |
+| [Apply EDL](./processing-video/apply-edl.md) | Render an edit decision list into one media file (10 CR/output minute) | Turn a structured edit description (sources + ordered segments) into a finished video or audio cut; optionally emit a transcript remapped to match the cut |
+| [Edit Plan](./processing-video/edit-plan.md) | Plan an edit from a transcript — tighten, find clips, or mark chapters (Cloud; per source-minute × tier, provisional) | Turn a timed transcript into an EDL plan that Apply EDL renders; clips mode fans out one render per clip |
 | [Assemble Narrated Video](./processing-video/assemble-narrated-video.md) | Fit N ordered (clip, voice) blocks into one MP4 | Audio-led narrated-video assembly: short voice centers over its clip with padding, long voice slows the clip (capped, then holds); audio is never cropped |
 | [Still to Video](./processing-video/still-to-video.md) | One still image + one audio track → MP4, zero credits | Animate a still with zoom / pan / Ken Burns (or none) for exactly the audio's length — narrated slides, visualizers, photo moments |
 | [Slideshow](./processing-video/slideshow.md) | 2–100 images over one optional audio track → MP4, zero credits | Ordered stills with per-slide motion + transitions; audio-anchored timing (equal split / pinned rows / disclosed proportional scale), silent without audio |
@@ -408,6 +410,7 @@ FFmpeg-based audio manipulation.
 | [Split into Chunks](./processing-audio/split-media.md) | Divide a video or audio file into equal-duration segments (20 CR) | Batch transcription, per-scene processing, or chunked dubbing of long recordings |
 | [Merge Video & Audio](./processing-audio/merge-video-audio.md) | Combine video with audio tracks | Add voiceover, music, or sound effects to video |
 | [Extract Audio](./processing-audio/extract-audio.md) | Demux a video's audio track to MP3 | Pull audio from a video for transcription, dubbing, or reuse |
+| [Silence Detect](./processing-audio/silence-detect.md) | Detect silent spans in audio or video and emit them as source-clock ranges (1 CR, keyless) | Find dead air and long pauses before an editing pass; feed a downstream tighten/edit step |
 | [Trim Audio](./processing-audio/trim-audio.md) | Extract section of audio file | Cut specific time range from audio |
 | [Mix Audio](./processing-audio/mix-audio.md) | Blend multiple audio tracks with levels | Layer voice, music, and SFX with volume control |
 | [Combine Audio](./processing-audio/combine-audio.md) | Concatenate audio tracks end-to-end, with per-segment trim | Join clips sequentially (vs. Mix Audio's layering) |

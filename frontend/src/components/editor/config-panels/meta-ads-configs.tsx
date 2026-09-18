@@ -18,7 +18,12 @@ import {
   META_ADS_SCRAPE_MAX_SOURCES,
   META_ADS_SCRAPE_PERIODS,
   META_ADS_SCRAPE_STATUSES,
+  META_ADS_ANALYSIS_CREDITS_PER_AD,
+  META_ADS_ANALYSIS_FOCUS_MAX,
+  STRUCTURED_VISION_MODELS,
+  adCreativeAnalysisFrom,
   metaAdsAdvertisersFrom,
+  metaAdsAnalysisTier,
   metaAdsNodeMode,
   type MetaAdsNodeMode,
   type MetaAdsScrapePeriod,
@@ -51,9 +56,13 @@ import {
   metaAdsScrapeItems,
   metaAdsVisibleIndexes,
 } from "@/components/nodes/meta-ads-scrape-run-state"
+import { Switch } from "@/components/ui/switch"
 import { MappableField } from "./mappable-field"
 import { MetaAdsAdvertiserPicker } from "./meta-ads-advertiser-picker"
+import { LlmModelSelect } from "./llm-model-select"
 import type { ConfigProps } from "./types"
+
+const STRUCTURED_VISION_MODEL_IDS = new Set(STRUCTURED_VISION_MODELS.map((m) => m.id))
 
 /** Section label — 11/800, .12em, uppercase, muted (design handoff). */
 function SectionLabel({ children, right }: { readonly children: ReactNode; readonly right?: ReactNode }) {
@@ -343,6 +352,49 @@ function MetaAdsScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapF
 
       <p className="text-[11.5px] leading-normal text-[var(--meta-ads-faint)]">{t("cfgext.metaAdsOutputsHelp")}</p>
 
+      <div className="flex items-start justify-between gap-3 rounded-[14px] border border-[var(--meta-ads-info-card-border)] bg-[var(--meta-ads-info-card)] px-4 py-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] font-extrabold text-[var(--meta-ads-text)]">{t("cfgext.metaAdsCopyAllVideos")}</span>
+          <span className="text-[11.5px] leading-normal text-[var(--meta-ads-muted)]">{t("cfgext.metaAdsCopyAllVideosHint")}</span>
+        </div>
+        <Switch checked={data.ingestAllVideos === true} onCheckedChange={(v) => onUpdate({ ingestAllVideos: v })} />
+      </div>
+
+      <div className="flex flex-col gap-2.5 rounded-[14px] border border-[var(--meta-ads-info-card-border)] bg-[var(--meta-ads-info-card)] px-4 py-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[13px] font-extrabold text-[var(--meta-ads-text)]">{t("cfgext.metaAdsAnalyzeTitle")}</span>
+            <span className="text-[11.5px] leading-normal text-[var(--meta-ads-muted)]">
+              {t("cfgext.metaAdsAnalyzePerAd", { count: META_ADS_ANALYSIS_CREDITS_PER_AD[metaAdsAnalysisTier(data.analysisModel)] })}
+            </span>
+          </div>
+          <Switch checked={data.analyze === true} onCheckedChange={(v) => onUpdate({ analyze: v })} />
+        </div>
+        {data.analyze === true && (
+          <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-1.5">
+              <SectionLabel>{t("cfgext.metaAdsAnalyzeModel")}</SectionLabel>
+              <LlmModelSelect
+                feature="meta-ads-analysis"
+                value={data.analysisModel}
+                onChange={(v) => onUpdate({ analysisModel: v })}
+                filter={(m) => STRUCTURED_VISION_MODEL_IDS.has(m.id)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <SectionLabel>{t("cfgext.metaAdsAnalyzeFocus")}</SectionLabel>
+              <Textarea
+                value={data.analysisFocus ?? ""}
+                onChange={(e) => onUpdate({ analysisFocus: e.target.value.slice(0, META_ADS_ANALYSIS_FOCUS_MAX) })}
+                placeholder={t("cfgext.metaAdsAnalyzeFocusPh")}
+                rows={2}
+                className={cn(fieldClass, "min-h-[56px] text-[13px]")}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col gap-2 rounded-[14px] border border-[var(--meta-ads-info-card-border)] bg-[var(--meta-ads-info-card)] px-4 py-3.5">
         <span className="text-[13px] font-extrabold text-[var(--meta-ads-info)]">{t("cfgext.metaAdsReturnsTitle")}</span>
         <div className="grid grid-cols-2 gap-x-3.5 gap-y-1.5 text-[12px] font-semibold text-[var(--meta-ads-text-2)]">
@@ -359,6 +411,48 @@ function MetaAdsScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapF
 }
 
 type ResultsView = "list" | "grid" | "json"
+
+/** The per-ad AI analysis on an expanded Results row — shown only when the run analysed that ad. */
+function MetaAdAnalysisView({ ad }: { readonly ad: Record<string, unknown> }) {
+  const t = useT()
+  const analysis = adCreativeAnalysisFrom(ad.analysis)
+  if (!analysis) {
+    return ad.analysisSkipped === "failed" || ad.analysisSkipped === "deadline" ? (
+      <p className="text-[11.5px] font-semibold text-[var(--meta-ads-muted)]">{t("cfgext.metaAdsAnalyzeSkipped")}</p>
+    ) : null
+  }
+  const list = (label: string, items: readonly string[]) =>
+    items.length === 0 ? null : (
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[10.5px] font-extrabold uppercase tracking-[.06em] text-[var(--meta-ads-info)]">{label}</span>
+        <ul className="flex flex-col gap-0.5">
+          {items.map((it, i) => (
+            <li key={i} className="text-[12px] leading-snug text-[var(--meta-ads-text-2)]">· {it}</li>
+          ))}
+        </ul>
+      </div>
+    )
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-[var(--meta-ads-accent-border)] bg-[var(--meta-ads-accent-tint)] p-2.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10.5px] font-extrabold uppercase tracking-[.08em] text-[#FF0073]">{t("cfgext.metaAdsAnalyzeTitle")}</span>
+        <span className="rounded-full bg-[var(--meta-ads-chip)] px-1.5 py-[1px] text-[10px] font-bold text-[var(--meta-ads-text-2)]">{analysis.assetType}</span>
+        {analysis.format && <span className="text-[11px] text-[var(--meta-ads-muted)]">{analysis.format}</span>}
+      </div>
+      <p className="text-[12.5px] leading-[1.5] text-[var(--meta-ads-text)]">{analysis.summary}</p>
+      {list(t("cfgext.metaAdsAnalyzeVisualHooks"), analysis.visualHooks)}
+      {list(t("cfgext.metaAdsAnalyzeAudiences"), analysis.audiences)}
+      {list(t("cfgext.metaAdsAnalyzeCopyHooks"), analysis.copywritingHooks)}
+      {list(t("cfgext.metaAdsAnalyzeUsps"), analysis.usps)}
+      {analysis.graphicIdentity && (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10.5px] font-extrabold uppercase tracking-[.06em] text-[var(--meta-ads-info)]">{t("cfgext.metaAdsAnalyzeGraphic")}</span>
+          <p className="text-[12px] leading-snug text-[var(--meta-ads-text-2)]">{analysis.graphicIdentity}</p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function MetaAdsScrapeResultsTab({
   data,
@@ -543,6 +637,7 @@ export function MetaAdsScrapeResultsTab({
                 {open && (
                   <div className="mb-3 ms-[72px] me-2 flex flex-col gap-2.5 rounded-xl border border-[var(--meta-ads-border)] bg-[var(--meta-ads-surface-2)] p-3">
                     <p className="whitespace-pre-wrap text-[12.5px] leading-[1.55] text-[var(--meta-ads-text-2)]">{typeof ad.text === "string" ? ad.text : ""}</p>
+                    <MetaAdAnalysisView ad={ad} />
                     {metaAdPlatforms(ad).length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {metaAdPlatforms(ad).map((p) => (

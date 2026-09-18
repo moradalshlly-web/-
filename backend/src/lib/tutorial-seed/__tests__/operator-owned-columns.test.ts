@@ -206,6 +206,20 @@ describe("tutorial seeder — operator decisions survive a content reseed", () =
     expect(template().is_active).toBe(true)
   })
 
+  it("defaults a new tutorial's listing to the Tutorials tab", async () => {
+    await seed()
+    expect(template().listed_in).toEqual(["tutorial"])
+  })
+
+  it("honors a doc's listedIn override on INSERT (marketplace template)", async () => {
+    // A marketplace template (e.g. the podcast components) declares its initial
+    // channel; the insert applies it instead of the ["tutorial"] default.
+    docs.value = [doc({ listedIn: ["marketplace"] })]
+    await seed()
+    expect(template().listed_in).toEqual(["marketplace"])
+    expect(template().is_active).toBe(true)
+  })
+
   it("leaves a deactivated tutorial hidden when its content is reseeded", async () => {
     await seed()
     expect(template().is_active).toBe(true)

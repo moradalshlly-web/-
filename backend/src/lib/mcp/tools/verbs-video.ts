@@ -17,7 +17,7 @@ import {
   uiMeta,
 } from "./_verb-helpers.js"
 import { WIDGET_URI } from "../widgets/registrar.js"
-import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS } from "@nodaro/shared"
+import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, CAPTION_LOOK_IDS, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
 import { applyPromptAffixes } from "@nodaro/prompts"
 
 // Map list_models catalog/display ids → /v1/motion-transfer route providers.
@@ -28,6 +28,8 @@ const MOTION_TRANSFER_PROVIDER_ALIASES: Record<string, string> = {
   "kling-3.0-motion": "kling-3.0",
 }
 import { normalizeVideoInput } from "../normalize.js"
+import { buildEffectiveEdl, validateEffectiveEdl } from "../../apply-edl-plan.js"
+import { hasCredits } from "../../config.js"
 import { getUserMcpPreferences } from "../user-preferences.js"
 import { resolvePreset } from "../../presets/resolve-preset.js"
 import { mcpInject } from "../internal-request.js"
@@ -963,16 +965,21 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
       title: "Add Captions",
       description:
         "Burn captions into a video. Provide either video_url OR video_asset_id, plus captions data. Static styles (subtitle) accept `text`. Kinetic styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy) need word-timed `captions[]` OR set `auto_transcribe: true` (default) to transcribe the input video's audio.\n\n" +
-        "Look levers for the KINETIC styles (rejected on the static subtitle style, and free — they add no credits): `font_family` (any face in SUPPORTED_FONT_NAMES, e.g. Montserrat/Anton/Bebas Neue), `stroke_color` + `stroke_width` for the black outline TikTok/Reels captions use, `highlight_color` for the word being spoken (tiktok-words; also recolours the active word in word-highlight/karaoke), `uppercase`, and `position_y` (0-100 % of height) for a free vertical position — ~65 sits below the face and above the app's bottom UI.",
+        "TikTok/Reels look in one field: `look` picks a preset for the KINETIC styles — `outline` (heavy Montserrat 900, UPPERCASE, thick black outline, yellow spoken word — the CapCut/TikTok read) or `clean` (Inter, no outline/casing). **An UNSET `look` renders as `outline`** — that is the default kinetic look. Pass `look: \"clean\"` to turn the preset off and keep only your own explicit levers.\n\n" +
+        "The explicit look levers below OVERRIDE individual fields of the chosen look (they are ADDED to it, not replacements — e.g. with the default `outline`, setting only `highlight_color` keeps Montserrat/caps/outline and just recolours the spoken word). All are rejected on the static subtitle style and are free (no extra credits): `font_family` (any face in SUPPORTED_FONT_NAMES, e.g. Montserrat/Anton/Bebas Neue), `font_weight` (100-900 in 100s), `stroke_color` + `stroke_width` for the outline, `highlight_color` for the word being spoken (tiktok-words; also recolours the active word in word-highlight/karaoke), `uppercase`, and `position_y` (0-100 % of height) for a free vertical position — ~65 sits below the face and above the app's bottom UI.",
       inputSchema: {
         text: z.string().min(1).optional(),
         captions: z.array(z.object({
           text: z.string(),
           startMs: z.number().min(0),
           endMs: z.number().min(0),
-          timestampMs: z.number().min(0).nullable(),
-          confidence: z.number().min(0).max(1).nullable(),
-        })).optional(),
+          timestampMs: z.number().min(0).nullable().default(null),
+          confidence: z.number().min(0).max(1).nullable().default(null),
+        })).optional().describe(
+          "Word-timed captions for the kinetic styles: ONE entry per WORD (a bare word is fine — words are auto-spaced). " +
+          "`startMs`/`endMs` are the word's visibility window and drive the highlight; `timestampMs` (optional) is the word " +
+          "timestamp used by tiktok-words token timing; `confidence` (optional) is metadata, ignored by rendering.",
+        ),
         auto_transcribe: z.boolean().optional(),
         transcribe_provider: z.enum(["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]).optional(),
         video_url: z.string().url().optional(),
@@ -982,12 +989,41 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         font_size: z.number().int().min(12).max(200).optional(),
         color: z.string().optional(),
         background_color: z.string().optional(),
-        font_family: z.enum(SUPPORTED_FONT_NAMES).optional().describe("Kinetic styles only. A font face from SUPPORTED_FONT_NAMES (e.g. Montserrat, Anton, Bebas Neue, Oswald, Poppins, Playfair Display; Rubik/Heebo/Cairo/Tajawal cover Hebrew/Arabic)."),
+        look: z.enum(CAPTION_LOOK_IDS).optional().describe("Kinetic styles only. Named look preset — `outline` (Montserrat 900, UPPERCASE, black outline, yellow spoken word) or `clean` (Inter, no outline/casing). UNSET = `outline` (the default). The explicit levers below override individual fields of it; pass `clean` to keep only your own levers."),
+        font_family: z.enum(SUPPORTED_FONT_NAMES).optional().describe("Kinetic styles only. Overrides the look's face. Any face from SUPPORTED_FONT_NAMES (e.g. Montserrat, Anton, Bebas Neue, Oswald, Poppins, Playfair Display; Rubik/Heebo/Cairo/Tajawal cover Hebrew/Arabic)."),
+        font_weight: z.number().int().min(100).max(900).multipleOf(100).optional().describe("Kinetic styles only. CSS numeric weight 100-900 (in 100s). Overrides the look's weight; the face must ship that weight or it renders at the nearest loaded one."),
         stroke_color: z.string().optional().describe("Kinetic styles only. Outline colour (e.g. #000000). Needs stroke_width > 0."),
         stroke_width: z.number().min(0).max(40).optional().describe("Kinetic styles only. Outline width in px (the TikTok/Reels black outline)."),
         highlight_color: z.string().optional().describe("Kinetic styles only. The spoken/active word colour — token-by-token for tiktok-words; also recolours the active word in word-highlight/karaoke."),
         uppercase: z.boolean().optional().describe("Kinetic styles only. Render captions in UPPERCASE."),
         position_y: z.number().min(0).max(100).optional().describe("Kinetic styles only. Vertical position of the caption's CENTER as % of height; overrides `position`. ~65 sits below the face, above the app's bottom UI (100 would center the text on the bottom edge)."),
+        segments: z.array(z.object({
+          start_ms: z.number().min(0),
+          end_ms: z.number().min(0),
+          style: z.enum(ALL_CAPTION_STYLES).optional(),
+          position: z.enum(["bottom", "top", "center"]).optional(),
+          font_size: z.number().int().min(12).max(200).optional(),
+          color: z.string().optional(),
+          background_color: z.string().optional(),
+          look: z.enum(CAPTION_LOOK_IDS).optional(),
+          font_family: z.enum(SUPPORTED_FONT_NAMES).optional(),
+          font_weight: z.number().int().min(100).max(900).multipleOf(100).optional(),
+          stroke_color: z.string().optional(),
+          stroke_width: z.number().min(0).max(40).optional(),
+          highlight_color: z.string().optional(),
+          uppercase: z.boolean().optional(),
+          position_y: z.number().min(0).max(100).optional(),
+          text: z.string().min(1).optional(),
+          captions: z.array(z.object({
+            text: z.string(),
+            startMs: z.number().min(0),
+            endMs: z.number().min(0),
+            timestampMs: z.number().min(0).nullable().default(null),
+            confidence: z.number().min(0).max(1).nullable().default(null),
+          })).optional(),
+        })).min(1).optional().describe(
+          "Apply DIFFERENT caption treatments to time ranges of the SAME video in one call (e.g. a large uppercase phrase at the top for the intro, then one word at a time at the bottom for the body). Each segment: start_ms/end_ms plus any style/look overrides (inherit the top-level value when omitted) and optionally its own `text`/`captions` (else it uses the shared transcript filtered to its range). Segments must NOT overlap. Any `style` (incl. subtitle) is fine here — a segmented render is all Remotion. Look cascade: a segment WITHOUT its own `look` inherits the top-level look AND the top-level explicit levers; a segment that names its OWN `look` starts fresh from that preset and does NOT inherit the top-level explicit levers (only its own) — so a top-level highlight_color does not carry onto a segment that sets `look`.",
+        ),
       },
               outputSchema: {
           jobId: z.string(),
@@ -1040,12 +1076,37 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         fontSize: args.font_size,
         color: args.color,
         backgroundColor: args.background_color,
+        look: args.look,
         fontFamily: args.font_family,
+        fontWeight: args.font_weight,
         strokeColor: args.stroke_color,
         strokeWidth: args.stroke_width,
         highlightColor: args.highlight_color,
         uppercase: args.uppercase,
         positionY: args.position_y,
+        ...(args.segments
+          ? {
+              segments: args.segments.map((s) => ({
+                startMs: s.start_ms,
+                endMs: s.end_ms,
+                style: s.style,
+                position: s.position,
+                fontSize: s.font_size,
+                color: s.color,
+                backgroundColor: s.background_color,
+                look: s.look,
+                fontFamily: s.font_family,
+                fontWeight: s.font_weight,
+                strokeColor: s.stroke_color,
+                strokeWidth: s.stroke_width,
+                highlightColor: s.highlight_color,
+                uppercase: s.uppercase,
+                positionY: s.position_y,
+                text: s.text,
+                captions: s.captions,
+              })),
+            }
+          : {}),
         mcp_client: session.clientName,
         userId: session.userId,
       }
@@ -2901,4 +2962,217 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
       })
     },
   )
+
+  // ── silence_detect (podcast editing — CORE, ungated) ──
+  // Keyless ffmpeg silencedetect pass over a source's audio proxy — the
+  // analysis half of a tighten, no transcript and no pixels. The silence
+  // ranges land in the job's output_data (feed them to plan_edit, or hand-cut
+  // an EDL). Core verb: registers on EVERY install (no hasCredits() gate),
+  // unlike the cloud-only plan_edit below — the deliberate connected-self-host
+  // asymmetry (the editorial planner is cloud-only; the primitives are not).
+  server.registerTool(
+    "silence_detect",
+    {
+      title: "Silence Detect",
+      description:
+        "Detect the silent ranges in a recording — one ffmpeg pass over the source's audio, " +
+        "no transcript and no pixels. `audio_url` accepts an audio OR a video source (the " +
+        "audio track is read either way). Tune `threshold_db` (dBFS, at or below 0), " +
+        "`min_silence_ms`, and `pad_ms` (speech kept around each range). Returns a job_id — " +
+        "poll `get_job`; the silence result is the job's `output_data.json` (`{ ranges, " +
+        "durationMs }`). Pass THAT object (not the whole `output_data`) as `plan_edit`'s " +
+        "`silence`, or read `ranges` to hand-cut an EDL for `apply_edl`.",
+      inputSchema: {
+        audio_url: z.string().url().describe("Audio OR video source URL — the audio track is read either way."),
+        threshold_db: z.number().min(-90).max(0).optional().describe("Silence threshold in dBFS (at or below 0). Default -35, a good spoken-word floor."),
+        min_silence_ms: z.number().int().min(1).max(600_000).optional().describe("Shortest silence to report, in ms. Default 700."),
+        pad_ms: z.number().int().min(0).max(60_000).optional().describe("Speech kept around each range, in ms (shrinks each range inward). Default 120."),
+      },
+      outputSchema: JOB_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      _meta: uiMeta(WIDGET_URI.jobAuto),
+    },
+    async (args) => {
+      const payload: Record<string, unknown> = {
+        audioUrl: args.audio_url,
+        ...(args.threshold_db !== undefined ? { thresholdDb: args.threshold_db } : {}),
+        ...(args.min_silence_ms !== undefined ? { minSilenceMs: args.min_silence_ms } : {}),
+        ...(args.pad_ms !== undefined ? { padMs: args.pad_ms } : {}),
+        mcp_client: session.clientName,
+        userId: session.userId,
+      }
+      return dispatchJob(fastify, session, {
+        url: "/v1/silence-detect",
+        payload,
+        label: "Silence detect",
+        widgetKind: "generic",
+        widgetData: { prompt: "(silence detect)" },
+      })
+    },
+  )
+
+  // ── apply_edl (podcast editing — CORE, ungated) ──
+  // Render an edit-decision list into a finished cut — the executor half of the
+  // podcast primitives. Consumes an EDL (from plan_edit, or hand-written to the
+  // @nodaro/shared Edl contract) and emits a video or audio file. Core verb:
+  // registers on EVERY install; the EDL it renders may come from the cloud-only
+  // plan_edit OR be hand-authored, so the renderer is available everywhere.
+  server.registerTool(
+    "apply_edl",
+    {
+      title: "Apply EDL",
+      description:
+        "Render an edit-decision list (EDL) into a finished cut. Pass `edl` (an object or a " +
+        "JSON string) — the plan from a `plan_edit` step, or hand-written to the " +
+        "@nodaro/shared `Edl` contract (integer-ms `segments` on a `master` clock, each " +
+        "naming a `sources[].id`; a video render needs a `video` source on every segment). " +
+        "Media resolves from each source's `url`; `sources` optionally overrides those URLs " +
+        "positionally, in the EDL's `sources` order. `output`: `video` (default) or `audio`. " +
+        "An optional `transcript` is remapped through the cut. A malformed EDL is rejected " +
+        "up front naming the offending segment and rule, so you can fix and retry. Returns a " +
+        "job_id — poll `get_job` for the rendered file. Priced per rendered minute.",
+      inputSchema: {
+        edl: z.union([z.record(z.string(), z.unknown()), z.string()]).describe("The edit-decision list, as an object OR a JSON string — from plan_edit, or hand-authored to the @nodaro/shared Edl contract."),
+        sources: z.array(z.string().url()).optional().describe("Positional media-URL overrides for the EDL's sources[], in sources order."),
+        transcript: z.record(z.string(), z.unknown()).optional().describe("Optional upstream transcript object, remapped through the cut for the result's transcript output."),
+        output: z.enum(["video", "audio"]).optional().describe("Render a video (default) or an audio-only cut."),
+        quality: z.enum(["proxy", "final"]).optional().describe("proxy (fast preview) or final (default)."),
+        crossfade_ms: z.number().min(0).max(5000).optional().describe("Default crossfade on boundaries with no explicit transition, in ms. 0 = hard cuts (default)."),
+      },
+      outputSchema: JOB_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      _meta: uiMeta(WIDGET_URI.jobAuto),
+    },
+    async (args) => {
+      // An SDK/MCP caller may send the EDL (or transcript) as a JSON string —
+      // parse it before validating, mirroring the route's own `parseEdlMaybe`.
+      const parseMaybe = (v: unknown): unknown => {
+        if (typeof v !== "string") return v
+        try { return JSON.parse(v) } catch { return undefined }
+      }
+      const edl = parseMaybe(args.edl)
+      // An unparseable JSON STRING would normalize to an empty EDL and report
+      // "segments is empty" — misleading. Name the real problem instead.
+      if (typeof args.edl === "string" && edl === undefined) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: "apply_edl: `edl` is a string but not valid JSON — pass the EDL object, or a correctly JSON-encoded string." }],
+        }
+      }
+      // Pre-validate at the verb, mirroring the DAG payload-builder: the route
+      // already 400s a bad EDL, but the MCP error formatter surfaces only the
+      // code+message and DROPS the `issues[]`, so an agent would see an unnamed
+      // 400 and could not self-correct. Build the SAME effective EDL the route
+      // renders and validate it here so the offending segment id + rule reach
+      // the model. The route keeps its own validation (defense in depth).
+      const output = args.output ?? "video"
+      const eff = buildEffectiveEdl(edl, {
+        crossfadeMs: args.crossfade_ms ?? 0,
+        sourceOverrides: args.sources,
+      })
+      const v = validateEffectiveEdl(eff, output)
+      if (!v.ok) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: `apply_edl: the EDL failed validation — fix and retry: ${v.issues.join("; ")}` }],
+        }
+      }
+      const payload: Record<string, unknown> = {
+        edl,
+        ...(args.sources ? { sources: args.sources } : {}),
+        ...(args.transcript !== undefined ? { transcript: args.transcript } : {}),
+        ...(args.output ? { output: args.output } : {}),
+        ...(args.quality ? { quality: args.quality } : {}),
+        ...(args.crossfade_ms !== undefined ? { crossfadeMs: args.crossfade_ms } : {}),
+        mcp_client: session.clientName,
+        userId: session.userId,
+      }
+      return dispatchJob(fastify, session, {
+        url: "/v1/apply-edl",
+        payload,
+        label: "Apply EDL",
+        widgetKind: output === "audio" ? "audio" : "video",
+        widgetData: { prompt: `(apply edl · ${output})` },
+      })
+    },
+  )
+
+  // ── plan_edit (podcast editing) ──
+  // Turn a timed transcript into an edit-decision-list (EDL) plan — no media
+  // output; the EDL is in the job's output_data. Cloud feature: gated on
+  // hasCredits() so it appears only where the /v1/edit-plan route + settlement
+  // live (on a self-host the canvas node still relays; this MCP surface stays
+  // cloud-only). Returns a job_id — poll get_job.
+  if (hasCredits()) {
+    server.registerTool(
+      "plan_edit",
+      {
+        title: "Edit Plan",
+        description:
+          "Turn a timed transcript into an edit-decision-list (EDL) plan for a recording. " +
+          "`mode`: `tighten` (remove silence/filler/false-starts → one tightened EDL), " +
+          "`clips` (find N short shareable clips → one EDL per clip), or `chapters` " +
+          "(mark chapter boundaries with titles). Reads the transcript, never pixels. " +
+          "Pass the timed `transcript` (word-level, from a transcribe step) and the media " +
+          "`sources` (1–6). Returns a job_id — poll `get_job`; the EDL plan is in the " +
+          "job's `output_data`.",
+        inputSchema: {
+          mode: z.enum(EDIT_PLAN_MODES as unknown as [string, ...string[]]).describe("tighten | clips | chapters."),
+          plan_tier: z.enum(EDIT_PLAN_TIERS as unknown as [string, ...string[]]).optional()
+            .describe("Reasoning tier: economy | standard (default) | premium."),
+          transcript: z.record(z.string(), z.unknown()).describe("The timed word-level transcript object (from a transcribe step)."),
+          silence: z.record(z.string(), z.unknown()).optional().describe("Optional silence ranges object (from a silence-detect step)."),
+          sources: z.array(z.object({
+            url: z.string().url().describe("Media URL for this source."),
+            kind: z.enum(["video", "audio"]).optional(),
+            role: z.enum(["master-audio", "camera", "wide", "screen"]).optional(),
+            speakers: z.array(z.string()).max(16).optional(),
+            offset_ms: z.number().optional().describe("This source's origin on the master clock (masterMs = sourceMs + offsetMs)."),
+          })).min(1).max(6).describe("1–6 media sources for the edit."),
+          instructions: z.string().max(4000).optional().describe("Free-text editing steer."),
+          style_guide: z.string().max(8000).optional(),
+          count: z.number().int().min(1).max(50).optional().describe("clips only: how many clips to find."),
+          target_duration_sec: z.number().int().min(5).max(180).optional().describe("clips only: target clip length."),
+          target_aspect: z.enum(["16:9", "9:16", "1:1", "4:5"]).optional(),
+          platform: z.string().max(64).optional(),
+        },
+        outputSchema: JOB_OUTPUT_SCHEMA,
+        annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+        _meta: uiMeta(WIDGET_URI.jobAuto),
+      },
+      async (args) => {
+        const payload: Record<string, unknown> = {
+          mode: args.mode,
+          ...(args.plan_tier ? { planTier: args.plan_tier } : {}),
+          transcript: args.transcript,
+          ...(args.silence ? { silence: args.silence } : {}),
+          sources: args.sources.map((s) => ({
+            url: s.url,
+            ...(s.kind ? { kind: s.kind } : {}),
+            ...(s.role ? { role: s.role } : {}),
+            ...(s.speakers && s.speakers.length > 0 ? { speakers: s.speakers } : {}),
+            ...(s.offset_ms !== undefined ? { offsetMs: s.offset_ms } : {}),
+          })),
+          ...(args.instructions ? { instructions: args.instructions } : {}),
+          ...(args.style_guide ? { styleGuide: args.style_guide } : {}),
+          ...(args.count !== undefined ? { count: args.count } : {}),
+          ...(args.target_duration_sec !== undefined ? { targetDurationSec: args.target_duration_sec } : {}),
+          ...(args.target_aspect ? { targetAspect: args.target_aspect } : {}),
+          ...(args.platform ? { platform: args.platform } : {}),
+          mcp_client: session.clientName,
+          userId: session.userId,
+        }
+        return dispatchJob(fastify, session, {
+          url: "/v1/edit-plan",
+          payload,
+          label: "Edit plan",
+          widgetKind: "generic",
+          widgetData: {
+            prompt: args.instructions ? args.instructions.slice(0, 80) : `(edit plan · ${args.mode})`,
+            model: args.plan_tier ?? "standard",
+          },
+        })
+      },
+    )
+  }
 }

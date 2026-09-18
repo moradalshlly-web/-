@@ -145,6 +145,9 @@ const ALLOWLIST = new Set([
   "frontend/src/components/nodes/describe-to-picker-node.tsx",
   "frontend/src/components/nodes/dubbing-node.tsx",
   "frontend/src/components/nodes/edit-image-node.tsx",
+  // edit-plan reads its live credit badge via the ee useModelCredits hook
+  // (dynamic mode × tier × duration bucket), same as video-analysis-node.
+  "frontend/src/components/nodes/edit-plan-node.tsx",
   "frontend/src/components/nodes/extend-video-node.tsx",
   "frontend/src/components/nodes/extract-audio-node.tsx",
   "frontend/src/components/nodes/extract-frame-node.tsx",
@@ -183,6 +186,7 @@ const ALLOWLIST = new Set([
   "frontend/src/components/nodes/reference-sheet-node.tsx",
   "frontend/src/components/nodes/remove-audio-node.tsx",
   "frontend/src/components/nodes/remove-background-node.tsx",
+  "frontend/src/components/nodes/silence-detect-node.tsx",
   "frontend/src/components/nodes/render-video-node.tsx",
   "frontend/src/components/nodes/resize-video-node.tsx",
   "frontend/src/components/nodes/scene-node.tsx",

@@ -249,6 +249,13 @@ export const NOT_GENERIC_RECOVERABLE: ReadonlySet<string> = new Set<string>([
   "audio-fx", "add-captions", "mix-audio", "combine-audio",
   "transcode-video", "social-media-format", "split-media",
   "extract-audio", "remove-audio",
+  // silence-detect — a SYNC local-ffmpeg analysis (no provider_task_id, its own
+  // markJobCompleted with output_data.json); never finalizeJobWithMedia.
+  "silence-detect",
+  // apply-edl — a local-ffmpeg EDL render (no provider_task_id; chunked with its
+  // OWN R2 checkpoint-resume, all-or-nothing, own markJobCompleted). Recovery is
+  // the worker's, not the generic media-finalize path — like combine-videos above.
+  "apply-edl",
 
   // suno.ts — all 12 keys of workers/handlers/suno.ts:580-593. None call
   // finalizeJobWithMedia (own markJobCompleted per handler); the async

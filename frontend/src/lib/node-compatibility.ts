@@ -23,6 +23,10 @@ const VOICE_TARGET_TYPES: ReadonlySet<string> = new Set<string>([...VOICE_PERSON
 const TYPED_SOURCE_NODE_TYPES: ReadonlySet<string> = new Set([
   "list", "web-scrape", "meta-ads-scrape", "extract-field", "filter-list",
   "deduplicate", "merge-lists", "sort-list",
+  // silence-detect emits { version, ranges, durationMs } JSON on its `json`
+  // source handle; its source-direction popover consults TARGET_HANDLE_ACCEPTS
+  // (like web-scrape) so data consumers surface as candidates.
+  "silence-detect",
   // video-analysis emits scene-breakdown JSON on its `json` source handle;
   // its source-direction popover must consult TARGET_HANDLE_ACCEPTS (same as
   // web-scrape) so data consumers surface as candidates.
@@ -229,6 +233,12 @@ export const TYPED_HANDLE_IDS: ReadonlySet<string> = new Set([
   //   - scene: Edit 3D Scene's upstream-plan input (accepts only the two
   //     3D-scene authoring nodes, never a Parameter picker).
   "scene",
+  //   - apply-edl typed inputs (registered in TARGET_HANDLE_ACCEPTS): `edl` +
+  //     `transcript` accept only JSON producers (transcript already listed
+  //     above), `sources` accepts media producers. add-captions also registers a
+  //     `transcript` (JSON) input — same handle id, no new entry needed here.
+  //     Drift mirror of the registry.
+  "edl", "sources",
 ])
 /** Subset that requires consumer-type dispatch — the dev-time warning in
  *  getCompatibleNodes triggers when one of these is passed without a

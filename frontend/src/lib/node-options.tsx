@@ -894,6 +894,13 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
     group: "audio-clean-separate",
   },
   {
+    type: "silence-detect",
+    label: "Silence Detect",
+    icon: <VolumeX className="h-4 w-4" />,
+    category: "AI",
+    group: "audio-clean-separate",
+  },
+  {
     type: "text-to-dialogue",
     label: "Text to Dialogue",
     icon: <Users className="h-4 w-4" />,
@@ -1103,6 +1110,22 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
     icon: <Merge className="h-4 w-4" />,
     category: "Processing",
     group: "video-cut-assemble",
+  },
+  {
+    type: "apply-edl",
+    label: "Apply EDL",
+    icon: <Scissors className="h-4 w-4" />,
+    category: "Processing",
+    group: "video-cut-assemble",
+    keywords: ["edl", "edit decision list", "cut", "assemble", "timeline", "render", "transcript", "podcast", "tighten"],
+  },
+  {
+    type: "edit-plan",
+    label: "Edit Plan",
+    icon: <ListTree className="h-4 w-4" />,
+    category: "Processing",
+    group: "video-cut-assemble",
+    keywords: ["edit plan", "edl", "tighten", "clips", "chapters", "podcast", "transcript", "cut", "plan", "shorts"],
   },
   {
     type: "assemble-narrated-video",

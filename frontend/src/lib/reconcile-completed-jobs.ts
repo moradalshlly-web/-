@@ -45,7 +45,7 @@
  */
 
 import { getJobStatusLean } from "./api"
-import { COMPOSER_PLAN_MAP } from "@nodaro/shared"
+import { COMPOSER_PLAN_MAP, unwrapEditPlanOutput } from "@nodaro/shared"
 import { findRevision, resolveSceneCompletion } from "@/lib/scene3d/revisions"
 import { planRevisionId } from "@/lib/scene3d/plan-view"
 import type { GeneratedResult, Scene3DRevisionEntry, WorkflowNode } from "@/types/nodes"
@@ -348,6 +348,17 @@ export function buildCompletedResultPatch(
       patch.lastAuditReport = output.report
     }
     return patch
+  }
+  // edit-plan: the EDL plan is the top-level output_data (an Edl for tighten, an
+  // EdlClipSet for clips, a { version, chapters } for chapters) + viaNodaroCloud.
+  // Unwrap it onto generatedJson (clips → bare Edl[], which fans out) — the ONE
+  // rule shared with the live path + backend (unwrapEditPlanOutput). Same
+  // recovery gap as the analysis branch above: no media URL, so it would
+  // otherwise fall through and leave a completed node blank.
+  if (nodeType === "edit-plan") {
+    const plan = unwrapEditPlanOutput(output)
+    if (plan === undefined || plan === null || typeof plan !== "object") return null
+    return { executionStatus: "completed", generatedJson: plan }
   }
   const videoUrl = typeof output.videoUrl === "string" ? output.videoUrl : undefined
   const imageUrl = typeof output.imageUrl === "string" ? output.imageUrl : undefined

@@ -67,6 +67,7 @@ import { lipSyncRoutes } from "./routes/lip-sync.js"
 import { textToSpeechRoutes } from "./routes/text-to-speech.js"
 import { generateScriptRoutes } from "./routes/generate-script.js"
 import { combineVideosRoutes } from "./routes/combine-videos.js"
+import { applyEdlRoutes } from "./routes/apply-edl.js"
 import { imageCollageRoutes } from "./routes/image-collage.js"
 import { imageOverlayRoutes } from "./routes/image-overlay.js"
 import { fontRoutes } from "./routes/fonts.js"
@@ -94,6 +95,7 @@ import { mixAudioRoutes } from "./routes/mix-audio.js"
 import { combineAudioRoutes } from "./routes/combine-audio.js"
 import { splitMediaRoutes } from "./routes/split-media.js"
 import { extractAudioRoutes } from "./routes/extract-audio.js"
+import { silenceDetectRoutes } from "./routes/silence-detect.js"
 import { removeAudioRoutes } from "./routes/remove-audio.js"
 import { generateMusicRoutes } from "./routes/generate-music.js"
 import { uploadRoutes } from "./routes/upload.js"
@@ -161,6 +163,7 @@ import { storageStatusRoutes } from "./routes/storage-status.js"
 import { profileAttributionRoutes } from "./routes/profile-attribution.js"
 import { mediaDeleteRoutes } from "./routes/media-delete.js"
 import { mediaImportUrlRoutes } from "./routes/media-import-url.js"
+import { mediaUrlImportRoutes } from "./routes/media-url-import.js"
 import { transcribeRoutes } from "./routes/transcribe.js"
 import { adminCreditsRoutes } from "./ee/routes/admin-credits.js"
 import { adminJobsRoutes } from "./ee/routes/admin-jobs.js"
@@ -496,6 +499,7 @@ export async function buildApp() {
   await app.register(textToSpeechRoutes)
   await app.register(generateScriptRoutes)
   await app.register(combineVideosRoutes)
+  await app.register(applyEdlRoutes)
   await app.register(imageCollageRoutes)
   await app.register(imageOverlayRoutes)
   await app.register(fontRoutes)
@@ -525,6 +529,7 @@ export async function buildApp() {
   await app.register(combineAudioRoutes)
   await app.register(splitMediaRoutes)
   await app.register(extractAudioRoutes)
+  await app.register(silenceDetectRoutes)
   await app.register(removeAudioRoutes)
   await app.register(generateMusicRoutes)
   await app.register(uploadRoutes)
@@ -598,6 +603,7 @@ export async function buildApp() {
   await app.register(profileAttributionRoutes)
   await app.register(mediaDeleteRoutes)
   await app.register(mediaImportUrlRoutes)
+  await app.register(mediaUrlImportRoutes)
   await app.register(transcribeRoutes)
   if (hasCredits()) await app.register(adminCreditsRoutes)  // CreditsService + TIER_CREDITS
   await app.register(workflowCostRoutes)

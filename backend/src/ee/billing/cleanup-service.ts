@@ -17,6 +17,14 @@ import { isPaygRetentionActive, PAYG_RETENTION_DAYS } from "@nodaro/shared"
  * couple the plugin to a `@nodaro/shared` release for one folder name.)
  */
 export const VIDEO_ANALYSIS_TMP_PREFIX = "video-analysis-tmp"
+/**
+ * R2 prefix under which the edit-plan (podcast editing) worker writes its
+ * transient intermediates (windowed transcript chunks / probe scratch), keyed
+ * `<prefix>/<jobId>/…`. Same rationale + SYNC NOTE as VIDEO_ANALYSIS_TMP_PREFIX:
+ * the WRITER lives in `@nodaroai/cloud-plugins`; keep this equal to the plugin's
+ * copy or the reaper misses these orphans on a double-stall / crash.
+ */
+export const EDIT_PLAN_TMP_PREFIX = "edit-plan-tmp"
 import { updateStorageUsage } from "../../utils/file-validation.js"
 import { relayOwnedKeys, deletableKeys } from "../../lib/asset-delete.js"
 import { TIER_STORAGE_LIMITS, TIER_CREDITS } from "./stripe-config.js"
@@ -1102,10 +1110,35 @@ interface VaTmpSweepResult {
  * never thrown — one bad key must not abort the sweep or the sibling crons.
  */
 export async function sweepVideoAnalysisTmp(maxAgeHours = 24): Promise<VaTmpSweepResult> {
-  // The ONLY prefix this sweep may ever touch. Built from the shared constant +
+  return sweepTmpPrefix(VIDEO_ANALYSIS_TMP_PREFIX, maxAgeHours)
+}
+
+/**
+ * Reap orphaned edit-plan intermediates from `edit-plan-tmp/`. Identical
+ * mechanism + irreversible-data-loss guard as sweepVideoAnalysisTmp — the
+ * edit-plan worker (also in @nodaroai/cloud-plugins) keys its transient windowed
+ * transcript scratch under `edit-plan-tmp/<jobId>/`, and NO DB lifecycle covers
+ * these (they are referenced by nothing). A double-stall means its `finally`
+ * never runs. Prefix-scoped, age-gated, best-effort — see sweepTmpPrefix.
+ */
+export async function sweepEditPlanTmp(maxAgeHours = 24): Promise<VaTmpSweepResult> {
+  return sweepTmpPrefix(EDIT_PLAN_TMP_PREFIX, maxAgeHours)
+}
+
+/**
+ * The shared per-prefix tmp reaper. `tmpPrefix` is a fixed internal constant
+ * (never user input); every listed key is re-asserted to start with
+ * `${tmpPrefix}/` before it can reach a delete, so this is structurally
+ * incapable of touching any other prefix. Age-gated (only objects strictly older
+ * than `maxAgeHours` — default 24 h — are reaped; a missing LastModified is left
+ * in place). Best-effort: a listing failure or any individual delete rejection
+ * is counted, never thrown.
+ */
+async function sweepTmpPrefix(tmpPrefix: string, maxAgeHours: number): Promise<VaTmpSweepResult> {
+  // The ONLY prefix this sweep may ever touch. Built from the constant +
   // trailing slash; the trailing slash also prevents a sibling like
   // `video-analysis-tmp-archive/` from ever matching.
-  const LIST_PREFIX = `${VIDEO_ANALYSIS_TMP_PREFIX}/`
+  const LIST_PREFIX = `${tmpPrefix}/`
   const result: VaTmpSweepResult = {
     objectsListed: 0,
     deleted: 0,
@@ -1119,7 +1152,7 @@ export async function sweepVideoAnalysisTmp(maxAgeHours = 24): Promise<VaTmpSwee
   try {
     objects = await listObjectsByPrefixWithMeta(LIST_PREFIX)
   } catch (err) {
-    console.error("[cleanup] video-analysis-tmp list failed:", err)
+    console.error(`[cleanup] ${tmpPrefix} list failed:`, err)
     result.failed++
     return result
   }
@@ -1142,7 +1175,7 @@ export async function sweepVideoAnalysisTmp(maxAgeHours = 24): Promise<VaTmpSwee
 
   if (toDelete.length === 0) {
     console.log(
-      `[cleanup] video-analysis-tmp sweep: listed=${result.objectsListed} ` +
+      `[cleanup] ${tmpPrefix} sweep: listed=${result.objectsListed} ` +
       `deleted=0 (nothing older than ${maxAgeHours}h)`,
     )
     return result
@@ -1156,12 +1189,12 @@ export async function sweepVideoAnalysisTmp(maxAgeHours = 24): Promise<VaTmpSwee
       result.deleted++
     } else {
       result.failed++
-      console.error("[cleanup] video-analysis-tmp delete failed:", s.reason)
+      console.error(`[cleanup] ${tmpPrefix} delete failed:`, s.reason)
     }
   }
 
   console.log(
-    `[cleanup] video-analysis-tmp sweep: listed=${result.objectsListed} ` +
+    `[cleanup] ${tmpPrefix} sweep: listed=${result.objectsListed} ` +
     `deleted=${result.deleted} failed=${result.failed} ` +
     `skippedOutOfPrefix=${result.skippedOutOfPrefix} (maxAgeHours=${maxAgeHours})`,
   )

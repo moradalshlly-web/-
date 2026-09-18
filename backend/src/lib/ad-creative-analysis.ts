@@ -1,0 +1,120 @@
+import { z } from "zod"
+import { AD_CREATIVE_ANALYSIS_SYSTEM_PROMPT, buildAdCreativeAnalysisUserText, type AdCreativeAnalysisInput } from "@nodaro/prompts"
+import { type AdCreativeAnalysis } from "@nodaro/shared"
+import { llmCompleteStructured, type LlmContentBlock } from "./llm-client.js"
+import { deadlinePool } from "./deadline-pool.js"
+
+/**
+ * Per-creative AI analysis — the "expert competitor ad analyst" pass, one
+ * structured LLM call per ad. Node-agnostic: a caller (Meta Ads today,
+ * TikTok / Instagram / LinkedIn next) hands over `{ id, imageUrl, text
+ * facts }` and gets the analysis back by id.
+ *
+ * Contract:
+ *   1. One ad's failure never fails the batch — it comes back as `null`
+ *      with a short reason, and the caller refunds it (the run reserved the
+ *      analysis per REQUESTED ad and commits per ANALYSED ad).
+ *   2. Everything runs under the caller's deadline with bounded parallelism;
+ *      past the deadline the remaining ads are simply "skipped".
+ *   3. Fixed fields and string arrays only — never a map: Gemini via KIE
+ *      drops record-shaped fields from the enforced schema (backend/CLAUDE.md).
+ */
+
+export const adCreativeAnalysisSchema = z.object({
+  assetType: z.enum(["static", "motion", "carousel", "unknown"]),
+  format: z.string().max(120),
+  visualHooks: z.array(z.string().max(240)).max(8),
+  audiences: z.array(z.string().max(160)).max(8),
+  graphicIdentity: z.string().max(800),
+  copywritingHooks: z.array(z.string().max(240)).max(8),
+  usps: z.array(z.string().max(240)).max(8),
+  cta: z.string().max(160),
+  summary: z.string().max(1600),
+})
+
+export interface AdCreativeItem extends AdCreativeAnalysisInput {
+  readonly id: string
+  /** The creative the model sees — an image, or a video's poster frame. Absent = analysed from copy alone. */
+  readonly imageUrl?: string
+}
+
+export type AdCreativeSkipReason = "deadline" | "failed"
+
+export interface AdCreativeAnalysisResult {
+  readonly analysis: AdCreativeAnalysis | null
+  readonly reason?: AdCreativeSkipReason
+  /** The provider's own error line (already sanitized by the LLM client), for the log. */
+  readonly detail?: string
+}
+
+export interface AdCreativeAnalysisStats {
+  readonly requested: number
+  readonly analyzed: number
+  readonly failed: number
+  readonly skipped: number
+  /** Summed provider spend, when every call reported it. */
+  readonly providerCostUsd: number
+  readonly usageComplete: boolean
+}
+
+export interface AnalyzeAdCreativesOptions {
+  readonly modelId: string
+  readonly deadlineAt: number
+  readonly concurrency?: number
+  readonly now?: () => number
+  /** Test seam. */
+  readonly complete?: typeof llmCompleteStructured
+}
+
+const DEFAULT_CONCURRENCY = 4
+const MAX_OUTPUT_TOKENS = 1_400
+
+export async function analyzeAdCreatives(
+  items: readonly AdCreativeItem[],
+  opts: AnalyzeAdCreativesOptions,
+): Promise<{ results: Map<string, AdCreativeAnalysisResult>; stats: AdCreativeAnalysisStats }> {
+  const now = opts.now ?? Date.now
+  const complete = opts.complete ?? llmCompleteStructured
+  const results = new Map<string, AdCreativeAnalysisResult>()
+  let providerCostUsd = 0
+  let usageComplete = true
+
+  const hitDeadline = await deadlinePool(items, opts.concurrency ?? DEFAULT_CONCURRENCY, opts.deadlineAt, now, async (item) => {
+    const content: LlmContentBlock[] = [{ type: "text", text: buildAdCreativeAnalysisUserText(item) }]
+    if (item.imageUrl) content.push({ type: "image", url: item.imageUrl })
+    try {
+      const out = await complete(
+        {
+          modelId: opts.modelId,
+          system: AD_CREATIVE_ANALYSIS_SYSTEM_PROMPT,
+          messages: [{ role: "user", content }],
+          maxTokens: MAX_OUTPUT_TOKENS,
+        },
+        adCreativeAnalysisSchema,
+        { schemaName: "ad_creative_analysis", maxRetries: 1 },
+      )
+      if (typeof out.providerCost === "number") providerCostUsd += out.providerCost
+      else usageComplete = false
+      results.set(item.id, { analysis: out.output })
+    } catch (err) {
+      results.set(item.id, { analysis: null, reason: "failed", detail: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  for (const item of items) {
+    if (!results.has(item.id)) results.set(item.id, { analysis: null, reason: "deadline" })
+  }
+  const analyzed = [...results.values()].filter((r) => r.analysis !== null).length
+  const failed = [...results.values()].filter((r) => r.reason === "failed").length
+  return {
+    results,
+    stats: {
+      requested: items.length,
+      analyzed,
+      failed,
+      skipped: items.length - analyzed - failed,
+      providerCostUsd,
+      usageComplete: usageComplete && !hitDeadline,
+    },
+  }
+}

@@ -13,7 +13,7 @@ import { normalizeCollageLabels } from "../../providers/image/collage-badges.js"
 
 // Shared logic from packages/shared — single source of truth
 import { resolveVideoRequestNorm } from "../../lib/video-request-norm.js"
-import { resolveSlideshowTransition, collectAncestorRefs as sharedCollectAncestorRefs, applyDefaultVideoSelection, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionableAssetArrays, buildCreditModelIdentifier, sunoCreditType, resolveImageGenCreditIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, applyVideoNegativePrompt, resolveVideoProviderForMode, resolveVideoModeForInputs, videoProviderRequiresImage, isVeoProvider, buildLipSyncCreditId, isPerSecondLipSyncProvider, resolveAiAvatarCreditId, resolveSwitchXCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, buildVideoAuditCreditId, resolveVideoAnalysisModel, extractReferencedLabels, combineSameLabelRefs, refHandleCategory, canonicalVarName, validateAiAvatarPayload, validateCinematicAvatarPayload, resolveNodeRefs, resolveEffectiveSourceType, PARAMETER_NODE_TYPES, characterMentionSlug, expandExtraRefsToConnectedReferences, PLATFORM_SPECS, isSeedance2Provider, isMinimaxH3Provider, isWan3Provider, isGeminiOmniProvider, PRICING_DEFAULT_RESOLUTION, supportsExtendRender, MODEL_CATALOG, hasFeature, referenceModalityForHandle, countRefModalityEdges as countRefModalityEdgesCore, type ReferenceModality, COMPOSER_PLAN_MAP, ASPECT_RATIO_DIMENSIONS, buildLlmCreditIdentifier, motionGraphicsFeature, FLUX_LORA_CHARACTER_MODEL_ID, extractCharacterLoraFields, clampSmartCutWindow, resolveGvpAnchorWire, normalizeModelInput, readPromptAffixes, findImageMentionTokens, knownImageSlugsFromRefs, findEntityMentionTokens, knownEntitySlugsFromRefs, uiAspectRatioFill, uiResolutionFill, resolveTopazUpscale, unresolvedRefTokens, classifyRefToken, parseNodeRef, NODE_REF_PATTERN, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, newScene3DRevisionId, resolveScene3DAuthoringEngine, scene3DPlanSchema, PRO3D_RENDER_CREDIT_ID, PRO3D_RENDER_DEFAULT_ENGINE, buildPro3DRenderSource, pro3DRenderTimingOverrides, renderVideoCreditId, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, type Scene3DPlan } from "@nodaro/shared"
+import { resolveSlideshowTransition, collectAncestorRefs as sharedCollectAncestorRefs, applyDefaultVideoSelection, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionableAssetArrays, buildCreditModelIdentifier, sunoCreditType, resolveImageGenCreditIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, applyVideoNegativePrompt, resolveVideoProviderForMode, resolveVideoModeForInputs, videoProviderRequiresImage, isVeoProvider, buildLipSyncCreditId, isPerSecondLipSyncProvider, resolveAiAvatarCreditId, resolveSwitchXCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, buildVideoAuditCreditId, resolveVideoAnalysisModel, extractReferencedLabels, combineSameLabelRefs, refHandleCategory, canonicalVarName, validateAiAvatarPayload, validateCinematicAvatarPayload, resolveNodeRefs, resolveEffectiveSourceType, PARAMETER_NODE_TYPES, characterMentionSlug, expandExtraRefsToConnectedReferences, PLATFORM_SPECS, isSeedance2Provider, isMinimaxH3Provider, isWan3Provider, isGeminiOmniProvider, PRICING_DEFAULT_RESOLUTION, supportsExtendRender, MODEL_CATALOG, hasFeature, referenceModalityForHandle, countRefModalityEdges as countRefModalityEdgesCore, type ReferenceModality, COMPOSER_PLAN_MAP, ASPECT_RATIO_DIMENSIONS, buildLlmCreditIdentifier, motionGraphicsFeature, FLUX_LORA_CHARACTER_MODEL_ID, extractCharacterLoraFields, clampSmartCutWindow, resolveGvpAnchorWire, normalizeModelInput, readPromptAffixes, findImageMentionTokens, knownImageSlugsFromRefs, findEntityMentionTokens, knownEntitySlugsFromRefs, uiAspectRatioFill, uiResolutionFill, resolveTopazUpscale, unresolvedRefTokens, classifyRefToken, parseNodeRef, NODE_REF_PATTERN, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, newScene3DRevisionId, resolveScene3DAuthoringEngine, scene3DPlanSchema, PRO3D_RENDER_CREDIT_ID, PRO3D_RENDER_DEFAULT_ENGINE, buildPro3DRenderSource, pro3DRenderTimingOverrides, renderVideoCreditId, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, normalizeTranscript, isKineticCaptionStyle, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, type Scene3DPlan } from "@nodaro/shared"
 import { composeNegative, resolveTemplate, applyTemplate, computeNodePrompt, assembleImageInput, readDirectionFields, readStructuredFields, readSubjectFields, buildImagePrompt, buildScenePrompt, collectIdentityLockClause as sharedCollectIdentityLockClause, getParameterPromptHint, characterLockToRefLock, buildCharacterPrompt, buildObjectPrompt, buildCreaturePrompt, buildLocationPrompt, buildFaceTemplateInputs, appendMusicMeta, composeSoundHintFromConnections, truncateForField, appendField, assembleSunoInput, type SoundConsumerType, type SoundComposition, resolveVideoReferenceCore, applyPromptAffixes, composeVideoPromptText, isMinorAge, containsMinorAgeHint, type DirectionFields, type StructuredPromptFields, type SubjectFields, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import { labelRefHintContext } from "./label-ref-hint-context.js"
 import type { CharacterDef, ConnectedReference, SceneData, ExtraRefInput, ExtraRefCharacterContext } from "@nodaro/shared"
@@ -33,6 +33,7 @@ import { isVoiceGenderAllowed, premadeVoiceGender } from "../../lib/voice-policy
 import { applyPromptPolicies } from "../../lib/prompt-policy.js"
 import { ltxCameraMotionFromUpstream } from "../../lib/ltx-camera-motion.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
+import { buildEffectiveEdl, validateEffectiveEdl } from "../../lib/apply-edl-plan.js"
 import { extractSavedNodeOutput, extractSourceNodeOutput, getPrimaryOutput } from "./output-extractor.js"
 import {
   appendScene3DStillScopingLines,
@@ -199,6 +200,7 @@ export const REQUIRED_MEDIA_INPUTS: Readonly<Record<string, RequiredMediaInput |
   "audio-fx": { anyOf: ["audioUrl"], kind: "audio", noun: "an audio track" },
   "forced-alignment": { anyOf: ["audioUrl"], kind: "audio", noun: "an audio track" },
   "trim-audio": { anyOf: ["videoUrl", "audioUrl"], kind: "audio", noun: "an audio or video track" },
+  "silence-detect": { anyOf: ["audioUrl", "videoUrl"], kind: "audio", noun: "an audio or video track" },
   "adjust-volume": { anyOf: ["audioUrl", "videoUrl"], kind: "audio", noun: "an audio or video track" },
   "voice-changer": { anyOf: ["audioUrl", "videoUrl"], kind: "audio", noun: "an audio or video track" },
   "voice-changer-pro": { anyOf: ["audioUrl", "videoUrl"], kind: "audio", noun: "an audio or video track" },
@@ -1628,6 +1630,18 @@ interface PayloadResult {
   payload: Record<string, unknown>
   /** Model identifier for credit reservation */
   modelIdentifier: string
+}
+
+/** Parse a JSON string, returning undefined (never throwing) on bad input —
+ *  used by the apply-edl case where the EDL/transcript arrive stringified on a
+ *  json handle. `normalizeEdl` then coerces the parsed value (or {} on
+ *  undefined) into a well-formed EDL. */
+function parseJsonOrUndefined(s: string): unknown {
+  try {
+    return JSON.parse(s)
+  } catch {
+    return undefined
+  }
 }
 
 /** Shorthand for FFmpeg nodes that all share queueName + modelIdentifier.
@@ -4025,6 +4039,93 @@ export function buildPayload(
       })
     }
 
+    // Edit Plan (podcast editing) — a transcript-driven cut / clip / chapter
+    // planner. Cloud-EXCLUSIVE + relayed: this case builds the job the cloud
+    // plugin worker (or the self-host relay) consumes, and reserves a duration-
+    // bucketed credit id from the MASTER source's length. The reserve is a pre-run
+    // gate; the plugin re-probes the master source on the cloud and applies the
+    // credit id's bucket as a money-GATE (it refuses if the probed length exceeds
+    // the reserved bucket), so an unknown duration here takes the ceiling bucket —
+    // the safe over-reserve direction.
+    case "edit-plan": {
+      const mode = asEditPlanMode(data.mode)
+      const tier = asEditPlanTier(data.planTier)
+      // The plugin's coerceTranscript/coerceSilence read OBJECTS. Parse the
+      // stringified json that arrives on the `transcript`/`silence` json handles
+      // (transcribe / silence-detect stringify via getPrimaryOutput), or accept
+      // an inline object on data.*. NEVER send a raw string — the plugin would
+      // see zero timed words and 400 the run before it starts.
+      const transcriptRaw = resolvedInputs.transcript ?? (data.transcript as unknown)
+      const transcript = typeof transcriptRaw === "string" ? parseJsonOrUndefined(transcriptRaw) : transcriptRaw
+      const silenceRaw = resolvedInputs.silence ?? (data.silence as unknown)
+      const silence = typeof silenceRaw === "string" ? parseJsonOrUndefined(silenceRaw) : silenceRaw
+      // sources: the wired media, ordered by the config-panel sourceOrder (listed
+      // first, then unlisted in wire order — the combine-videos precedent; the
+      // SAME order the single-node Run path applies), then annotated by the
+      // node's per-source config table (role/speakers/offsetMs/kind override).
+      // The source NODE id is the EdlSource id — minted once, never re-derived
+      // (C1). Config wins over the producer-derived kind.
+      const cfg = (data.sourceConfig as Record<string, {
+        role?: string; speakers?: string[]; offsetMs?: number; kind?: "video" | "audio"
+      }> | undefined) ?? {}
+      const wiredRaw = resolvedInputs.editPlanSources ?? []
+      const srcOrder = (data.sourceOrder as string[] | undefined) ?? []
+      const wired = srcOrder.length
+        ? [
+            ...srcOrder.flatMap((nid) => wiredRaw.filter((w) => w.nodeId === nid)),
+            ...wiredRaw.filter((w) => !srcOrder.includes(w.nodeId)),
+          ]
+        : wiredRaw
+      const sources = wired.map((row) => {
+        const c = cfg[row.nodeId] ?? {}
+        const src: Record<string, unknown> = {
+          id: row.nodeId,
+          url: row.url,
+          kind: c.kind === "audio" || c.kind === "video" ? c.kind : row.kind,
+        }
+        if (typeof c.role === "string" && c.role) src.role = c.role
+        if (Array.isArray(c.speakers) && c.speakers.length > 0) {
+          src.speakers = c.speakers.filter((s) => typeof s === "string")
+        }
+        if (typeof c.offsetMs === "number" && Number.isFinite(c.offsetMs)) src.offsetMs = c.offsetMs
+        return src
+      })
+      // Fail fast — the orchestrated path bypasses the /v1/edit-plan shim Zod, so
+      // without these a mis-wired node reserves the ceiling, enqueues, relays, and
+      // the cloud 400s `empty_transcript` / rejects empty sources — a paid round
+      // trip to a certain failure. Mirror of the two frontend refusals (parity
+      // with apply-edl's validateEffectiveEdl-throws-before-reserve contract).
+      if (transcript === undefined || transcript === null) {
+        throw new Error("edit-plan: connect a transcript to the Transcript input")
+      }
+      if (sources.length === 0) {
+        throw new Error("edit-plan: connect the recording's media to the Sources input")
+      }
+      // Reserve on the MASTER source's duration: the declared role:"master-audio"
+      // source, else the first source (mirrors the plugin's masterProbeSource);
+      // undefined → the ceiling bucket.
+      const masterRow =
+        wired.find((row) => cfg[row.nodeId]?.role === "master-audio") ?? wired[0]
+      const creditId = buildEditPlanCreditId(mode, tier, masterRow?.duration)
+      return simpleResult("edit-plan", creditId, {
+        jobId,
+        mode,
+        planTier: tier,
+        transcript,
+        silence,
+        sources,
+        instructions: applyPromptAffixes(data.instructions as string | undefined, readPromptAffixes(data), refMap),
+        styleGuide: typeof data.styleGuide === "string" ? data.styleGuide : undefined,
+        count: mode === "clips" && typeof data.count === "number" ? data.count : undefined,
+        targetDurationSec: mode === "clips" && typeof data.targetDurationSec === "number" ? data.targetDurationSec : undefined,
+        targetAspect: typeof data.targetAspect === "string" ? data.targetAspect : undefined,
+        platform: typeof data.platform === "string" ? data.platform : undefined,
+        reservedCreditId: creditId,
+        nodeId: node.id,
+        usageLogId,
+      })
+    }
+
     // AI Audit — re-watches a clip against an analysis and returns the CORRECTED
     // analysis (`json`) plus its disclosure `report`. Sibling of video-analysis
     // above and priced off the SAME duration-bucket ladder, but the family comes
@@ -5398,6 +5499,14 @@ export function buildPayload(
         }
       }
 
+      // Word timings only make the `json` (Transcript) handle useful, and the
+      // two whisper providers omit them unless asked (elevenlabs-stt is always
+      // word-level). Turn them on when — and only when — the json handle is
+      // actually consumed, so text-only runs stay byte-identical. Data-driven
+      // off the graph, never a hardcoded default.
+      const jsonWired = Boolean(
+        buildCtx?.edges?.some((e) => e.source === node.id && e.sourceHandle === "json"),
+      )
       return {
         jobName: "transcribe",
         queueName: "video-generation",
@@ -5409,6 +5518,7 @@ export function buildPayload(
           language: data.language,
           diarize: data.diarize,
           tagAudioEvents: data.tagAudioEvents,
+          wordTimestamps: jsonWired || Boolean(data.wordTimestamps),
           usageLogId,
         },
       }
@@ -5465,6 +5575,33 @@ export function buildPayload(
         trimStartFrames: (data.trimStartFrames as number) ?? 1,
         trimEndFrames: (data.trimEndFrames as number) ?? 2,
         upstreamDurations,
+        usageLogId,
+      })
+    }
+
+    case "apply-edl": {
+      // The EDL arrives stringified on the `edl` json handle (or inline on
+      // data.edl). Build the ONE effective EDL — same helper the route uses —
+      // and validate it HERE so a bad/unresolvable EDL fails the run before a
+      // paid render (parity with the route's 400), not with "Unknown node type"
+      // or a mid-render ffmpeg error.
+      const rawEdlInput = resolvedInputs.edl ?? (data.edl as unknown)
+      const rawEdl = typeof rawEdlInput === "string" ? parseJsonOrUndefined(rawEdlInput) : rawEdlInput
+      const output = data.output === "audio" ? "audio" : "video"
+      const quality = data.quality === "proxy" ? "proxy" : "final"
+      const crossfadeMs = typeof data.crossfadeMs === "number" ? data.crossfadeMs : 0
+      const effectiveEdl = buildEffectiveEdl(rawEdl, { crossfadeMs, sourceOverrides: resolvedInputs.sources })
+      const validation = validateEffectiveEdl(effectiveEdl, output)
+      if (!validation.ok) {
+        throw new Error(`apply-edl: invalid EDL — ${validation.issues.slice(0, 3).join("; ")}`)
+      }
+      const transcript = resolvedInputs.transcript ?? (typeof data.transcript === "string" ? data.transcript : undefined)
+      return ffmpegResult("apply-edl", {
+        jobId,
+        edl: effectiveEdl,
+        transcript,
+        output,
+        quality,
         usageLogId,
       })
     }
@@ -5712,6 +5849,18 @@ export function buildPayload(
         usageLogId,
       })
 
+    case "silence-detect":
+      // Accepts an audio OR video source; the worker reads the shared audio
+      // proxy either way. `audioUrl` carries whichever url the edge resolved.
+      return ffmpegResult("silence-detect", {
+        jobId,
+        audioUrl: resolvedInputs.audioUrl || resolvedInputs.videoUrl || data.audioUrl,
+        thresholdDb: data.thresholdDb,
+        minSilenceMs: data.minSilenceMs,
+        padMs: data.padMs,
+        usageLogId,
+      })
+
     case "remove-audio":
       return ffmpegResult("remove-audio", {
         jobId,
@@ -5911,11 +6060,39 @@ export function buildPayload(
     case "add-captions": {
       const captionsValue = data.captions
       const isCaptionArray = Array.isArray(captionsValue) && captionsValue.length > 0 && typeof (captionsValue[0] as { startMs?: number })?.startMs === "number"
+      const addCaptionsTranscript = resolvedInputs.transcript ?? data.transcript
+      // Validate the wired Transcript HERE — before the credit reservation in
+      // node-executor — so a DAG run fails at ingress exactly like the route's
+      // 400 (parity with apply-edl's throw above), never after reserving credits
+      // and dying in the worker. The worker keeps the same throws as defence in
+      // depth. `style` mirrors the payload's `data.captionStyle ?? data.style`
+      // (worker defaults undefined → "subtitle").
+      if (addCaptionsTranscript !== undefined && addCaptionsTranscript !== null) {
+        const acStyle = (data.captionStyle ?? data.style ?? "subtitle") as string
+        const acHasSegments = Array.isArray(data.segments) && data.segments.length > 0
+        if (!acHasSegments && !isKineticCaptionStyle(acStyle)) {
+          throw new Error(`add-captions: a wired transcript needs a kinetic caption style; the "${acStyle}" style ignores it`)
+        }
+        const acRaw = typeof addCaptionsTranscript === "string" ? parseJsonOrUndefined(addCaptionsTranscript) : addCaptionsTranscript
+        if (typeof addCaptionsTranscript === "string" && acRaw === undefined) {
+          throw new Error("add-captions: transcript input is not JSON — wire the Transcript (json) output")
+        }
+        if (normalizeTranscript(acRaw).words.length === 0) {
+          throw new Error("add-captions: transcript has no words to caption")
+        }
+      }
       return ffmpegResult("add-captions", {
         jobId,
         videoUrl: resolvedInputs.videoUrl || data.videoUrl,
         text: !isCaptionArray ? (resolvedInputs.prompt || resolveRefs(data.text as string | undefined, refMap)) : undefined,
         captions: isCaptionArray ? captionsValue : (resolvedInputs.captions ?? undefined),
+        // A Transcript wired into the `transcript` json handle (from transcribe
+        // or apply-edl's remapped json) — the worker reshapes it into the
+        // caption list via captions-mappers.transcriptToCaptions. Stringified on
+        // the handle; falls back to inline node data. wordLevel is a node-data
+        // field (word-level captions vs grouped lines).
+        transcript: addCaptionsTranscript,
+        wordLevel: data.wordLevel as boolean | undefined,
         // Node data stores camelCase (AddCaptionsData.autoTranscribe / .transcribeProvider);
         // the worker payload uses snake_case. Reading data.auto_transcribe (snake) was
         // always undefined → an explicit autoTranscribe:false and any transcribeProvider
@@ -5927,6 +6104,21 @@ export function buildPayload(
         fontSize: data.fontSize,
         color: data.color,
         backgroundColor: data.backgroundColor,
+        // Kinetic look levers + per-segment captions — pass through so an
+        // orchestrated (DAG) run matches a single-node run (audit-dag parity).
+        // Undefined for canvas nodes that don't carry them; honoured for
+        // authored/imported node data. This path bypasses the route Zod, so a
+        // stale look lever on a `subtitle` node just flows to the worker and is
+        // ignored on the FFmpeg branch — harmless, no rejection here.
+        look: data.look,
+        fontFamily: data.fontFamily,
+        fontWeight: data.fontWeight,
+        strokeColor: data.strokeColor,
+        strokeWidth: data.strokeWidth,
+        highlightColor: data.highlightColor,
+        uppercase: data.uppercase,
+        positionY: data.positionY,
+        segments: data.segments,
         usageLogId,
       })
     }

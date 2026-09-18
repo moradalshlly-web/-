@@ -1,4 +1,5 @@
 import type { Caption } from "@remotion/captions"
+import type { Transcript } from "@nodaro/shared"
 import { replicate, extractCost } from "../replicate/client.js"
 import { directSpeechToText } from "../elevenlabs/direct-stt.js"
 import {
@@ -8,6 +9,7 @@ import {
   type FastWhisperOutput,
 } from "./transcribe-output.js"
 import { scribeWordsToCaptions } from "./captions-mappers.js"
+import { buildTranscriptFromOutput } from "./transcript-normalize.js"
 
 function extractVersion(modelString: string): string {
   const parts = modelString.split(":")
@@ -30,6 +32,8 @@ interface TranscribeResult {
   }>
   /** Caption-shaped words (ms). `speaker` present only on diarized elevenlabs-stt runs. */
   words?: Array<Caption & { speaker?: string }>
+  /** Normalized `Transcript` — the node's `json` output handle (always set). */
+  json?: Transcript
 }
 
 const TRANSCRIBE_MODELS: Record<string, string> = {
@@ -77,6 +81,10 @@ export async function transcribe(
       // tier (user-facing credits unchanged), the same way the youtube-audio
       // handler already commits without a metered cost.
       ...(words.length ? { words } : {}),
+      // Scribe is word-level regardless of `wordTimestamps`, so the json handle
+      // always carries word timings for the default provider (no segments —
+      // Scribe emits none). The mapper layer sets `json` on the whisper paths.
+      json: buildTranscriptFromOutput({ language: result.language, words }),
     }
   }
 

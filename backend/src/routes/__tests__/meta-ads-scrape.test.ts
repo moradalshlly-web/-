@@ -16,7 +16,7 @@ vi.mock("../../providers/apify/meta-ads-advertisers.js", () => ({
 const mediaMocks = vi.hoisted(() => ({
   classifyAndStoreMetaAdsMedia: vi.fn(async (ads: Array<Record<string, unknown>>) => ({
     ads: ads.map((ad) => ({ ...ad, format: "unknown", creatives: [] })),
-    stats: { classified: 0, stored: 0, kept: ads.length, filteredOut: 0 },
+    stats: { classified: 0, stored: 0, videosStored: 0, kept: ads.length, filteredOut: 0 },
   })),
 }))
 vi.mock("../../lib/meta-ads-media.js", () => ({
@@ -99,12 +99,12 @@ describe("POST /v1/meta-ads-scrape", () => {
     expect(res.json()).toEqual({
       jobId: "job-1",
       json: [AD_OUT],
-      mediaStorage: { classified: 0, stored: 0, kept: 1, filteredOut: 0 },
+      mediaStorage: { classified: 0, stored: 0, videosStored: 0, kept: 1, filteredOut: 0 },
       text: "Air Max\n\nJust do it.",
       imageUrl: "https://img/1.jpg",
     })
     expect(mediaMocks.classifyAndStoreMetaAdsMedia).toHaveBeenCalledWith([AD], expect.objectContaining({
-      userId: "u1", jobId: "job-1", storeImages: true, storeVideoForAdIndex: undefined, formats: undefined,
+      userId: "u1", jobId: "job-1", storeImages: true, storeFeaturedVideoIndex: undefined, formats: undefined,
     }))
   })
 
@@ -114,11 +114,11 @@ describe("POST /v1/meta-ads-scrape", () => {
     const app = await buildTestApp()
     const res = await app.inject({
       method: "POST", url: "/v1/meta-ads-scrape",
-      payload: { mode: "search", query: "nike", formats: ["vertical", "square"], featuredIndex: 1, ingestVideo: true },
+      payload: { mode: "search", query: "nike", formats: ["vertical", "square"], featuredIndex: 1, ingestVideo: true, ingestAllVideos: true },
     })
     expect(res.statusCode).toBe(200)
     expect(mediaMocks.classifyAndStoreMetaAdsMedia).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      formats: ["vertical", "square"], storeVideoForAdIndex: 1,
+      formats: ["vertical", "square"], storeFeaturedVideoIndex: 1, storeAllVideos: true,
     }))
     expect(res.json().text).toBe("Second\n\nJust do it.")
     const bad = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape", payload: { mode: "search", query: "nike", formats: ["round"] } })
@@ -134,7 +134,7 @@ describe("POST /v1/meta-ads-scrape", () => {
     const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape", payload: { mode: "search", query: "nike" } })
     expect(res.statusCode).toBe(200)
     expect(res.json().json).toEqual([AD_OUT])
-    expect(res.json().mediaStorage).toEqual({ classified: 0, stored: 0, kept: 1, filteredOut: 0 })
+    expect(res.json().mediaStorage).toEqual({ classified: 0, stored: 0, videosStored: 0, kept: 1, filteredOut: 0 })
     expect(res.json().imageUrl).toBe("https://img/1.jpg")
     expect(jobMocks.markJobFailed).not.toHaveBeenCalled()
     expect(commitReservedCreditsForJob).toHaveBeenCalledWith("job-1")
@@ -146,7 +146,91 @@ describe("POST /v1/meta-ads-scrape", () => {
     cloudMocks.callCloudRoute.mockResolvedValue({ jobId: "cloud-job-9", json: [AD] })
     const app = await buildTestApp()
     await app.inject({ method: "POST", url: "/v1/meta-ads-scrape", payload: { mode: "search", query: "nike", ingestVideo: true } })
-    expect(mediaMocks.classifyAndStoreMetaAdsMedia).toHaveBeenCalledWith([AD], expect.objectContaining({ storeImages: false, storeVideoForAdIndex: undefined }))
+    expect(mediaMocks.classifyAndStoreMetaAdsMedia).toHaveBeenCalledWith([AD], expect.objectContaining({ storeImages: false, storeFeaturedVideoIndex: undefined }))
+  })
+
+  describe("advertiser names → Page urls (advertiser mode driven by the `in` input)", () => {
+    const OPENART = { pageId: "615", name: "OpenArt AI", url: "https://www.facebook.com/people/OpenArt-AI/615/", verified: true }
+    const NIKE = { pageId: "150", name: "Nike", url: "https://www.facebook.com/nike", verified: true }
+
+    beforeEach(async () => {
+      const { _resetAdvertiserLookupMeterForTests } = await import("../meta-ads-scrape.js")
+      _resetAdvertiserLookupMeterForTests()
+    })
+
+    it("in-scrape name resolution is metered per user — a scrape cannot bypass the daily lookup cap", async () => {
+      const { META_ADS_ADVERTISER_LOOKUPS_PER_DAY, takeAdvertiserLookup } = await import("../meta-ads-scrape.js")
+      // Exhaust this user's daily lookups, then a scrape whose names would each
+      // start an actor run must be refused, not run un-metered.
+      for (let i = 0; i < META_ADS_ADVERTISER_LOOKUPS_PER_DAY; i += 1) expect(takeAdvertiserLookup("u1")).toBe(true)
+      const app = await buildTestApp()
+      const res = await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "pages", advertiserNames: ["OpenArt AI", "Nike"], count: 20 },
+      })
+      expect(res.statusCode).toBe(429)
+      expect(res.json().error.code).toBe("rate_limit_exceeded")
+      expect(advertiserMocks.searchMetaAdvertisers).not.toHaveBeenCalled()
+    })
+
+    it("dedupes repeated names (case-insensitive) — one lookup, one source", async () => {
+      const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
+      vi.mocked(runMetaAdsScrape).mockResolvedValue({ json: [AD] } as never)
+      advertiserMocks.searchMetaAdvertisers.mockResolvedValue({ items: [NIKE], cached: false })
+      const app = await buildTestApp()
+      const res = await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "pages", advertiserNames: ["Nike", "nike", "NIKE"], count: 20 },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(advertiserMocks.searchMetaAdvertisers).toHaveBeenCalledTimes(1)
+      expect(runMetaAdsScrape).toHaveBeenCalledWith(expect.objectContaining({ pageUrls: [NIKE.url] }))
+    })
+
+    it("resolves each name (verified-first), scrapes the resolved Pages, and reports who each name matched", async () => {
+      const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
+      vi.mocked(runMetaAdsScrape).mockResolvedValue({ json: [AD] } as never)
+      // First name: a fan page THEN the verified brand → the verified one wins.
+      advertiserMocks.searchMetaAdvertisers
+        .mockResolvedValueOnce({ items: [{ pageId: "fan", name: "OpenArt Fans", url: "https://www.facebook.com/fans", verified: false }, OPENART], cached: false })
+        .mockResolvedValueOnce({ items: [NIKE], cached: true })
+      const app = await buildTestApp()
+      const res = await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "pages", advertiserNames: ["OpenArt AI", "Nike"], count: 30 },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(runMetaAdsScrape).toHaveBeenCalledWith(expect.objectContaining({ pageUrls: [OPENART.url, NIKE.url] }))
+      expect(res.json().resolvedAdvertisers).toEqual([
+        { name: "OpenArt AI", pageId: "615", url: OPENART.url },
+        { name: "Nike", pageId: "150", url: NIKE.url },
+      ])
+      // 2 sources × 30 → 100 tier.
+      expect(creditMocks.reserveCreditsForJob).toHaveBeenCalledWith(expect.anything(), expect.anything(), "job-1", "meta-ads-scrape:100")
+    })
+
+    it("404 advertiser_not_found when no name resolves — no scrape, nothing reserved (resolution precedes the reservation)", async () => {
+      const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
+      advertiserMocks.searchMetaAdvertisers.mockResolvedValue({ items: [], cached: false })
+      const app = await buildTestApp()
+      const res = await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "pages", advertiserNames: ["zzqx"], count: 20 },
+      })
+      expect(res.statusCode).toBe(404)
+      expect(res.json().error.code).toBe("advertiser_not_found")
+      expect(runMetaAdsScrape).not.toHaveBeenCalled()
+      expect(creditMocks.reserveCreditsForJob).not.toHaveBeenCalled()
+    })
+
+    it("400 when the combined Page urls + advertiser names exceed the source ceiling", async () => {
+      const app = await buildTestApp()
+      const res = await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "pages", pageUrls: ["https://www.facebook.com/a", "https://www.facebook.com/b", "https://www.facebook.com/c"], advertiserNames: ["dd", "ee", "ff"] },
+      })
+      expect(res.statusCode).toBe(400)
+    })
   })
 
   it("guard (raw body) and reservation (parsed body) resolve the SAME tier", async () => {

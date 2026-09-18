@@ -1,4 +1,5 @@
 import { projectDubbingCreditOverride } from "../../lib/dubbing-pricing.js"
+import { applyEdlCreditOverride } from "../../lib/apply-edl-plan.js"
 import { assertCanvasExecutionAllowed, imageOverlayCredits } from "@nodaro/shared"
 /**
  * Node executor — dispatches node execution based on type category.
@@ -213,6 +214,8 @@ export function extractUserPromptTemplate(node: SimpleNode): string | undefined 
       return pick("transcript")
     case "video-analysis":
       return pick("analysisFocus")
+    case "edit-plan":
+      return pick("instructions")
 
     // --- Music ---
     case "generate-music":
@@ -1083,6 +1086,14 @@ export function buildSyncHttpBody(
         platforms: Array.isArray(data.platforms) ? data.platforms : undefined,
         formats: Array.isArray(data.formats) ? data.formats : undefined,
         featuredIndex: typeof data.featuredIndex === "number" ? data.featuredIndex : undefined,
+        // Copy every ad's video (the expensive bytes) — opt-in node setting,
+        // independent of the featured-video-when-wired rule below.
+        ingestAllVideos: data.ingestAllVideos === true ? true : undefined,
+        // Optional per-ad AI analysis — priced into the same identifier the
+        // route's guard resolves, so the node's quote and the reservation agree.
+        analyze: data.analyze === true ? true : undefined,
+        analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
+        analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,
         userId: ctx.userId,
       }
       return withUserPrompt(body)
@@ -1612,6 +1623,7 @@ async function executeWorkerNode(
       // is safe and short-circuits any later (unneeded) dynamic import +
       // pricing call once an earlier one already applies.
       const creditOverride =
+        await applyEdlCreditOverride(jobName, payload) ??
         await projectDubbingCreditOverride(jobName, payload) ??
         computeImageOverlayCreditOverride(payload) ??
         (await computeGenerateVideoProCreditOverride(payload, modelIdentifier))?.override ??

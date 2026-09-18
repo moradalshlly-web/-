@@ -58,15 +58,37 @@ export const ANALYSIS_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
  *  `HandleWithPopover`'s `accepts` and the drop validator both take. */
 export const ACCEPTS_ANALYSIS = (sourceType: string): boolean => ANALYSIS_PRODUCER_TYPES.has(sourceType)
 
+/** Accepts any JSON/structured-data producer (plus list producers, so a `list`
+ *  fan-out can feed a json input). The shape `HandleWithPopover`'s `accepts`
+ *  and the drop validator take — used by apply-edl's `edl` / `transcript`
+ *  inputs. */
+export const ACCEPTS_JSON = (sourceType: string): boolean =>
+  JSON_PRODUCER_TYPES.has(sourceType) || LIST_PRODUCER_TYPES.has(sourceType)
+
 /** Producers of JSON/dict-shaped data — web-scrape returns json arrays,
  *  extract-field has a `json` outputType, etc. */
 export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
-  "web-scrape", "meta-ads-scrape", "extract-field",
+  "web-scrape", "meta-ads-scrape", "extract-field", "silence-detect",
   "list", "filter-list",
   "deduplicate", "merge-lists", "sort-list",
   "selector",
   "ai-writer", "llm-chat", "generate-script",
+  // Transcribe's `json` handle emits a normalized `Transcript` (its `text`
+  // handle keeps it in DATA_TEXT_PRODUCER_TYPES). Dual producer, like the
+  // analysis pair.
+  "transcribe",
   ...ANALYSIS_PRODUCER_TYPES,
+  // apply-edl's `json` output handle carries the remapped Transcript. Its OTHER
+  // (default) output handle is dynamic media (video|audio), declared in
+  // @nodaro/shared DYNAMIC_PRODUCER_TYPES — this is the json half of the same
+  // dual-handle node. Lets its `json` handle feed a data/json consumer (e.g.
+  // add-captions' transcript input).
+  "apply-edl",
+  // edit-plan's single `edl` output handle carries the EDL plan (json). Its
+  // clips-mode output is a bare Edl[] that fans out (edit-plan ∈
+  // FAN_OUT_EACH_TYPES), but the handle is still a json/data producer — so it
+  // feeds apply-edl's `edl` input (ACCEPTS_JSON). See unwrapEditPlanOutput.
+  "edit-plan",
 ])
 
 /** True when `sourceType` can flow into a generic data input (text, list,
