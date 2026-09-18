@@ -379,17 +379,16 @@ function seedMarketplaceBuiltInsEnabled(): boolean {
 }
 
 async function runSeed(): Promise<void> {
-  // The built-in set is loaded on every edition, but SEEDED only off Cloud
-  // (header). On Cloud its slugs still feed the pack de-dup below, so a pack
-  // can never shadow a built-in a real user already owns there.
+  // The built-in set is loaded on every edition. Off Cloud the WHOLE set is
+  // seeded; on Cloud its slugs still feed the pack de-dup below (so a pack can
+  // never shadow a built-in a real user already owns there), and — behind an
+  // opt-in — its marketplace subset seeds too. That subset is the ONE narrow
+  // exception: the marketplace-listed built-ins (the podcast editing templates)
+  // are platform-owned SYSTEM slugs no real user owns — unlike the tutorial
+  // set, whose slugs already belong to real users on the shared cloud — so
+  // seeding them carries no user-row-conflict risk. Either way seedOne is
+  // creator-scoped and applies listed_in on INSERT only.
   const docs = await loadDocs()
-  // The FULL built-in set (marketplace + tutorial) seeds off Cloud only. On
-  // Cloud there is ONE narrow exception, behind an opt-in: the marketplace-
-  // listed built-ins (the podcast editing templates). Those are platform-owned
-  // SYSTEM slugs no real user owns — unlike the tutorial set, whose slugs
-  // already belong to real users on the shared cloud — so seeding them carries
-  // no user-row-conflict risk. Either way seedOne is creator-scoped and applies
-  // listed_in on INSERT only.
   const seedBuiltIns = !isCloud()
   const marketplaceDocs = docs.filter(isMarketplaceDoc)
   const seedMarketplaceCloud =
