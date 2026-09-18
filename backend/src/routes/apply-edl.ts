@@ -46,6 +46,13 @@ const applyEdlBody = z.object({
 
 export async function applyEdlRoutes(app: FastifyInstance) {
   app.post("/v1/apply-edl", {
+    // A word-level transcript for a multi-hour episode is several MB — well over
+    // the app's 1 MB default JSON bodyLimit — and this route accepts one on the
+    // `transcript` field (remapped through the cut for the json handle). Raise the
+    // limit to match the edit-plan shim so an SDK/MCP caller passing a full
+    // episode transcript isn't 413'd. The DAG path carries the transcript in the
+    // job payload, not the HTTP body, so this only guards the direct REST POST.
+    bodyLimit: 24 * 1024 * 1024,
     preHandler: creditGuard(() => "apply-edl", {
       // Probe-at-reserve on the RENDERED duration: build the same effective EDL
       // the handler renders, reserve `perMinute × ceil(edlDurationMs/60000)`.

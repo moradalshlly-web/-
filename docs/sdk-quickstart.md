@@ -464,6 +464,36 @@ The full set of strategies is: `pick-best-llm`, `concat`, `first-non-empty`,
 server returns a 400 (`code: "no_valid_inputs"`) which surfaces as a
 `NodaroError` subclass.
 
+### Plan and render a podcast edit (editorial primitives)
+
+`client.edit` wraps the phase-1 editorial routes. A typical flow: detect
+silence, plan a cut from the transcript, then render the plan with `applyEdl`.
+Each request returns `{ jobId }`; poll it with `client.jobs.getStatus`.
+
+```ts
+import { unwrapEditPlanOutput } from "@nodaro/sdk"
+
+// 1. Detect silence in the recording
+const sd = await client.edit.silenceDetect({ audioUrl: masterUrl, thresholdDb: -35 })
+const silence = (await client.jobs.getStatus(sd.jobId)).data.output_data.json // SilenceRanges
+
+// 2. Plan a tighten cut from a timed transcript + the detected silence
+const plan = await client.edit.editPlan({
+  mode: "tighten",
+  planTier: "standard",
+  transcript,                                    // a transcribe job's output_data.json
+  sources: [{ id: "ep", url: masterUrl, kind: "video", role: "master-audio" }],
+  silence,
+})
+const edl = unwrapEditPlanOutput((await client.jobs.getStatus(plan.jobId)).data.output_data)
+
+// 3. Render the plan into a final cut
+const render = await client.edit.applyEdl({ edl, output: "video", quality: "final" })
+```
+
+`remapTranscript(edl, transcript)` re-times a transcript through an EDL purely
+locally — no request — handy for captioning the cut without a render.
+
 ### Improve a prompt with the Prompt Wizard
 
 `client.promptHelper` is AI assistance for writing prompts for generation
