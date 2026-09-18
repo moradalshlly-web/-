@@ -23,7 +23,7 @@ The Meta Ads node searches Meta's public Ad Library — the same archive you can
 | `advertiser` (Advertiser) | Advertiser picks | Type an advertiser's name, press **Find**, and pick the right Facebook Page from the matches (avatar, name, verified badge — the verified one is usually it), up to 5. The run pulls only those advertisers' ads. The lookup itself costs no credits (10 per minute). You can also drive it from the input: connect a Text / List node and each upstream line is resolved to a Page at run time (the verified match, else the first), reported back in `resolvedAdvertisers` |
 | `pages` (Facebook pages) | Facebook Page URLs | One Page address per line, up to 5 (`https://www.facebook.com/nike`; `https://` is optional). An advertiser's Ad Library link works here too. Use `{}` to inject an upstream list |
 
-Advertiser picks run exactly like Facebook Pages — each pick is one source for pricing (below), and the API only knows `search` and `pages`: the editor sends a pick as its Page URL.
+Advertiser picks run exactly like Facebook Pages — each pick is one source for pricing (below), and the API only knows `search` and `pages`: the editor sends a pick as its Page URL. When advertiser mode is driven from the input instead of explicit picks, the names are resolved at run time, so the number of sources (and the exact credit total) is known only when the node runs — the on-card estimate assumes one source until then.
 
 ### Fields
 

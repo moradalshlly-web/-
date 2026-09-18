@@ -3,7 +3,7 @@ import { classifyCreativeFormat, type MetaAdsCreativeFormat, type MetaAdsFormat 
 import { safeFetch } from "./safe-fetch.js"
 import { deadlinePool } from "./deadline-pool.js"
 import { readBodyCapped, storeImportedImageBuffer } from "./media-import.js"
-import { isStorageConfigured, uploadToR2 } from "./storage.js"
+import { isStorageConfigured, isStorageLimitError, uploadToR2 } from "./storage.js"
 import { supabase } from "./supabase.js"
 import type { MetaAd } from "../providers/apify/meta-ads.js"
 
@@ -313,7 +313,10 @@ async function storeMetaAdVideo(args: {
   sourceUrl: string
   posterUrl: string | null
 }): Promise<StoredVideo> {
-  const outputId = `meta-ad-${args.adArchiveId}-${args.jobId.slice(0, 8)}`
+  // adArchiveId is external actor data → sanitize before it becomes an R2
+  // object key / filename (copy-all-videos writes one per ad).
+  const safeId = String(args.adArchiveId).replace(/[^a-zA-Z0-9_-]/g, "") || "ad"
+  const outputId = `meta-ad-${safeId}-${args.jobId.slice(0, 8)}`
   try {
     const url = await uploadToR2(args.sourceUrl, outputId, "video", args.userId, { reserveQuota: true })
     // uploadToR2 reserved + settled the bytes already — no updateStorageUsage here.
@@ -339,10 +342,12 @@ async function storeMetaAdVideo(args: {
     if (error) console.warn(`[meta-ads-media] video asset row failed for ${outputId} (video kept, unowned): ${error.message}`)
     return { ok: true, quota: false, url, assetId: data?.id ?? null }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    const quota = message.includes("storage-limit-exceeded")
+    // Quota is a TYPED signal from storage.ts (isStorageLimitError), not a
+    // grep on the thrown string — a reworded message can't silently turn a
+    // quota refusal into a "retryable" that hammers every kept ad.
+    const quota = isStorageLimitError(err)
     // Quota is expected (the user is full) — noise-free; anything else is logged.
-    if (!quota) console.warn(`[meta-ads-media] video store failed for ${outputId}: ${message}`)
+    if (!quota) console.warn(`[meta-ads-media] video store failed for ${outputId}: ${err instanceof Error ? err.message : String(err)}`)
     return { ok: false, quota }
   }
 }

@@ -31,7 +31,12 @@ vi.mock("../media-import.js", () => ({
   storeImportedImageBuffer: mocks.storeImportedImageBuffer,
   readBodyCapped: async (res: { body: Buffer }) => res.body,
 }))
-vi.mock("../storage.js", () => ({ isStorageConfigured: mocks.isStorageConfigured, uploadToR2: mocks.uploadToR2 }))
+vi.mock("../storage.js", () => ({
+  isStorageConfigured: mocks.isStorageConfigured,
+  uploadToR2: mocks.uploadToR2,
+  // Faithful to the real helper: typed error OR the legacy message prefix.
+  isStorageLimitError: (err: unknown) => err instanceof Error && err.message.includes("storage-limit-exceeded"),
+}))
 vi.mock("../supabase.js", () => ({
   supabase: { from: () => ({ insert: () => ({ select: () => ({ single: mocks.insertSingle }) }) }) },
 }))

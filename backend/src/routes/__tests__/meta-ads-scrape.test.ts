@@ -153,6 +153,40 @@ describe("POST /v1/meta-ads-scrape", () => {
     const OPENART = { pageId: "615", name: "OpenArt AI", url: "https://www.facebook.com/people/OpenArt-AI/615/", verified: true }
     const NIKE = { pageId: "150", name: "Nike", url: "https://www.facebook.com/nike", verified: true }
 
+    beforeEach(async () => {
+      const { _resetAdvertiserLookupMeterForTests } = await import("../meta-ads-scrape.js")
+      _resetAdvertiserLookupMeterForTests()
+    })
+
+    it("in-scrape name resolution is metered per user — a scrape cannot bypass the daily lookup cap", async () => {
+      const { META_ADS_ADVERTISER_LOOKUPS_PER_DAY, takeAdvertiserLookup } = await import("../meta-ads-scrape.js")
+      // Exhaust this user's daily lookups, then a scrape whose names would each
+      // start an actor run must be refused, not run un-metered.
+      for (let i = 0; i < META_ADS_ADVERTISER_LOOKUPS_PER_DAY; i += 1) expect(takeAdvertiserLookup("u1")).toBe(true)
+      const app = await buildTestApp()
+      const res = await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "pages", advertiserNames: ["OpenArt AI", "Nike"], count: 20 },
+      })
+      expect(res.statusCode).toBe(429)
+      expect(res.json().error.code).toBe("rate_limit_exceeded")
+      expect(advertiserMocks.searchMetaAdvertisers).not.toHaveBeenCalled()
+    })
+
+    it("dedupes repeated names (case-insensitive) — one lookup, one source", async () => {
+      const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
+      vi.mocked(runMetaAdsScrape).mockResolvedValue({ json: [AD] } as never)
+      advertiserMocks.searchMetaAdvertisers.mockResolvedValue({ items: [NIKE], cached: false })
+      const app = await buildTestApp()
+      const res = await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "pages", advertiserNames: ["Nike", "nike", "NIKE"], count: 20 },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(advertiserMocks.searchMetaAdvertisers).toHaveBeenCalledTimes(1)
+      expect(runMetaAdsScrape).toHaveBeenCalledWith(expect.objectContaining({ pageUrls: [NIKE.url] }))
+    })
+
     it("resolves each name (verified-first), scrapes the resolved Pages, and reports who each name matched", async () => {
       const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
       vi.mocked(runMetaAdsScrape).mockResolvedValue({ json: [AD] } as never)

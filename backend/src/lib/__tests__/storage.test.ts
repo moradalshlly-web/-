@@ -121,7 +121,23 @@ import {
   mediaObjectKey,
   tmpObjectKey,
   copyRecastObject,
+  StorageLimitError,
+  isStorageLimitError,
 } from "@/lib/storage.js"
+
+describe("StorageLimitError / isStorageLimitError (the typed quota signal callers stop on)", () => {
+  it("recognizes the typed error and the legacy message prefix; rejects everything else", () => {
+    const typed = new StorageLimitError(1024)
+    expect(isStorageLimitError(typed)).toBe(true)
+    expect(typed.code).toBe("storage-limit-exceeded")
+    expect(typed.message).toContain("storage-limit-exceeded")
+    // The message prefix stays detectable, so a wrapped/rethrown legacy error still counts.
+    expect(isStorageLimitError(new Error("storage-limit-exceeded: atomic reservation refused"))).toBe(true)
+    expect(isStorageLimitError(new Error("network down"))).toBe(false)
+    expect(isStorageLimitError("nope")).toBe(false)
+    expect(isStorageLimitError(null)).toBe(false)
+  })
+})
 
 describe("copyRecastObject (recast fork)", () => {
   beforeEach(() => {

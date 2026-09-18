@@ -263,10 +263,19 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
     let resolvedPageUrls = body.mode === "pages" ? [...body.pageUrls] : []
     let resolvedAdvertisers: Array<{ name: string; pageId: string; url: string }> = []
     if (advertiserNames.length > 0 && !viaCloud) {
-      for (const name of advertiserNames) {
+      // Case-insensitive dedupe: a repeated name is one lookup and one source.
+      const uniqueNames = [...new Map(advertiserNames.map((n) => [n.toLowerCase(), n])).values()]
+      let metered = true
+      for (const name of uniqueNames) {
+        // Each resolution is an actor start on our account — meter it per user
+        // exactly like the standalone lookup route, so a paid scrape cannot be
+        // a free, unbounded, un-audited way to hammer the actor. On exhaustion
+        // stop resolving; the names left over simply don't resolve.
+        if (!takeAdvertiserLookup(userId)) { metered = false; break }
         try {
-          const { items } = await searchMetaAdvertisers(name)
-          const pick = items.find((a) => a.verified) ?? items[0]
+          const lookup = await searchMetaAdvertisers(name)
+          const pick = lookup.items.find((a) => a.verified) ?? lookup.items[0]
+          req.log.info({ userId, name, matches: lookup.items.length, cached: lookup.cached, matched: !!pick }, "[meta-ads-scrape] advertiser name resolution")
           if (pick) resolvedAdvertisers.push({ name, pageId: pick.pageId, url: pick.url })
         } catch (err) {
           req.log.warn({ err, name }, "[meta-ads-scrape] advertiser name resolution failed")
@@ -274,9 +283,11 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
       }
       resolvedPageUrls = [...resolvedPageUrls, ...resolvedAdvertisers.map((a) => a.url)]
       if (resolvedPageUrls.length === 0) {
-        return reply.status(404).send({
-          error: { code: "advertiser_not_found", message: `No Facebook advertiser matched ${advertiserNames.map((n) => `"${n}"`).join(", ")}.` },
-        })
+        return reply.status(metered ? 404 : 429).send(
+          metered
+            ? { error: { code: "advertiser_not_found", message: `No Facebook advertiser matched ${advertiserNames.map((n) => `"${n}"`).join(", ")}.` } }
+            : { error: { code: "rate_limit_exceeded", message: `Advertiser lookups are limited to ${META_ADS_ADVERTISER_LOOKUPS_PER_DAY} a day.` } },
+        )
       }
     }
 
