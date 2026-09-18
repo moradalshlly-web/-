@@ -675,6 +675,25 @@ describe("buildNodeOutputFromJobData", () => {
     expect(result).toEqual({})
   })
 
+  it("edit-plan clips: unwraps the top-level EdlClipSet into json + a stringified Edl[] listResults (fan-out)", () => {
+    const clips = [
+      { version: 1, clock: "master", sources: [], segments: [] },
+      { version: 1, clock: "master", sources: [], segments: [] },
+    ]
+    const result = buildNodeOutputFromJobData({ version: 1, clips, viaNodaroCloud: true }, "edit-plan")
+    // json = the bare Edl[] (what generatedJson stores); listResults = per-clip
+    // JSON strings the live fan-out reads off state.output.listResults.
+    expect(result.json).toEqual(clips)
+    expect(result.listResults).toEqual(clips.map((c) => JSON.stringify(c)))
+  })
+
+  it("edit-plan tighten: unwraps the top-level Edl into json, no listResults (scalar)", () => {
+    const edl = { version: 1, clock: "master", sources: [], segments: [{ id: "s0", inMs: 0, outMs: 1000 }] }
+    const result = buildNodeOutputFromJobData({ ...edl, viaNodaroCloud: true }, "edit-plan")
+    expect(result.json).toEqual(edl)
+    expect(result.listResults).toBeUndefined()
+  })
+
   it("maps reduce output_data.output to NodeOutput.result", () => {
     // Reduce route stores its aggregated string under `output` in jobs.output_data
     // (route response shape: { jobId, output, meta }). The orchestrator reads it

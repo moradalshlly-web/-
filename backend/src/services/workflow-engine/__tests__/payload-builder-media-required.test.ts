@@ -17,7 +17,7 @@ import type { SimpleNode, ResolvedInputs } from "../types.js"
 /** Measured on frontend/src/components/editor/workflow-editor/execute-node.ts
  *  @ origin/dev d7815542 with the window+regex in the last test below. Bump it
  *  ONLY together with a new table row or a justified PARITY_EXEMPT entry. */
-const FRONTEND_MEDIA_REFUSAL_COUNT = 83 // +2 image-overlay: base image (table row) + overlay layers (the case throws its own); +1 silence-detect (audio/video source, table row); +1 apply-edl (the "connect an EDL" guard over-matches "connect a"; JSON-input guard, exempt below)
+const FRONTEND_MEDIA_REFUSAL_COUNT = 84 // +2 image-overlay: base image (table row) + overlay layers (the case throws its own); +1 silence-detect (audio/video source, table row); +1 apply-edl (the "connect an EDL" guard over-matches "connect a"; JSON-input guard, exempt below); +1 edit-plan (the "connect a transcript" guard over-matches "connect a"; JSON-input guard, exempt below)
 
 const JOB = "job-media-required"
 const ctx = (n: SimpleNode) => ({ nodes: [n], edges: [], nodeStates: {} })
@@ -321,6 +321,7 @@ describe("required media inputs", () => {
       "image-overlay",           // no base image connected + no overlay image connected
       "combine-videos",          // :6002 need at least 2 video inputs
       "apply-edl",               // "connect an EDL to the EDL input" — a json-input guard, not media (exempt below)
+      "edit-plan",               // "connect a transcript to the Transcript input" — a json-input guard, not media (exempt below)
       "assemble-narrated-video", // :6034 need at least 1 video input
       "merge-video-audio",       // :6078 no video input / :6084 no audio input
       "trim-audio",              // :6125 no video input
@@ -391,6 +392,8 @@ describe("required media inputs", () => {
         "a Category-2 sync-HTTP node — dispatched to /v1/lottie-overlay/generate, guarded by that route's Zod",
       "apply-edl":
         "the frontend refusal is 'connect an EDL' — a JSON-input guard, not a media one (its media resolves from EdlSource.url inside the EDL). The backend enforces parity by building + validating the effective EDL in the payload-builder case (validateEffectiveEdl throws before the reservation), so a media-only REQUIRED_MEDIA_INPUTS row would be wrong.",
+      "edit-plan":
+        "the counted refusal is 'connect a transcript' — a JSON-input guard, not a media one (edit-plan reads the transcript, never pixels). It ALSO refuses empty sources, but that message does not trip the media regex. edit-plan is Nodaro-EXCLUSIVE + relayed: buildPayload assembles the job and the /v1/edit-plan shim Zod (transcript required, sources.min(1)) plus the cloud plugin enforce parity — a payload-builder REQUIRED_MEDIA_INPUTS row would be wrong (buildPayload never throws for it).",
     }
     for (const t of FE_GUARDED) {
       if (t in PARITY_EXEMPT) continue

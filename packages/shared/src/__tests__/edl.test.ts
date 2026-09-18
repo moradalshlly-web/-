@@ -9,6 +9,9 @@ import {
   speakerTurns,
   normalizeEdl,
   normalizeTranscript,
+  unwrapEditPlanOutput,
+  buildEditPlanCreditId,
+  editPlanBucketMinutes,
   type Edl,
   type Transcript,
 } from "../edl.js"
@@ -546,5 +549,54 @@ describe("transition.durationMs is optional (inert for non-overlap types)", () =
   it("validateEdl does not throw on a raw object that skipped normalize", () => {
     expect(() => validateEdl({ version: 1, clock: "master" } as unknown as Edl)).not.toThrow()
     expect(validateEdl({ version: 1, clock: "master" } as unknown as Edl).ok).toBe(false)
+  })
+})
+
+describe("unwrapEditPlanOutput — the app-side clips/tighten/chapters unwrap", () => {
+  it("clips: EdlClipSet { version, clips: Edl[] } → the BARE Edl[] (fans out)", () => {
+    const clips = [tightenEdl(), tightenEdl()]
+    const out = unwrapEditPlanOutput({ version: 1, clips, viaNodaroCloud: true })
+    // The bare array, ready for the `list` fan-out (Array.isArray on generatedJson);
+    // each element is one Edl a downstream `edl` input normalizeEdl-parses.
+    expect(Array.isArray(out)).toBe(true)
+    expect(out).toEqual(clips)
+    // A round-trip through JSON.stringify (the fan-out per-item form) still parses
+    // to a valid EDL — the whole point of the bare-array shape.
+    const perItem = (out as Edl[]).map((c) => JSON.stringify(c))
+    expect(validateEdl(normalizeEdl(JSON.parse(perItem[0]))).ok).toBe(true)
+  })
+
+  it("chapters: { version, chapters } → the object minus bookkeeping", () => {
+    const chapters = [{ startMs: 0, title: "Intro" }, { startMs: 60000, title: "Topic" }]
+    const out = unwrapEditPlanOutput({ version: 1, chapters, viaNodaroCloud: true })
+    expect(out).toEqual({ version: EDL_VERSION, chapters })
+    expect(Array.isArray(out)).toBe(false)
+  })
+
+  it("tighten: the Edl at top level → the Edl, with viaNodaroCloud stripped", () => {
+    const edl = tightenEdl()
+    const out = unwrapEditPlanOutput({ ...edl, viaNodaroCloud: true })
+    expect(out).toEqual(edl)
+    expect((out as Record<string, unknown>).viaNodaroCloud).toBeUndefined()
+  })
+
+  it("passes a non-object through unchanged", () => {
+    expect(unwrapEditPlanOutput(undefined)).toBeUndefined()
+    expect(unwrapEditPlanOutput(null)).toBeNull()
+  })
+})
+
+describe("edit-plan credit-id scheme", () => {
+  it("rounds a probed duration UP to the covering bucket; unknown → the ceiling", () => {
+    expect(editPlanBucketMinutes(45 * 60)).toBe(60)
+    expect(editPlanBucketMinutes(60 * 60)).toBe(60)
+    expect(editPlanBucketMinutes(61 * 60)).toBe(90)
+    expect(editPlanBucketMinutes(10 * 3600)).toBe(180) // capped
+    expect(editPlanBucketMinutes(undefined)).toBe(180) // ceiling
+  })
+
+  it("builds `edit-plan:<mode>:<tier>:<bucket>m`", () => {
+    expect(buildEditPlanCreditId("tighten", "standard", 45 * 60)).toBe("edit-plan:tighten:standard:60m")
+    expect(buildEditPlanCreditId("clips", "premium", undefined)).toBe("edit-plan:clips:premium:180m")
   })
 })

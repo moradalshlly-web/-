@@ -715,6 +715,38 @@ await check("discovery omits 3D Render Pro where no engine can run it", async ()
   return `${PRO_3D_NODE_TYPE} absent from the catalog and 404 on describe`
 })
 
+await check("Edit Plan is a Nodaro-exclusive: omitted from discovery, run refused 503 until connected", async () => {
+  // edit-plan (podcast editing) is Nodaro-EXCLUSIVE (relayed): discovery must
+  // omit it on a keyless/unconnected install (it saves everywhere but gates on
+  // the nodaro.ai connection, not the edition).
+  const types = await nodeTypes()
+  assert(
+    !types.has("edit-plan"),
+    "/v1/nodes advertises edit-plan on a keyless/unconnected install — it is Nodaro-EXCLUSIVE (relayed) and must be omitted until nodaro.ai is connected",
+  )
+  // The relay shim route IS registered off-cloud, so a run is refused 503
+  // nodaro_connection_required — an HONEST refusal, never a 404 / hang / raw
+  // vendor error. requireConnection runs before body validation, so a
+  // well-formed minimal body still reaches the connection refusal.
+  const run = await api("/v1/edit-plan", {
+    method: "POST",
+    token: ctx.token,
+    headers: { "idempotency-key": `community-smoke-edit-plan-${Date.now()}` },
+    body: { mode: "tighten", transcript: { version: 1, words: [] }, sources: [{ url: "https://example.com/a.mp4" }] },
+  })
+  assert(run.status === 503, `POST /v1/edit-plan expected 503, got ${run.status}: ${run.text.slice(0, 300)}`)
+  assert(
+    run.json?.error?.code === "nodaro_connection_required",
+    `expected error.code "nodaro_connection_required", got ${JSON.stringify(run.json?.error?.code)}: ${run.text.slice(0, 300)}`,
+  )
+  assert(
+    run.json?.jobId === undefined && run.json?.id === undefined,
+    `the refusal carried a job handle — a keyless edit-plan must not enqueue: ${run.text.slice(0, 200)}`,
+  )
+  assertRenderable(run.json?.error?.message, "edit-plan refusal")
+  return "edit-plan absent from discovery + POST refused 503 nodaro_connection_required"
+})
+
 await check("the Basic 3D scene nodes stay available on community", async () => {
   // Basic is NOT engine-gated: it is LLM authoring plus the platform's own
   // Three.js renderer, so a keyless install still lists it and refuses it later

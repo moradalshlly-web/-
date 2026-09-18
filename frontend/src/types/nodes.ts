@@ -5418,6 +5418,56 @@ export type VideoAnalysisNodeData = PromptAffixFields & {
   generatedJson?: VideoAnalysisResult
 }
 
+/** Per-source annotation for edit-plan's C1 source table, keyed by SOURCE NODE
+ *  ID (the id is minted once as the EdlSource id and never re-derived). */
+export type EditPlanSourceConfig = {
+  role?: "master-audio" | "camera" | "wide" | "screen"
+  speakers?: string[]
+  /** This source's origin on the master clock (masterMs = sourceMs + offsetMs). */
+  offsetMs?: number
+  /** Override the producer-derived medium. */
+  kind?: "video" | "audio"
+}
+
+/** edit-plan — a transcript-driven cut / clip / chapter PLANNER (podcast
+ *  editing). Cloud-EXCLUSIVE + relayed. Reads a timed transcript (+ optional
+ *  silence ranges) and the wired media sources, and emits an EDL plan on the
+ *  single `edl` (json) output: `tighten` → one Edl; `clips` → a bare Edl[] that
+ *  fans out one downstream render per clip; `chapters` → a { version, chapters }.
+ *  `instructions` is the affix-capable prompt (PromptAffixFields). */
+export type EditPlanNodeData = PromptAffixFields & {
+  [key: string]: unknown
+  label: string
+  mode?: "tighten" | "clips" | "chapters"
+  /** Reasoning tier — affects quality AND the credit bucket. */
+  planTier?: "economy" | "standard" | "premium"
+  /** Per-source annotations keyed by SOURCE NODE ID (see EditPlanSourceConfig). */
+  sourceConfig?: Record<string, EditPlanSourceConfig>
+  /** User-configured source ordering (source node ids), mirroring combine-videos'
+   *  `clipOrder` — drives the ConnectedMediaList reorder. */
+  sourceOrder?: string[]
+  /** Free-text editing steer — the affix-capable prompt field. */
+  instructions?: string
+  styleGuide?: string
+  // clips-only levers.
+  count?: number
+  targetDurationSec?: number
+  targetAspect?: "16:9" | "9:16" | "1:1" | "4:5"
+  platform?: string
+  /** Optional inline transcript / silence (durable config, used when nothing is
+   *  wired to the `transcript` / `silence` handles). */
+  transcript?: unknown
+  silence?: unknown
+  fieldMappings: FieldMappings
+  executionStatus?: "idle" | "running" | "completed" | "failed"
+  errorMessage?: string
+  currentJobId?: string
+  currentJobProgress?: number
+  /** The EDL plan (already unwrapped by the extractors): an Edl for tighten, a
+   *  bare Edl[] for clips (fans out), or a { version, chapters } for chapters. */
+  generatedJson?: unknown
+}
+
 // --- Video Audit ("AI Audit") Node Data ---
 
 /** One disclosed outcome of the audit's fix-and-disclose contract. The audit is
@@ -6244,6 +6294,7 @@ export type SceneNodeData =
   | MetaAdsScrapeNodeData
   | VideoAnalysisNodeData
   | VideoAuditNodeData
+  | EditPlanNodeData
   | ListNodeData
   | LoopNodeData
   | CombineTextNodeData
@@ -6382,6 +6433,7 @@ export type SceneNodeType =
   | "video-audit"
   | "combine-videos"
   | "apply-edl"
+  | "edit-plan"
   | "image-collage"
   | "image-overlay"
   | "assemble-narrated-video"
@@ -7979,6 +8031,25 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     inputs: ["edl", "transcript", "sources"],
     outputs: ["media", "json"],
     defaultData: { label: "Apply EDL", output: "video", quality: "final", crossfadeMs: 0, fieldMappings: {} } as ApplyEdlData,
+  },
+  {
+    type: "edit-plan",
+    label: "Edit Plan",
+    category: "processing",
+    // Representative estimate (tighten · standard · 60-min bucket). The live
+    // per-run cost is dynamic (buildEditPlanCreditId → mode × tier × duration
+    // bucket) and PROVISIONAL until the launch probe.
+    creditCost: 240,
+    inputs: ["transcript", "silence", "sources"],
+    outputs: ["edl"],
+    defaultData: {
+      label: "Edit Plan",
+      mode: "tighten",
+      planTier: "standard",
+      instructions: "",
+      fieldMappings: {},
+      executionStatus: "idle",
+    } as EditPlanNodeData,
   },
   {
     type: "image-collage",

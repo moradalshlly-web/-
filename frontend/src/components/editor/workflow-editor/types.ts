@@ -593,6 +593,7 @@ export const EXECUTABLE_TYPES = new Set([
   "render-video",
   "combine-videos",
   "apply-edl",
+  "edit-plan",
   "assemble-narrated-video",
   "image-collage",
   "image-overlay",

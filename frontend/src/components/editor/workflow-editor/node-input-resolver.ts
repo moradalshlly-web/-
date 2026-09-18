@@ -2,7 +2,7 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
 import { readSunoIds } from "@/lib/suno-ids";
 import { getParameterPromptHint } from "@nodaro/prompts"
-import { DYNAMIC_PRODUCER_TYPES, DEFAULT_CHARACTER_FACET, PARAMETER_NODE_TYPES, getParameterValue, OBJECT_PICKER_NODE_TYPES, parseGroupHandle, VIDEO_PRODUCER_TYPES, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, FAN_OUT_EACH_TYPES, extractAllGeneratedResults, extractGeneratedJsonAsList, splitGeneratedItems, SOCIAL_POST_NODE_TYPES, resolveSourceThroughConnectedList, VARIABLES_HANDLE_ID, extractReferencedLabels, canonicalVarName, characterMentionSlug, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
+import { DYNAMIC_PRODUCER_TYPES, DEFAULT_CHARACTER_FACET, PARAMETER_NODE_TYPES, getParameterValue, OBJECT_PICKER_NODE_TYPES, parseGroupHandle, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, FAN_OUT_EACH_TYPES, extractAllGeneratedResults, extractGeneratedJsonAsList, splitGeneratedItems, SOCIAL_POST_NODE_TYPES, resolveSourceThroughConnectedList, VARIABLES_HANDLE_ID, extractReferencedLabels, canonicalVarName, characterMentionSlug, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
 import type { EntityKind, ConnectedReference } from "@nodaro/shared"
 import { buildNodeRefMap, resolveTextRefs } from "@/lib/node-refs";
 import type {
@@ -697,6 +697,12 @@ export interface FrontendResolvedInputs {
   edl?: string;
   transcript?: string;
   sources?: string[];
+  /** edit-plan: the optional silence-ranges (stringified json) wired into the
+   *  `silence` handle, and the wired media sources (node id + url + kind) from
+   *  the `sources` handle. Mirror of backend ResolvedInputs.silence /
+   *  editPlanSources. */
+  silence?: string;
+  editPlanSources?: Array<{ nodeId: string; url: string; kind: "video" | "audio" }>;
   /** Fan-in input list — populated by the resolver for reduce-style targets.
    *  Carries the full upstream list (or `[singleOutput]` when upstream wasn't
    *  fanned out) so the reduce strategy can fold it into a single value.
@@ -1638,6 +1644,29 @@ export function resolveNodeInputs(
       }
       if (srcEdge.targetHandle === "sources") {
         inputs.sources = [...(inputs.sources ?? []), output];
+        continue;
+      }
+    }
+
+    // edit-plan inputs: routed by targetHandle before the source-type chain
+    // (else the json `transcript`/`silence` edges fall into inputs.prompt and the
+    // media `sources` edges into inputs.videoUrl). Each `sources` row keeps its
+    // source NODE id (the minted EdlSource id) + a kind derived from the producer
+    // type. Mirror of the backend input-resolver edit-plan branch.
+    if (node.type === "edit-plan") {
+      if (srcEdge.targetHandle === "transcript") {
+        inputs.transcript = output;
+        continue;
+      }
+      if (srcEdge.targetHandle === "silence") {
+        inputs.silence = output;
+        continue;
+      }
+      if (srcEdge.targetHandle === "sources") {
+        const srcType = src.type ?? "";
+        const kind: "video" | "audio" =
+          VIDEO_PRODUCER_TYPES.has(srcType) ? "video" : AUDIO_PRODUCER_TYPES.has(srcType) ? "audio" : "video";
+        inputs.editPlanSources = [...(inputs.editPlanSources ?? []), { nodeId: src.id, url: output, kind }];
         continue;
       }
     }

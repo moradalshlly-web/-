@@ -99,6 +99,7 @@ import {
   metaAdsScrape,
   startVideoAnalysis,
   runVideoAudit,
+  editPlan,
   executeReduce,
 } from "@/lib/api";
 import { applyWebScrapeFailure, applyWebScrapeResult, webScrapeRunStartPatch } from "@/components/nodes/web-scrape-run-state";
@@ -107,7 +108,7 @@ import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources } fro
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
-  readPromptAffixes, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN } from "@nodaro/shared"
+  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN } from "@nodaro/shared"
 import { applyPromptAffixes, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
@@ -180,6 +181,7 @@ import type {
   RenderVideoData,
   CombineVideosData,
   ApplyEdlData,
+  EditPlanNodeData,
   AssembleNarratedVideoData,
   ImageCollageData,
   ImageOverlayData,
@@ -6538,6 +6540,148 @@ function executeNodeCore(
       },
       ctx,
     );
+  }
+
+  if (node.type === "edit-plan") {
+    const epData = node.data as EditPlanNodeData;
+    const parseMaybe = (v: unknown): unknown => {
+      if (typeof v !== "string") return v;
+      try { return JSON.parse(v); } catch { return undefined; }
+    };
+    // The plugin coerces an OBJECT transcript — parse the stringified json from
+    // the `transcript` handle (or an inline object), never send a raw string.
+    const transcript = inputs.transcript !== undefined ? parseMaybe(inputs.transcript) : epData.transcript;
+    if (transcript === undefined || transcript === null) {
+      toast.error(`Node "${epData.label}": connect a transcript to the "Transcript" input`);
+      return Promise.reject(new Error("edit-plan requires a transcript"));
+    }
+    const silence = inputs.silence !== undefined ? parseMaybe(inputs.silence) : epData.silence;
+    // Build the annotated sources array. The source NODE id is the EdlSource id
+    // (minted once, never re-derived). Order by the config-panel sourceOrder
+    // (listed first, then unlisted in wire order — the combine-videos precedent).
+    const wired = inputs.editPlanSources ?? [];
+    const order = epData.sourceOrder ?? [];
+    const orderedWired = order.length
+      ? [
+          ...order.flatMap((nid) => wired.filter((w) => w.nodeId === nid)),
+          ...wired.filter((w) => !order.includes(w.nodeId)),
+        ]
+      : wired;
+    const sources = orderedWired.map((row) => {
+      const c = epData.sourceConfig?.[row.nodeId] ?? {};
+      const s: Record<string, unknown> = { id: row.nodeId, url: row.url, kind: c.kind ?? row.kind };
+      if (c.role) s.role = c.role;
+      if (c.speakers && c.speakers.length > 0) s.speakers = c.speakers;
+      if (typeof c.offsetMs === "number") s.offsetMs = c.offsetMs;
+      return s;
+    });
+    if (sources.length === 0) {
+      toast.error(`Node "${epData.label}": connect the recording's media to the "Sources" input`);
+      return Promise.reject(new Error("edit-plan requires at least one source"));
+    }
+    const mode = asEditPlanMode(epData.mode);
+    const { updateNodeData } = useWorkflowStore.getState();
+    updateNodeData(node.id, { ...RUN_START_RESET, generatedJson: undefined, currentJobProgress: undefined });
+    setUserPromptTemplate(epData.instructions?.trim() || undefined);
+    return new Promise<string>((resolve, reject) => {
+      editPlan({
+        mode,
+        planTier: asEditPlanTier(epData.planTier),
+        transcript,
+        silence,
+        sources,
+        instructions: applyPromptAffixes(epData.instructions, readPromptAffixes(epData), refMap),
+        styleGuide: epData.styleGuide?.trim() || undefined,
+        count: mode === "clips" && typeof epData.count === "number" ? epData.count : undefined,
+        targetDurationSec: mode === "clips" && typeof epData.targetDurationSec === "number" ? epData.targetDurationSec : undefined,
+        targetAspect: epData.targetAspect,
+        platform: epData.platform?.trim() || undefined,
+        userId: ctx.userId,
+      })
+        .then(({ jobId }) => {
+          guardedToast.info("Edit plan started", { description: `Job ID: ${jobId}` });
+          updateNodeData(node.id, { currentJobId: jobId });
+          let pollFailures = 0;
+          const poll = ctx.trackInterval(
+            setInterval(async () => {
+              if (ctx.isWorkflowStale()) {
+                ctx.untrackInterval(poll);
+                reject(new WorkflowStaleError());
+                return;
+              }
+              try {
+                const job = await getJobStatusLeanForNode(jobId, node.id);
+                pollFailures = 0;
+                if (job.status === "processing" && job.progress != null) {
+                  updateProgressIfChanged(node.id, job.progress, updateNodeData);
+                }
+                if (job.status === "completed" || job.status === "failed") {
+                  if (shouldAbandonNode(node.id, jobId)) {
+                    ctx.untrackInterval(poll);
+                    resolve("");
+                    return;
+                  }
+                }
+                if (job.status === "completed") {
+                  ctx.untrackInterval(poll);
+                  // Unwrap the EDL plan: clips → bare Edl[] (fans out), tighten →
+                  // Edl, chapters → { version, chapters }. ONE rule shared with the
+                  // backend + reconcile (unwrapEditPlanOutput).
+                  const plan = unwrapEditPlanOutput(job.output_data);
+                  updateNodeData(node.id, {
+                    executionStatus: "completed",
+                    generatedJson: plan,
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.success("Edit plan complete");
+                  resolve(plan === undefined ? "" : JSON.stringify(plan));
+                } else if (job.status === "failed") {
+                  ctx.untrackInterval(poll);
+                  const errMsg = job.error_message ?? "Edit plan failed";
+                  updateNodeData(node.id, {
+                    executionStatus: "failed",
+                    errorMessage: errMsg,
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.error("Edit plan failed", { description: errMsg });
+                  reject(new Error(errMsg));
+                }
+              } catch (err) {
+                pollFailures++;
+                if (pollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+                  ctx.untrackInterval(poll);
+                  if (shouldAbandonNode(node.id, jobId)) {
+                    resolve("");
+                    return;
+                  }
+                  updateNodeData(node.id, {
+                    executionStatus: "failed",
+                    currentJobId: undefined,
+                    currentJobProgress: undefined,
+                  });
+                  guardedToast.error("Failed to check edit plan status");
+                  reject(err);
+                }
+              }
+            }, 2000),
+          );
+        })
+        .catch((err) => {
+          updateNodeData(node.id, {
+            executionStatus: "failed",
+            currentJobId: undefined,
+            currentJobProgress: undefined,
+          });
+          if (!checkStorageError(err, ctx)) {
+            guardedToast.error("Failed to start edit plan", {
+              description: err instanceof Error ? err.message : "Unknown error",
+            });
+          }
+          reject(err);
+        });
+    });
   }
 
   if (node.type === "assemble-narrated-video") {

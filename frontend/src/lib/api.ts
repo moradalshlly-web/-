@@ -3277,6 +3277,47 @@ export async function applyEdl(params: {
 }
 
 /**
+ * edit-plan (podcast editing): turn a timed transcript into an EDL plan
+ * (tighten / clips / chapters). Cloud-EXCLUSIVE + relayed — on a self-host the
+ * route relays to nodaro.ai. `transcript` is sent as an OBJECT (the plugin
+ * coerces an object, never a string); `sources` carries {id,url,kind,role,…}.
+ */
+export async function editPlan(params: {
+  mode: "tighten" | "clips" | "chapters"
+  planTier?: "economy" | "standard" | "premium"
+  transcript: unknown
+  silence?: unknown
+  sources: Array<Record<string, unknown>>
+  instructions?: string
+  styleGuide?: string
+  count?: number
+  targetDurationSec?: number
+  targetAspect?: string
+  platform?: string
+  userId?: string
+}): Promise<{ jobId: string }> {
+  const body: Record<string, unknown> = {
+    mode: params.mode,
+    transcript: params.transcript,
+    sources: params.sources,
+  }
+  if (params.planTier) body.planTier = params.planTier
+  if (params.silence !== undefined) body.silence = params.silence
+  if (params.instructions) body.instructions = params.instructions
+  if (params.styleGuide) body.styleGuide = params.styleGuide
+  if (typeof params.count === "number") body.count = params.count
+  if (typeof params.targetDurationSec === "number") body.targetDurationSec = params.targetDurationSec
+  if (params.targetAspect) body.targetAspect = params.targetAspect
+  if (params.platform) body.platform = params.platform
+  if (params.userId) body.userId = params.userId
+  return apiJson("/v1/edit-plan", {
+    body,
+    workflowId: true,
+    label: "Failed to start edit plan",
+  })
+}
+
+/**
  * Image Overlay: base image + 1–12 layers → one composited image (local sharp).
  * Every layer position/size is in % of the base image; see ImageOverlayData.
  */
