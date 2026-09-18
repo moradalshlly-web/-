@@ -1381,6 +1381,31 @@ function routeOutput(
     return
   }
 
+  // --- edit-plan inputs: routed by targetHandle BEFORE any source-type branch
+  // (same reason as apply-edl below — the json `transcript`/`silence` edges must
+  // not fall into inputs.prompt, and the media `sources` edges must not fall into
+  // inputs.videoUrl). `output` is the value getPrimaryOutput narrowed for the
+  // handle: a stringified Transcript/SilenceRanges for the json inputs, a media
+  // URL for a `sources` row. Each `sources` row keeps its source NODE id (minted
+  // once as the EdlSource id) + a kind derived from the producer type. Gated on
+  // targetType. Mirrors the frontend node-input-resolver edit-plan branch. ---
+  if (targetType === "edit-plan") {
+    if (edge.targetHandle === "transcript") {
+      inputs.transcript = output
+      return
+    }
+    if (edge.targetHandle === "silence") {
+      inputs.silence = output
+      return
+    }
+    if (edge.targetHandle === "sources") {
+      const kind: "video" | "audio" =
+        VIDEO_PRODUCER_TYPES.has(srcType) ? "video" : AUDIO_PRODUCER_TYPES.has(srcType) ? "audio" : "video"
+      inputs.editPlanSources = [...(inputs.editPlanSources ?? []), { nodeId: src.id, url: output, kind }]
+      return
+    }
+  }
+
   // --- apply-edl inputs: routed by targetHandle BEFORE any source-type branch
   // (the same reason as the analysis interceptor above — otherwise the json
   // `edl`/`transcript` edges fall into inputs.prompt and the media `sources`

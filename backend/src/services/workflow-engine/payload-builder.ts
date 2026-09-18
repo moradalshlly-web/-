@@ -13,7 +13,7 @@ import { normalizeCollageLabels } from "../../providers/image/collage-badges.js"
 
 // Shared logic from packages/shared — single source of truth
 import { resolveVideoRequestNorm } from "../../lib/video-request-norm.js"
-import { resolveSlideshowTransition, collectAncestorRefs as sharedCollectAncestorRefs, applyDefaultVideoSelection, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionableAssetArrays, buildCreditModelIdentifier, sunoCreditType, resolveImageGenCreditIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, applyVideoNegativePrompt, resolveVideoProviderForMode, resolveVideoModeForInputs, videoProviderRequiresImage, isVeoProvider, buildLipSyncCreditId, isPerSecondLipSyncProvider, resolveAiAvatarCreditId, resolveSwitchXCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, buildVideoAuditCreditId, resolveVideoAnalysisModel, extractReferencedLabels, combineSameLabelRefs, refHandleCategory, canonicalVarName, validateAiAvatarPayload, validateCinematicAvatarPayload, resolveNodeRefs, resolveEffectiveSourceType, PARAMETER_NODE_TYPES, characterMentionSlug, expandExtraRefsToConnectedReferences, PLATFORM_SPECS, isSeedance2Provider, isMinimaxH3Provider, isWan3Provider, isGeminiOmniProvider, PRICING_DEFAULT_RESOLUTION, supportsExtendRender, MODEL_CATALOG, hasFeature, referenceModalityForHandle, countRefModalityEdges as countRefModalityEdgesCore, type ReferenceModality, COMPOSER_PLAN_MAP, ASPECT_RATIO_DIMENSIONS, buildLlmCreditIdentifier, motionGraphicsFeature, FLUX_LORA_CHARACTER_MODEL_ID, extractCharacterLoraFields, clampSmartCutWindow, resolveGvpAnchorWire, normalizeModelInput, readPromptAffixes, findImageMentionTokens, knownImageSlugsFromRefs, findEntityMentionTokens, knownEntitySlugsFromRefs, uiAspectRatioFill, uiResolutionFill, resolveTopazUpscale, unresolvedRefTokens, classifyRefToken, parseNodeRef, NODE_REF_PATTERN, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, newScene3DRevisionId, resolveScene3DAuthoringEngine, scene3DPlanSchema, PRO3D_RENDER_CREDIT_ID, PRO3D_RENDER_DEFAULT_ENGINE, buildPro3DRenderSource, pro3DRenderTimingOverrides, renderVideoCreditId, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, normalizeTranscript, isKineticCaptionStyle, type Scene3DPlan } from "@nodaro/shared"
+import { resolveSlideshowTransition, collectAncestorRefs as sharedCollectAncestorRefs, applyDefaultVideoSelection, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionableAssetArrays, buildCreditModelIdentifier, sunoCreditType, resolveImageGenCreditIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, applyVideoNegativePrompt, resolveVideoProviderForMode, resolveVideoModeForInputs, videoProviderRequiresImage, isVeoProvider, buildLipSyncCreditId, isPerSecondLipSyncProvider, resolveAiAvatarCreditId, resolveSwitchXCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, buildVideoAuditCreditId, resolveVideoAnalysisModel, extractReferencedLabels, combineSameLabelRefs, refHandleCategory, canonicalVarName, validateAiAvatarPayload, validateCinematicAvatarPayload, resolveNodeRefs, resolveEffectiveSourceType, PARAMETER_NODE_TYPES, characterMentionSlug, expandExtraRefsToConnectedReferences, PLATFORM_SPECS, isSeedance2Provider, isMinimaxH3Provider, isWan3Provider, isGeminiOmniProvider, PRICING_DEFAULT_RESOLUTION, supportsExtendRender, MODEL_CATALOG, hasFeature, referenceModalityForHandle, countRefModalityEdges as countRefModalityEdgesCore, type ReferenceModality, COMPOSER_PLAN_MAP, ASPECT_RATIO_DIMENSIONS, buildLlmCreditIdentifier, motionGraphicsFeature, FLUX_LORA_CHARACTER_MODEL_ID, extractCharacterLoraFields, clampSmartCutWindow, resolveGvpAnchorWire, normalizeModelInput, readPromptAffixes, findImageMentionTokens, knownImageSlugsFromRefs, findEntityMentionTokens, knownEntitySlugsFromRefs, uiAspectRatioFill, uiResolutionFill, resolveTopazUpscale, unresolvedRefTokens, classifyRefToken, parseNodeRef, NODE_REF_PATTERN, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, newScene3DRevisionId, resolveScene3DAuthoringEngine, scene3DPlanSchema, PRO3D_RENDER_CREDIT_ID, PRO3D_RENDER_DEFAULT_ENGINE, buildPro3DRenderSource, pro3DRenderTimingOverrides, renderVideoCreditId, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, normalizeTranscript, isKineticCaptionStyle, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, type Scene3DPlan } from "@nodaro/shared"
 import { composeNegative, resolveTemplate, applyTemplate, computeNodePrompt, assembleImageInput, readDirectionFields, readStructuredFields, readSubjectFields, buildImagePrompt, buildScenePrompt, collectIdentityLockClause as sharedCollectIdentityLockClause, getParameterPromptHint, characterLockToRefLock, buildCharacterPrompt, buildObjectPrompt, buildCreaturePrompt, buildLocationPrompt, buildFaceTemplateInputs, appendMusicMeta, composeSoundHintFromConnections, truncateForField, appendField, assembleSunoInput, type SoundConsumerType, type SoundComposition, resolveVideoReferenceCore, applyPromptAffixes, composeVideoPromptText, isMinorAge, containsMinorAgeHint, type DirectionFields, type StructuredPromptFields, type SubjectFields, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import { labelRefHintContext } from "./label-ref-hint-context.js"
 import type { CharacterDef, ConnectedReference, SceneData, ExtraRefInput, ExtraRefCharacterContext } from "@nodaro/shared"
@@ -4034,6 +4034,66 @@ export function buildPayload(
         // nodeId echoes the route's payload key (node.id == the canvas node id the
         // route reads from req.body). workflowId is route-only — buildPayload has
         // no execution context and the worker consumes neither field.
+        nodeId: node.id,
+        usageLogId,
+      })
+    }
+
+    // Edit Plan (podcast editing) — a transcript-driven cut / clip / chapter
+    // planner. Cloud-EXCLUSIVE + relayed: this case builds the job the cloud
+    // plugin worker (or the self-host relay) consumes, and reserves a duration-
+    // bucketed credit id. The plugin re-probes the master source and settles
+    // precisely on the cloud account; this reserve is a pre-run gate, so an
+    // unknown duration takes the ceiling bucket (the safe over-reserve).
+    case "edit-plan": {
+      const mode = asEditPlanMode(data.mode)
+      const tier = asEditPlanTier(data.planTier)
+      // The plugin's coerceTranscript/coerceSilence read OBJECTS. Parse the
+      // stringified json that arrives on the `transcript`/`silence` json handles
+      // (transcribe / silence-detect stringify via getPrimaryOutput), or accept
+      // an inline object on data.*. NEVER send a raw string — the plugin would
+      // see zero timed words and 400 the run before it starts.
+      const transcriptRaw = resolvedInputs.transcript ?? (data.transcript as unknown)
+      const transcript = typeof transcriptRaw === "string" ? parseJsonOrUndefined(transcriptRaw) : transcriptRaw
+      const silenceRaw = resolvedInputs.silence ?? (data.silence as unknown)
+      const silence = typeof silenceRaw === "string" ? parseJsonOrUndefined(silenceRaw) : silenceRaw
+      // sources: the wired media, annotated by the node's per-source config
+      // table (role/speakers/offsetMs/kind override). The source NODE id is the
+      // EdlSource id — minted once, never re-derived (C1). Config wins over the
+      // producer-derived kind.
+      const wired = resolvedInputs.editPlanSources ?? []
+      const cfg = (data.sourceConfig as Record<string, {
+        role?: string; speakers?: string[]; offsetMs?: number; kind?: "video" | "audio"
+      }> | undefined) ?? {}
+      const sources = wired.map((row) => {
+        const c = cfg[row.nodeId] ?? {}
+        const src: Record<string, unknown> = {
+          id: row.nodeId,
+          url: row.url,
+          kind: c.kind === "audio" || c.kind === "video" ? c.kind : row.kind,
+        }
+        if (typeof c.role === "string" && c.role) src.role = c.role
+        if (Array.isArray(c.speakers) && c.speakers.length > 0) {
+          src.speakers = c.speakers.filter((s) => typeof s === "string")
+        }
+        if (typeof c.offsetMs === "number" && Number.isFinite(c.offsetMs)) src.offsetMs = c.offsetMs
+        return src
+      })
+      const creditId = buildEditPlanCreditId(mode, tier, resolvedInputs.videoDuration)
+      return simpleResult("edit-plan", creditId, {
+        jobId,
+        mode,
+        planTier: tier,
+        transcript,
+        silence,
+        sources,
+        instructions: applyPromptAffixes(data.instructions as string | undefined, readPromptAffixes(data), refMap),
+        styleGuide: typeof data.styleGuide === "string" ? data.styleGuide : undefined,
+        count: mode === "clips" && typeof data.count === "number" ? data.count : undefined,
+        targetDurationSec: mode === "clips" && typeof data.targetDurationSec === "number" ? data.targetDurationSec : undefined,
+        targetAspect: typeof data.targetAspect === "string" ? data.targetAspect : undefined,
+        platform: typeof data.platform === "string" ? data.platform : undefined,
+        reservedCreditId: creditId,
         nodeId: node.id,
         usageLogId,
       })

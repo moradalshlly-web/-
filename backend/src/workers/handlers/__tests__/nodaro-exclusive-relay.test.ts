@@ -79,6 +79,7 @@ const EXCLUSIVES = [
   "edit-video-pro",
   "video-analysis",
   "video-audit",
+  "edit-plan",
 ] as const
 
 const bullJob = (data: Record<string, unknown>) =>
@@ -105,7 +106,7 @@ beforeEach(() => {
 })
 
 describe("handler registry", () => {
-  it("serves exactly the five exclusive types", () => {
+  it("serves exactly the six exclusive types", () => {
     expect(Object.keys(nodaroExclusiveRelayHandlers).sort()).toEqual([...EXCLUSIVES].sort())
     for (const t of EXCLUSIVES) expect(isNodaroExclusiveJobType(t)).toBe(true)
     expect(isNodaroExclusiveJobType("generate-image")).toBe(false)
@@ -223,6 +224,28 @@ describe("finalizeExclusiveCloudOutput — per-type output adaptation", () => {
       provider: "nodaro",
       provider_task_id: "cloud-job-1",
       relay_job_id: "cloud-job-1",
+      relay_credits: null,
+    })
+    expect(mocks.uploadVideoMaybeWatermark).not.toHaveBeenCalled()
+  })
+
+  it("edit-plan (JSON producer): the EDL plan output_data lands verbatim + viaNodaroCloud, no media re-host", async () => {
+    // clips mode: output_data is an EdlClipSet object at the top level — carried
+    // through unchanged (the unwrap to a bare Edl[] happens app-side in the output
+    // extractors, NOT here — a bare array here would corrupt on the object-spread).
+    const clipSet = { version: 1, clips: [{ version: 1, clock: "master", sources: [], segments: [] }] }
+    await finalizeExclusiveCloudOutput({
+      jobId: "job-ep",
+      jobType: "edit-plan",
+      cloudJob: { id: "cloud-ep-1", status: "completed", output_data: clipSet } as never,
+      jobUserId: "user-1",
+      shouldWatermark: false,
+    })
+    expect(mocks.markJobCompleted).toHaveBeenCalledWith("job-ep", {
+      output_data: { ...clipSet, viaNodaroCloud: true },
+      provider: "nodaro",
+      provider_task_id: "cloud-ep-1",
+      relay_job_id: "cloud-ep-1",
       relay_credits: null,
     })
     expect(mocks.uploadVideoMaybeWatermark).not.toHaveBeenCalled()

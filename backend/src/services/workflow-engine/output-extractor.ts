@@ -15,7 +15,7 @@ import {
   TEXT_SOURCE_TYPES,
 } from "./execution-graph.js"
 import {
-  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs } from "@nodaro/shared"
+  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs, unwrapEditPlanOutput } from "@nodaro/shared"
 import type { SceneData, Transcript } from "@nodaro/shared"
 import { buildScenePrompt } from "@nodaro/prompts"
 export { extractVideoDurationFromNode } from "@nodaro/shared"
@@ -712,6 +712,16 @@ export function getPrimaryOutput(
     return output.json === undefined ? undefined : JSON.stringify(output.json)
   }
 
+  // Edit Plan: single `edl` (json) output handle carrying the EDL plan — an
+  // `Edl` for tighten, a bare `Edl[]` for clips, a `{version, chapters}` for
+  // chapters (already unwrapped onto output.json / data.generatedJson). Stringify
+  // for the scalar path exactly like web-scrape; the clips FAN-OUT (the primary
+  // path) reads the array per-item via getListInputForNode, so this scalar form
+  // is only the explicit "last"/"first" fallback. Mirrors the frontend branch.
+  if (sourceType === "edit-plan") {
+    return output.json === undefined ? undefined : JSON.stringify(output.json)
+  }
+
   // Describe-to-picker: single `picker-json` output (a structured catalog JSON
   // object). Stringify for generic text consumers; Extract Field / the picker
   // consumer read state.output.json directly (bypassing getPrimaryOutput).
@@ -1380,6 +1390,21 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
     return json === undefined ? undefined : { json }
   }
 
+  // Edit Plan: the EDL plan is persisted (already unwrapped) on
+  // data.generatedJson — the `Edl` for tighten, the bare `Edl[]` for clips, the
+  // `{version, chapters}` for chapters. Expose it on the `json` output so a
+  // skipped / "Run from here" node hydrates the `edl` handle without re-running;
+  // for the clips array, ALSO expose listResults so the fan-out has its per-item
+  // list off saved state. Mirrors the analysis json branch + the live
+  // buildNodeOutputFromJobData path.
+  if (type === "edit-plan") {
+    const json = data.generatedJson
+    if (json === undefined) return undefined
+    const out: NodeOutput = { json }
+    if (Array.isArray(json)) out.listResults = json.map((c) => JSON.stringify(c))
+    return out
+  }
+
   // Describe-to-picker: single `json` output (the emitted catalog picker JSON,
   // persisted on data.generatedPickerJson). Mirrors web-scrape's json branch so
   // a skipped / "Run from here" describe-to-picker hydrates the picker-json
@@ -1598,6 +1623,22 @@ export function buildNodeOutputFromJobData(
   for (const key of DIRECT_OUTPUT_KEYS) {
     if (outputData[key] != null) {
       ;(output as Record<string, unknown>)[key] = outputData[key]
+    }
+  }
+
+  // Edit Plan: the plugin/relay writes the EDL plan at the TOP LEVEL of
+  // output_data (an `Edl` for tighten, an `EdlClipSet` for clips, a
+  // `{version, chapters}` for chapters) + `viaNodaroCloud` — NOT under a `json`
+  // key, so the DIRECT_OUTPUT_KEYS loop above never picks it up. Unwrap it into
+  // `output.json` (what getPrimaryOutput stringifies on the `edl` handle) and,
+  // for the clips array, into `output.listResults` (the live fan-out reads
+  // `state.output.listResults`). ONE unwrap rule shared with every save-side site
+  // (`unwrapEditPlanOutput` in @nodaro/shared) so DAG and single-node runs agree.
+  if (nodeType === "edit-plan") {
+    const plan = unwrapEditPlanOutput(outputData)
+    if (plan !== undefined) {
+      output.json = plan
+      if (Array.isArray(plan)) output.listResults = plan.map((c) => JSON.stringify(c))
     }
   }
 

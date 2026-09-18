@@ -1,4 +1,4 @@
-import { IMAGE_GEN_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_GEN_PROVIDERS, LIP_SYNC_PROVIDERS, VOICE_CHANGER_MODEL_IDS, GVP_SUPPORTED_PROVIDERS, SEEDANCE_2_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, MUSIC_PROVIDERS, hasContiguousSegmentDurations, isMinimaxH3Provider, MODEL_CATALOG, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, OVERLAY_PLATFORM_IDS } from "@nodaro/shared"
+import { IMAGE_GEN_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_GEN_PROVIDERS, LIP_SYNC_PROVIDERS, VOICE_CHANGER_MODEL_IDS, GVP_SUPPORTED_PROVIDERS, SEEDANCE_2_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, MUSIC_PROVIDERS, hasContiguousSegmentDurations, isMinimaxH3Provider, MODEL_CATALOG, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, OVERLAY_PLATFORM_IDS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
 import type { OutputType } from "@nodaro/shared"
 import { nodeSupportsPromptAffixes } from "@nodaro/prompts"
 import { STATIC_CREDIT_COSTS } from "../ee/billing/credits.js"
@@ -296,6 +296,41 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
         // output here to price under the cheaper `video-audit` family; leave it unwired
         // and the node auto-runs a fast analysis first (prices under `video-audit:auto`).
         { key: "analysis", type: "object" },
+      ],
+    },
+  },
+
+  {
+    type: "edit-plan",
+    label: "Edit Plan",
+    category: "processing",
+    // outputType: data — emits an edit-decision-list (EDL) plan via the `edl` (json)
+    // handle. tighten → one Edl (tightened timeline); clips → a bare Edl[] that fans
+    // out one downstream render per clip; chapters → a { version, chapters } list.
+    // Cloud-EXCLUSIVE (relayed). Duration-bucketed per-source-minute pricing × tier
+    // (+ a flat component on clips); PROVISIONAL placeholders finalized by a probe.
+    // See backend/src/ee/billing/credits.ts (EDIT_PLAN_STATIC) + migration 432.
+    description:
+      "Turn a transcript into an edit-decision-list plan: tighten a recording, find short clips, or mark chapters. Reads the transcript, never pixels; emits an EDL that Apply Edit renders.",
+    outputType: "data",
+    creditCost: "30-1480",
+    inputSchema: {
+      fields: [
+        { key: "mode", type: "select", required: true, options: [...EDIT_PLAN_MODES] },
+        { key: "planTier", type: "select", options: [...EDIT_PLAN_TIERS] },
+        // The timed word transcript (json) — required. Wire a Transcribe node's
+        // json output, or supply an inline Transcript object.
+        { key: "transcript", type: "object", required: true },
+        // Optional silence ranges (json) — wire a Silence Detect node's output.
+        { key: "silence", type: "object" },
+        // Free-text editing instructions (affix-capable).
+        { key: "instructions", type: "string" },
+        { key: "styleGuide", type: "string" },
+        // clips-only levers.
+        { key: "count", type: "number" },
+        { key: "targetDurationSec", type: "number" },
+        { key: "targetAspect", type: "select", options: ["16:9", "9:16", "1:1", "4:5"] },
+        { key: "platform", type: "string" },
       ],
     },
   },

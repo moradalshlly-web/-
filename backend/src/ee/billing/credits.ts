@@ -16,7 +16,7 @@ import { getAppSettings } from "../../lib/app-settings.js"
 import { APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE } from "../../lib/apply-edl-plan.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
 import { FREE_TIER_RESTRICTIONS, TIER_STORAGE_LIMITS } from "./stripe-config.js"
-import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode } from "@nodaro/shared"
+import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, EDIT_PLAN_BUCKET_MINUTES, buildEditPlanCreditId, type EditPlanTier } from "@nodaro/shared"
 // Provider-$ cost formulas — CORE lib (not @nodaro/shared, an irrevocably
 // published Apache package). See the 2026-07-06 public-flip IP audit, S5.
 import { flux2BaseCredits } from "../../lib/pricing/flux2-cost.js"
@@ -159,6 +159,53 @@ for (const analysisProvided of [true, false]) {
       VIDEO_AUDIT_BUCKET_CREDITS[buildVideoAuditCreditId({ analysisProvided, durationSec: bucketSec })]!
   }
 }
+
+// ── Edit Plan (podcast editing, edit-plan node) — per-source-minute × tier
+// duration-bucketed reserve holds, plus a flat component on `clips` only.
+// Cloud-EXCLUSIVE + relayed: billing happens on the connected cloud account, so
+// these are the DB-down fallback (a seeded model_pricing row wins at runtime —
+// migration 432). The scheme MUST match the plugin's `editPlanStaticCreditCosts()`
+// exactly (id shape `edit-plan:<mode>:<tier>:<bucket>m`, 3 modes × 3 tiers × 6
+// buckets = 54 composites + the bare `edit-plan` = the MAX of the whole table).
+//
+// ⚠️ ALL VALUES BELOW ARE PLACEHOLDERS — finalized by the 3-hour staging probe
+// (measure LLM tokens/source-minute per tier, RE-DERIVED not scaled; memory:
+// rederive-formula-values). Only the two per-tier constant maps move; the id
+// structure and the migration's row set stay.
+// Id scheme (modes/tiers/bucket ladder + builder) is the single source of truth
+// in @nodaro/shared; only the placeholder VALUES live here.
+type EditPlanTierT = EditPlanTier
+// TODO(probe): placeholder — set from the 3-hour staging probe, re-derive don't scale
+const EDIT_PLAN_CREDITS_PER_MINUTE_BY_TIER: Readonly<Record<EditPlanTierT, number>> = {
+  economy: 2,
+  standard: 4,
+  premium: 8,
+}
+// TODO(probe): placeholder — flat component added to `clips` only (the per-clip
+// scoring/hook pass); tighten and chapters have no flat term.
+const EDIT_PLAN_CLIPS_FLAT_BY_TIER: Readonly<Record<EditPlanTierT, number>> = {
+  economy: 10,
+  standard: 20,
+  premium: 40,
+}
+function editPlanCredits(mode: string, tier: EditPlanTierT, bucketMinutes: number): number {
+  const perMinute = EDIT_PLAN_CREDITS_PER_MINUTE_BY_TIER[tier] * bucketMinutes
+  const flat = mode === "clips" ? EDIT_PLAN_CLIPS_FLAT_BY_TIER[tier] : 0
+  return Math.max(1, Math.ceil(perMinute + flat))
+}
+const EDIT_PLAN_STATIC: Record<string, number> = {}
+for (const mode of EDIT_PLAN_MODES) {
+  for (const tier of EDIT_PLAN_TIERS) {
+    for (const bucket of EDIT_PLAN_BUCKET_MINUTES) {
+      // bucket is in MINUTES; buildEditPlanCreditId takes seconds → ×60 covers it exactly.
+      EDIT_PLAN_STATIC[buildEditPlanCreditId(mode, tier, bucket * 60)] = editPlanCredits(mode, tier, bucket)
+    }
+  }
+}
+// Bare fallback = the MAX of the whole table (= premium clips 180m = 1480): the
+// unknown-mode-AND-unknown-duration id feeds a pre-run balance gate, so it must
+// bound every row (mirrors the video-analysis bare-id rationale + the plugin).
+EDIT_PLAN_STATIC["edit-plan"] = Math.max(...Object.values(EDIT_PLAN_STATIC))
 
 // ============================================================
 // Types
@@ -411,6 +458,10 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // precomputed VIDEO_AUDIT_BUCKET_CREDITS table in @nodaro/shared, written to
   // model_pricing by migration 302.
   ...VIDEO_AUDIT_STATIC,
+  // ── Edit Plan (podcast editing) — PROVISIONAL placeholder pricing (see the
+  // EDIT_PLAN_STATIC block above). Bare `edit-plan` + all 54 composites, written
+  // to model_pricing by migration 432; the DB rows win at runtime.
+  ...EDIT_PLAN_STATIC,
   "flux-lora-character": 20,      // flux-dev-lora inference via Replicate. Internal-only id selected by payload-builder when a single trained @character is mentioned.
   "character-lora-training": 1500, // Replicate ostris/flux-dev-lora-trainer (1000 steps, one-shot). Refunded by webhook on failure/cancel.
   // ── Image Editing ──

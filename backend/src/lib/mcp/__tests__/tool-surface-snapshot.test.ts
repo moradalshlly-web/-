@@ -243,6 +243,12 @@ const CAPTION_LOOK_LEVERS_BYTES = 1_867
 // by this suite: 352_955 total − 351_005 base = 1_950 B, which preserves the
 // same 941 B of headroom the list had before this raise.
 const CAPTION_SEGMENTS_BYTES = 1_950
+// plan_edit (podcast editing) — a NEW cloud-only, execute-scoped tool (PR #9).
+// One tool added: the cloud/all membership fixture moves (it names plan_edit),
+// and this raises the total by the tool's full serialized size. Measured by this
+// suite: 356_058 total − 353_896 base = 2_162 B; well under the 8_192 B per-tool
+// budget.
+const PLAN_EDIT_TOOL_BYTES = 2_162
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -259,7 +265,8 @@ export const TOOL_WIRE_BUDGET = {
     SCENE3D_MECHANICAL_PASSES_BYTES +
     SCENE3D_REVIEW_UNAVAILABLE_BYTES +
     CAPTION_LOOK_LEVERS_BYTES +
-    CAPTION_SEGMENTS_BYTES,
+    CAPTION_SEGMENTS_BYTES +
+    PLAN_EDIT_TOOL_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

@@ -114,6 +114,7 @@
   "motion_transfer",
   "new_studio_shot_from_frame",
   "ping",
+  "plan_edit",
   "plan_studio_export",
   "prepare_audio_upload",
   "prepare_image_upload",
