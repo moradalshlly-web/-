@@ -249,6 +249,18 @@ const CAPTION_SEGMENTS_BYTES = 1_950
 // suite: 356_058 total − 353_896 base = 2_162 B; well under the 8_192 B per-tool
 // budget.
 const PLAN_EDIT_TOOL_BYTES = 2_162
+//
+// RAISED 2026-09-18 by silence_detect + apply_edl (podcast editing) and nothing
+// else — two NEW core, execute-scoped tools (PR #11). Unlike plan_edit these are
+// UNGATED, so BOTH the cloud/all AND the community/all membership fixtures move
+// (each names both verbs), and this raises the total by the two tools' full
+// serialized sizes. The sizes include the code-review round: apply_edl carries a
+// union `edl` (object OR JSON string) + the "rejected up front naming the segment
+// and rule" clause, and both descriptions name the `output_data.json` handoff.
+// measured by this suite: 360_886 total − 356_058 base = 4_828 B (silence_detect
+// 2_108 + apply_edl 2_720); both are well under the 8_192 B per-tool budget.
+const SILENCE_DETECT_TOOL_BYTES = 2_108
+const APPLY_EDL_TOOL_BYTES = 2_720
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -266,7 +278,9 @@ export const TOOL_WIRE_BUDGET = {
     SCENE3D_REVIEW_UNAVAILABLE_BYTES +
     CAPTION_LOOK_LEVERS_BYTES +
     CAPTION_SEGMENTS_BYTES +
-    PLAN_EDIT_TOOL_BYTES,
+    PLAN_EDIT_TOOL_BYTES +
+    SILENCE_DETECT_TOOL_BYTES +
+    APPLY_EDL_TOOL_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

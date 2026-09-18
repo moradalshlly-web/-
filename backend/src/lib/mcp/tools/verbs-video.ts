@@ -28,6 +28,7 @@ const MOTION_TRANSFER_PROVIDER_ALIASES: Record<string, string> = {
   "kling-3.0-motion": "kling-3.0",
 }
 import { normalizeVideoInput } from "../normalize.js"
+import { buildEffectiveEdl, validateEffectiveEdl } from "../../apply-edl-plan.js"
 import { hasCredits } from "../../config.js"
 import { getUserMcpPreferences } from "../user-preferences.js"
 import { resolvePreset } from "../../presets/resolve-preset.js"
@@ -2949,6 +2950,140 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         label: "video-pro continue",
         widgetKind: "video",
         widgetData: { prompt: `(continue ${args.job_id.slice(0, 8)}…${args.from_segment !== undefined ? ` from segment ${args.from_segment}` : ""})` },
+      })
+    },
+  )
+
+  // ── silence_detect (podcast editing — CORE, ungated) ──
+  // Keyless ffmpeg silencedetect pass over a source's audio proxy — the
+  // analysis half of a tighten, no transcript and no pixels. The silence
+  // ranges land in the job's output_data (feed them to plan_edit, or hand-cut
+  // an EDL). Core verb: registers on EVERY install (no hasCredits() gate),
+  // unlike the cloud-only plan_edit below — the deliberate connected-self-host
+  // asymmetry (the editorial planner is cloud-only; the primitives are not).
+  server.registerTool(
+    "silence_detect",
+    {
+      title: "Silence Detect",
+      description:
+        "Detect the silent ranges in a recording — one ffmpeg pass over the source's audio, " +
+        "no transcript and no pixels. `audio_url` accepts an audio OR a video source (the " +
+        "audio track is read either way). Tune `threshold_db` (dBFS, at or below 0), " +
+        "`min_silence_ms`, and `pad_ms` (speech kept around each range). Returns a job_id — " +
+        "poll `get_job`; the silence result is the job's `output_data.json` (`{ ranges, " +
+        "durationMs }`). Pass THAT object (not the whole `output_data`) as `plan_edit`'s " +
+        "`silence`, or read `ranges` to hand-cut an EDL for `apply_edl`.",
+      inputSchema: {
+        audio_url: z.string().url().describe("Audio OR video source URL — the audio track is read either way."),
+        threshold_db: z.number().min(-90).max(0).optional().describe("Silence threshold in dBFS (at or below 0). Default -35, a good spoken-word floor."),
+        min_silence_ms: z.number().int().min(1).max(600_000).optional().describe("Shortest silence to report, in ms. Default 700."),
+        pad_ms: z.number().int().min(0).max(60_000).optional().describe("Speech kept around each range, in ms (shrinks each range inward). Default 120."),
+      },
+      outputSchema: JOB_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      _meta: uiMeta(WIDGET_URI.jobAuto),
+    },
+    async (args) => {
+      const payload: Record<string, unknown> = {
+        audioUrl: args.audio_url,
+        ...(args.threshold_db !== undefined ? { thresholdDb: args.threshold_db } : {}),
+        ...(args.min_silence_ms !== undefined ? { minSilenceMs: args.min_silence_ms } : {}),
+        ...(args.pad_ms !== undefined ? { padMs: args.pad_ms } : {}),
+        mcp_client: session.clientName,
+        userId: session.userId,
+      }
+      return dispatchJob(fastify, session, {
+        url: "/v1/silence-detect",
+        payload,
+        label: "Silence detect",
+        widgetKind: "generic",
+        widgetData: { prompt: "(silence detect)" },
+      })
+    },
+  )
+
+  // ── apply_edl (podcast editing — CORE, ungated) ──
+  // Render an edit-decision list into a finished cut — the executor half of the
+  // podcast primitives. Consumes an EDL (from plan_edit, or hand-written to the
+  // @nodaro/shared Edl contract) and emits a video or audio file. Core verb:
+  // registers on EVERY install; the EDL it renders may come from the cloud-only
+  // plan_edit OR be hand-authored, so the renderer is available everywhere.
+  server.registerTool(
+    "apply_edl",
+    {
+      title: "Apply EDL",
+      description:
+        "Render an edit-decision list (EDL) into a finished cut. Pass `edl` (an object or a " +
+        "JSON string) — the plan from a `plan_edit` step, or hand-written to the " +
+        "@nodaro/shared `Edl` contract (integer-ms `segments` on a `master` clock, each " +
+        "naming a `sources[].id`; a video render needs a `video` source on every segment). " +
+        "Media resolves from each source's `url`; `sources` optionally overrides those URLs " +
+        "positionally, in the EDL's `sources` order. `output`: `video` (default) or `audio`. " +
+        "An optional `transcript` is remapped through the cut. A malformed EDL is rejected " +
+        "up front naming the offending segment and rule, so you can fix and retry. Returns a " +
+        "job_id — poll `get_job` for the rendered file. Priced per rendered minute.",
+      inputSchema: {
+        edl: z.union([z.record(z.string(), z.unknown()), z.string()]).describe("The edit-decision list, as an object OR a JSON string — from plan_edit, or hand-authored to the @nodaro/shared Edl contract."),
+        sources: z.array(z.string().url()).optional().describe("Positional media-URL overrides for the EDL's sources[], in sources order."),
+        transcript: z.record(z.string(), z.unknown()).optional().describe("Optional upstream transcript object, remapped through the cut for the result's transcript output."),
+        output: z.enum(["video", "audio"]).optional().describe("Render a video (default) or an audio-only cut."),
+        quality: z.enum(["proxy", "final"]).optional().describe("proxy (fast preview) or final (default)."),
+        crossfade_ms: z.number().min(0).max(5000).optional().describe("Default crossfade on boundaries with no explicit transition, in ms. 0 = hard cuts (default)."),
+      },
+      outputSchema: JOB_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      _meta: uiMeta(WIDGET_URI.jobAuto),
+    },
+    async (args) => {
+      // An SDK/MCP caller may send the EDL (or transcript) as a JSON string —
+      // parse it before validating, mirroring the route's own `parseEdlMaybe`.
+      const parseMaybe = (v: unknown): unknown => {
+        if (typeof v !== "string") return v
+        try { return JSON.parse(v) } catch { return undefined }
+      }
+      const edl = parseMaybe(args.edl)
+      // An unparseable JSON STRING would normalize to an empty EDL and report
+      // "segments is empty" — misleading. Name the real problem instead.
+      if (typeof args.edl === "string" && edl === undefined) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: "apply_edl: `edl` is a string but not valid JSON — pass the EDL object, or a correctly JSON-encoded string." }],
+        }
+      }
+      // Pre-validate at the verb, mirroring the DAG payload-builder: the route
+      // already 400s a bad EDL, but the MCP error formatter surfaces only the
+      // code+message and DROPS the `issues[]`, so an agent would see an unnamed
+      // 400 and could not self-correct. Build the SAME effective EDL the route
+      // renders and validate it here so the offending segment id + rule reach
+      // the model. The route keeps its own validation (defense in depth).
+      const output = args.output ?? "video"
+      const eff = buildEffectiveEdl(edl, {
+        crossfadeMs: args.crossfade_ms ?? 0,
+        sourceOverrides: args.sources,
+      })
+      const v = validateEffectiveEdl(eff, output)
+      if (!v.ok) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: `apply_edl: the EDL failed validation — fix and retry: ${v.issues.join("; ")}` }],
+        }
+      }
+      const payload: Record<string, unknown> = {
+        edl,
+        ...(args.sources ? { sources: args.sources } : {}),
+        ...(args.transcript !== undefined ? { transcript: args.transcript } : {}),
+        ...(args.output ? { output: args.output } : {}),
+        ...(args.quality ? { quality: args.quality } : {}),
+        ...(args.crossfade_ms !== undefined ? { crossfadeMs: args.crossfade_ms } : {}),
+        mcp_client: session.clientName,
+        userId: session.userId,
+      }
+      return dispatchJob(fastify, session, {
+        url: "/v1/apply-edl",
+        payload,
+        label: "Apply EDL",
+        widgetKind: output === "audio" ? "audio" : "video",
+        widgetData: { prompt: `(apply edl · ${output})` },
       })
     },
   )
