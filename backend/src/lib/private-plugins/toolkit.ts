@@ -1343,9 +1343,8 @@ export function buildToolkit(): PluginToolkit {
           throw new Error("Dynamic credit quote must be a finite non-negative number")
         }
         if (!hasCredits() || baseCredits === 0) return baseCredits
-        const { effectiveMarkupPercent } = await import("../../ee/billing/service-margin.js")
-        const markup = effectiveMarkupPercent(await getAppSettings(), modelIdentifier)
-        return markup > 0 ? Math.ceil(baseCredits * (1 + markup / 100)) : baseCredits
+        const { applyServiceMarkup } = await import("../../ee/billing/service-margin.js")
+        return applyServiceMarkup(baseCredits, await getAppSettings(), modelIdentifier)
       },
       safeUrlSchema,
       extractWorkflowId,

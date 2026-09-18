@@ -14,7 +14,6 @@ export async function projectDubbingCreditOverride(jobName: string, payload: Rec
   payload.probedDurationSec = Math.ceil(seconds)
   const { getModelCreditBaseCost } = await import("../ee/billing/credits.js")
   const { creditCost } = await getModelCreditBaseCost("elevenlabs-dubbing-v2")
-  const { effectiveMarkupPercent } = await import("../ee/billing/service-margin.js")
-  const markup = effectiveMarkupPercent(await getAppSettings(), "elevenlabs-dubbing-v2")
-  return Math.ceil(creditCost * Math.ceil(seconds / 60) * (1 + markup / 100))
+  const { applyServiceMarkup } = await import("../ee/billing/service-margin.js")
+  return applyServiceMarkup(creditCost * Math.ceil(seconds / 60), await getAppSettings(), "elevenlabs-dubbing-v2")
 }
