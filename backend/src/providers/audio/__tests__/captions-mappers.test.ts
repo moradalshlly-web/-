@@ -145,6 +145,27 @@ describe("transcriptToCaptions — wordLevel:false (grouped lines), one break ru
   })
 })
 
+describe("transcriptToCaptions — stable ordering (out-of-order remap input)", () => {
+  it("sorts word-level output by startMs so it stays monotonic", () => {
+    const out = transcriptToCaptions(
+      transcript([w("second", 1000, 1400), w("first", 0, 400), w("third", 1500, 1900)]),
+      { wordLevel: true },
+    )
+    expect(out.map((c) => c.text.trim())).toEqual(["first", "second", "third"])
+    for (let i = 1; i < out.length; i++) {
+      expect(out[i].startMs).toBeGreaterThanOrEqual(out[i - 1].startMs)
+    }
+  })
+
+  it("grouped-line spans never invert (endMs >= startMs) when words arrive out of order", () => {
+    const out = transcriptToCaptions(transcript([w("b", 500, 700), w("a", 0, 200)]), { wordLevel: false })
+    expect(out).toHaveLength(1)
+    expect(out[0].text).toBe("a b")
+    expect(out[0].endMs).toBeGreaterThanOrEqual(out[0].startMs)
+    expect(out[0]).toMatchObject({ startMs: 0, endMs: 700 })
+  })
+})
+
 describe("transcriptToCaptions — alignment through an apply-edl remap (±80ms, D17 crossfade)", () => {
   // A 2-segment cut with a 500ms crossfade INTO segment 1. Output-clock starts
   // (hand-computed, not via remapMsThroughEdl): seg0 → 0, seg1 → 2000 - 500 = 1500.

@@ -708,10 +708,14 @@ async function dispatchKineticCaptions(
   } else if (hasTranscript) {
     // A wired Transcript (json handle) — object or stringified — reshaped into
     // the caption list. wordLevel:true (default) = one caption per word for the
-    // per-word kinetic styles; false groups words into lines. The route already
-    // rejected an empty transcript; guard the DAG path (which bypasses it) so an
-    // empty one fails clearly instead of producing an unrenderable empty plan.
+    // per-word kinetic styles; false groups words into lines. Both ingress paths
+    // (route + payload-builder) already reject a non-JSON / empty transcript
+    // before credits reserve; these throws are defence-in-depth with the SAME
+    // split messages so a bypass still fails clearly, not misleadingly.
     const raw = typeof data.transcript === "string" ? safeParseJson(data.transcript) : data.transcript
+    if (typeof data.transcript === "string" && raw === undefined) {
+      throw new Error("transcript input is not JSON — wire the Transcript (json) output")
+    }
     captions = transcriptToCaptions(normalizeTranscript(raw), { wordLevel: data.wordLevel })
     if (captions.length === 0) {
       throw new Error("wired transcript has no words to caption")

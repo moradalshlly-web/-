@@ -184,14 +184,18 @@ export async function addCaptionsRoutes(app: FastifyInstance) {
       })
     }
 
-    // A wired transcript that normalizes to zero words has nothing to caption.
-    // Fail at ingress (apply-edl's rule) so we never reserve credits for a
-    // render that would die producing an empty caption plan.
+    // Validate the wired transcript at ingress (apply-edl's rule) so we never
+    // reserve credits for a render that would die producing an empty caption
+    // plan. Two distinct failures: a non-JSON input (someone wired a text/media
+    // pip into the json handle) vs a genuinely empty transcript.
     if (parsed.data.transcript !== undefined && parsed.data.transcript !== null) {
-      const raw =
-        typeof parsed.data.transcript === "string"
-          ? safeParseJsonForTranscript(parsed.data.transcript)
-          : parsed.data.transcript
+      const t = parsed.data.transcript
+      const raw = typeof t === "string" ? safeParseJsonForTranscript(t) : t
+      if (typeof t === "string" && raw === undefined) {
+        return reply.status(400).send({
+          error: { code: "invalid_transcript", message: "transcript input is not JSON — wire the Transcript (json) output" },
+        })
+      }
       if (normalizeTranscript(raw).words.length === 0) {
         return reply.status(400).send({
           error: { code: "invalid_transcript", message: "transcript has no words to caption" },

@@ -113,7 +113,11 @@ export function transcriptToCaptions(
   opts?: { wordLevel?: boolean },
 ): Caption[] {
   const wordLevel = opts?.wordLevel ?? true
-  const words = transcript.words
+  // Sort by start time so grouped-line spans never invert (endMs < startMs) and
+  // word-level output stays monotonic, even when an upstream remap (a clips-mode
+  // / reordered EDL) emits words in source order. Copy first — `transcript.words`
+  // is readonly; JS sort is stable, so equal-startMs words keep their order.
+  const words = [...transcript.words].sort((a, b) => a.startMs - b.startMs)
   if (words.length === 0) return []
 
   const lead = (text: string, isFirst: boolean): string =>
