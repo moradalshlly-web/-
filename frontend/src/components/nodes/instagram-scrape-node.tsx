@@ -229,13 +229,17 @@ function InstagramScrapeNodeComponent({ id, data, selected }: NodeProps) {
   const showResults = state.kind === "success" && items.length > 0
   const visible = instagramVisibleIndexes(items, nodeData.viewFormat)
   const storedFeatured = clampFeaturedIndex(nodeData.featuredIndex, items.length)
+  // `featured` is a DISPLAY-only coercion: when a format filter hides the stored
+  // post, show the first visible one instead. It must NOT be written back —
+  // `featuredIndex` isn't a transient key, so persisting a coercion on mount /
+  // filter-change dirties the workflow with no user edit, which surfaces as a
+  // spurious autosave and a false "updated on another device". Only an explicit
+  // click (`setFeatured`) changes the selection; the output handles read the
+  // stored `featuredIndex` clamped to the full list, so this stays wire-neutral.
   const featured = visible.includes(storedFeatured) ? storedFeatured : (visible[0] ?? storedFeatured)
   const featuredPos = Math.max(0, visible.indexOf(featured))
   const featuredPost = showResults ? items[featured] : undefined
   const setFeatured = (index: number) => updateNodeData(id, { featuredIndex: (index + items.length) % items.length })
-  useEffect(() => {
-    if (showResults && featured !== storedFeatured) updateNodeData(id, { featuredIndex: featured })
-  }, [showResults, featured, storedFeatured, id, updateNodeData])
   const stepFeatured = (delta: number) => {
     if (visible.length === 0) return
     setFeatured(visible[(featuredPos + delta + visible.length) % visible.length])
