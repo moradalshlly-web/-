@@ -119,7 +119,12 @@ describe("CaptionOverlay", () => {
       expect(active).not.toContain("scale(1.15)")
       const scale = Number(/scale\(([\d.]+)\)/.exec(active!)?.[1])
       expect(scale).toBeGreaterThan(1)
-      expect(scale).toBeLessThan(1.06)
+      expect(scale).toBeLessThan(1.05)
+      // …and EVERY word span carries the layout room the pop grows into (a
+      // constant padding, so the row never shifts as the highlight moves).
+      const words = (html.match(/<span[^>]*>[^<]*<\/span>/g) ?? [])
+      expect(words.length).toBe(2)
+      for (const w of words) expect(w).toContain("padding:0 0.1em")
     })
 
     it("sizes the line from the frame width and font size (overlay -> budget wiring)", () => {
@@ -131,6 +136,28 @@ describe("CaptionOverlay", () => {
       expect(html).toContain("hotel")
       expect(html).not.toContain("alpha")
     })
+  })
+
+  // createTikTokStyleCaptions only starts a new page at a token that begins with a
+  // space. Word-level captions[] from an API/MCP caller are BARE words, so every
+  // word of the clip used to collapse into ONE page (seen on a production render:
+  // six words spanning 5 s on a single page). The overlay now canonicalises the
+  // delimiter before paging.
+  it("tiktok-words pages BARE word-level captions instead of collapsing them into one page", () => {
+    // The library closes a page once its SPOKEN SPAN exceeds the combine window
+    // (1200 ms) — alpha..charlie spans 1300 ms, so "delta" opens page two.
+    const bare: Caption[] = [["alpha", 0, 400], ["bravo", 400, 800], ["charlie", 800, 1300], ["delta", 3000, 3400], ["echo", 3400, 3800]]
+      .map(([text, startMs, endMs]) => ({ text: text as string, startMs: startMs as number, endMs: endMs as number, timestampMs: startMs as number, confidence: null }))
+    const html = renderToStaticMarkup(
+      <CaptionOverlay captions={bare} style="tiktok-words" position="bottom" fontSize={32} color="#ffffff" />,
+    )
+    // Mocked frame 30 = 1000 ms: the first page is on screen, the words that start
+    // two seconds later are not.
+    expect(html).toContain("alpha")
+    expect(html).not.toContain("delta")
+    expect(html).not.toContain("echo")
+    // …and the page's words are SPACED, not glued ("alphabravocharlie").
+    expect(html).not.toContain("alphabravo")
   })
 
   // Karaoke wipes each word with a stacked SOLID-fill clone (rest underneath,

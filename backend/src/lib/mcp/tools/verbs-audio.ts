@@ -2115,11 +2115,20 @@ export function registerAudioVerbs({ server, session, fastify }: RegisterOpts): 
       _meta: uiMeta(WIDGET_URI.jobAuto),
     },
     async (args) => {
-      const audioUrl =
-        args.audio_url ??
-        (args.audio_asset_id
-          ? await resolveAssetId({ assetId: args.audio_asset_id, userId: session.userId, expectedKind: "audio" })
-          : null)
+      // The argument is documented as "audio or video job id" and transcribing a
+      // VIDEO's speech is the common case (captions), but the resolver is
+      // kind-strict and refused every ordinary video job ("expected audio, got job
+      // of type …"). Resolve as audio first, then as video — the route takes any
+      // media URL. Ownership is enforced inside resolveAssetId on both attempts.
+      const resolveSpeechSource = async (assetId: string): Promise<string | null> => {
+        try {
+          return await resolveAssetId({ assetId, userId: session.userId, expectedKind: "audio" })
+        } catch (err) {
+          if (!(err instanceof Error) || !err.message.startsWith("expected audio")) throw err
+          return resolveAssetId({ assetId, userId: session.userId, expectedKind: "video" })
+        }
+      }
+      const audioUrl = args.audio_url ?? (args.audio_asset_id ? await resolveSpeechSource(args.audio_asset_id) : null)
       if (!audioUrl) return { content: [{ type: "text" as const, text: "Pass audio_url or audio_asset_id." }], isError: true }
       const payload: Record<string, unknown> = {
         audioUrl,

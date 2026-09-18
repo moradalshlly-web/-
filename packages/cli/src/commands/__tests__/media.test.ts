@@ -18,6 +18,7 @@ const mocks = {
   imageCollage: vi.fn(),
   imageOverlay: vi.fn(),
   suggestOverlayPlacement: vi.fn(),
+  addCaptions: vi.fn(),
   jobsGet: vi.fn(),
 }
 
@@ -35,6 +36,7 @@ vi.mock("../../client.js", () => ({
       imageCollage: mocks.imageCollage,
       imageOverlay: mocks.imageOverlay,
       suggestOverlayPlacement: mocks.suggestOverlayPlacement,
+      addCaptions: mocks.addCaptions,
     },
     jobs: { get: mocks.jobsGet },
   }),
@@ -459,5 +461,147 @@ describe("media overlay-placement command", () => {
     ).rejects.toThrow("process.exit(1)")
     expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--safe-area"))
     expect(mocks.suggestOverlayPlacement).not.toHaveBeenCalled()
+  })
+})
+
+describe("media add-captions command", () => {
+  it("maps the style + every look lever onto the SDK call", async () => {
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-cap1" })
+    await runCmd(
+      "media", "add-captions", "https://x/clip.mp4",
+      "--style", "word-highlight", "--look", "outline", "--position", "top", "--position-y", "18",
+      "--font-size", "48", "--font-family", "Montserrat", "--font-weight", "900",
+      "--color", "white", "--background-color", "#000000",
+      "--stroke-color", "black", "--stroke-width", "5", "--highlight-color", "#FFE600",
+      "--uppercase", "--json",
+    )
+    expect(mocks.addCaptions).toHaveBeenCalledWith({
+      videoUrl: "https://x/clip.mp4",
+      style: "word-highlight",
+      look: "outline",
+      position: "top",
+      positionY: 18,
+      fontSize: 48,
+      fontFamily: "Montserrat",
+      fontWeight: 900,
+      color: "white",
+      backgroundColor: "#000000",
+      strokeColor: "black",
+      strokeWidth: 5,
+      highlightColor: "#FFE600",
+      uppercase: true,
+    })
+  })
+
+  it("leaves autoTranscribe ABSENT unless --no-auto-transcribe is passed", async () => {
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-cap2" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "karaoke", "--json")
+    expect(mocks.addCaptions).toHaveBeenCalledWith({ videoUrl: "https://x/clip.mp4", style: "karaoke" })
+    expect(mocks.addCaptions.mock.calls[0][0]).not.toHaveProperty("autoTranscribe")
+  })
+
+  // The default `outline` look is already UPPERCASE, so the override that changes a
+  // render is `uppercase: false` — a flag that could only send `true` was a no-op.
+  it("--no-uppercase sends uppercase:false, and an untouched flag sends nothing", async () => {
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-up1" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "word-pop", "--no-uppercase", "--json")
+    expect(mocks.addCaptions.mock.calls[0][0]).toMatchObject({ uppercase: false })
+
+    mocks.addCaptions.mockClear()
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-up2" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "word-pop", "--json")
+    expect(mocks.addCaptions.mock.calls[0][0]).not.toHaveProperty("uppercase")
+  })
+
+  it("sends autoTranscribe:false and the transcribe provider when asked", async () => {
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-cap3" })
+    await runCmd(
+      "media", "add-captions", "https://x/clip.mp4", "--text", "hello world",
+      "--no-auto-transcribe", "--transcribe-provider", "elevenlabs-stt", "--json",
+    )
+    expect(mocks.addCaptions).toHaveBeenCalledWith({
+      videoUrl: "https://x/clip.mp4",
+      text: "hello world",
+      autoTranscribe: false,
+      transcribeProvider: "elevenlabs-stt",
+    })
+  })
+
+  it("passes a --captions-file word list through verbatim", async () => {
+    const file = join(tmpdir(), `captions-words-${Date.now()}.json`)
+    const words = [
+      { text: "hello", startMs: 0, endMs: 320 },
+      { text: "world", startMs: 320, endMs: 700, speaker: "speaker_0" },
+    ]
+    writeFileSync(file, JSON.stringify(words))
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-cap4" })
+    try {
+      await runCmd(
+        "media", "add-captions", "https://x/clip.mp4", "--captions-file", file,
+        "--style", "word-highlight", "--no-auto-transcribe", "--json",
+      )
+    } finally {
+      rmSync(file, { force: true })
+    }
+    expect(mocks.addCaptions).toHaveBeenCalledWith({
+      videoUrl: "https://x/clip.mp4",
+      captions: words,
+      style: "word-highlight",
+      autoTranscribe: false,
+    })
+  })
+
+  it("reads per-range treatments from --segments-file", async () => {
+    const file = join(tmpdir(), `captions-segments-${Date.now()}.json`)
+    const segments = [
+      { startMs: 0, endMs: 3000, style: "word-pop", fontSize: 72, position: "top" },
+      { startMs: 3000, endMs: 12000, style: "word-highlight", look: "clean" },
+    ]
+    writeFileSync(file, JSON.stringify(segments))
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-cap5" })
+    try {
+      await runCmd("media", "add-captions", "https://x/clip.mp4", "--segments-file", file, "--json")
+    } finally {
+      rmSync(file, { force: true })
+    }
+    expect(mocks.addCaptions).toHaveBeenCalledWith({ videoUrl: "https://x/clip.mp4", segments })
+  })
+
+  it("errors when a file input is not a non-empty JSON array", async () => {
+    const file = join(tmpdir(), `captions-bad-${Date.now()}.json`)
+    writeFileSync(file, JSON.stringify({ text: "not an array" }))
+    try {
+      await expect(
+        runCmd("media", "add-captions", "https://x/clip.mp4", "--captions-file", file),
+      ).rejects.toThrow("process.exit(1)")
+    } finally {
+      rmSync(file, { force: true })
+    }
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--captions-file"))
+    expect(mocks.addCaptions).not.toHaveBeenCalled()
+  })
+
+  it("errors on an unknown --style, --look, --font-family, --font-weight and --transcribe-provider", async () => {
+    await expect(
+      runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "glitter"),
+    ).rejects.toThrow("process.exit(1)")
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--style"))
+    await expect(
+      runCmd("media", "add-captions", "https://x/clip.mp4", "--look", "neon"),
+    ).rejects.toThrow("process.exit(1)")
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--look"))
+    await expect(
+      runCmd("media", "add-captions", "https://x/clip.mp4", "--font-family", "Comic Sans"),
+    ).rejects.toThrow("process.exit(1)")
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--font-family"))
+    await expect(
+      runCmd("media", "add-captions", "https://x/clip.mp4", "--font-weight", "850"),
+    ).rejects.toThrow("process.exit(1)")
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--font-weight"))
+    await expect(
+      runCmd("media", "add-captions", "https://x/clip.mp4", "--transcribe-provider", "deepgram"),
+    ).rejects.toThrow("process.exit(1)")
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--transcribe-provider"))
+    expect(mocks.addCaptions).not.toHaveBeenCalled()
   })
 })

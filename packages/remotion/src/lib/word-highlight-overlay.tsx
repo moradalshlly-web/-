@@ -2,7 +2,7 @@ import React, { useMemo } from "react"
 import { useCurrentFrame, useVideoConfig } from "remotion"
 import type { OverlayCommonProps } from "./subtitle-overlay"
 import { captionAnchorStyle, captionLookStyle, captionRowColors, captionWord } from "./caption-look"
-import { activeCaptionLine, activeWordScale, captionLineCharBudget, groupCaptionLines } from "./caption-lines"
+import { CAPTION_WORD_PAD_EM, activeCaptionLine, activeWordScale, captionLineCharBudget, groupCaptionLines } from "./caption-lines"
 import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
 
 /** Renders ONE LINE of words at a time; the word being spoken is colored/scaled
@@ -56,15 +56,23 @@ export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
         return (
           <span key={i} style={{
             color: isActive ? spoken : rest,
-            // Length-aware pop: a flat scale(1.15) has no layout space reserved, so
-            // a long active word grew over its neighbour ("Nore-prompting.").
-            transform: isActive ? `scale(${activeWordScale(c.text)})` : "scale(1)",
+            // The pop grows the word around its centre with NO layout space of its
+            // own, so every word carries a fixed padding and the scale is bounded to
+            // fit inside it — a long active word used to swallow the space before it
+            // ("Nore-prompting."). Constant padding = no layout shift as the
+            // highlight moves.
+            padding: `0 ${CAPTION_WORD_PAD_EM}em`,
+            transform: isActive
+              ? `scale(${activeWordScale(c.text, { fontFamily, fontWeight: fontWeight ?? 700, uppercase })})`
+              : "scale(1)",
             display: "inline-block",
             // An inline-block starts its own line box, so CSS removes the
             // collapsible leading space that is the @remotion/captions word
             // delimiter — words rendered glued ("Twopeopletalking"). pre keeps it.
             whiteSpace: "pre",
-            ...(isActive && backgroundColor ? { background: backgroundColor, padding: "0.05em 0.2em", borderRadius: "0.3em" } : {}),
+            // The pill keeps the SAME horizontal padding as every word, so the row does not
+            // shift sideways as the highlight moves.
+            ...(isActive && backgroundColor ? { background: backgroundColor, padding: `0.05em ${CAPTION_WORD_PAD_EM}em`, borderRadius: "0.3em" } : {}),
             ...directionStyle(c.text),
           }}>
             {captionWord(c.text, i)}

@@ -162,7 +162,12 @@ export function resolveCaptionSegments(
       endMs: seg.endMs,
       style,
       position: seg.position ?? defaults.position,
-      positionY: seg.positionY ?? defaults.positionY,
+      // `positionY` OVERRIDES `position` at render, so an INHERITED positionY must
+      // not beat a placement the segment asked for itself: an intro segment with
+      // `position: "top"` under a top-level `positionY: 85` rendered at 85 % (the
+      // explicit choice lost to a default). Inherit the top-level positionY only
+      // when the segment names no placement of its own.
+      positionY: seg.positionY ?? (seg.position !== undefined ? undefined : defaults.positionY),
       fontSize,
       ...levers,
       captions,

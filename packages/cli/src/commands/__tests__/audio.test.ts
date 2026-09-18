@@ -10,6 +10,7 @@ const mocks = {
   mix: vi.fn(),
   adjustVolume: vi.fn(),
   combine: vi.fn(),
+  transcribe: vi.fn(),
   jobsGet: vi.fn(),
 }
 
@@ -22,6 +23,7 @@ vi.mock("../../client.js", () => ({
       mix: mocks.mix,
       adjustVolume: mocks.adjustVolume,
       combine: mocks.combine,
+      transcribe: mocks.transcribe,
     },
     jobs: { get: mocks.jobsGet },
   }),
@@ -189,5 +191,46 @@ describe("audio combine", () => {
     ).rejects.toThrow("process.exit(1)")
     expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--segment"))
     expect(mocks.combine).not.toHaveBeenCalled()
+  })
+})
+
+describe("audio transcribe", () => {
+  it("maps every flag onto the SDK call", async () => {
+    mocks.transcribe.mockResolvedValueOnce({ jobId: "j7" })
+    await runCmd(
+      "audio", "transcribe", "--audio", "https://x/a.mp3", "--provider", "elevenlabs-stt",
+      "--language", "en", "--diarize", "--tag-audio-events", "--word-timestamps", "--json",
+    )
+    expect(mocks.transcribe).toHaveBeenCalledWith({
+      audioUrl: "https://x/a.mp3",
+      provider: "elevenlabs-stt",
+      language: "en",
+      diarize: true,
+      tagAudioEvents: true,
+      wordTimestamps: true,
+    })
+  })
+
+  it("sends only the source when no other flag is given", async () => {
+    mocks.transcribe.mockResolvedValueOnce({ jobId: "j8" })
+    await runCmd("audio", "transcribe", "--audio", "https://x/a.mp3", "--json")
+    expect(mocks.transcribe).toHaveBeenCalledWith({ audioUrl: "https://x/a.mp3" })
+  })
+
+  it("errors on a provider outside the enabled enum", async () => {
+    await expect(
+      runCmd("audio", "transcribe", "--audio", "https://x/a.mp3", "--provider", "whisper"),
+    ).rejects.toThrow("process.exit(1)")
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--provider"))
+    expect(mocks.transcribe).not.toHaveBeenCalled()
+  })
+
+  it("refuses --word-timestamps on the default (word-timing-less) lane before any request", async () => {
+    await expect(
+      runCmd("audio", "transcribe", "--audio", "https://x/a.mp3", "--word-timestamps"),
+    ).rejects.toThrow("process.exit(1)")
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--word-timestamps"))
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("elevenlabs-stt"))
+    expect(mocks.transcribe).not.toHaveBeenCalled()
   })
 })

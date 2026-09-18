@@ -1,11 +1,47 @@
-import type { AudioFxPreset } from "@nodaro/shared"
+import type { AudioFxPreset, TranscribeProvider, Transcript } from "@nodaro/shared"
+export type { TranscribeProvider } from "@nodaro/shared"
 import type { NodaroClient } from "../client.js"
 
 /**
+ * One word of a {@link AudioResource.transcribe} result — caption-shaped, in
+ * MILLISECONDS, and structurally the `captions[]` entry `media.addCaptions()`
+ * takes, so a word list can be passed straight through. `speaker` is present
+ * only on a diarized `elevenlabs-stt` run.
+ */
+export interface TranscribeWord {
+  text: string
+  startMs: number
+  endMs: number
+  timestampMs?: number | null
+  confidence?: number | null
+  speaker?: string
+}
+
+/**
+ * A completed transcribe job's `output_data` (read it off `jobs.get(jobId)`).
+ *
+ * Mind the units: `words` and `json.words` are in MILLISECONDS, while the
+ * top-level `segments` are in SECONDS (the raw per-utterance ranges) — present
+ * only on the legacy lanes; `elevenlabs-stt` returns none, so read `words`.
+ */
+export interface TranscribeJobOutput {
+  /** The full transcript as one string. */
+  text: string
+  /** Detected (or requested) language code. */
+  language?: string
+  /** Per-word timings, ms — present on the word-level lanes. */
+  words?: TranscribeWord[]
+  /** The normalized {@link Transcript} (ms), the shape `edit.*` consumes. */
+  json?: Transcript
+  /** Per-utterance ranges in SECONDS — not ms, unlike everything above. */
+  segments?: Array<{ start: number; end: number; text: string }>
+}
+
+/**
  * Audio primitives — the building blocks Voice Changer Pro composes internally
- * (separation, isolation, effect, mix, level), exposed standalone so a consumer
- * can run any single step or assemble its own pipeline. Each returns a job id to
- * poll (`jobs.get(jobId)`).
+ * (separation, isolation, effect, mix, level) plus speech-to-text, exposed
+ * standalone so a consumer can run any single step or assemble its own
+ * pipeline. Each returns a job id to poll (`jobs.get(jobId)`).
  */
 export class AudioResource {
   constructor(private client: NodaroClient) {}
@@ -74,5 +110,37 @@ export class AudioResource {
    */
   combine(input: { segments: Array<{ url: string; startTime?: number; endTime?: number }> }): Promise<{ jobId: string }> {
     return this.client.request<{ jobId: string }>("POST", "/v1/combine-audio", { body: input })
+  }
+
+  /**
+   * Transcribe an audio (or video) track to text (`POST /v1/transcribe`).
+   *
+   * Pass `provider: "elevenlabs-stt"` whenever you want WORD TIMINGS: Scribe is
+   * always word-level (flag or not) and is the lane that honours `diarize` (who
+   * spoke) and `tagAudioEvents` (laughter, applause, …). OMITTING `provider`
+   * falls back to the legacy whisper lane, which cannot produce word timings —
+   * asking it for them (`wordTimestamps: true`) is rejected with a `400
+   * validation_error` at ingress, before any credit is spent.
+   *
+   * Poll `jobs.get(jobId)`; the finished job's `output_data` is a
+   * {@link TranscribeJobOutput}: `text` (the whole transcript), `words`
+   * (caption-shaped, in MILLISECONDS), `json` (the normalized
+   * {@link Transcript}, also ms) — and a top-level `segments` array that is in
+   * SECONDS, not ms.
+   *
+   * `words` is the caption source for a kinetic burn-in: hand it to
+   * `media.addCaptions()` as `captions` with `autoTranscribe: false` and the
+   * render uses those exact words (correct the `text` of an entry in between
+   * and the fix is what burns in).
+   */
+  transcribe(input: {
+    audioUrl: string
+    provider?: TranscribeProvider
+    language?: string
+    diarize?: boolean
+    tagAudioEvents?: boolean
+    wordTimestamps?: boolean
+  }): Promise<{ jobId: string }> {
+    return this.client.request<{ jobId: string }>("POST", "/v1/transcribe", { body: input })
   }
 }

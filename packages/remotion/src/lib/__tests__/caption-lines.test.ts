@@ -3,8 +3,9 @@ import type { Caption } from "@remotion/captions"
 import {
   CAPTION_LINE_BREAK_GAP_MS,
   CAPTION_LINE_MAX_HOLD_MS,
-  ACTIVE_WORD_GROWTH_CHARS,
+  ACTIVE_WORD_GROWTH_EM,
   ACTIVE_WORD_MAX_SCALE,
+  CAPTION_WORD_PAD_EM,
   activeCaptionLine,
   activeWordScale,
   captionCharWidthEm,
@@ -307,30 +308,44 @@ describe("no blank frame on a real word-timed clip", () => {
   })
 })
 
-describe("activeWordScale — the highlight pop never collides with a neighbour", () => {
-  // A CSS scale() reserves no layout space, so the growth lands on the adjacent
-  // words. Production render, 2026-09-18: "No re-prompting." with a flat
-  // scale(1.15) drew the active word ON TOP of "No" ("Nore-prompting.").
-  it("short words keep the full pop", () => {
+describe("activeWordScale — the highlight pop can never close the gap to a neighbour", () => {
+  // A CSS scale() reserves no layout space, and the only thing between two words
+  // is a ~0.25 em space glyph. Production render, 2026-09-18: "No re-prompting."
+  // read "Nore-prompting." — and a first fix that budgeted the growth in average
+  // CHARACTERS (~0.56 em) instead of against the space still left a ~4 px gap.
+  // Verified on rendered frames: scale off → normal space; this rule → normal space.
+  const boxEm = (text: string, m = {}) => text.trim().length * captionCharWidthEm(m) + 0.25 + 2 * CAPTION_WORD_PAD_EM
+
+  it("a very short word keeps the full pop", () => {
     expect(activeWordScale("No")).toBe(ACTIVE_WORD_MAX_SCALE)
-    expect(activeWordScale("face")).toBe(ACTIVE_WORD_MAX_SCALE)
   })
-  it("long words taper (the word from the bug report gets ~1.05, not 1.15)", () => {
-    expect(activeWordScale("re-prompting.")).toBeCloseTo(1 + 0.6 / 13, 5)
-    expect(activeWordScale("re-prompting.")).toBeLessThan(1.06)
+  it("the word from the bug report tapers to ~1.04", () => {
+    expect(activeWordScale("re-prompting.", { fontFamily: "Inter", fontWeight: 700 })).toBeCloseTo(1.0414, 3)
   })
-  it("the growth per side never exceeds half the character allowance, at any length", () => {
-    for (let len = 1; len <= 40; len++) {
-      const perSideChars = ((activeWordScale("x".repeat(len)) - 1) / 2) * len
-      expect(perSideChars).toBeLessThanOrEqual(ACTIVE_WORD_GROWTH_CHARS / 2 + 1e-9)
+  it("the growth per side never exceeds ACTIVE_WORD_GROWTH_EM — any length, any face", () => {
+    const faces = [{}, { fontFamily: "Montserrat", fontWeight: 900, uppercase: true }, { fontFamily: "Bebas Neue" }, { fontFamily: "Roboto Mono" }]
+    for (const m of faces) {
+      for (let len = 1; len <= 40; len++) {
+        const word = "x".repeat(len)
+        const perSideEm = ((activeWordScale(word, m) - 1) / 2) * boxEm(word, m)
+        expect(perSideEm).toBeLessThanOrEqual(ACTIVE_WORD_GROWTH_EM + 1e-9)
+      }
     }
   })
-  it("measures the TRIMMED word (the leading-space delimiter is not a character of it)", () => {
-    expect(activeWordScale(" re-prompting.")).toBe(activeWordScale("re-prompting."))
+  it("the gap left while a word is popped is at least a normal space", () => {
+    // resting gap = space glyph + both paddings; the pop may take GROWTH_EM of it.
+    const restingGapEm = 0.25 + 2 * CAPTION_WORD_PAD_EM
+    expect(restingGapEm - ACTIVE_WORD_GROWTH_EM).toBeGreaterThanOrEqual(0.25)
   })
-  it("never shrinks, and an empty word is left alone", () => {
+  it("a wider face tapers sooner (same word, bigger box)", () => {
+    const heavy = activeWordScale("workspace.", { fontFamily: "Montserrat", fontWeight: 900, uppercase: true })
+    const light = activeWordScale("workspace.", { fontFamily: "Inter", fontWeight: 700 })
+    expect(heavy).toBeLessThan(light)
+  })
+  it("measures the TRIMMED word, never shrinks, and leaves an empty word alone", () => {
+    expect(activeWordScale(" re-prompting.")).toBe(activeWordScale("re-prompting."))
+    expect(activeWordScale("x".repeat(500))).toBeGreaterThan(1)
     expect(activeWordScale("")).toBe(1)
     expect(activeWordScale("   ")).toBe(1)
-    expect(activeWordScale("x".repeat(500))).toBeGreaterThan(1)
   })
 })

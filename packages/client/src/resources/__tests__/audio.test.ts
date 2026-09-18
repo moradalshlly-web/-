@@ -53,4 +53,35 @@ describe("audio resource", () => {
     await c.audio.combine({ segments: [{ url: "https://x/a.mp3" }, { url: "https://x/b.mp3", startTime: 0, endTime: 5 }] })
     expect(fetchMock.mock.calls[0][0]).toBe("https://api.example.com/v1/combine-audio")
   })
+
+  it("transcribe() POSTs /v1/transcribe and passes the body through", async () => {
+    const fetchMock = vi.fn().mockReturnValueOnce(mockOk({ jobId: "j7" }))
+    const c = make(fetchMock)
+    const res = await c.audio.transcribe({
+      audioUrl: "https://x/a.mp3",
+      provider: "elevenlabs-stt",
+      language: "en",
+      diarize: true,
+      tagAudioEvents: true,
+      wordTimestamps: true,
+    })
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.example.com/v1/transcribe")
+    expect((fetchMock.mock.calls[0][1] as { method: string }).method).toBe("POST")
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)).toEqual({
+      audioUrl: "https://x/a.mp3",
+      provider: "elevenlabs-stt",
+      language: "en",
+      diarize: true,
+      tagAudioEvents: true,
+      wordTimestamps: true,
+    })
+    expect(res).toEqual({ jobId: "j7" })
+  })
+
+  it("transcribe() sends only audioUrl when nothing else is given (no invented defaults)", async () => {
+    const fetchMock = vi.fn().mockReturnValueOnce(mockOk({ jobId: "j8" }))
+    const c = make(fetchMock)
+    await c.audio.transcribe({ audioUrl: "https://x/a.mp3" })
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)).toEqual({ audioUrl: "https://x/a.mp3" })
+  })
 })

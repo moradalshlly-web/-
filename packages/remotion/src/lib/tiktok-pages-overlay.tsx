@@ -19,7 +19,17 @@ export const TikTokPagesOverlay: React.FC<TikTokPagesOverlayProps> = ({
   const { fps } = useVideoConfig()
   const ms = (frame / fps) * 1000
   const { pages } = useMemo(
-    () => createTikTokStyleCaptions({ captions: captions as Caption[], combineTokensWithinMilliseconds }),
+    // createTikTokStyleCaptions only starts a NEW PAGE at a token that begins with
+    // a space (the @remotion/captions word delimiter). Caller-supplied word-level
+    // captions[] arrive as BARE words, so without this every word of a 25 s clip
+    // collapsed into ONE page. Canonicalise the delimiter (and the order) first —
+    // the same normalisation the row overlays get from captionWord at render.
+    () => createTikTokStyleCaptions({
+      captions: [...(captions as Caption[])]
+        .sort((a, b) => a.startMs - b.startMs)
+        .map((c, i) => ({ ...c, text: captionWord(c.text, i) })),
+      combineTokensWithinMilliseconds,
+    }),
     [captions, combineTokensWithinMilliseconds],
   )
   const active = pages.find((p) => ms >= p.startMs && ms <= p.startMs + p.durationMs)

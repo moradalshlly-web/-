@@ -3,8 +3,22 @@ import { readFileSync } from "node:fs"
 import { buildClient, handleError } from "../client.js"
 import { emit, success, dim, detail, info, warn, type OutputOpts } from "../output.js"
 import { collectVariadic, reportQueuedJob } from "../util.js"
-import { OVERLAY_ANCHORS, OVERLAY_PLATFORM_IDS, type OverlayAnchor, type OverlayPlatformId } from "@nodaro/shared"
-import type { DownloadVideoProgress } from "@nodaro/sdk"
+import {
+  OVERLAY_ANCHORS,
+  OVERLAY_PLATFORM_IDS,
+  ALL_CAPTION_STYLES,
+  CAPTION_LOOK_IDS,
+  DEFAULT_CAPTION_LOOK,
+  SUPPORTED_FONT_NAMES,
+  TRANSCRIBE_LANES,
+  type OverlayAnchor,
+  type OverlayPlatformId,
+  type CaptionStyle,
+  type CaptionLookId,
+  type SupportedFontName,
+  type TranscribeLane,
+} from "@nodaro/shared"
+import type { DownloadVideoProgress, CaptionEntry, CaptionSegmentInput } from "@nodaro/sdk"
 
 interface GlobalOpts extends OutputOpts {
   profile?: string
@@ -37,6 +51,27 @@ function parseCanvas(raw: string): { width: number; height: number } {
   return { width: parseInt(m[1], 10), height: parseInt(m[2], 10) }
 }
 
+/**
+ * Read + JSON-parse a file that must hold a NON-EMPTY top-level array (a word
+ * list for `--captions-file`, a segment list for `--segments-file`). Same guard
+ * shape as `edit plan --sources-file`: a friendly message naming the flag, then
+ * exit 1 — never a stack trace and never a request with a malformed body.
+ */
+function readJsonArrayFile<T>(path: string, flag: string): T[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"))
+  } catch (err) {
+    warn(`${flag} ${path} could not be read as JSON: ${(err as Error).message}`)
+    process.exit(1)
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    warn(`${flag} must contain a non-empty JSON array (${path})`)
+    process.exit(1)
+  }
+  return parsed as T[]
+}
+
 /** Parse `--safe-area x,y,w,h` (fractions 0..1) into the route's safeArea. */
 function parseSafeArea(raw: string): { x: number; y: number; w: number; h: number } {
   const parts = raw.split(",").map((n) => parseFloat(n.trim()))
@@ -50,7 +85,7 @@ function parseSafeArea(raw: string): { x: number; y: number; w: number; h: numbe
 
 export function mediaCommand(): Command {
   const cmd = new Command("media").description(
-    "media ingestion + compositing — pull a social video into storage, trim video/audio, still-to-video, slideshow, collage images, overlay layers on an image, save a URL to storage, probe metadata",
+    "media ingestion + compositing — pull a social video into storage, trim video/audio, burn captions, still-to-video, slideshow, collage images, overlay layers on an image, save a URL to storage, probe metadata",
   )
 
   cmd
@@ -333,6 +368,150 @@ Example:
             ...(opts.format ? { audioFormat: opts.format as "mp3" | "wav" | "aac" } : {}),
           })
           await reportQueuedJob(result, () => client.jobs.get(result.jobId), { ...opts, note: "trim audio" })
+        } catch (err) {
+          handleError(err)
+        }
+      },
+    )
+
+  cmd
+    .command("add-captions <videoUrl>")
+    .description(
+      "burn captions into a video — static subtitles, or a kinetic word-highlight / karaoke / tiktok-words / word-pop / bouncy render",
+    )
+    .option("--text <text>", "the caption text — spaced evenly across the video when no word timings are given")
+    .option(
+      "--captions-file <path>",
+      "JSON array of word-timed entries [{ text, startMs, endMs }] — one per WORD for the kinetic styles; a transcribe job's output_data.words drops in verbatim",
+    )
+    .option("--style <style>", `caption style: ${ALL_CAPTION_STYLES.join(" | ")} (default subtitle)`)
+    .option(
+      "--look <look>",
+      `kinetic look preset: ${CAPTION_LOOK_IDS.join(" | ")} — an unset look renders as ${DEFAULT_CAPTION_LOOK}; the levers below override its individual fields`,
+    )
+    .option("--position <pos>", "bottom (default) | top | center")
+    .option("--position-y <pct>", "the caption block's CENTRE as % of height (0-100) — overrides --position", parseFloat)
+    .option("--font-size <px>", "font size in px (12-200)", parseFloat)
+    .option("--font-family <name>", "font face (kinetic styles only) — see the list below")
+    .option("--font-weight <n>", "CSS font weight, 100-900 in 100s (kinetic styles only)", (v) => parseInt(v, 10))
+    .option("--color <color>", "caption text colour")
+    .option("--background-color <color>", "caption background colour")
+    .option("--stroke-color <color>", "outline colour (kinetic styles only)")
+    .option("--stroke-width <px>", "outline width in px, 0-40 (kinetic styles only)", parseFloat)
+    .option("--highlight-color <color>", "colour of the word being spoken (kinetic styles only)")
+    .option("--uppercase", "force UPPERCASE captions (kinetic styles only)")
+    .option("--no-uppercase", "keep mixed case (the default outline look is UPPERCASE; kinetic styles only)")
+    .option("--no-auto-transcribe", "do NOT transcribe the video's audio when no --text / --captions-file is given")
+    .option("--transcribe-provider <name>", `engine for the auto-transcription: ${TRANSCRIBE_LANES.join(" | ")}`)
+    .option(
+      "--segments-file <path>",
+      "JSON array of caption SEGMENTS — non-overlapping { startMs, endMs } ranges, each with its own style/look/position overrides and optional own words",
+    )
+    .option("--watch", "poll until the job completes")
+    .option("--poll-interval <ms>", "watch poll interval in ms", (v) => parseInt(v, 10), 2000)
+    .option("--profile <name>")
+    .option("--json")
+    .addHelpText("after", `
+Fonts: ${SUPPORTED_FONT_NAMES.join(", ")}
+
+The look levers (--look, --font-family, --font-weight, --stroke-*, --highlight-color,
+--uppercase, --position-y) shape the KINETIC styles only; the static subtitle style
+rejects them with a 400.
+
+Examples:
+  $ nodaro media add-captions https://.../clip.mp4 --style word-highlight --look outline --watch
+  $ nodaro media add-captions https://.../clip.mp4 --captions-file words.json --style karaoke \\
+      --no-auto-transcribe --highlight-color '#FFE600' --watch`)
+    .action(
+      async (
+        videoUrl: string,
+        opts: {
+          text?: string
+          captionsFile?: string
+          style?: string
+          look?: string
+          position?: string
+          positionY?: number
+          fontSize?: number
+          fontFamily?: string
+          fontWeight?: number
+          color?: string
+          backgroundColor?: string
+          strokeColor?: string
+          strokeWidth?: number
+          highlightColor?: string
+          uppercase?: boolean
+          autoTranscribe?: boolean
+          transcribeProvider?: string
+          segmentsFile?: string
+        } & WatchOpts,
+      ) => {
+        try {
+          if (opts.style && !(ALL_CAPTION_STYLES as readonly string[]).includes(opts.style)) {
+            warn(`--style must be one of ${ALL_CAPTION_STYLES.join(", ")} (got "${opts.style}")`)
+            process.exit(1)
+          }
+          if (opts.look && !(CAPTION_LOOK_IDS as readonly string[]).includes(opts.look)) {
+            warn(`--look must be one of ${CAPTION_LOOK_IDS.join(", ")} (got "${opts.look}")`)
+            process.exit(1)
+          }
+          if (opts.position && !["bottom", "top", "center"].includes(opts.position)) {
+            warn(`--position must be bottom, top, or center (got "${opts.position}")`)
+            process.exit(1)
+          }
+          if (opts.fontFamily && !(SUPPORTED_FONT_NAMES as readonly string[]).includes(opts.fontFamily)) {
+            warn(`--font-family must be one of ${SUPPORTED_FONT_NAMES.join(", ")} (got "${opts.fontFamily}")`)
+            process.exit(1)
+          }
+          if (
+            opts.fontWeight !== undefined &&
+            (!Number.isInteger(opts.fontWeight) || opts.fontWeight < 100 || opts.fontWeight > 900 || opts.fontWeight % 100 !== 0)
+          ) {
+            warn(`--font-weight must be 100-900 in steps of 100 (got "${opts.fontWeight}")`)
+            process.exit(1)
+          }
+          if (opts.transcribeProvider && !(TRANSCRIBE_LANES as readonly string[]).includes(opts.transcribeProvider)) {
+            warn(`--transcribe-provider must be one of ${TRANSCRIBE_LANES.join(", ")} (got "${opts.transcribeProvider}")`)
+            process.exit(1)
+          }
+          const captions = opts.captionsFile
+            ? readJsonArrayFile<CaptionEntry>(opts.captionsFile, "--captions-file")
+            : undefined
+          const segments = opts.segmentsFile
+            ? readJsonArrayFile<CaptionSegmentInput>(opts.segmentsFile, "--segments-file")
+            : undefined
+          const client = buildClient(opts.profile)
+          const result = await client.media.addCaptions({
+            videoUrl,
+            ...(opts.text !== undefined ? { text: opts.text } : {}),
+            ...(captions ? { captions } : {}),
+            ...(segments ? { segments } : {}),
+            ...(opts.style ? { style: opts.style as CaptionStyle } : {}),
+            ...(opts.look ? { look: opts.look as CaptionLookId } : {}),
+            ...(opts.position ? { position: opts.position as "bottom" | "top" | "center" } : {}),
+            ...(opts.positionY !== undefined ? { positionY: opts.positionY } : {}),
+            ...(opts.fontSize !== undefined ? { fontSize: opts.fontSize } : {}),
+            ...(opts.fontFamily ? { fontFamily: opts.fontFamily as SupportedFontName } : {}),
+            ...(opts.fontWeight !== undefined ? { fontWeight: opts.fontWeight } : {}),
+            ...(opts.color ? { color: opts.color } : {}),
+            ...(opts.backgroundColor ? { backgroundColor: opts.backgroundColor } : {}),
+            ...(opts.strokeColor ? { strokeColor: opts.strokeColor } : {}),
+            ...(opts.strokeWidth !== undefined ? { strokeWidth: opts.strokeWidth } : {}),
+            ...(opts.highlightColor ? { highlightColor: opts.highlightColor } : {}),
+            // Tri-state: commander leaves it undefined unless --uppercase / --no-uppercase
+            // was passed, so an untouched flag keeps the look's own casing.
+            ...(opts.uppercase !== undefined ? { uppercase: opts.uppercase } : {}),
+            // Commander defaults a lone `--no-x` flag to TRUE, so only an
+            // explicit `--no-auto-transcribe` may reach the wire — otherwise
+            // every call would pin auto_transcribe and the route could never
+            // see an absent flag.
+            ...(opts.autoTranscribe === false ? { autoTranscribe: false } : {}),
+            ...(opts.transcribeProvider ? { transcribeProvider: opts.transcribeProvider as TranscribeLane } : {}),
+          })
+          await reportQueuedJob(result, () => client.jobs.get(result.jobId), {
+            ...opts,
+            note: opts.style ?? "subtitle",
+          })
         } catch (err) {
           handleError(err)
         }

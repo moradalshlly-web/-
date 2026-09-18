@@ -3977,6 +3977,33 @@ word-timing-less engine is simply never called — the render falls back to that
 other source (with only `text`, evenly-spaced synthetic captions). It also stays
 valid for the static `subtitle` style, which never transcribes.
 
+`word-highlight` shows ONE held line at a time: words are grouped into a line
+that fits the frame, the line closes on a sentence end or a pause, and the
+highlight walks word to word inside it. A word's `startMs`/`endMs` is its
+**spoken** window — what times the highlight — not how long its text is on
+screen.
+
+**Transcribe → correct → burn.** Because `captions[]` is exactly the shape
+[`audio.transcribe()`](#transcribeinput) returns in `output_data.words`, the two
+compose directly — and supplying `captions[]` means add-captions runs no STT of
+its own:
+
+```ts
+const { jobId } = await client.audio.transcribe({
+  audioUrl: "https://…/talk.mp3",
+  provider: "elevenlabs-stt",                            // always word-level
+})
+const { data: job } = await client.jobs.get(jobId)       // poll until completed
+const { words } = job.output_data as TranscribeJobOutput // ms, one per word
+// …correct a misheard word here: words[7].text = "Nodaro"
+await client.media.addCaptions({
+  videoUrl: "https://…/talk.mp4",
+  captions: words,
+  autoTranscribe: false,               // the words above ARE the caption source
+  style: "word-highlight",
+})
+```
+
 #### `trimAudio(input)`
 
 ```ts
@@ -4226,9 +4253,9 @@ references it.
 ### `client.audio`
 
 Audio primitives — the building blocks Voice Changer Pro composes internally
-(separation, isolation, effect, mix, level), exposed standalone so a consumer
-can run any single step or assemble its own pipeline. Every method returns a
-job id to poll with `client.jobs.get(jobId)`.
+(separation, isolation, effect, mix, level) plus speech-to-text, exposed
+standalone so a consumer can run any single step or assemble its own pipeline.
+Every method returns a job id to poll with `client.jobs.get(jobId)`.
 
 #### `separate(input)`
 
@@ -4308,6 +4335,42 @@ combine(input: {
 
 Concatenate audio segments end-to-end (`POST /v1/combine-audio`). Each segment
 is a `url` with an optional `[startTime, endTime]` sub-range.
+
+#### `transcribe(input)`
+
+```ts
+transcribe(input: {
+  audioUrl: string
+  provider?: TranscribeProvider   // "elevenlabs-stt" — the enabled enum
+  language?: string               // force a language; omit to auto-detect
+  diarize?: boolean               // label who spoke each word (elevenlabs-stt)
+  tagAudioEvents?: boolean        // tag laughter / applause / … (elevenlabs-stt)
+  wordTimestamps?: boolean        // ask for per-word timings
+}): Promise<{ jobId: string }>
+```
+
+Transcribe an audio (or video) track to text (`POST /v1/transcribe`).
+
+Pass `provider: "elevenlabs-stt"` whenever you want WORD TIMINGS: Scribe is
+always word-level (flag or not) and is the lane that honours `diarize` and
+`tagAudioEvents`. **Omitting `provider`** falls back to the legacy whisper lane,
+which cannot produce word timings — asking it for them (`wordTimestamps: true`)
+is rejected with `400 validation_error` at ingress, before any credit is spent.
+
+Poll `jobs.get(jobId)`. The completed job's `output_data` is a
+`TranscribeJobOutput`:
+
+| Field | Units | What it is |
+|-------|-------|------------|
+| `text` | — | the whole transcript as one string |
+| `language` | — | the detected (or requested) language code |
+| `words` | **ms** | one entry per word: `{ text, startMs, endMs, speaker? }` |
+| `json` | **ms** | the normalized `Transcript` (`{ version, language, words[], segments? }`) — what `client.edit.*` consumes |
+| `segments` | **seconds** | the raw per-utterance ranges — *not* ms, unlike everything above. **Legacy lanes only:** `elevenlabs-stt` returns none, so read `words` |
+
+`words` is caption-shaped, so it drops straight into
+[`media.addCaptions()`](#addcaptionsinput) as `captions` — see the composition
+example there.
 
 ---
 
@@ -5178,6 +5241,9 @@ not two.
 - `VideoMetadata` — `media.videoMetadata()` result (best-effort probe fields)
 - `DownloadVideoProgress` — one `media.downloadVideoProgress()` event: `{ phase, percent, videoUrl?, thumbnailUrl?, error? }`
 - `MediaProcessInput`, `MediaProcessResult` — `media.process()` input / stored-file result
+- `TranscribeProvider` — the enabled `audio.transcribe()` provider enum (`"elevenlabs-stt"`), re-exported from `@nodaro/shared`
+- `TranscribeWord` — one word of an `audio.transcribe()` result: `{ text, startMs, endMs, speaker? }` in MILLISECONDS, structurally the `captions[]` entry `media.addCaptions()` takes
+- `TranscribeJobOutput` — a completed transcribe job's `output_data`: `{ text, language?, words?, json?, segments? }` (`words`/`json` in ms, `segments` in SECONDS)
 
 ### Credits
 
