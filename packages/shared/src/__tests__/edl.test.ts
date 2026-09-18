@@ -12,11 +12,11 @@ import {
   unwrapEditPlanOutput,
   buildEditPlanCreditId,
   editPlanBucketMinutes,
+  transcriptDurationSec,
   type Edl,
   type Transcript,
 } from "../edl.js"
 import { editPlanSourceDurationSec } from "../video-duration.js"
-import { transcriptDurationSec } from "../edl.js"
 
 /** A minimal valid single-camera tighten EDL: two kept spans of the master. */
 function tightenEdl(): Edl {
@@ -622,9 +622,9 @@ describe("editPlanSourceDurationSec — audio-master lane (avoids the ceiling ov
   })
 })
 
-describe("transcriptDurationSec — the URL-source reserve fallback", () => {
-  it("reads the source clock from the LAST word's endMs", () => {
-    // A 59.4-min episode: last word ends at 3,564,000 ms → 3564s → the 60m
+describe("transcriptDurationSec — the URL-source reserve fallback (beneath the probe)", () => {
+  it("reads the source clock from the MAX word endMs", () => {
+    // A 59.4-min episode: latest word ends at 3,564,000 ms → 3564s → the 60m
     // bucket, NOT the 180m ceiling (the reported over-reservation).
     const t = { version: 1, words: [{ text: "hi", startMs: 0, endMs: 500 }, { text: "bye", startMs: 3_563_000, endMs: 3_564_000 }] }
     expect(transcriptDurationSec(t)).toBe(3564)
@@ -636,8 +636,18 @@ describe("transcriptDurationSec — the URL-source reserve fallback", () => {
     expect(transcriptDurationSec(t)).toBe(3564)
   })
 
-  it("falls back to segments when a transcript carries no words", () => {
+  it("reads segments when a transcript carries no words", () => {
     expect(transcriptDurationSec({ segments: [{ startMs: 0, endMs: 90_000 }] })).toBe(90)
+  })
+
+  it("takes the MAX over BOTH words and segments (a segment tail past the last word wins)", () => {
+    // The plugin's transcriptDurationMs maxes both; a words-only or
+    // segments-only-when-empty read would under-report the tail.
+    const t = {
+      words: [{ endMs: 3_540_000 }], // 59.0 min
+      segments: [{ startMs: 0, endMs: 3_600_000 }], // 60.0 min tail
+    }
+    expect(transcriptDurationSec(t)).toBe(3600)
   })
 
   it("returns undefined (→ ceiling, safe direction) for an empty / unmeasurable transcript", () => {

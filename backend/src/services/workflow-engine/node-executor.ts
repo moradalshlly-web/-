@@ -36,6 +36,7 @@ import { computeLlmChatFields, computeNodePrompt, pickerFanoutTargets, applyProm
 import type { ComponentMetadata } from "@nodaro/shared"
 import { getAppSettings } from "../../lib/app-settings.js"
 import { probeAndCheckRefVideoDurations, probeRefVideoDurations } from "../../lib/ref-video-probe.js"
+import { computeEditPlanReserveId } from "../../lib/edit-plan-pricing.js"
 import type {
   SimpleNode,
   SimpleEdge,
@@ -1646,6 +1647,24 @@ async function executeWorkerNode(
       // more than one applies to a single dispatch), so a plain `??` combine
       // is safe and short-circuits any later (unneeded) dynamic import +
       // pricing call once an earlier one already applies.
+      //
+      // edit-plan is priced by a DB-seeded duration BUCKET id (a model_pricing
+      // row per composite), not a dynamic per-unit number, so its
+      // probe-at-reserve REWRITES the reserve id rather than supplying a
+      // creditOverride number: the reserve amount then comes from the DB row for
+      // the CORRECT bucket (admin-retunable, the same path a known-duration
+      // reserve takes) — a number override would leave modelIdentifier / the
+      // usage log at the wrong bucket and the gate reading a mismatched id.
+      // `computeEditPlanReserveId` ffprobes the master source and, on success,
+      // returns the duration-correct bucket id (and stamps
+      // `payload.reservedCreditId`, which the plugin gate reads). We key BOTH
+      // the preflight and the reservation — hence the usage log — off that id so
+      // the reserve, the gate, and the usage log agree on the exact bucket.
+      // `modelIdentifier` is const (buildPayload's transcript/ceiling basis); an
+      // unprobeable master falls back to it, the safe over-reserve direction.
+      const reserveModelIdentifier =
+        (await computeEditPlanReserveId(jobName, payload)) ?? modelIdentifier
+
       const creditOverride =
         await applyEdlCreditOverride(jobName, payload) ??
         await projectDubbingCreditOverride(jobName, payload) ??
@@ -1662,7 +1681,7 @@ async function executeWorkerNode(
       // generate a blocked model (e.g. 4K gemini-omni-video). checkCredits
       // self-fetches the profile and reports blocked/over-limit; the
       // surrounding catch deletes the orphaned pending jobs row on throw.
-      const preflight = await CreditsService.checkCredits(ctx.userId, modelIdentifier, ctx.isAppRun, creditOverride, {
+      const preflight = await CreditsService.checkCredits(ctx.userId, reserveModelIdentifier, ctx.isAppRun, creditOverride, {
         webFreeMode: ctx.webFreeMode ?? false,
         // P14: the execution's resolved payer — preflight and reserve read
         // the SAME context, so they can never disagree about entitlements.
@@ -1675,7 +1694,7 @@ async function executeWorkerNode(
       const reservation = await CreditsService.reserveCredits(
         ctx.userId,
         jobId,
-        modelIdentifier,
+        reserveModelIdentifier,
         0, // provider cost calculated in worker
         0, // display cost calculated in worker
         {

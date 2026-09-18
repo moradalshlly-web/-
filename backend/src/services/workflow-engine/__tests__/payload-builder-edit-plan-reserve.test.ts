@@ -9,12 +9,18 @@ import { buildPayload } from "../payload-builder.js"
 // node data at reserve time (its length isn't known until the audio is
 // fetched, and its live orchestrator output is a bare URL). The reserve used to
 // bucket to the 180-minute CEILING — `edit-plan:tighten:standard:180m` (base
-// 720; the staging probe's 10% markup rounded 720×1.1 = 792.0000000000001 up to
-// the 793 the user was charged) — instead of the 60m bucket a ~59-min episode
-// belongs in (base 240; the 793 reconciles exactly at a 10% cost_markup_percent
-// — the only percent that produces it via the IEEE-754 ceil of 720*1.1). The fix
-// derives the master's real duration from the transcript (a required input and
-// the timing map of that same master) when the source node carries none.
+// 720; at a 10% cost_markup_percent that rounds 720×1.1 = 792.0000000000001 up
+// to the 793 the user was charged — the only percent that produces it via the
+// IEEE-754 ceil) — instead of the 60m bucket a ~59-min episode belongs in
+// (base 240).
+//
+// THIS file pins the buildPayload FALLBACK beneath the probe-at-reserve: the
+// authoritative reserve basis is `computeEditPlanReserveId`'s ffprobe of the
+// master (see lib/__tests__/edit-plan-pricing.test.ts), but buildPayload cannot
+// ffprobe, so it reserves on the master source node's own duration when it has
+// one, else the transcript's own clock (a required input and the timing map of
+// that same master), else the ceiling. That transcript basis is what stands
+// when the reserve-path probe can't run (unprobeable/unreachable master).
 
 const ctx = { nodes: [], edges: [], nodeStates: {} }
 
