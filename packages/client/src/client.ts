@@ -38,6 +38,7 @@ import { TemplatesResource } from "./resources/templates.js"
 import { TutorialsResource } from "./resources/tutorials.js"
 import { OrganizationsResource } from "./resources/organizations.js"
 import { WorkspacesResource } from "./resources/workspaces.js"
+import { EditResource } from "./resources/edit.js"
 import { WORKSPACE_HEADER, type MeOrganizations } from "@nodaro/shared"
 
 /** Replaced at build time by tsup `define` from package.json. The fallback
@@ -195,6 +196,7 @@ export class NodaroClient {
   readonly tutorials: TutorialsResource
   readonly organizations: OrganizationsResource
   readonly workspaces: WorkspacesResource
+  readonly edit: EditResource
   /** The workspace this client acts in; undefined = the personal space. */
   readonly workspaceId: string | undefined
 
@@ -246,6 +248,7 @@ export class NodaroClient {
     this.tutorials = new TutorialsResource(this)
     this.organizations = new OrganizationsResource(this)
     this.workspaces = new WorkspacesResource(this)
+    this.edit = new EditResource(this)
   }
 
   /**

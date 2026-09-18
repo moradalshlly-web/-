@@ -38,7 +38,13 @@ export type { GenericNode, GenericEdge, WorkflowExport, WorkflowExportCharacter,
   DescribedReference,
   // Node-data prompt affix fields (promptPrefix / promptSuffix) — set them via
   // workflow JSON or `apps.run(..., { inputOverrides })`.
-  PromptAffixFields } from "@nodaro/shared"
+  PromptAffixFields,
+  // Editorial (podcast-editing) contract used by the `edit` resource: the EDL
+  // and transcript shapes, and the edit-plan mode/tier vocabularies.
+  Edl,
+  Transcript,
+  EditPlanMode,
+  EditPlanTier } from "@nodaro/shared"
 export type { WizardQuestion, WizardOption, WizardSelection, RecommendedModel, WizardNodeContext } from "@nodaro/prompts"
 
 // --- Resource classes (re-exported so consumers can typecheck `client.workflows`, etc.) ---
@@ -481,6 +487,14 @@ export {
   type InviteInput,
   type ListInvitationsOptions,
 } from "./resources/organizations.js"
+export { EditResource } from "./resources/edit.js"
+export type {
+  EditJobResult,
+  SilenceDetectInput,
+  ApplyEdlInput,
+  EditPlanInput,
+  EditPlanSource,
+} from "./resources/edit.js"
 export { WorkspacesResource, type CreateWorkspaceInput } from "./resources/workspaces.js"
 export type {
   InvitationDelivery,
