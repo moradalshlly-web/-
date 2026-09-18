@@ -2771,11 +2771,11 @@ export function resolveNodeInputs(
       }
     } else if (src.type === "schedule-trigger") {
       inputs.prompt = output;
-    } else if (src.type === "meta-ads-scrape") {
+    } else if (src.type === "meta-ads-scrape" || src.type === "instagram-scrape") {
       // Route by the HANDLE the wire leaves: `output` is already the featured
-      // ad's copy / creative url (or the stringified json) — extractNodeOutput
+      // item's copy / creative url (or the stringified json) — extractNodeOutput
       // narrowed it. Mirrors the group / collect lane branch and the backend
-      // input-resolver's meta-ads branch.
+      // input-resolver's scraper branch.
       if (resolvedSourceHandle === "image") {
         if (IMAGE_REFERENCE_TARGET_TYPES.has(node.type ?? "")) {
           inputs.referenceImageUrls = [...(inputs.referenceImageUrls ?? []), output];

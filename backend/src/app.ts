@@ -204,6 +204,7 @@ import { characterTrainingRoutes } from "./routes/character-training.js"
 import { replicateTrainingWebhookRoutes } from "./routes/replicate-training-webhook.js"
 import { webScrapeRoutes } from "./routes/web-scrape.js"
 import { metaAdsScrapeRoutes } from "./routes/meta-ads-scrape.js"
+import { instagramScrapeRoutes } from "./routes/instagram-scrape.js"
 import { reduceRoutes } from "./routes/reduce.js"
 import { downloadRoutes } from "./routes/download.js"
 import { renderVideoRoutes } from "./routes/render-video.js"
@@ -653,6 +654,7 @@ export async function buildApp() {
   if (hasCredits()) await app.register(replicateTrainingWebhookRoutes)
   await app.register(webScrapeRoutes)
   await app.register(metaAdsScrapeRoutes)
+  await app.register(instagramScrapeRoutes)
   await app.register(reduceRoutes)
   await app.register(downloadRoutes)
   await app.register(renderVideoRoutes)

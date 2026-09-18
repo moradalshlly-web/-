@@ -16,12 +16,12 @@ import { getAppSettings } from "../../lib/app-settings.js"
 import { APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE } from "../../lib/apply-edl-plan.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
 import { FREE_TIER_RESTRICTIONS, TIER_STORAGE_LIMITS } from "./stripe-config.js"
-import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, EDIT_PLAN_BUCKET_MINUTES, buildEditPlanCreditId, type EditPlanTier } from "@nodaro/shared"
+import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, INSTAGRAM_SCRAPE_CREDIT_COSTS, instagramScrapeCreditIdFromNode, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, EDIT_PLAN_BUCKET_MINUTES, buildEditPlanCreditId, type EditPlanTier } from "@nodaro/shared"
 // Provider-$ cost formulas — CORE lib (not @nodaro/shared, an irrevocably
 // published Apache package). See the 2026-07-06 public-flip IP audit, S5.
 import { flux2BaseCredits } from "../../lib/pricing/flux2-cost.js"
 import { AI_AVATAR_RATE_USD_PER_SEC, aiAvatarHoldCredits } from "../../lib/pricing/ai-avatar-cost.js"
-import { effectiveMarkupPercent } from "./service-margin.js"
+import { applyServiceMarkup } from "./service-margin.js"
 import { getWelcomeOfferConfig } from "../lib/welcome-offer-config.js"
 import { ConsentRequiredError } from "../lib/consent-required.js"
 import { CINEMATIC_RATE_USD_PER_SEC, cinematicHoldCredits } from "../../lib/pricing/cinematic-avatar-cost.js"
@@ -168,21 +168,23 @@ for (const analysisProvided of [true, false]) {
 // exactly (id shape `edit-plan:<mode>:<tier>:<bucket>m`, 3 modes × 3 tiers × 6
 // buckets = 54 composites + the bare `edit-plan` = the MAX of the whole table).
 //
-// ⚠️ ALL VALUES BELOW ARE PLACEHOLDERS — finalized by the 3-hour staging probe
-// (measure LLM tokens/source-minute per tier, RE-DERIVED not scaled; memory:
-// rederive-formula-values). Only the two per-tier constant maps move; the id
-// structure and the migration's row set stay.
-// Id scheme (modes/tiers/bucket ladder + builder) is the single source of truth
-// in @nodaro/shared; only the placeholder VALUES live here.
+// PRICING STATUS — FINALIZED. The staging cost probe is DONE: an edit-plan pass
+// (LLM only) costs a negligible amount even for a full-length episode, so these
+// are NOT cost-scaled — they are the finalized, value-based launch defaults.
+// They retune at runtime WITHOUT a deploy: a seeded `model_pricing` row wins
+// over this fallback (migration 432) and is edited in /admin/models. Only the
+// two per-tier constant maps carry values; the id scheme (modes/tiers/bucket
+// ladder + builder) is the single source of truth in @nodaro/shared, and the
+// migration's row set stays in lockstep with it.
 type EditPlanTierT = EditPlanTier
-// TODO(probe): placeholder — set from the 3-hour staging probe, re-derive don't scale
+// Finalized launch default (admin-retunable): credits per SOURCE-minute, by tier.
 const EDIT_PLAN_CREDITS_PER_MINUTE_BY_TIER: Readonly<Record<EditPlanTierT, number>> = {
   economy: 2,
   standard: 4,
   premium: 8,
 }
-// TODO(probe): placeholder — flat component added to `clips` only (the per-clip
-// scoring/hook pass); tighten and chapters have no flat term.
+// Finalized launch default (admin-retunable): flat component added to `clips`
+// only (the per-clip scoring/hook pass); tighten and chapters have no flat term.
 const EDIT_PLAN_CLIPS_FLAT_BY_TIER: Readonly<Record<EditPlanTierT, number>> = {
   economy: 10,
   standard: 20,
@@ -1487,6 +1489,9 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // badge and the docs; the bare id is the pre-Zod guard fallback).
   // Migrations 428 + 429.
   ...META_ADS_SCRAPE_CREDIT_COSTS,
+  // Instagram scraper: 1 credit per requested post, tiered on count × sources,
+  // + the same analysis multiples (packages/shared is the table). Migration 433.
+  ...INSTAGRAM_SCRAPE_CREDIT_COSTS,
   "qa-check": 10,
   "qa-check:economy": 1,
   "qa-check:premium": 10,
@@ -1936,8 +1941,8 @@ export async function getModelCreditBaseCost(modelIdentifier: string): Promise<M
 /**
  * Get credit cost for a model from database, falling back to static costs.
  * Base costs are cached for 60s. The markup from admin settings is applied on
- * top: finalCost = ceil(baseCost * (1 + markup/100)), where markup is the
- * identifier's per-service margin when one is configured
+ * top via `applyServiceMarkup` (integer-domain ceil, see service-margin.ts),
+ * where markup is the identifier's per-service margin when one is configured
  * (`service_margin_percent`, longest prefix wins) and the global
  * `cost_markup_percent` otherwise — see ee/billing/service-margin.ts.
  * Both DB values and STATIC_CREDIT_COSTS represent base costs at 0% markup.
@@ -1946,14 +1951,8 @@ export async function getModelCreditCostFromDB(modelIdentifier: string): Promise
   const base = await getModelCreditBaseCost(modelIdentifier)
   // Apply markup from admin settings (cached 60s separately)
   const settings = await getAppSettings()
-  const markupPercent = effectiveMarkupPercent(settings, modelIdentifier)
-  if (markupPercent > 0 && base.creditCost > 0) {
-    return {
-      ...base,
-      creditCost: Math.ceil(base.creditCost * (1 + markupPercent / 100)),
-    }
-  }
-  return base
+  const creditCost = applyServiceMarkup(base.creditCost, settings, modelIdentifier)
+  return creditCost === base.creditCost ? base : { ...base, creditCost }
 }
 
 // ── Tier config cache (60s TTL) ──
@@ -3339,6 +3338,10 @@ function getNodeModelIdentifier(node: { type: string; data?: Record<string, unkn
     // same builder the route's guard + reservation use — this quote can never
     // say one source (or no analysis) while the reservation bills otherwise.
     return metaAdsScrapeCreditIdFromNode(data)
+  }
+
+  if (nodeType === "instagram-scrape") {
+    return instagramScrapeCreditIdFromNode(data)
   }
 
   // AI Audit: the credit FAMILY is a GRAPH fact (is an analysis wired into the

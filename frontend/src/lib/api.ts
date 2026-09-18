@@ -4404,6 +4404,23 @@ export async function metaAdsScrape(params: {
   })
 }
 
+export async function instagramScrape(params: {
+  mode: import("@nodaro/shared").InstagramScrapeMode
+  targets: string[]
+  count?: number
+  period?: import("@nodaro/shared").InstagramScrapePeriod
+  formats?: string[]
+  featuredIndex?: number
+  ingestVideo?: boolean
+  ingestAllVideos?: boolean
+  analyze?: boolean
+  analysisModel?: string
+  analysisFocus?: string
+  workflowId?: string
+}): Promise<{ jobId: string; json: unknown; text?: string; imageUrl?: string; videoUrl?: string; mediaStorage?: unknown; analysis?: unknown }> {
+  return apiJson("/v1/instagram-scrape", { body: params, workflowId: true, label: "Instagram scrape failed" })
+}
+
 export async function sunoGenerateApi(params: {
   prompt: string
   model?: string

@@ -35,6 +35,7 @@ type Row = Record<string, unknown>
 
 const store = vi.hoisted(() => ({
   users: [] as Row[],
+  profiles: [] as Row[],
   projects: [] as Row[],
   workflows: [] as Row[],
   workflow_templates: [] as Row[],
@@ -122,6 +123,9 @@ vi.mock("../../supabase.js", () => {
           createUser: async ({ email }: { email: string }) => {
             const user = { id: nextId("user"), email }
             store.users.push(user)
+            // handle_new_user mints the profile row; ensureSystemUser resolves
+            // by profiles.email first.
+            store.profiles.push({ id: user.id, email })
             return { data: { user }, error: null }
           },
         },
@@ -174,6 +178,7 @@ describe("tutorial seeder — operator-supplied packs", () => {
     config.EDITION = "community"
     // reset store (copied resets from operator-owned-columns.test.ts) …
     store.users.length = 0
+    store.profiles.length = 0
     store.projects.length = 0
     store.workflows.length = 0
     store.workflow_templates.length = 0

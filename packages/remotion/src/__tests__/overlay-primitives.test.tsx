@@ -59,6 +59,61 @@ describe("CaptionOverlay", () => {
     },
   )
 
+  // word-highlight renders one grouped LINE at a time and HOLDS it through
+  // pauses — a word's [startMs, endMs] drives the highlight, not whether text
+  // is on screen. It used to key visibility off the active word alone (a
+  // sliding +/-2 window), which rendered NOTHING in every inter-word gap.
+  describe("word-highlight renders a held line, never a blank frame", () => {
+    // The mocked frame 30 @ 30fps = 1000 ms, exactly the END of " world".
+    it("renders the whole line, not a window, at the last word's end boundary", () => {
+      const html = renderToStaticMarkup(
+        <CaptionOverlay captions={fixture} style="word-highlight" position="bottom" fontSize={32} color="#ffffff" />,
+      )
+      expect(html).toContain("Hello")
+      expect(html).toContain(" world")
+    })
+
+    // The regression: at 1000 ms no word is being spoken (the first ended at
+    // 400, the next starts at 1500). The old overlay returned null here.
+    it("still renders the last line during a pause between words", () => {
+      const gapped: Caption[] = [
+        { text: "Hello", startMs: 0, endMs: 400, timestampMs: 0, confidence: null },
+        { text: " world", startMs: 1500, endMs: 2000, timestampMs: 1500, confidence: null },
+      ]
+      const html = renderToStaticMarkup(
+        <CaptionOverlay captions={gapped} style="word-highlight" position="bottom" fontSize={32} color="#ffffff" />,
+      )
+      expect(html.length).toBeGreaterThan(0)
+      // The HELD line is the one that already started — not the next one.
+      expect(html).toContain("Hello")
+      expect(html).not.toContain("world")
+    })
+
+    // Eight contiguous 125 ms words; at the mocked 1000 ms the LAST one is active.
+    // The old overlay showed a sliding +/-2 window around it ("foxtrot golf
+    // hotel"), so the first word could never be on screen.
+    const eight: Caption[] = ["alpha", " bravo", " charlie", " delta", " echo", " foxtrot", " golf", " hotel"]
+      .map((text, i) => ({ text, startMs: i * 125, endMs: (i + 1) * 125, timestampMs: i * 125, confidence: null }))
+
+    it("shows the WHOLE grouped line, not a +/-2 window around the active word", () => {
+      const html = renderToStaticMarkup(
+        <CaptionOverlay captions={eight} style="word-highlight" position="bottom" fontSize={32} color="#ffffff" />,
+      )
+      // 1920-wide frame @32px fits all eight words on one line.
+      for (const word of ["alpha", " bravo", " hotel"]) expect(html).toContain(`>${word}</span>`)
+    })
+
+    it("sizes the line from the frame width and font size (overlay -> budget wiring)", () => {
+      // Same words, same frame, a 200px font: the budget drops to ~14 chars, so the
+      // visible line is the LAST short group and the first word is off screen.
+      const html = renderToStaticMarkup(
+        <CaptionOverlay captions={eight} style="word-highlight" position="bottom" fontSize={200} color="#ffffff" />,
+      )
+      expect(html).toContain("hotel")
+      expect(html).not.toContain("alpha")
+    })
+  })
+
   // Karaoke wipes each word with a stacked SOLID-fill clone (rest underneath,
   // spoken on top clipped to the progress edge) instead of a background-clip
   // gradient — so the look's outline stroke reads over a solid fill. At frame 30

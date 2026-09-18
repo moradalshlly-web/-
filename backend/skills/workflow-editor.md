@@ -1,6 +1,6 @@
 ---
-generated_at: 2026-09-18T01:36:02.725Z
-generated_from: a48b46290
+generated_at: 2026-09-18T07:43:50.277Z
+generated_from: 98185a08e
 ---
 
 # Nodaro Workflow Editor — General Patterns
@@ -142,6 +142,7 @@ Call `get_node_skill(<type>)` for the full schema of any node type:
 - `image-to-text` — Describe Image
 - `image-to-video` — Image to Video
 - `instagram-post` — Instagram Post
+- `instagram-scrape` — Instagram
 - `instrumentation` — Instrumentation
 - `json-process` — JSON Process
 - `lens` — Lens

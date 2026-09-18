@@ -15,6 +15,9 @@ import {
   CAPTION_LOOK_IDS,
   KINETIC_ONLY_CAPTION_LEVER_KEYS,
   normalizeTranscript,
+  TRANSCRIBE_LANES,
+  TRANSCRIBE_PROVIDER_CAPABILITIES,
+  transcribeProvidersWithWordTimestamps,
 } from "@nodaro/shared"
 import { captionFontWeightSchema } from "../lib/plan-schemas.js"
 import { findSegmentOverlap } from "../providers/video/caption-segments.js"
@@ -104,7 +107,7 @@ export const addCaptionsBody = z.object({
   // Only meaningful with a wired `transcript`; defaults to word-level.
   wordLevel: z.boolean().optional(),
   auto_transcribe: z.boolean().optional(),
-  transcribe_provider: z.enum(["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]).optional(),
+  transcribe_provider: z.enum(TRANSCRIBE_LANES).optional(),
   style: z.enum(ALL_CAPTION_STYLES).optional().default("subtitle"),
   position: z.enum(["bottom", "top", "center"]).optional().default("bottom"),
   fontSize: z.number().min(12).max(200).optional().default(32),
@@ -139,6 +142,50 @@ export const addCaptionsBody = z.object({
       code: "custom",
       message: "Provide text, captions, auto_transcribe, or give each segment its own text/captions",
     })
+  }
+  // The auto-transcribe lane feeds WORD timings to the kinetic/segmented
+  // render, so a transcription provider that cannot produce them has nothing to
+  // give it. The worker SKIPS the vendor call for such a lane (it would only
+  // earn `transcribe()`'s refusal) and falls through to its text / no-source
+  // ladder — so the request is only impossible when transcription is the ONLY
+  // caption source this render could have. Reject exactly that case at ingress;
+  // anything the worker can still render must pass.
+  // Four conditions, all required:
+  //   1. the render actually needs word timings — a kinetic style, or segments
+  //      (a segmented render is entirely Remotion and word-timed);
+  //   2. transcription actually runs — MIRRORS the worker's own `needTranscribe`
+  //      (workers/handlers/ffmpeg.ts): captions[] or a wired transcript replace
+  //      it, `auto_transcribe: false` disables it, and with segments it only
+  //      runs when some segment needs the shared transcript. NOTE `text` does
+  //      NOT disable transcription in the worker — it is the FALLBACK source
+  //      (condition 3), used whenever the transcription produced no words or
+  //      was skipped. The two predicates live in different files and must be
+  //      changed together;
+  //   3. there is no `text` to fall back to. With `text`, a skipped/word-less
+  //      transcription still renders — as evenly-spaced synthetic captions off
+  //      that text, which is what this node did before word timings existed.
+  //      Rejecting it would break a previously-working call;
+  //   4. the caller explicitly named a provider that can't do word timings.
+  //      An absent provider is fine: the worker defaults to a capable lane.
+  if (v.transcribe_provider && !TRANSCRIBE_PROVIDER_CAPABILITIES[v.transcribe_provider].wordTimestamps) {
+    const needsWordTimings = hasSegments || isKineticCaptionStyle(v.style)
+    const someSegmentNeedsShared =
+      hasSegments && v.segments!.some((s) => !(s.text || (s.captions && s.captions.length > 0)))
+    const willTranscribe =
+      !(v.captions && v.captions.length > 0) &&
+      !hasTranscript &&
+      v.auto_transcribe !== false &&
+      (!hasSegments || someSegmentNeedsShared)
+    if (needsWordTimings && willTranscribe && !v.text) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["transcribe_provider"],
+        message:
+          `"${v.transcribe_provider}" does not return word timestamps, and this render has no other ` +
+          `caption source — use ${transcribeProvidersWithWordTimestamps().join(" or ")}, or supply ` +
+          `text/captions/transcript instead`,
+      })
+    }
   }
   // Segments must be non-overlapping (each renders its own overlay; overlapping
   // ranges would draw two captions at once).

@@ -107,6 +107,7 @@ const NON_BUILDPAYLOAD_NODES: ReadonlySet<string> = new Set([
   "save-to-storage",
   "web-scrape",
   "meta-ads-scrape",
+  "instagram-scrape",
   // Fan-in node — routed via sync-HTTP to POST /v1/reduce (see
   // SYNC_HTTP_NODES + SYNC_HTTP_ROUTES in node-executor.ts). The orchestrator
   // never calls buildPayload for reduce; payload-builder.ts therefore

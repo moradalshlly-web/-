@@ -49,9 +49,21 @@ import {
   type HandlerFn,
   type JobContext,
 } from "../shared.js"
-import { isKineticCaptionStyle, normalizeTranscript, remapTranscriptThroughEdl, resolveCaptionLook, type Edl, type SupportedFontName, type Transcript, type CaptionLookId } from "@nodaro/shared"
+import { isKineticCaptionStyle, normalizeTranscript, remapTranscriptThroughEdl, resolveCaptionLook, transcribeLaneSupportsWordTimestamps, TRANSCRIBE_PROVIDERS, TRANSCRIBE_PROVIDER_CAPABILITIES, type Edl, type SupportedFontName, type Transcript, type CaptionLookId } from "@nodaro/shared"
 import { attachAssetToCharacter, resolveAssetColumn } from "../../lib/character-auto-attach.js"
 import { DrainAbortError } from "../../lib/worker-drain.js"
+
+/**
+ * The transcription lane a KEYLESS install relays add-captions' auto-transcribe
+ * through. It must satisfy BOTH ends: the cloud's `/v1/transcribe` Zod enum
+ * (`TRANSCRIBE_PROVIDERS` — the ENABLED subset, which no longer holds either
+ * Replicate lane) and the word-timings capability this render needs. Derived
+ * from the two shared tables so disabling or adding a lane moves it for free;
+ * `undefined` (nothing enabled can do word timings) is handled at the call site.
+ */
+const CLOUD_RELAY_TRANSCRIBE_PROVIDER = TRANSCRIBE_PROVIDERS.find(
+  (p) => TRANSCRIBE_PROVIDER_CAPABILITIES[p].wordTimestamps,
+)
 
 const handleCombineVideos: HandlerFn = async function handleCombineVideos(job, ctx) {
   const { videoUrls, transition, transitionDuration, audioMode, audioCrossfadeCurve, audioCrossfadeDuration, smartCutEnabled, smartCutMode, smartCutFramesPrev, smartCutFramesNext, trimStartFrames, trimEndFrames, transitions, edgeFades } = job.data as {
@@ -678,13 +690,43 @@ async function dispatchKineticCaptions(
   const { shouldRunOnCloud, runJobOnCloud } = await import("../../providers/nodaro/run-on-cloud.js")
   const runTranscription = async (): Promise<{ words?: Caption[] } | null> => {
     if (!needTranscribe) return null
+    // The chosen lane cannot produce word timings, and this render is word-timed.
+    // `transcribe()` now REFUSES that pair before the provider call, so calling
+    // it would fail the whole job — including the case where `text` is present
+    // and used to carry the render as synthetic captions. Skip the vendor call
+    // entirely and return the same `null` "not run" value, leaving the
+    // text / no-caption-source ladder below to decide. (The route rejects this
+    // pair at ingress when transcription is the ONLY possible caption source;
+    // an incapable lane reaches here from the DAG / authored node data, which
+    // never passes through that Zod.)
+    if (!transcribeLaneSupportsWordTimestamps(transcribeProvider)) {
+      console.warn(
+        `[add-captions kinetic] transcription SKIPPED: provider "${transcribeProvider}" cannot return word timestamps, which this render needs — falling back to the text / no-caption-source path.`,
+      )
+      return null
+    }
     if (!(await shouldRunOnCloud(localTranscribeKey))) {
       return transcribe(data.videoUrl, transcribeProvider, undefined, { wordTimestamps: true })
+    }
+    // The RELAY provider is not necessarily the local one. The cloud's
+    // /v1/transcribe enum is `TRANSCRIBE_PROVIDERS` (the enabled subset), and
+    // the local default `incredibly-fast-whisper` has not been in it since the
+    // Replicate lanes were disabled — relaying it verbatim is a guaranteed 400.
+    // Send the local choice when the cloud still accepts it, otherwise the first
+    // ENABLED lane that can do word timings. Derived from the two shared tables,
+    // never a hand-written provider name.
+    const relayProvider = (TRANSCRIBE_PROVIDERS as readonly string[]).includes(transcribeProvider)
+      ? transcribeProvider
+      : CLOUD_RELAY_TRANSCRIBE_PROVIDER
+    if (!relayProvider) {
+      throw new Error(
+        "nodaro.ai: no enabled transcription provider can return word timestamps — cannot relay this render's transcription",
+      )
     }
     const cloud = await runJobOnCloud("transcribe", {
       jobId: ctx.jobId,
       audioUrl: data.videoUrl,
-      provider: transcribeProvider,
+      provider: relayProvider,
       wordTimestamps: true,
     })
     // Validate rather than trust — a version-skewed far end returning no words

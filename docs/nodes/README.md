@@ -158,6 +158,7 @@ Provide data to your workflow: text, images, video, audio, or external triggers.
 | [RSS Feed](./input/rss-feed.md) | Pull content from RSS/Atom feeds | Automated content pipelines from blogs or news sources |
 | [Web Scrape](./input/web-scrape.md) | Scrape Google Search, web pages, RSS, Instagram, or TikTok (5 actors, dynamic credit cost) | Data ingestion pipelines; seed generation workflows with live search results or social post metadata |
 | [Meta Ads](./input/meta-ads-scrape.md) | Pull public Facebook + Instagram ads from Meta's Ad Library by keyword, advertiser (picked by name) or Facebook Page (1 credit per requested ad, tiered) | Competitor ad research; seed creative pipelines with real ad copy, CTAs and visuals |
+| [Instagram](./input/instagram-scrape.md) | Pull public Instagram posts (images, carousels, reels) by profile or hashtag (1 credit per requested post, tiered) | Track a creator/brand; research a hashtag; seed pipelines with real captions and visuals |
 | [Video URL](./input/youtube-video.md) | Download video/audio from YouTube or other URLs | Import video from YouTube, TikTok, Instagram, Facebook, X |
 | [Reference Audio](./input/reference-audio.md) | Extract audio from YouTube or uploaded video | Extract audio tracks for dubbing, remixing, or analysis |
 | [Webhook Trigger](./input/webhook-trigger.md) | Trigger workflow via HTTP webhook endpoint | Integrate with external systems, APIs, n8n, or Zapier |

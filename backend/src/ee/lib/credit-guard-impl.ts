@@ -11,7 +11,7 @@ import { getAppSettings } from "../../lib/app-settings.js"
 import type { CreditReservation, StorageSnapshot, CreditGuardOpts } from "../../middleware/credit-guard.js"
 import { resolveEffectiveTier } from "@nodaro/shared"
 import { isWebFreeModeCandidate, sendSubscriptionRequired } from "./payg-surface-guard.js"
-import { effectiveMarkupPercent } from "../billing/service-margin.js"
+import { applyServiceMarkup } from "../billing/service-margin.js"
 import { refundReservedCreditsForJob } from "../../lib/credits-job-lifecycle.js"
 import { ReserveRpcError, mapReserveError } from "../../lib/reserve-errors.js"
 import { allowanceEnforcementActive } from "../../lib/deployment-payer.js"
@@ -113,11 +113,7 @@ export function creditGuardImpl(
       try {
         const baseCredits = await opts.computeCredits(req.body, req)
         const settings = await getAppSettings()
-        const markupPercent = effectiveMarkupPercent(settings, modelIdentifier)
-        computedCreditOverride =
-          markupPercent > 0 && baseCredits > 0
-            ? Math.ceil(baseCredits * (1 + markupPercent / 100))
-            : baseCredits
+        computedCreditOverride = applyServiceMarkup(baseCredits, settings, modelIdentifier)
       } catch (err) {
         // Hard-fail policy: a missing-price error during computeCredits must
         // reject the request, not silently proceed without a credit check.

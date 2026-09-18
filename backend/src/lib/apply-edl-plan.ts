@@ -163,8 +163,7 @@ export async function applyEdlCreditOverride(
   const minutes = applyEdlReserveMinutes(edl)
   const { getModelCreditBaseCost } = await import("../ee/billing/credits.js")
   const { creditCost } = await getModelCreditBaseCost("apply-edl")
-  const { effectiveMarkupPercent } = await import("../ee/billing/service-margin.js")
+  const { applyServiceMarkup } = await import("../ee/billing/service-margin.js")
   const { getAppSettings } = await import("./app-settings.js")
-  const markup = effectiveMarkupPercent(await getAppSettings(), "apply-edl")
-  return Math.ceil(creditCost * minutes * (1 + markup / 100))
+  return applyServiceMarkup(creditCost * minutes, await getAppSettings(), "apply-edl")
 }

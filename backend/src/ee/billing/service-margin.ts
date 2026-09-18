@@ -50,6 +50,27 @@ export function effectiveMarkupPercent(
 }
 
 /**
+ * `base` credits marked up by `percent`, rounded UP to a whole credit — THE
+ * single markup-rounding formula for the whole platform.
+ *
+ * Integer-domain on purpose. `Math.ceil(base * (1 + percent / 100))` rounds a
+ * float that IEEE-754 can land a hair ABOVE the true value (e.g. 720 × 1.10 =
+ * 792.0000000000001 → ceil 793), over-charging by a full credit whenever the
+ * exact product is already an integer. `ceil(base * (100 + percent) / 100)`
+ * keeps the multiply in integers (72000 + 7200 = 79200, /100 = 792 → ceil 792).
+ * Percent is admin-validated to [0, 500], so `percent <= 0` (and `base <= 0`)
+ * are the only no-op cases.
+ *
+ * Reserve, guard, DAG override, per-service margin, the metered settlement, and
+ * the anomaly-detector's "actual" all route through this one function, so a
+ * reservation can never round differently from the settlement that trues it up
+ * — a drift that would manufacture phantom credit anomalies.
+ */
+export function applyMarkupPercent(base: number, percent: number): number {
+  return percent > 0 && base > 0 ? Math.ceil((base * (100 + percent)) / 100) : base
+}
+
+/**
  * `baseCredits` marked up ONCE at `modelIdentifier`'s effective percent — the
  * single formula a reservation and the settlement that trues it up must share.
  * `credit-guard-impl.ts` applies it to every route reservation; the DAG's
@@ -62,6 +83,5 @@ export function applyServiceMarkup(
   settings: MarginSettings,
   modelIdentifier: string,
 ): number {
-  const percent = effectiveMarkupPercent(settings, modelIdentifier)
-  return percent > 0 && baseCredits > 0 ? Math.ceil(baseCredits * (1 + percent / 100)) : baseCredits
+  return applyMarkupPercent(baseCredits, effectiveMarkupPercent(settings, modelIdentifier))
 }

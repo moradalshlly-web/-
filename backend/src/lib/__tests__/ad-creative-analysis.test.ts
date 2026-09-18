@@ -48,7 +48,7 @@ describe("analyzeAdCreatives", () => {
     expect(req.system).toBe(AD_CREATIVE_ANALYSIS_SYSTEM_PROMPT)
     const content = (req.messages as Array<{ content: Array<Record<string, unknown>> }>)[0].content
     expect(content[0]).toMatchObject({ type: "text" })
-    expect(String(content[0].text)).toContain("Advertiser: Nike")
+    expect(String(content[0].text)).toContain("Account / advertiser: Nike")
     expect(String(content[0].text)).toContain("Body copy:\nJust do it.")
     expect(content[1]).toEqual({ type: "image", url: "https://cdn.nodaro.ai/images/1.jpg" })
     expect(schema).toBe(adCreativeAnalysisSchema)

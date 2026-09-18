@@ -12,7 +12,9 @@ it("quotes the same upper reservation with markup once and without creating a jo
   expect(res.json()).toEqual({data:{credits:660,upperBound:true}})
   expect(pricing).toHaveBeenCalledWith(expect.objectContaining({segmentMode:"short",durationSec:12,aspectRatio:"16:9"}))
   const plan=await app.inject({method:"POST",url:"/v1/credits/video-pro-estimate",payload:{provider:"gemini-omni-flash",duration:12,segmentMode:"short",renderMethod:"keyframes",planOnly:true}})
-  expect(plan.json()).toEqual({data:{credits:111,upperBound:false}})
+  // feeBase 100 + 10% markup = 110 (integer-domain ceil; the float 100*1.1
+  // lands at 110.00000000000001, which the old formula over-charged to 111).
+  expect(plan.json()).toEqual({data:{credits:110,upperBound:false}})
 })
 it("rejects malformed quotes before reading prices",async()=>{
   pricing.mockClear();const app=Fastify();registerVideoProEstimate(app)

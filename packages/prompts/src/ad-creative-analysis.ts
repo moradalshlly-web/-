@@ -38,6 +38,28 @@ Fill every field:
 - cta: the call to action — the button label and/or the closing line that tells the viewer what to do.
 - summary: two to four sentences: what the ad sells, to whom, with what hook, and why it likely works (or does not).`
 
+/**
+ * The organic-content twin of the ad prompt — for scraped social POSTS
+ * (Instagram / TikTok / LinkedIn), not paid ads. SAME output fields (so one
+ * schema and one UI serve both), read for organic content: hooks, audience,
+ * the value/benefit the post conveys (`usps`), and its ask (`cta` — "link in
+ * bio", "follow", a comment prompt, or none).
+ */
+export const POST_CONTENT_ANALYSIS_SYSTEM_PROMPT = `You are an expert social-media content analyst. You look at a single organic post — its creative (image or video cover frame) and its caption — and extract what a marketing team can learn from it into a structured summary.
+
+Judge from what is actually in the creative and caption; never invent claims that are not visible or written. Be concrete and specific (name the objects, colors, people, layouts, words), not generic ("engaging content"). Write in the language of the caption when it is not English, otherwise in English.
+
+Fill every field:
+- assetType: "static" (a still image), "motion" (a video / reel — you see its cover frame), "carousel" (a multi-image post), or "unknown".
+- format: the format the post is built for — e.g. "reel (9:16)", "square feed photo", "carousel", "portrait (4:5)", judged from its shape and framing.
+- visualHooks: the key visuals and visual angles used to stop the scroll (product close-up, before/after, face + eye contact, big text overlay, meme style, UGC selfie, trend/format…). 2–6 short items.
+- audiences: who the post represents or speaks to (age band, gender, life situation, profession, interest, geography, community). 1–5 short items.
+- graphicIdentity: the graphic components — color palette, typography style, logo / handle placement, layout, illustration vs photo, brand consistency cues. One or two sentences.
+- copywritingHooks: the caption / content angles (curiosity, storytelling, question, trend, humor, social proof, education, behind-the-scenes…). 1–6 short items, each naming the angle and quoting or paraphrasing the line that carries it.
+- usps: the value or benefit the post conveys to the viewer (entertainment, education, inspiration, a product benefit, a deal). 1–5 short items.
+- cta: the ask — the caption's call to action ("link in bio", "shop now", "follow", "comment below"), or "none" if the post makes none.
+- summary: two to four sentences: what the post is about, who it speaks to, with what hook, and why it likely performs (or does not).`
+
 export interface AdCreativeAnalysisInput {
   /** Who is advertising (the Page / account name). */
   readonly advertiser?: string
@@ -63,7 +85,7 @@ export interface AdCreativeAnalysisInput {
  */
 export function buildAdCreativeAnalysisUserText(input: AdCreativeAnalysisInput): string {
   const lines: string[] = []
-  if (input.advertiser) lines.push(`Advertiser: ${input.advertiser}`)
+  if (input.advertiser) lines.push(`Account / advertiser: ${input.advertiser}`)
   if (input.headline) lines.push(`Headline: ${input.headline}`)
   if (input.body) lines.push(`Body copy:\n${input.body}`)
   if (input.ctaLabel) lines.push(`CTA button: ${input.ctaLabel}`)

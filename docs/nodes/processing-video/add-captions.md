@@ -20,13 +20,27 @@ The Add Captions node automatically generates captions from video audio (or take
 ### Caption Styles
 
 - **subtitle** — Standard subtitle appearance (rendered with FFmpeg)
-- **word-highlight** — A window of words, the spoken one highlighted
+- **word-highlight** — One line at a time, the spoken word highlighted (see [Line grouping](#line-grouping-word-highlight))
 - **karaoke** — Karaoke-style progressive fill, word by word
 - **tiktok-words** — TikTok/CapCut-style 1–4 word "pages" that pop in
 - **word-pop** — One word at a time, springing in and out
 - **bouncy** — Full line visible, each word bounces as it's spoken
 
 The five animated styles (everything except `subtitle`) are **kinetic** styles, rendered with Remotion.
+
+### Line grouping (word-highlight)
+
+`word-highlight` shows **one line at a time**, not one word at a time. The words are grouped into lines at render:
+
+- A line takes as many words as fit **~85 % of the frame width** at the chosen `font_size` and the look's font face (so a wide, heavy, uppercase face gets fewer words per line than a narrow one — see [font_size is measured against the look's face](#kinetic-style-look)).
+- A line also **closes early** on a sentence-ending word (`.`, `!`, `?`, `…`) or on a pause of **0.5 s or more** between two words.
+- When a phrase is too long for one line it is split into **balanced** lines rather than filled greedily, so its last word is never stranded alone (`OK SO I BUILT` / `A WORLD IN` / `NODARO STUDIO.`, not `… IN NODARO` / `STUDIO.`). Words are never moved across a sentence end or a pause.
+- A line stays on screen for up to **1.5 s** after its last word, and the next line takes over the instant *it* starts — so the pauses *inside* a line and the ordinary pause *before* the next one are both bridged with no blank frame. A silence longer than 1.5 s (including at the end of the clip) clears the caption until the next line starts.
+- Inside the visible line the **highlight moves word to word**: a word's `startMs`/`endMs` decide which word is lit, **not** whether text is on screen. During a pause, the last word spoken stays lit.
+
+This is the CapCut read: the caption never blinks out between words, and a long sentence never overflows into a second wrapped line.
+
+> This is the *render-side* grouping and it always applies to `word-highlight`. It is separate from `wordLevel: false` on a wired [transcript](#transcript-input), which groups words into lines in the **caption list itself** before rendering.
 
 ### Kinetic style look
 
@@ -41,6 +55,8 @@ The **spoken-word colour** (`highlight_color`, yellow under `outline`) only show
 
 **An unset `look` renders as `outline`** — that is the default kinetic look. Pass `look: "clean"` to turn the preset off and keep only your own explicit levers.
 
+**`font_size` is measured against the LOOK's face.** The same number renders wider or narrower depending on which face the look pins: the default `outline` look is **Montserrat 900 UPPERCASE**, roughly **30 % wider per character** than `clean` (Inter, mixed case). So the same `font_size` fits noticeably **fewer words per line** under `outline` — on `word-highlight`, where words are grouped to fit the frame, that shows up directly as shorter lines. Pass `look: "clean"` for the narrower face, pick a condensed face with `font_family` (`Bebas Neue`, `Anton`, `Oswald` are all narrower still), or lower `font_size`.
+
 The explicit levers below **override individual fields of the chosen look** (they are added to it, not a replacement — e.g. with the default `outline`, setting only `highlight_color` keeps Montserrat / caps / outline and just recolours the spoken word). They add **no credits**, and are **rejected on the static `subtitle` style** (which the FFmpeg path can't honour) rather than being silently ignored:
 
 | Lever | Applies to | Description |
@@ -50,7 +66,7 @@ The explicit levers below **override individual fields of the chosen look** (the
 | `stroke_color` + `stroke_width` | all kinetic | The black (or any colour) outline TikTok/Reels captions use; `stroke_width` in px |
 | `highlight_color` | `tiktok-words` (also recolours the active word in `word-highlight` / `karaoke`) | Colour of the word being spoken |
 | `uppercase` | all kinetic | Render captions in UPPERCASE |
-| `position_y` | all kinetic | Vertical position of the caption's **center** as % of height; overrides `position`. ~65 sits below the face, above the app's own bottom UI |
+| `position_y` | all kinetic | Vertical position of the caption block's **center** as % of height; overrides `position` (see [Position Options](#position-options)). ~65 sits below the face, above the app's own bottom UI |
 
 **Outline width.** When the `outline` look supplies the stroke, its width auto-sizes to the text: `max(2, round(fontSize × 0.1))` px, painted half outside the glyph (`paint-order: stroke fill`) so the visible rim is ~5% of the font size. At `font_size: 64` that is a 6 px stroke; at `font_size: 32` it is a 3 px stroke. Set `stroke_width` explicitly to override it (`stroke_width: 0` = no outline).
 
@@ -63,9 +79,29 @@ Instead of `auto_transcribe`, you can pass a `captions[]` array. For the **kinet
 | Field | Required | Meaning |
 |-------|----------|---------|
 | `text` | yes | The word (or, for `subtitle`, a line) |
-| `startMs` / `endMs` | yes | The word's visibility window; also drives which word is highlighted |
+| `startMs` / `endMs` | yes | The word's **spoken** window. It always drives highlight / animation timing; what it means for **visibility** depends on the style (below) |
 | `timestampMs` | no (default null) | The word timestamp, used by `tiktok-words` token timing |
 | `confidence` | no (default null) | Transcription confidence — metadata, ignored by rendering |
+
+**What `startMs`/`endMs` control, per style:**
+
+| Style | On screen when | The word's window decides |
+|-------|----------------|---------------------------|
+| `subtitle`, `word-pop` | Exactly the entry's own `[startMs, endMs]` — nothing shows between entries | Visibility **and** timing |
+| `word-highlight` | Its **line** is on screen, from the line's first `startMs` until the next line starts — or, if that is more than 1.5 s away, until 1.5 s past the line's last `endMs`. See [Line grouping](#line-grouping-word-highlight) | Which word is **highlighted**, and where lines break |
+| `karaoke`, `bouncy` | The whole caption list is on screen, from the first `startMs` to the last `endMs` | Each word's wipe / bounce timing |
+| `tiktok-words` | Its **page** (1–4 combined words) is on screen for that page's duration | Page boundaries and the spoken token |
+
+### The auto-transcribe engine (`transcribe_provider`)
+
+The node transcribes the video's audio itself unless something else already supplies the words: `captions[]`, a wired `transcript`, `auto_transcribe: false`, or — for a `segments[]` render — every segment carrying its own `text`/`captions`. **`text` does NOT suppress transcription**: it is the *fallback* source, used to build evenly-spaced synthetic captions whenever the transcription produces no words or does not run. `transcribe_provider` chooses the engine: `incredibly-fast-whisper` (the default), `elevenlabs-stt`, or `whisper`.
+
+A **kinetic** style — and any `segments[]` render — is word-timed, so the engine must be one that returns **word timestamps**. `whisper` cannot (see [Transcribe](../ai-text/transcribe.md#word-timestamps-which-engine-can-do-it)). Pairing it with a word-timed render therefore behaves in one of two ways:
+
+- **With another caption source available** — `text`, `captions[]`, a wired `transcript`, `auto_transcribe: false`, or self-sourced segments — the request is accepted and the transcription is **skipped**: nothing is sent to the engine (so nothing is transcribed or billed for it) and the render uses that other source. With only `text`, that means evenly-spaced synthetic captions off the text, exactly as this node behaved before word timings existed.
+- **With no other caption source at all**, transcription is the render's only possible source and an engine that cannot feed it makes the call impossible: it is **rejected up front with `400 validation_error` on `transcribe_provider`**, before any credits are reserved.
+
+`whisper` also stays valid for the static `subtitle` style, which never transcribes — it requires `text` and burns one fixed overlay.
 
 ### Transcript input
 
@@ -113,9 +149,14 @@ Per-segment captions render through the animated engine, so they bill at the kin
 
 ### Position Options
 
-- **bottom** — Lower third of the frame (most common)
-- **top** — Upper portion of the frame
-- **center** — Middle of the frame
+`position` anchors the caption **block**, and a named slot anchors the edge nearest the frame edge — so a block that wraps to more than one line grows *inward* and never clips off-screen:
+
+| Value | Where the block sits |
+|-------|----------------------|
+| `top` | The block's **top edge** at **12 %** of the frame height; extra lines grow **downward** |
+| `bottom` (default) | The block's **bottom edge** **18 % above the bottom** — i.e. at **82 %** of the height, clear of the TikTok/Reels bottom UI; extra lines grow **upward** |
+| `center` | The block is **centred** at **50 %** of the height |
+| `position_y: N` | The block's **CENTRE** at **N %** of the height, overriding `position`. It is the centre, not an edge — `position_y: 85` puts the **centre** at 85 %, so the block's bottom hangs below that |
 
 ## Inputs & Outputs
 

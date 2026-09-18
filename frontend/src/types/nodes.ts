@@ -5327,6 +5327,39 @@ export type SilenceDetectNodeData = {
 
 // --- Meta Ads Scrape Node Data ---
 
+export type InstagramScrapeNodeData = {
+  [key: string]: unknown
+  label: string
+  /** "profile" = posts by account; "hashtag" = posts under a hashtag */
+  mode?: import("@nodaro/shared").InstagramScrapeMode
+  /** Usernames (profile) or hashtags (hashtag), one per line — up to 5 */
+  targets?: string
+  /** Posts per source, 1..100 */
+  count?: number
+  period?: import("@nodaro/shared").InstagramScrapePeriod
+  /** Creative formats to keep (vertical / square / horizontal); empty/absent = every format */
+  formats?: string[]
+  featuredIndex?: number
+  viewFormat?: string
+  /** Copy EVERY returned post's video into the library (opt-in) */
+  ingestAllVideos?: boolean
+  /** Per-post AI analysis (content-analyst read); priced per requested post by the model's tier */
+  analyze?: boolean
+  analysisModel?: string
+  analysisFocus?: string
+  // execution state — same #765 contract as WebScrapeNodeData
+  executionStatus?: "idle" | "running" | "completed" | "failed"
+  errorMessage?: string
+  generatedJson?: unknown
+  lastRunOutcome?: "success" | "empty" | "failed"
+  lastRunAt?: number
+  lastRunCount?: number
+  lastRunStartedAt?: number
+  lastRunFingerprint?: string
+  lastGoodAt?: number
+  lastGoodCount?: number
+}
+
 export type MetaAdsScrapeNodeData = {
   [key: string]: unknown
   label: string
@@ -6306,6 +6339,7 @@ export type SceneNodeData =
   | WebScrapeNodeData
   | SilenceDetectNodeData
   | MetaAdsScrapeNodeData
+  | InstagramScrapeNodeData
   | VideoAnalysisNodeData
   | VideoAuditNodeData
   | EditPlanNodeData
@@ -6356,6 +6390,7 @@ export type SceneNodeType =
   | "youtube-video"
   | "web-scrape"
   | "meta-ads-scrape"
+  | "instagram-scrape"
   | "reference-audio"
   | "tone"
   | "style-guide"
@@ -6646,6 +6681,15 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     inputs: ["in"],
     outputs: ["json", "text", "image", "video"],
     defaultData: { label: "Meta Ads", mode: "search", query: "", count: 20, period: "30d", activeStatus: "active", countryCode: "ALL" } as MetaAdsScrapeNodeData,
+  },
+  {
+    type: "instagram-scrape",
+    label: "Instagram",
+    category: "input",
+    creditCost: 20,
+    inputs: ["in"],
+    outputs: ["json", "text", "image", "video"],
+    defaultData: { label: "Instagram", mode: "profile", targets: "", count: 20, period: "30d" } as InstagramScrapeNodeData,
   },
   {
     type: "reference-audio",

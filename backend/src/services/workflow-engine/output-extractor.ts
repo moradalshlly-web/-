@@ -15,7 +15,7 @@ import {
   TEXT_SOURCE_TYPES,
 } from "./execution-graph.js"
 import {
-  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs, unwrapEditPlanOutput } from "@nodaro/shared"
+  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs, featuredInstagramOutputs, unwrapEditPlanOutput } from "@nodaro/shared"
 import type { SceneData, Transcript } from "@nodaro/shared"
 import { buildScenePrompt } from "@nodaro/prompts"
 export { extractVideoDurationFromNode } from "@nodaro/shared"
@@ -689,7 +689,7 @@ export function getPrimaryOutput(
   // writes those three onto output_data, and extractSavedNodeOutput re-derives
   // them from the saved ad. Unknown handles return nothing rather than
   // falling through to the generic url/text catch-all.
-  if (sourceType === "meta-ads-scrape") {
+  if (sourceType === "meta-ads-scrape" || sourceType === "instagram-scrape") {
     if (sourceHandle === "text") return output.text
     if (sourceHandle === "image") return output.imageUrl
     if (sourceHandle === "video") return output.videoUrl
@@ -1381,6 +1381,12 @@ export function extractSavedNodeOutput(node: SimpleNode): NodeOutput | undefined
     const json = data.generatedJson
     if (json === undefined) return undefined
     return { json, ...featuredMetaAdOutputs(json, data.featuredIndex) }
+  }
+
+  if (type === "instagram-scrape") {
+    const json = data.generatedJson
+    if (json === undefined) return undefined
+    return { json, ...featuredInstagramOutputs(json, data.featuredIndex) }
   }
 
   // Video-analysis / video-audit: single `json` output (the scene-segmented

@@ -224,6 +224,23 @@ export const envSchema = z.object({
    * tutorials always seed. Unset/blank = base tutorials only. Restart to apply.
    */
   NODARO_TUTORIAL_PACKS: z.string().default(""),
+  /**
+   * Cloud-only launch lever: also seed the built-in MARKETPLACE templates (the
+   * built-in docs whose `listedIn` includes "marketplace" — the podcast editing
+   * templates) under the system account, so they appear in the Cloud
+   * marketplace (`GET /v1/templates/browse`). DEFAULT OFF: Cloud otherwise makes
+   * no Supabase call and mints no system account (see the header of
+   * lib/tutorial-seed/index.ts), and two seeder tests pin that byte-identical
+   * no-op — this is an ORGS_ENABLED-shaped opt-in, not a default. Off-cloud
+   * editions already seed the WHOLE built-in set (marketplace + tutorial), so
+   * the lever is inert there. Strict parse (only "true"/"1"), same rationale as
+   * R2_FORCE_PATH_STYLE — a compose file's literal "false" must stay false.
+   * Restart to apply.
+   */
+  NODARO_SEED_MARKETPLACE_TEMPLATES: z
+    .string()
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
   /** Comma-separated list of allowed CORS origins (e.g. "https://app.nodaro.ai,http://localhost:3000") */
   CORS_ORIGIN: z.string().default(""),
   STRIPE_SECRET_KEY: z.string().default(""),

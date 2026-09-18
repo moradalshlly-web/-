@@ -40,6 +40,7 @@ type Row = Record<string, unknown>
 
 const store = vi.hoisted(() => ({
   users: [] as Row[],
+  profiles: [] as Row[],
   projects: [] as Row[],
   workflows: [] as Row[],
   workflow_templates: [] as Row[],
@@ -127,6 +128,9 @@ vi.mock("../../supabase.js", () => {
           createUser: async ({ email }: { email: string }) => {
             const user = { id: nextId("user"), email }
             store.users.push(user)
+            // The handle_new_user trigger mints the matching profile row; the
+            // seeder now resolves the system account by profiles.email first.
+            store.profiles.push({ id: user.id, email })
             return { data: { user }, error: null }
           },
         },
@@ -182,6 +186,7 @@ describe("tutorial seeder — operator decisions survive a content reseed", () =
   beforeEach(() => {
     config.EDITION = "community"
     store.users.length = 0
+    store.profiles.length = 0
     store.projects.length = 0
     store.workflows.length = 0
     store.workflow_templates.length = 0

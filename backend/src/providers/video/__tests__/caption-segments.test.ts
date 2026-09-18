@@ -77,10 +77,22 @@ describe("resolveCaptionSegments — words", () => {
     expect(seg!.captions[0]!.endMs).toBe(3000)
   })
 
-  it("uses a segment's own captions[] verbatim when provided", () => {
+  it("uses a segment's own captions[] (over the shared transcript) when provided", () => {
     const own = [cap("HOOK", 100, 900)]
     const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000, captions: own }], DEFAULTS)
-    expect(seg!.captions).toBe(own)
+    expect(seg!.captions).toEqual(own)
+  })
+
+  it("drops a segment's own words that START outside its range (a held line must not leak them in)", () => {
+    // Absolute-ms captions handed to segment B [5000, 10000): "Intro"/"title"
+    // belong to the previous range. The line-based overlays hold a line through
+    // gaps, so left in the list they would show at 5000 as a held/straddling line.
+    const own = [cap("Intro", 4000, 4400), cap("title", 4500, 4800), cap("body", 5300, 5600), cap("starts", 5600, 6000)]
+    const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 5000, endMs: 10000, captions: own }], DEFAULTS)
+    expect(seg!.captions.map((c) => c.text)).toEqual(["body", "starts"])
+    // A word that starts inside and ends outside stays with the segment it started in.
+    const [edge] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000, captions: [cap("mid", 2800, 3200)] }], DEFAULTS)
+    expect(edge!.captions.map((c) => c.text)).toEqual(["mid"])
   })
 
   it("assigns a straddling shared word to the ONE segment its start falls in (no mid-word style jump)", () => {

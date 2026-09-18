@@ -66,6 +66,7 @@ vi.mock("@/lib/url-validator.js", async () => {
 import { transcribeRoutes } from "../transcribe.js"
 import { supabase } from "../../lib/supabase.js"
 import { videoQueue } from "../../lib/queue.js"
+import { reserveCreditsForJob } from "../../middleware/credit-guard.js"
 
 // ---------------------------------------------------------------------------
 // Test app setup
@@ -254,4 +255,119 @@ describe("POST /v1/transcribe", () => {
     const body = res.json()
     expect(body.error.code).toBe("internal_error")
   })
+})
+
+// ---------------------------------------------------------------------------
+// wordTimestamps × provider capability
+//
+// openai/whisper (the route's default for an absent provider) has no
+// `word_timestamps` input on Replicate — the key is silently dropped and the
+// job "succeeds" with an empty word list after credits are spent. The route
+// rejects the impossible pair BEFORE the job insert and the reservation.
+// ---------------------------------------------------------------------------
+
+describe("POST /v1/transcribe — wordTimestamps capability gate", () => {
+  it("rejects wordTimestamps on the DEFAULT provider (whisper), naming the field", async () => {
+    const { mockFrom } = mockJobInsert("job-1")
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/transcribe",
+      payload: {
+        audioUrl: "https://example.com/audio.mp3",
+        wordTimestamps: true,
+        userId: VALID_UUID,
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    const body = res.json()
+    expect(body.error.code).toBe("validation_error")
+    expect(body.error.message).toContain("wordTimestamps")
+    expect(body.error.issues.map((i: { path: string }) => i.path)).toContain("wordTimestamps")
+    // It names a provider that CAN do it, derived from the capability table.
+    expect(body.error.message).toContain("elevenlabs-stt")
+    // Nothing was created, reserved or queued — the gate is pre-insert and
+    // therefore pre-reservation.
+    expect(mockFrom).not.toHaveBeenCalled()
+    expect(vi.mocked(reserveCreditsForJob)).not.toHaveBeenCalled()
+    expect(vi.mocked(videoQueue.add)).not.toHaveBeenCalled()
+  })
+
+  it("accepts wordTimestamps with elevenlabs-stt", async () => {
+    mockJobInsert("job-1")
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/transcribe",
+      payload: {
+        audioUrl: "https://example.com/audio.mp3",
+        provider: "elevenlabs-stt",
+        wordTimestamps: true,
+        userId: VALID_UUID,
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(vi.mocked(videoQueue.add)).toHaveBeenCalledWith(
+      "transcribe",
+      expect.objectContaining({ provider: "elevenlabs-stt", wordTimestamps: true }),
+    )
+  })
+
+  it("accepts the default provider when wordTimestamps is absent (text-only run)", async () => {
+    mockJobInsert("job-1")
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/transcribe",
+      payload: {
+        audioUrl: "https://example.com/audio.mp3",
+        userId: VALID_UUID,
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+  })
+
+  it("accepts wordTimestamps: false on the default provider", async () => {
+    mockJobInsert("job-1")
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/transcribe",
+      payload: {
+        audioUrl: "https://example.com/audio.mp3",
+        wordTimestamps: false,
+        userId: VALID_UUID,
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+  })
+
+  it.each(["whisper", "incredibly-fast-whisper"])(
+    "rejects the Replicate lane %s outright — it is not in the route's provider enum",
+    async (provider) => {
+      // Reality check, not the capability rule: TRANSCRIBE_PROVIDERS hides both
+      // Replicate lanes, so an explicit whisper / incredibly-fast-whisper gets
+      // the ENUM 400 (Zod aborts the object parse before superRefine runs) and
+      // never reaches the wordTimestamps issue.
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/transcribe",
+        payload: {
+          audioUrl: "https://example.com/audio.mp3",
+          provider,
+          wordTimestamps: true,
+          userId: VALID_UUID,
+        },
+      })
+
+      expect(res.statusCode).toBe(400)
+      const body = res.json()
+      expect(body.error.code).toBe("validation_error")
+      expect(body.error.issues.map((i: { path: string }) => i.path)).toContain("provider")
+    },
+  )
 })

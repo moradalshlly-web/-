@@ -1,6 +1,6 @@
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
-import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs, type Transcript } from "@nodaro/shared";
+import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs, featuredInstagramOutputs, type Transcript } from "@nodaro/shared";
 import { getParameterPromptHint } from "@nodaro/prompts"
 import type {
   WorkflowNode,
@@ -715,6 +715,17 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
       return d.generatedJson === undefined ? undefined : JSON.stringify(d.generatedJson);
     }
     const featured = featuredMetaAdOutputs(d.generatedJson, d.featuredIndex);
+    if (sourceHandle === "text") return featured.text;
+    if (sourceHandle === "image") return featured.imageUrl;
+    if (sourceHandle === "video") return featured.videoUrl;
+    return undefined;
+  }
+  if (type === "instagram-scrape") {
+    const d = node.data as { generatedJson?: unknown; featuredIndex?: unknown };
+    if (sourceHandle === "json" || !sourceHandle) {
+      return d.generatedJson === undefined ? undefined : JSON.stringify(d.generatedJson);
+    }
+    const featured = featuredInstagramOutputs(d.generatedJson, d.featuredIndex);
     if (sourceHandle === "text") return featured.text;
     if (sourceHandle === "image") return featured.imageUrl;
     if (sourceHandle === "video") return featured.videoUrl;

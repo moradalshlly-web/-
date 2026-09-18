@@ -1,7 +1,7 @@
 import type { WorkflowNode, WorkflowEdge, GenerateVideoProNodeData, EditVideoProNodeData } from "@/types/nodes";
 import { StorageExceededError, SubscriptionRequiredError } from "@/lib/api";
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
-import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListItems, type SelectorFields, getEffectiveRepeatCount, buildScraperCreditId, isScraperActor, SCRAPER_CREDIT_COSTS, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, bucketSecondsFromCreditId, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAuditCreditId, VIDEO_AUDIT_BUCKET_CREDITS, FAN_OUT_EACH_TYPES, buildVideoCreditModelIdentifier, SEEDANCE_2_CONTINUATION_REF_SEC, isSeedance2Provider, isMinimaxH3Provider, maxSegmentSecFor, normalizeMinimaxH3Resolution, PRO3D_RENDER_CREDIT_ID } from "@nodaro/shared"
+import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListItems, type SelectorFields, getEffectiveRepeatCount, buildScraperCreditId, isScraperActor, SCRAPER_CREDIT_COSTS, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, INSTAGRAM_SCRAPE_CREDIT_COSTS, instagramScrapeCreditIdFromNode, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, bucketSecondsFromCreditId, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAuditCreditId, VIDEO_AUDIT_BUCKET_CREDITS, FAN_OUT_EACH_TYPES, buildVideoCreditModelIdentifier, SEEDANCE_2_CONTINUATION_REF_SEC, isSeedance2Provider, isMinimaxH3Provider, maxSegmentSecFor, normalizeMinimaxH3Resolution, PRO3D_RENDER_CREDIT_ID } from "@nodaro/shared"
 // getCachedCredits reads the live React-Query model-cost cache (an `ee/`
 // concern — credits are enterprise-only). Allowlisted in
 // tools/check-ee-imports.mjs (same coupling as ./run-handlers.ts).
@@ -121,6 +121,7 @@ export const NODE_CREDIT_COSTS: Record<string, number> = {
   "image-critic": 5,
   "web-scrape": 20,
   "meta-ads-scrape": 20,
+  "instagram-scrape": 20,
   // Flash floor — the real per-run cost is duration/model-bucketed (see
   // estimateNodeCredits below + the node's live useModelCredits estimate).
   // Kept equal to VIDEO_ANALYSIS_BUCKET_CREDITS' table-wide ceiling
@@ -488,6 +489,10 @@ export function estimateNodeCredits(
     const modelId = metaAdsScrapeCreditIdFromNode(node.data)
     return META_ADS_SCRAPE_CREDIT_COSTS[modelId] ?? NODE_CREDIT_COSTS["meta-ads-scrape"] ?? 0
   }
+  if (nodeType === "instagram-scrape" && node.data) {
+    const modelId = instagramScrapeCreditIdFromNode(node.data)
+    return INSTAGRAM_SCRAPE_CREDIT_COSTS[modelId] ?? NODE_CREDIT_COSTS["instagram-scrape"] ?? 0
+  }
   if (nodeType === "video-analysis" && node.data) {
     // data.llmModel stores the TIER string ("fast"/"pro"/"mixed"/"mixed-fast") —
     // resolve it to the engine id first (audit fix: the raw tier built
@@ -666,6 +671,7 @@ export const EXECUTABLE_TYPES = new Set([
   "image-critic",
   "web-scrape",
   "meta-ads-scrape",
+  "instagram-scrape",
   "video-analysis",
   // AI Audit — re-watches a clip against an analysis and emits the CORRECTED
   // analysis (same payload shape as video-analysis, so it chains anywhere an

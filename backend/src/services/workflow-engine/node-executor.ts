@@ -31,11 +31,12 @@ import { resolveFieldMappings, NODE_MAPPABLE_FIELDS } from "./resolve-field-mapp
 
 import { executeCombineText, executeSplitText, executeComposite, executeWebhookOutput, executePreview, executeTeleporterPassthrough, executeRouter, executeExtractField, executeJsonProcess, executeFilterList, executeDeduplicateList, executeMergeLists, executeSortList, executeSelector } from "./inline-executor.js"
 import { executeSubWorkflow } from "./sub-workflow-handler.js"
-import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER, metaAdsScrapeWireSources } from "@nodaro/shared"
+import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER, metaAdsScrapeWireSources, splitInstagramTargets } from "@nodaro/shared"
 import { computeLlmChatFields, computeNodePrompt, pickerFanoutTargets, applyPromptAffixes } from "@nodaro/prompts"
 import type { ComponentMetadata } from "@nodaro/shared"
 import { getAppSettings } from "../../lib/app-settings.js"
 import { probeAndCheckRefVideoDurations, probeRefVideoDurations } from "../../lib/ref-video-probe.js"
+import { computeEditPlanReserveId } from "../../lib/edit-plan-pricing.js"
 import type {
   SimpleNode,
   SimpleEdge,
@@ -84,6 +85,7 @@ const SYNC_HTTP_NODES = new Set([
   "save-to-storage",
   "web-scrape",
   "meta-ads-scrape",
+  "instagram-scrape",
   "reduce",
 ])
 
@@ -111,6 +113,7 @@ export const SYNC_HTTP_ROUTES: Record<string, string> = {
   "save-to-storage": "/v1/save-to-storage",
   "web-scrape": "/v1/web-scrape",
   "meta-ads-scrape": "/v1/meta-ads-scrape",
+  "instagram-scrape": "/v1/instagram-scrape",
   "instagram-post": "/v1/social/publish",
   "tiktok-post": "/v1/social/publish",
   "youtube-upload": "/v1/social/publish",
@@ -272,6 +275,8 @@ export function extractUserPromptTemplate(node: SimpleNode): string | undefined 
       return pick("query", "url", "target")
     case "meta-ads-scrape":
       return pick("query", "pageUrls")
+    case "instagram-scrape":
+      return pick("targets")
 
     // --- Social posts ---
     case "instagram-post":
@@ -593,11 +598,10 @@ async function executeSyncHttpNode(
     if (cursor !== undefined) body.sinceId = cursor
   }
 
-  // Meta Ads: a creative video is only copied into the user's library when
-  // its `video` output is actually wired — videos are the expensive bytes,
-  // and an unwired one would just sit in the quota. Same rule as the editor's
-  // buildMetaAdsScrapeParams.
-  if (node.type === "meta-ads-scrape" && edges) {
+  // Scrapers copy the featured item's video into the library only when its
+  // `video` output is actually wired — videos are the expensive bytes, and an
+  // unwired one would just sit in the quota. Same rule as the editors.
+  if ((node.type === "meta-ads-scrape" || node.type === "instagram-scrape") && edges) {
     body.ingestVideo = edges.some((e) => e.source === node.id && e.sourceHandle === "video")
   }
 
@@ -1091,6 +1095,27 @@ export function buildSyncHttpBody(
         ingestAllVideos: data.ingestAllVideos === true ? true : undefined,
         // Optional per-ad AI analysis — priced into the same identifier the
         // route's guard resolves, so the node's quote and the reservation agree.
+        analyze: data.analyze === true ? true : undefined,
+        analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
+        analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,
+        userId: ctx.userId,
+      }
+      return withUserPrompt(body)
+    }
+
+    case "instagram-scrape": {
+      // Targets (profiles / hashtags) are typed one per line, or arrive as the
+      // upstream text so a Prompt / List node can drive the scrape.
+      const own = splitInstagramTargets(data.targets)
+      const targets = own.length > 0 ? own : splitInstagramTargets(resolvedInputs.prompt)
+      const body: Record<string, unknown> = {
+        mode: data.mode === "hashtag" ? "hashtag" : "profile",
+        targets,
+        count: data.count,
+        period: data.period,
+        formats: Array.isArray(data.formats) ? data.formats : undefined,
+        featuredIndex: typeof data.featuredIndex === "number" ? data.featuredIndex : undefined,
+        ingestAllVideos: data.ingestAllVideos === true ? true : undefined,
         analyze: data.analyze === true ? true : undefined,
         analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
         analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,
@@ -1622,6 +1647,24 @@ async function executeWorkerNode(
       // more than one applies to a single dispatch), so a plain `??` combine
       // is safe and short-circuits any later (unneeded) dynamic import +
       // pricing call once an earlier one already applies.
+      //
+      // edit-plan is priced by a DB-seeded duration BUCKET id (a model_pricing
+      // row per composite), not a dynamic per-unit number, so its
+      // probe-at-reserve REWRITES the reserve id rather than supplying a
+      // creditOverride number: the reserve amount then comes from the DB row for
+      // the CORRECT bucket (admin-retunable, the same path a known-duration
+      // reserve takes) — a number override would leave modelIdentifier / the
+      // usage log at the wrong bucket and the gate reading a mismatched id.
+      // `computeEditPlanReserveId` ffprobes the master source and, on success,
+      // returns the duration-correct bucket id (and stamps
+      // `payload.reservedCreditId`, which the plugin gate reads). We key BOTH
+      // the preflight and the reservation — hence the usage log — off that id so
+      // the reserve, the gate, and the usage log agree on the exact bucket.
+      // `modelIdentifier` is const (buildPayload's transcript/ceiling basis); an
+      // unprobeable master falls back to it, the safe over-reserve direction.
+      const reserveModelIdentifier =
+        (await computeEditPlanReserveId(jobName, payload)) ?? modelIdentifier
+
       const creditOverride =
         await applyEdlCreditOverride(jobName, payload) ??
         await projectDubbingCreditOverride(jobName, payload) ??
@@ -1638,7 +1681,7 @@ async function executeWorkerNode(
       // generate a blocked model (e.g. 4K gemini-omni-video). checkCredits
       // self-fetches the profile and reports blocked/over-limit; the
       // surrounding catch deletes the orphaned pending jobs row on throw.
-      const preflight = await CreditsService.checkCredits(ctx.userId, modelIdentifier, ctx.isAppRun, creditOverride, {
+      const preflight = await CreditsService.checkCredits(ctx.userId, reserveModelIdentifier, ctx.isAppRun, creditOverride, {
         webFreeMode: ctx.webFreeMode ?? false,
         // P14: the execution's resolved payer — preflight and reserve read
         // the SAME context, so they can never disagree about entitlements.
@@ -1651,7 +1694,7 @@ async function executeWorkerNode(
       const reservation = await CreditsService.reserveCredits(
         ctx.userId,
         jobId,
-        modelIdentifier,
+        reserveModelIdentifier,
         0, // provider cost calculated in worker
         0, // display cost calculated in worker
         {
