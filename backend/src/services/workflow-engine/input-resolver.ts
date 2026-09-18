@@ -1401,7 +1401,13 @@ function routeOutput(
     if (edge.targetHandle === "sources") {
       const kind: "video" | "audio" =
         VIDEO_PRODUCER_TYPES.has(srcType) ? "video" : AUDIO_PRODUCER_TYPES.has(srcType) ? "audio" : "video"
-      inputs.editPlanSources = [...(inputs.editPlanSources ?? []), { nodeId: src.id, url: output, kind }]
+      // Carry the source's own duration (when the producer exposes it) so the
+      // reserve buckets on the MASTER source's real length, not the 180m ceiling.
+      const duration = extractVideoDurationFromNode(src.data)
+      inputs.editPlanSources = [
+        ...(inputs.editPlanSources ?? []),
+        { nodeId: src.id, url: output, kind, ...(duration !== undefined ? { duration } : {}) },
+      ]
       return
     }
   }

@@ -402,10 +402,13 @@ export interface ResolvedInputs {
   silence?: string
   /** edit-plan: the wired media sources (the `sources` handle), each carrying its
    *  source NODE id (minted once as the EdlSource id, never re-derived), its URL,
-   *  and a kind derived from the producer type. The payload builder annotates each
-   *  with the node's per-source config (role/speakers/offsetMs/kind override) into
-   *  the plugin's `sources[]`. Richer than apply-edl's positional `sources`. */
-  editPlanSources?: Array<{ nodeId: string; url: string; kind: "video" | "audio" }>
+   *  a kind derived from the producer type, and (when the producer exposes it) the
+   *  source's duration in seconds — the payload builder picks the master source's
+   *  duration for the reserve bucket so an orchestrated run is not forced to the
+   *  ceiling. The builder also annotates each row with the node's per-source config
+   *  (role/speakers/offsetMs/kind override) into the plugin's `sources[]`. Richer
+   *  than apply-edl's positional `sources`. */
+  editPlanSources?: Array<{ nodeId: string; url: string; kind: "video" | "audio"; duration?: number }>
 }
 
 // ---------------------------------------------------------------------------

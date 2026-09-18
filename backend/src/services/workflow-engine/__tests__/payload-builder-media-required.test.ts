@@ -393,7 +393,7 @@ describe("required media inputs", () => {
       "apply-edl":
         "the frontend refusal is 'connect an EDL' — a JSON-input guard, not a media one (its media resolves from EdlSource.url inside the EDL). The backend enforces parity by building + validating the effective EDL in the payload-builder case (validateEffectiveEdl throws before the reservation), so a media-only REQUIRED_MEDIA_INPUTS row would be wrong.",
       "edit-plan":
-        "the counted refusal is 'connect a transcript' — a JSON-input guard, not a media one (edit-plan reads the transcript, never pixels). It ALSO refuses empty sources, but that message does not trip the media regex. edit-plan is Nodaro-EXCLUSIVE + relayed: buildPayload assembles the job and the /v1/edit-plan shim Zod (transcript required, sources.min(1)) plus the cloud plugin enforce parity — a payload-builder REQUIRED_MEDIA_INPUTS row would be wrong (buildPayload never throws for it).",
+        "the counted refusal is 'connect a transcript' — a JSON-input guard, not a media one (edit-plan reads the transcript, never pixels). buildPayload DOES enforce parity: its edit-plan case throws for BOTH an unresolved transcript AND empty sources before the reserve (mirroring the two frontend refusals). A REQUIRED_MEDIA_INPUTS row would still be wrong because the PRIMARY guard is the JSON transcript, and the media guard is a source-COUNT (min 1), not a specific typed-URL slot that table models.",
     }
     for (const t of FE_GUARDED) {
       if (t in PARITY_EXEMPT) continue
