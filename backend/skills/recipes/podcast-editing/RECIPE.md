@@ -168,7 +168,8 @@ and re-render; nothing was spent on the rejected attempt beyond the validation.
 
 - **Media ids come from the user, never from prose.** This recipe teaches structure; wire
   the user's own recording and assets into the verbs.
-- **Cost posture:** `silence_detect` is a local ffmpeg pass; `plan_edit` is a metered Cloud
-  step priced by mode, reasoning tier, and recording length; `apply_edl` is priced per
-  rendered minute. Quote the plan step to the user before running long recordings.
+- **Cost posture:** `silence_detect` is a lightweight ffmpeg step (a small flat charge);
+  `plan_edit` is a metered Cloud step priced by mode, reasoning tier, and recording length;
+  `apply_edl` is priced per rendered minute. Quote the plan step to the user before running
+  long recordings.
 - **`sync_audio` (multicam alignment) is not part of phase 1** — do not reach for it here.
