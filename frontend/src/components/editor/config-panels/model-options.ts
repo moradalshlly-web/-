@@ -1,7 +1,7 @@
 import { hasCredits } from "@/lib/edition"
 import { creditUnits, creditUnitLabel, formatCreditUnits } from "@/lib/credit-units"
 import { isModelUnavailable } from "@/lib/surface-availability"
-import { aspectRatioOptionsByKind, resolutionOptionsByKind, qualityOptionsByKind, durationsByMode, creditRangesAll, modelsWithFeature, isFlux2Model, isGvpSupportedProvider, isSeedance2Provider, GVP_SUPPORTED_PROVIDERS, VIDEO_GEN_COLLAPSED_T2V_IDS, type LabeledOption } from "@nodaro/shared"
+import { VIDEO_DURATION_AUTO, supportsAutoVideoDuration, aspectRatioOptionsByKind, resolutionOptionsByKind, qualityOptionsByKind, durationsByMode, creditRangesAll, modelsWithFeature, isFlux2Model, isGvpSupportedProvider, isSeedance2Provider, GVP_SUPPORTED_PROVIDERS, VIDEO_GEN_COLLAPSED_T2V_IDS, type LabeledOption } from "@nodaro/shared"
 import { STYLES, curateEntries } from "@nodaro/prompts"
 import type { ImageGenProvider, ImageI2IProvider, ImageToVideoProvider, LipSyncProvider, MotionTransferProviderType, SunoModel, TextToVideoProvider, VideoGenProvider, VideoToVideoProvider } from "@nodaro/shared"
 export { MODELS_WITH_REFERENCE_IMAGE_SUPPORT, REF_IMAGE_MAX_LIMITS, DEFAULT_REF_IMAGE_MAX, NATIVE_NEGATIVE_PROMPT_MODELS, I2I_STRENGTH_SUPPORT, I2I_MASK_SUPPORT, IMAGE_MASK_MODE, SEED_SUPPORT, RENDERING_SPEED_SUPPORT, GUIDANCE_SCALE_SUPPORT } from "@nodaro/shared"
@@ -413,7 +413,13 @@ export const VIDEO_DURATION_OPTIONS: Record<string, ReadonlyArray<{ value: numbe
       ])
       const sorted = Array.from(merged).sort((a, b) => a - b)
       if (sorted.length > 0) {
-        out[id] = sorted.map((n) => ({ value: n, label: `${n}s` }))
+        const options = sorted.map((n) => ({ value: n, label: `${n}s` }))
+        // Auto rides LAST so `options[0]` stays a real length for every
+        // "first option" default; it is a catalog capability, so a new model
+        // that declares `autoDuration` gets the option everywhere for free.
+        out[id] = supportsAutoVideoDuration(id)
+          ? [...options, { value: VIDEO_DURATION_AUTO, label: "Auto" }]
+          : options
       }
     }
     // Grok t2v alias — KIE_T2V_DURATIONS keys grok image-mode under "grok" but
@@ -495,7 +501,7 @@ export function getVideoModelCapabilitiesTooltip(provider: string): string | und
   const ratios = getAspectRatiosForVideoModel(provider)
   const parts: string[] = []
   if (durations.length > 0) {
-    parts.push(`Durations: ${durations.map((d) => `${d.value}s`).join(", ")}`)
+    parts.push(`Durations: ${durations.map((d) => d.label).join(", ")}`)
   }
   if (resolutions && resolutions.length > 0) {
     parts.push(`Resolutions: ${resolutions.map((r) => r.value).join(", ")}`)

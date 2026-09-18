@@ -21,9 +21,11 @@ vi.mock("../config.js", () => ({
 // maths is tested next to it — here only the shim's gating and fallback matter.
 const settle = vi.hoisted(() => ({
   actual: vi.fn(async (_args: Record<string, unknown>) => 7193),
+  auto: vi.fn(async (_args: Record<string, unknown>) => 311),
 }))
 vi.mock("../../ee/billing/seedance2-ref-video-credits.js", () => ({
   seedance2RefVideoActualBaseCredits: settle.actual,
+  seedance2AutoDurationActualBaseCredits: settle.auto,
 }))
 
 import { measureSeedance2RefVideoBaseCredits } from "../seedance2-ref-video-settle.js"
@@ -38,6 +40,8 @@ const args = {
 beforeEach(() => {
   settle.actual.mockClear()
   settle.actual.mockResolvedValue(7193)
+  settle.auto.mockClear()
+  settle.auto.mockResolvedValue(311)
   edition.hasCredits.value = true
 })
 
@@ -84,5 +88,42 @@ describe("measureSeedance2RefVideoBaseCredits", () => {
   it("a failed measurement resolves to undefined (the reservation is committed), never throws", async () => {
     settle.actual.mockRejectedValueOnce(new Error("ffprobe: 403"))
     await expect(measureSeedance2RefVideoBaseCredits(args)).resolves.toBeUndefined()
+  })
+
+  // AUTO duration with nothing wired is the other worst-case reservation (the
+  // model's longest clip) — it settles to the tier of the delivered length.
+  describe("auto duration, no reference video", () => {
+    const auto = { provider: "seedance-2-5", resolution: "480p", outputUrl: args.outputUrl, referenceVideoUrls: undefined, duration: -1 }
+
+    it("measures the delivered clip", async () => {
+      await expect(measureSeedance2RefVideoBaseCredits(auto)).resolves.toBe(311)
+      expect(settle.auto).toHaveBeenCalledWith({ provider: "seedance-2-5", resolution: "480p", outputUrl: args.outputUrl })
+      expect(settle.actual).not.toHaveBeenCalled()
+    })
+
+    it("a fixed duration with nothing wired still commits its reservation", async () => {
+      await expect(measureSeedance2RefVideoBaseCredits({ ...auto, duration: 8 })).resolves.toBeUndefined()
+      await expect(measureSeedance2RefVideoBaseCredits({ ...auto, duration: undefined })).resolves.toBeUndefined()
+      expect(settle.auto).not.toHaveBeenCalled()
+    })
+
+    it("with a reference video wired, Auto rides the reference lane (input seconds are billed too)", async () => {
+      await measureSeedance2RefVideoBaseCredits({ ...args, duration: -1 })
+      expect(settle.actual).toHaveBeenCalledTimes(1)
+      expect(settle.auto).not.toHaveBeenCalled()
+    })
+
+    it("an unmeasurable delivery commits the reservation rather than throwing", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {})
+      settle.auto.mockRejectedValue(new Error("ffprobe failed"))
+      await expect(measureSeedance2RefVideoBaseCredits(auto)).resolves.toBeUndefined()
+    })
+
+    it("another provider, or an edition without credits, is never measured", async () => {
+      await expect(measureSeedance2RefVideoBaseCredits({ ...auto, provider: "kling-3.0" })).resolves.toBeUndefined()
+      edition.hasCredits.value = false
+      await expect(measureSeedance2RefVideoBaseCredits(auto)).resolves.toBeUndefined()
+      expect(settle.auto).not.toHaveBeenCalled()
+    })
   })
 })

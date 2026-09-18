@@ -4218,6 +4218,8 @@ export const en = {
   "vidcfg.choose": "Choose",
   // Inline descriptions
   "vidcfg.durationAutoFromClip": "Duration is set automatically from the source clip.",
+  "vidcfg.durationAuto": "Auto",
+  "vidcfg.durationAutoHint": "Auto: the model picks the length (the source clip's length when editing a reference video). Credits are reserved for the longest clip and refunded down to the delivered length.",
   "vidcfg.wan3Note": "Defaults to 5 seconds at 720p — the tier the credit estimate quotes. Ambient audio is generated with the clip. “Adaptive” matches the wired input; pure text-to-video renders 16:9 unless a concrete ratio is picked.",
   "vidcfg.wan3VideoRefLimits": "Wan 3.0 requires each source clip to be 1–15s, all connected clips to total ≤ 15s, and input duration + output duration to stay ≤ 30s. These are checked by the provider when the job runs, not before it is submitted.",
   "vidcfg.wan3AudioRefLimits": "Each audio reference must be 1–15s (checked before the job is submitted), and all connected audio together must total ≤ 15s.",

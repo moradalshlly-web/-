@@ -27,7 +27,7 @@ import {
   runLtxRetake,
 } from "../../providers/replicate/ltx-video.js"
 import { config } from "../../lib/config.js"
-import { FAL_LIP_SYNC_PROVIDERS, REPLICATE_LIP_SYNC_PROVIDERS, SEEDANCE_2_EXTEND_STITCH, SEEDANCE_2_R2V_MIN_REF_VIDEO_SEC, SEEDANCE_LIP_SYNC_PROVIDERS, estimateLoopTrimAddonCredits, getMaxTtsChars, isVeoProvider, getVideoAudioCapability, parseAttributedDialogue, resolveDialogueVoices } from "@nodaro/shared"
+import { FAL_LIP_SYNC_PROVIDERS, isAutoVideoDuration, pricedOutputDurationSec, REPLICATE_LIP_SYNC_PROVIDERS, SEEDANCE_2_EXTEND_STITCH, SEEDANCE_2_R2V_MIN_REF_VIDEO_SEC, SEEDANCE_LIP_SYNC_PROVIDERS, estimateLoopTrimAddonCredits, getMaxTtsChars, isVeoProvider, getVideoAudioCapability, parseAttributedDialogue, resolveDialogueVoices } from "@nodaro/shared"
 import type { CharacterVoiceSpec, DialogueLine, ResolvedDialogueVoiceLine } from "@nodaro/shared"
 import { mergeVideoAudio } from "../../providers/video/merge-video-audio.js"
 import { combineVideos } from "../../providers/video/combine-videos.js"
@@ -375,6 +375,7 @@ const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx
     outputUrl: result.url,
     referenceVideoUrls,
     refVideoDurationsSec,
+    duration,
   })
 
   // VEO direct-4K: chain the base task into get-4k-video, swapping in the 4K result.
@@ -405,7 +406,11 @@ const handleImageToVideo: HandlerFn = async function handleImageToVideo(job, ctx
   let loopTrimAddonToCharge = 0
   let loopTrimAddonToRefund = 0
   if (loopTrim?.enabled) {
-    const addonCredits = estimateLoopTrimAddonCredits(loopTrim, duration ?? 8)
+    // Same sizing as the route's reservation — Auto is priced at the model's ceiling.
+    const addonCredits = estimateLoopTrimAddonCredits(
+      loopTrim,
+      isAutoVideoDuration(duration) ? pricedOutputDurationSec(resolvedI2vProvider, duration) : (duration ?? 8),
+    )
     try {
       console.log(
         `[worker] image-to-video ${ctx.jobId} smart-loop-cut ` +
@@ -668,6 +673,7 @@ const handleTextToVideo: HandlerFn = async function handleTextToVideo(job, ctx) 
     outputUrl: result.url,
     referenceVideoUrls,
     refVideoDurationsSec,
+    duration,
   })
 
   // VEO direct-4K: chain into 4K BEFORE the sound-strip below, so stripping
@@ -1799,6 +1805,7 @@ const handleVoicedVideo: HandlerFn = async function handleVoicedVideo(job, ctx) 
     outputUrl: result.url,
     referenceVideoUrls: d.referenceVideoUrls,
     refVideoDurationsSec: d.refVideoDurationsSec,
+    duration: d.duration,
   })
 
   await setJobProgress(job, ctx.jobId, 95)

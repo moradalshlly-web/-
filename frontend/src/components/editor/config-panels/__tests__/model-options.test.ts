@@ -202,3 +202,23 @@ describe("SUNO_MODELS mirrors the shared list", () => {
     }
   })
 })
+
+describe("auto video duration option", () => {
+  it("rides LAST on every model that declares the capability, so options[0] stays a real length", async () => {
+    const { VIDEO_DURATION_OPTIONS, getVideoModelCapabilitiesTooltip } = await import("../model-options")
+    const { MODEL_CATALOG, VIDEO_DURATION_AUTO } = await import("@nodaro/shared")
+    const capable = Object.keys(MODEL_CATALOG).filter((id) => MODEL_CATALOG[id]!.autoDuration === true)
+    expect(capable.length).toBeGreaterThan(0)
+    for (const id of capable) {
+      const options = VIDEO_DURATION_OPTIONS[id]!
+      expect(options.at(-1), id).toEqual({ value: VIDEO_DURATION_AUTO, label: "Auto" })
+      expect(options[0]!.value, id).toBeGreaterThan(0)
+      expect(options.filter((o) => o.value === VIDEO_DURATION_AUTO), id).toHaveLength(1)
+      expect(getVideoModelCapabilitiesTooltip(id)).toContain("Auto")
+      expect(getVideoModelCapabilitiesTooltip(id)).not.toContain("-1s")
+    }
+    for (const [id, options] of Object.entries(VIDEO_DURATION_OPTIONS)) {
+      if (!capable.includes(id)) expect(options.some((o) => o.value === VIDEO_DURATION_AUTO), id).toBe(false)
+    }
+  })
+})

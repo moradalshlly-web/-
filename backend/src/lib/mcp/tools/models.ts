@@ -40,6 +40,7 @@ export function projectModel(m: ModelCatalogEntry): Record<string, unknown> {
   if (m.resolutions?.length) out.resolutions = m.resolutions
   if (m.qualities?.length) out.qualities = m.qualities
   if (m.durations?.length) out.durations = m.durations
+  if (m.autoDuration) out.autoDuration = true
   const promptTips = getPromptTips(m.id)
   if (promptTips.length) out.promptTips = promptTips
   // Truth flag for optimizer badges ("vendor doctrine · real rewrite"):

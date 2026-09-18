@@ -13,7 +13,7 @@
  * accept (or undefined when the lever genuinely doesn't apply to the
  * resolved model). Validation errors are SWALLOWED, not surfaced.
  */
-import { MODEL_CATALOG, type ModelCatalogEntry } from "@nodaro/shared"
+import { MODEL_CATALOG, VIDEO_DURATION_AUTO, isAutoVideoDuration, type ModelCatalogEntry } from "@nodaro/shared"
 
 /**
  * Resolve any model id (or freeform string) to a known catalog entry id.
@@ -214,13 +214,21 @@ export function normalizeQuality(
 /**
  * Normalize a duration (seconds). "10s" / "10 seconds" → 10.
  * Snaps to the nearest supported value when requested duration isn't exact.
+ * `-1` / "auto" = let the model pick the length (models with `autoDuration`).
  */
 export function normalizeDuration(
   input: number | string | undefined | null,
   supported: readonly number[] | undefined,
+  autoDuration?: boolean,
 ): number | undefined {
   if (!supported || supported.length === 0) return undefined
   if (input === undefined || input === null) return undefined
+  // Auto (-1 / "auto") is not a length to snap — it passes through for a model
+  // that declares the capability. For any other model it is dropped (the model
+  // renders its default) rather than snapped to the SHORTEST clip.
+  if (isAutoVideoDuration(input) || (typeof input === "string" && input.trim().toLowerCase() === "auto")) {
+    return autoDuration === true ? VIDEO_DURATION_AUTO : undefined
+  }
   let n: number
   if (typeof input === "number") {
     n = input
@@ -357,8 +365,8 @@ export function normalizeVideoInput(
     ?? modelEntry?.resolutions?.[0]
 
   const duration =
-    normalizeDuration(raw.duration, modelEntry?.durations)
-    ?? normalizeDuration(saved.duration, modelEntry?.durations)
+    normalizeDuration(raw.duration, modelEntry?.durations, modelEntry?.autoDuration)
+    ?? normalizeDuration(saved.duration, modelEntry?.durations, modelEntry?.autoDuration)
 
   return { model, aspectRatio, resolution, duration, modelEntry }
 }

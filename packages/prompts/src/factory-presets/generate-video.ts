@@ -1113,4 +1113,26 @@ export const GENERATE_VIDEO_PRESETS: readonly FactoryPreset[] = [
         "{creature || A monstrous yeti with the physique and bone structure of a giant silverback gorilla}, {texture || thick matted white fur with snow crusted on the shoulders}, charges forward and smashes both fists into the ground. Low-angle ground shot looking up to emphasize its scale, heavy camera shake on impact, snow and debris bursting toward the lens. Overcast mountain light, volumetric breath mist around its muzzle. <deep guttural roar, the crunch of impact, debris scattering>（low ominous brass drone）Biologically accurate anatomy, epic cinematic scale. HD, sharp micro-details, stable picture, keep it subtitle-free, do not generate a watermark.",
     },
   },
+  // ── Video Editing ─────────────────────────────────────────────────────────
+  // Seedance 2.5 EDITS a wired reference clip when the prompt reads as an edit
+  // instruction. Edit mode takes the source clip's own ratio and length, so the
+  // preset ships the exact shape the provider requires — Adaptive + Auto
+  // (duration -1) — and the run goes through on the first submit. The user's
+  // own sentence is the whole prompt: the preset only supplies the pre & post
+  // text, with the clip bound as {video:1} (wire it into Video Refs).
+  {
+    id: "generate-video/edit-video",
+    name: "Edit Video",
+    description: "Change a wired clip by instruction — keeps its length, ratio and everything you don't mention.",
+    group: "Video Editing",
+    data: {
+      provider: "seedance-2-5",
+      aspectRatio: "adaptive",
+      duration: -1,
+      generateAudio: true,
+      promptPrefix: "edit {video:1} as follows:\n",
+      promptSuffix:
+        "Keep everything else in the clip unchanged: the same people, motion, framing and timing. Keep it subtitle-free, do not generate a watermark.",
+    },
+  },
 ]

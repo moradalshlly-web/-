@@ -174,6 +174,8 @@ export {
   applyDefaultVideoSelection,
   PRICING_DEFAULT_DURATION_SEC,
   pricedOutputDurationSec,
+  supportsAutoVideoDuration,
+  maxVideoDurationSec,
   PRICING_DEFAULT_RESOLUTION,
 } from "./model-constants.js"
 
@@ -1226,3 +1228,5 @@ export type { CharacterMotionMetadata } from "./character-motion-metadata.js"
 // --- EDL: the edit decision list contract (podcast editing primitives).
 //     Types + validators + pure remap/duration functions; structural only. ---
 export * from "./edl.js"
+
+export { VIDEO_DURATION_AUTO, isAutoVideoDuration } from "./video-duration-auto.js"

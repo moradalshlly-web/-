@@ -233,6 +233,7 @@ describe("reconcileKieJob", () => {
       outputUrl: "https://kie.example/out.mp4",
       referenceVideoUrls: ["https://r2.example.com/videos/ref.mp4"],
       refVideoDurationsSec: [30],
+      duration: 12,
     })
     expect(mocks.finalizeMock).toHaveBeenCalledWith(expect.objectContaining({ jobId: "j-seedance", meteredBaseCredits: 7193 }))
   })

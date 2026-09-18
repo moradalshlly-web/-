@@ -17,7 +17,7 @@ import { buildJobInputData } from "../lib/job-input-data.js"
 import { insertJobIdempotent } from "../lib/insert-job.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { applyPromptPolicies } from "../lib/prompt-policy.js"
-import { VIDEO_GEN_PROVIDERS, SEEDANCE_2_REF_LIMITS, SEEDANCE_2_5_REF_LIMITS, PROMPT_HARD_CEILING, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, isVeoProvider, estimateLoopTrimAddonCredits, seedance2AudioLimitSec, findSeedance2AudioOverLimit, videoModelCanSpeakDialogue, getVideoAudioCapability, TTS_PROVIDERS, buildVideoCreditModelIdentifier, applyDefaultVideoSelection, VIDEO_REF_LIMITS_BY_PROVIDER, videoProviderRequiresImage, videoProviderFoldsLoneEndFrame, type ConnectedReference, type DescribedReference } from "@nodaro/shared"
+import { VIDEO_GEN_PROVIDERS, VIDEO_DURATION_AUTO, isAutoVideoDuration, SEEDANCE_2_REF_LIMITS, SEEDANCE_2_5_REF_LIMITS, PROMPT_HARD_CEILING, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, isVeoProvider, estimateLoopTrimAddonCredits, seedance2AudioLimitSec, findSeedance2AudioOverLimit, videoModelCanSpeakDialogue, getVideoAudioCapability, TTS_PROVIDERS, buildVideoCreditModelIdentifier, applyDefaultVideoSelection, VIDEO_REF_LIMITS_BY_PROVIDER, videoProviderRequiresImage, videoProviderFoldsLoneEndFrame, type ConnectedReference, type DescribedReference } from "@nodaro/shared"
 import { imageRequiredError } from "../lib/video-image-required.js"
 import { resolveVideoReferenceCore, resolveReferenceTokens, resolveRefIdTokens, composeVideoPromptText, appendReferenceLines, renderDescribedReferenceLines, renderReferenceCaptionLines, type VideoExtraRef, type CharacterMeta } from "@nodaro/prompts"
 import { connectedReferenceSchema, describedReferenceSchema, referenceCaptionSchema, DESCRIBED_REFERENCE_LIMIT } from "../lib/connected-reference-schema.js"
@@ -53,7 +53,10 @@ export const generateVideoBody = z.object({
   userPrompt: z.string().max(PROMPT_HARD_CEILING).optional(),
   provider: z.enum(VIDEO_GEN_PROVIDERS).optional(),
   generateAudio: z.boolean().optional(),
-  duration: z.number().int().min(1).max(60).optional(),
+  // Seconds, or VIDEO_DURATION_AUTO (-1): the model picks the length. Only the
+  // providers that accept it send it on (`supportsAutoVideoDuration`); pricing
+  // reserves the model's longest clip and settles on the delivered one.
+  duration: z.union([z.literal(VIDEO_DURATION_AUTO), z.number().int().min(1).max(60)]).optional(),
   mode: z.enum(["pro", "std", "4K"]).optional(),
   sound: z.boolean().optional(),
   negativePrompt: z.string().max(PROMPT_HARD_CEILING).optional(),
@@ -803,7 +806,11 @@ export async function generateVideoRoutes(app: FastifyInstance) {
           const loopTrim = rawLoopTrim ?? (legacyAuto !== undefined
             ? (legacyAuto ? { enabled: true, framesToTest: 8 } : { enabled: false })
             : undefined)
-          const duration = typeof b.duration === "number" ? b.duration : 8
+          // Auto has no seconds of its own — the add-on is sized for the
+          // longest clip the model can render, the same ceiling the base reserves.
+          const duration = isAutoVideoDuration(b.duration)
+            ? pricedOutputDurationSec(bSel.provider, b.duration as number)
+            : typeof b.duration === "number" ? b.duration : 8
           const addon = estimateLoopTrimAddonCredits(loopTrim, duration)
           const audioAddon = await voicedAudioAddonCredits(b)
           return baseCost + addon + audioAddon
@@ -1128,6 +1135,11 @@ export async function generateVideoRoutes(app: FastifyInstance) {
           input_data: buildJobInputData(
             {
               ...parsed.data,
+              // The RESOLVED provider, not the raw (optional) one: the reconcile
+              // cron settles a worst-case reservation from `input_data` alone,
+              // and a provider-less request runs on the platform default — a
+              // Seedance model, so exactly the runs that need the settlement.
+              provider,
               aspectRatio: normAspectRatio,
               resolution: normResolution,
               duration: normDuration,

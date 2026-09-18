@@ -42,4 +42,12 @@ describe("loopTrimAddonForReconcile", () => {
     expect(loopTrimAddonForReconcile("image-to-video", null)).toBe(0)
     expect(loopTrimAddonForReconcile(null, null)).toBe(0)
   })
+
+  it("Auto duration (-1) is sized at the model's longest clip, like the reservation and the worker", () => {
+    const loopTrim = { enabled: true, framesToTest: 24 }
+    const auto = loopTrimAddonForReconcile("image-to-video", { provider: "seedance-2-5", duration: -1, loopTrim })
+    const ceiling = loopTrimAddonForReconcile("image-to-video", { provider: "seedance-2-5", duration: 30, loopTrim })
+    expect(auto).toBe(ceiling)
+    expect(auto).toBeGreaterThan(loopTrimAddonForReconcile("image-to-video", { provider: "seedance-2-5", duration: 5, loopTrim }))
+  })
 })

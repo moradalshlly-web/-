@@ -301,3 +301,36 @@ describe("seedance-2-5 edit-mode retry (t2v entry path)", () => {
     expect(second.duration).toBe(-1)
   })
 })
+
+describe("auto duration (-1) — sent up front, never snapped", () => {
+  it("t2v: a Seedance run carries KIE's own sentinel instead of the shortest allowed clip", async () => {
+    mocks.mockRunKieTask.mockResolvedValueOnce(OK)
+    await provider.textToVideo("a quiet street at dawn", "seedance-2-5", -1, { aspectRatio: "16:9" } as never)
+    expect(sentInputs()[0].duration).toBe(-1)
+  })
+
+  it("i2v: an explicit edit (adaptive + Auto) is already in edit shape — one submit, no retry", async () => {
+    mocks.mockRunKieTask.mockResolvedValueOnce(OK)
+    await provider.imageToVideo(undefined, "edit @video_1 as follows: …", "seedance-2-5", -1, undefined, {
+      aspectRatio: "adaptive",
+      referenceVideoUrls: ["https://cdn.nodaro.ai/videos/source.mp4"],
+    } as never)
+    expect(mocks.mockRunKieTask).toHaveBeenCalledTimes(1)
+    expect(sentInputs()[0]).toMatchObject(SEEDANCE_2_EDIT_MODE_PARAMS)
+  })
+
+  it("a model without the capability keeps its render default", async () => {
+    mocks.mockRunKieTask.mockResolvedValueOnce(OK)
+    await provider.textToVideo("a quiet street at dawn", "minimax-h3", -1, {} as never)
+    expect(sentInputs()[0].duration).not.toBe(-1)
+    expect(Number(sentInputs()[0].duration)).toBeGreaterThan(0)
+  })
+
+  it("a BESPOKE builder never sees Auto — Kling 3.0 renders its default, not the shortest clip", async () => {
+    // runKling3 snaps a truthy duration to the nearest allowed value; -1 would
+    // have become 3s. Auto is neutralised once, at the entry point.
+    mocks.mockKling3Generate.mockResolvedValueOnce({ videoUrl: "https://cdn.kie.ai/k3.mp4" })
+    await provider.textToVideo("a quiet street at dawn", "kling-3.0", -1, {} as never)
+    expect(mocks.mockKling3Generate.mock.calls[0]![0].duration).toBe("5")
+  })
+})

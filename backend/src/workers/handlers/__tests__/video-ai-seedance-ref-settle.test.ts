@@ -119,7 +119,7 @@ describe("image-to-video handler — Seedance reference-video settlement", () =>
       ctx as never,
     )
     expect(mocks.mockMeasure).toHaveBeenCalledWith({
-      provider: "seedance-2-5", resolution: "1080p", outputUrl: RAW_URL, referenceVideoUrls: REFS, refVideoDurationsSec: [30],
+      provider: "seedance-2-5", resolution: "1080p", outputUrl: RAW_URL, referenceVideoUrls: REFS, refVideoDurationsSec: [30], duration: 12,
     })
     expect(finalizeArg().meteredBaseCredits).toBe(7193)
   })
@@ -144,7 +144,7 @@ describe("image-to-video handler — Seedance reference-video settlement", () =>
   it("no measurement (not a Seedance ref run, or unmeasurable) → finalize commits the reservation as before", async () => {
     await handler(makeJob("image-to-video", { imageUrl: "https://x.png", provider: "veo3.1", duration: 8 }) as never, ctx as never)
     expect(mocks.mockMeasure).toHaveBeenCalledWith({
-      provider: "veo3.1", resolution: undefined, outputUrl: RAW_URL, referenceVideoUrls: undefined, refVideoDurationsSec: undefined,
+      provider: "veo3.1", resolution: undefined, outputUrl: RAW_URL, referenceVideoUrls: undefined, refVideoDurationsSec: undefined, duration: 8,
     })
     expect(finalizeArg().meteredBaseCredits).toBeUndefined()
   })
@@ -163,7 +163,7 @@ describe("text-to-video handler — Seedance reference-video settlement", () => 
       ctx as never,
     )
     expect(mocks.mockMeasure).toHaveBeenCalledWith({
-      provider: "seedance-2-5", resolution: "720p", outputUrl: RAW_URL, referenceVideoUrls: REFS, refVideoDurationsSec: [30],
+      provider: "seedance-2-5", resolution: "720p", outputUrl: RAW_URL, referenceVideoUrls: REFS, refVideoDurationsSec: [30], duration: 12,
     })
     expect(finalizeArg().meteredBaseCredits).toBe(3990)
   })

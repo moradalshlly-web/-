@@ -20,7 +20,7 @@ import type {
   ProviderOptions,
   ReconcileOpts,
 } from "../provider.interface.js"
-import { FRAME_MODE_ADAPTIVE_ONLY_ASPECT, isSeedance2Provider, isMinimaxH3Provider, normalizeMinimaxH3Resolution, isGeminiOmniProvider, isWan3Provider, normalizeWan3Resolution, isVeoProvider, getLipSyncMaxAudioSeconds, applyVideoNegativePrompt, applyVideoAudioToggle, getModel, DEFAULT_VIDEO_PROVIDER, SEEDANCE_2_REF_LIMITS, VIDEO_REF_LIMITS_BY_PROVIDER } from "@nodaro/shared"
+import { FRAME_MODE_ADAPTIVE_ONLY_ASPECT, VIDEO_DURATION_AUTO, isAutoVideoDuration, supportsAutoVideoDuration, isSeedance2Provider, isMinimaxH3Provider, normalizeMinimaxH3Resolution, isGeminiOmniProvider, isWan3Provider, normalizeWan3Resolution, isVeoProvider, getLipSyncMaxAudioSeconds, applyVideoNegativePrompt, applyVideoAudioToggle, getModel, DEFAULT_VIDEO_PROVIDER, SEEDANCE_2_REF_LIMITS, VIDEO_REF_LIMITS_BY_PROVIDER } from "@nodaro/shared"
 import { resolveSeedance2Inputs, resolveGeminiOmniI2vInputs, resolveVeoI2vInputs } from "@nodaro/prompts"
 import {
   createSanitizedError,
@@ -1409,6 +1409,12 @@ export class KieVideoProvider
     reconcileOpts?: ReconcileOpts,
   ): Promise<ProviderResult> {
     const provider = model ?? DEFAULT_VIDEO_PROVIDER
+    // Auto (-1) means nothing to a model that does not declare it. Neutralised
+    // HERE, once, so every bespoke request builder below (Kling 3.0, Runway,
+    // Gemini Omni, Wan 3 …) sees "no duration" and renders its default — a
+    // per-builder guard is one a new builder forgets, and an unguarded snap
+    // turns -1 into the SHORTEST clip.
+    if (isAutoVideoDuration(duration) && !supportsAutoVideoDuration(provider)) duration = undefined
     const modelConfig = KIE_VIDEO_MODELS[provider]
     if (!modelConfig) {
       throw createSanitizedError(
@@ -1777,8 +1783,13 @@ export class KieVideoProvider
       }
     }
 
-    // Override duration if provided
-    if (duration) {
+    // Override duration if provided. Auto (-1) is not a length to snap: a
+    // provider that takes it gets KIE's own sentinel, any other provider keeps
+    // its render default (the snap would otherwise turn -1 into the SHORTEST
+    // allowed clip).
+    if (isAutoVideoDuration(duration)) {
+      if (supportsAutoVideoDuration(provider)) input.duration = VIDEO_DURATION_AUTO
+    } else if (duration) {
       const snapped = snapToAllowedDuration(duration, modelConfig.allowedDurations ?? [])
       if (snapped !== duration) {
         console.log(`[KIE.ai] Duration ${duration}s not allowed, snapped to ${snapped}s (allowed: ${JSON.stringify(modelConfig.allowedDurations)})`)
@@ -1959,6 +1970,12 @@ export class KieVideoProvider
     reconcileOpts?: ReconcileOpts,
   ): Promise<ProviderResult> {
     const provider = model ?? DEFAULT_VIDEO_PROVIDER
+    // Auto (-1) means nothing to a model that does not declare it. Neutralised
+    // HERE, once, so every bespoke request builder below (Kling 3.0, Runway,
+    // Gemini Omni, Wan 3 …) sees "no duration" and renders its default — a
+    // per-builder guard is one a new builder forgets, and an unguarded snap
+    // turns -1 into the SHORTEST clip.
+    if (isAutoVideoDuration(duration) && !supportsAutoVideoDuration(provider)) duration = undefined
     const modelConfig = KIE_TEXT_TO_VIDEO_MODELS[provider]
     if (!modelConfig) {
       throw createSanitizedError(
@@ -2119,8 +2136,13 @@ export class KieVideoProvider
       prompt: effectivePrompt,
     }
 
-    // Override duration if provided
-    if (duration) {
+    // Override duration if provided. Auto (-1) is not a length to snap: a
+    // provider that takes it gets KIE's own sentinel, any other provider keeps
+    // its render default (the snap would otherwise turn -1 into the SHORTEST
+    // allowed clip).
+    if (isAutoVideoDuration(duration)) {
+      if (supportsAutoVideoDuration(provider)) input.duration = VIDEO_DURATION_AUTO
+    } else if (duration) {
       const snapped = snapToAllowedDuration(duration, modelConfig.allowedDurations ?? [])
       if (snapped !== duration) {
         console.log(`[KIE.ai] Duration ${duration}s not allowed, snapped to ${snapped}s (allowed: ${JSON.stringify(modelConfig.allowedDurations)})`)

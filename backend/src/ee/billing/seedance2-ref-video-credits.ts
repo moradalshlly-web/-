@@ -1,5 +1,5 @@
-import { MODEL_CATALOG, VIDEO_REF_VIDEO_DURATION_LIMITS } from "@nodaro/shared"
-import { STATIC_CREDIT_COSTS, PriceNotConfiguredError } from "./credits.js"
+import { MODEL_CATALOG, VIDEO_REF_VIDEO_DURATION_LIMITS, buildVideoCreditModelIdentifier } from "@nodaro/shared"
+import { STATIC_CREDIT_COSTS, PriceNotConfiguredError, getModelCreditBaseCost } from "./credits.js"
 // The probe lives in CORE (lib/ref-video-probe.ts) because the routes' duration
 // pre-check — plain input validation, not a credit feature — must run in
 // community/business too, where no ee/ module may be loaded at runtime.
@@ -194,4 +194,35 @@ export async function seedance2RefVideoActualBaseCredits(args: {
     outputDurationSec,
     inputVideoDurationSec: billedInputSeconds(provider, durationsSec).totalSec,
   })
+}
+
+/**
+ * BASE credits an AUTO-duration run with NO reference video actually billed.
+ *
+ * Such a run is reserved at the model's longest clip (`pricedOutputDurationSec`
+ * maps Auto to the top duration tier) because only the model knows the length
+ * it will pick. Once delivered, the clip is priced exactly as a fixed-duration
+ * request of that length would have been: the measured seconds go back through
+ * `buildVideoCreditModelIdentifier`, so the tier ladder, the resolution clamp
+ * and the DB-first price lookup are the reservation's own — no second formula.
+ *
+ * A container reports a hair over the nominal length (5.04s for a 5s clip), so
+ * the seconds are rounded UP only past a quarter second; a genuinely
+ * in-between clip still lands on the next tier, never the cheaper one.
+ *
+ * Throws when the clip cannot be measured or the tier is unpriced — the caller
+ * then commits the reservation (never under-bills).
+ */
+export async function seedance2AutoDurationActualBaseCredits(args: {
+  provider: string
+  resolution: string | undefined
+  outputUrl: string
+}): Promise<number> {
+  const measured = await probeMediaDuration(args.outputUrl)
+  if (!isUsableDuration(measured)) throw new Error(`unusable output duration: ${measured}`)
+  const seconds = Math.max(1, Math.ceil(measured - 0.25))
+  const identifier = buildVideoCreditModelIdentifier(
+    args.provider, seconds, undefined, undefined, undefined, args.resolution, /* hasVideoRef */ false,
+  )
+  return (await getModelCreditBaseCost(identifier)).creditCost
 }

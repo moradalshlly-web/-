@@ -311,6 +311,61 @@ describe("POST /v1/text-to-video", () => {
     expect(queued.prompt).toContain("- @video_1: the establishing drone shot.")
   })
 
+  it("flat path: an editor token resolves to its wire form, and Auto duration survives to the queue", async () => {
+    // The Edit Video preset's shape as the MCP verb sends it: URL arrays only
+    // (no connectedReferences), the preset's pre text, Adaptive + Auto.
+    mockJobInsert({ data: { id: "job-edit" }, error: null })
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/text-to-video",
+      payload: {
+        prompt: "edit {video:1} as follows:\nthe woman wears {image:1}, shown in {image:3}",
+        userId: "00000000-0000-4000-8000-000000000001",
+        provider: "seedance-2-5",
+        aspectRatio: "adaptive",
+        duration: -1,
+        resolution: "480p",
+        referenceVideoUrls: ["https://cdn.nodaro.ai/uploads/clip.mp4"],
+        referenceImageUrls: ["https://cdn.nodaro.ai/uploads/a.jpg", "https://cdn.nodaro.ai/uploads/b.jpg"],
+      },
+    })
+    expect(res.statusCode).toBe(200)
+    const queued = vi.mocked(videoQueue.add).mock.calls.at(-1)?.[1] as Record<string, unknown>
+    // In range → wire form; out of range ({image:3} of 2) → dropped, never raw.
+    expect(queued.prompt).toBe("edit @video_1 as follows:\nthe woman wears @image_1, shown in")
+    expect(queued.duration).toBe(-1)
+    expect(queued.aspectRatio).toBe("adaptive")
+  })
+
+  it("persists the RESOLVED provider in input_data — the reconcile cron settles a worst-case reservation from it", async () => {
+    // A provider-less request runs on the platform default (a Seedance model);
+    // with only the raw `undefined` stored, a recovered Auto run could not be
+    // recognised and would pay its whole ceiling reservation.
+    const { mockInsert } = mockJobInsert({ data: { id: "job-default" }, error: null })
+    await app.inject({
+      method: "POST",
+      url: "/v1/text-to-video",
+      payload: { prompt: "a quiet street at dawn", userId: "00000000-0000-4000-8000-000000000001", duration: -1 },
+    })
+    const queued = vi.mocked(videoQueue.add).mock.calls.at(-1)?.[1] as Record<string, unknown>
+    const inserted = mockInsert.mock.calls.at(-1)![0] as Record<string, unknown>
+    expect(typeof queued.provider).toBe("string")
+    expect((inserted.input_data as Record<string, unknown>).provider).toBe(queued.provider)
+    expect((inserted.input_data as Record<string, unknown>).duration).toBe(-1)
+  })
+
+  it("flat path: a prompt with no token is passed through untouched (no re-spacing)", async () => {
+    mockJobInsert({ data: { id: "job-plain" }, error: null })
+    const prompt = "A slow  pan — two  spaces kept.\n\nSecond paragraph."
+    await app.inject({
+      method: "POST",
+      url: "/v1/text-to-video",
+      payload: { prompt, userId: "00000000-0000-4000-8000-000000000001", provider: "seedance-2-5" },
+    })
+    const queued = vi.mocked(videoQueue.add).mock.calls.at(-1)?.[1] as Record<string, unknown>
+    expect(queued.prompt).toBe(prompt)
+  })
+
   it("returns 500 when job insert fails", async () => {
     mockJobInsert({
       data: null,

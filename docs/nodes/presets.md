@@ -85,6 +85,7 @@ the fallback is used until you type your own value.
 | **Looping & Backgrounds** | Subtle Motion, Living Wallpaper |
 | **Viral & Effects** *(best with an input image)* | Frozen in Ice, Superhero Transformation, Elevator Doors Reveal, POV Skydive, Underwater POV |
 | **Scene Recipes** *(board-driven · Step 2)* | **Viral Meteor Scene**, **Cartoon Short · Opening / Chase / Resolution**, Two-Character Dialogue, Disaster Reveal, Chase Scene — beat-scripted Seedance-2 scenes with native audio and quoted-line **lip-sync**; connect your **Reference Sheet boards / Cast & Consistency grids** (from Generate Image) as reference images so every character stays on-model. Chain multi-scene shorts with Combine Videos' **Seamless Join (One-Shot)** |
+| **Video Editing** | **Edit Video** — edits a clip wired into **Video Refs** by instruction, on Seedance 2.5. Sets Aspect ratio **Adaptive** and Duration **Auto** (the shape the provider requires for an edit, so the result keeps the source clip's ratio and length) and ships only [pre & post text](../prompt-pre-post-text.md): `edit {video:1} as follows:` before your sentence, a "keep everything else unchanged" tail after it. Type the change you want as the prompt; wire reference images to bring in a new outfit, object or place. Credits follow *Auto duration* in the [Generate Video pricing section](ai-video/generate-video.md). |
 
 ### Music factory catalogs
 
@@ -228,6 +229,8 @@ prompt field free for your own additions and the run wraps whatever you type:
   Doodle Overlay ×2).
 - **SwitchX:** all five operation recipes.
 - **Video to Video:** the six **Restyle Looks**.
+- **Generate Video:** **Edit Video** (the `edit {video:1} as follows:` instruction as pre-text, the
+  keep-unchanged tail as post-text).
 
 Template presets that fill from variables (`{subject || …}` camera moves, looks paired with a
 `style`, music / SFX examples) keep their text in `prompt` — you edit that text directly.
