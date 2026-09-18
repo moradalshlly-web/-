@@ -1,7 +1,7 @@
 import type { Node, Edge } from "@xyflow/react"
 import { MODIFY_IMAGE_PROVIDERS, OVERLAY_ANCHORS } from "@nodaro/shared"
 import { MUSIC_GENRE_DEFAULT_DATA, MUSIC_MOOD_DEFAULT_DATA, INSTRUMENTATION_DEFAULT_DATA, VOICE_CHARACTER_DEFAULT_DATA, VOICE_DELIVERY_DEFAULT_DATA } from "@nodaro/prompts"
-import type { ImageI2IProvider, ImageGenProvider, ImageEditProvider, ModifyImageProvider, UpscaleImageProvider, ImageToVideoProvider, TextToVideoProvider, VideoToVideoProvider, VideoGenProvider, VideoUpscaleProvider, ExtendVideoProvider, FaceSwapProvider, TtsProvider, TextToAudioProvider, MusicProvider, TranscribeProvider, LipSyncProvider, ScriptProvider, QaCheckProvider, SunoModel, SunoAddTrackModel, VoiceDesignModel, VoiceChangerModel, CaptionStyle, CaptionLookId, SupportedFontName, ImageCriticMode, ReduceStrategyId, ReduceMeta, SelectorConfig, ScraperActorId, CharacterAspectRatio, AudioFxPreset, LocationReferencePhotoKind as SharedLocationReferencePhotoKind, PipelineFormat, PipelineMode, PipelinePinnableImageModel, PipelinePinnableScriptLlm, PipelinePinnableVideoModel, VideoCriticFrameMode, SceneNodeData as SharedSceneNodeData, PipelineState, ReferenceSheet, SheetType, SheetSkin, SheetFlavour, EntityKind, VideoAnalysisResult, ExposableField, ExposableOutput, ComponentMetadata, IdentityMeta, LlmReasoningEffort, Scene3DReference, OverlayLayerKind, OverlayTextStyle, OverlayQrStyle, OverlayShapeStyle, OverlayImageEffects, OverlayAnchor, Transcript } from "@nodaro/shared"
+import type { ImageI2IProvider, ImageGenProvider, ImageEditProvider, ModifyImageProvider, UpscaleImageProvider, ImageToVideoProvider, TextToVideoProvider, VideoToVideoNodeProvider, VideoGenProvider, VideoUpscaleProvider, ExtendVideoProvider, FaceSwapProvider, TtsProvider, TextToAudioProvider, MusicProvider, TranscribeProvider, LipSyncProvider, ScriptProvider, QaCheckProvider, SunoModel, SunoAddTrackModel, VoiceDesignModel, VoiceChangerModel, CaptionStyle, CaptionLookId, SupportedFontName, ImageCriticMode, ReduceStrategyId, ReduceMeta, SelectorConfig, ScraperActorId, CharacterAspectRatio, AudioFxPreset, LocationReferencePhotoKind as SharedLocationReferencePhotoKind, PipelineFormat, PipelineMode, PipelinePinnableImageModel, PipelinePinnableScriptLlm, PipelinePinnableVideoModel, VideoCriticFrameMode, SceneNodeData as SharedSceneNodeData, PipelineState, ReferenceSheet, SheetType, SheetSkin, SheetFlavour, EntityKind, VideoAnalysisResult, ExposableField, ExposableOutput, ComponentMetadata, IdentityMeta, LlmReasoningEffort, Scene3DReference, OverlayLayerKind, OverlayTextStyle, OverlayQrStyle, OverlayShapeStyle, OverlayImageEffects, OverlayAnchor, Transcript } from "@nodaro/shared"
 import type { WardrobeValue, TransitionPosition, TransitionDuration, TransitionIntensity, CharacterFxPosition, CharacterFxDuration, CharacterFxIntensity, CharacterMotionPosition, CharacterMotionPace, PersonValue, PickerApplyMode, PickerGaps, DirectionFields, StructuredPromptFields } from "@nodaro/prompts"
 import type { ReferencePhotoKind } from "@/lib/reference-photo-routing"
 import { IMAGE_STYLE_PRESETS, GVP_PROVIDERS, getAspectRatiosForVideoModel, getVideoResolutionOptions } from "@/components/editor/config-panels/model-options"
@@ -2275,16 +2275,23 @@ export type VideoToVideoData = PromptAffixFields & {
   [key: string]: unknown
   label: string
   prompt: string
-  provider: VideoToVideoProvider
+  /** Includes the Seedance EDIT models, which are NOT `/v1/video-to-video`
+   *  route providers — that lane dispatches as a text-to-video job in edit
+   *  shape (see SEEDANCE_VIDEO_EDIT_PROVIDERS in @nodaro/shared). */
+  provider: VideoToVideoNodeProvider
   duration: number
   negativePrompt?: string
   fieldMappings: FieldMappings
   // Wan / Wan Flash params
   v2vDuration?: "5" | "10"
-  v2vResolution?: "720p" | "1080p"
+  /** The node's ONE resolution field, shared by every provider. `480p` is
+   *  Seedance-only (the Wan/VideoEdit lanes offer 720p/1080p). */
+  v2vResolution?: "480p" | "720p" | "1080p"
   // Wan Flash only
   audio?: boolean
   multiShots?: boolean
+  /** Seedance edit lane: native audio on the generated clip (default on). */
+  generateAudio?: boolean
   // Wan 2.7 VideoEdit params
   videoEditDuration?: "0" | "5" | "10"
   audioSetting?: "auto" | "origin"
@@ -7509,7 +7516,13 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     label: "Video to Video",
     category: "ai",
     creditCost: 25,
-    inputs: ["video", "cinematography", "prompt", "negative"],
+    // Mirrors the handle set the node renders. `imageReferences` /
+    // `audioReferences` are the CANONICAL ids (same as Generate Video), so the
+    // shared REFERENCE_HANDLE_MAP / countRefModalityEdges route them into
+    // referenceImageUrls / referenceAudioUrls with no v2v special-casing. Both
+    // are Seedance-edit-lane only — getHandleConnectionLimit returns 0 (a dimmed
+    // pip) for every route provider.
+    inputs: ["video", "cinematography", "prompt", "negative", "imageReferences", "audioReferences"],
     outputs: ["video"],
     defaultData: { label: "Video to Video", prompt: "", duration: 5, negativePrompt: "", fieldMappings: {} },
   },

@@ -4165,6 +4165,7 @@ export const en = {
   "vidcfg.fun": "Fun",
   "vidcfg.generateAudioPricing": "Generate Audio (affects pricing)",
   "vidcfg.generateAudioDefaultOn": "Generate Audio (default on)",
+  "vidcfg.v2vSeedanceEditHint": "Your prompt is sent as “edit @video_1 as follows: …” — the result keeps the source clip’s length and aspect ratio. The clip must be 4–30 seconds. Wire images into Image Refs and cite them as {image:1}, {image:2}…",
   "vidcfg.generateAudio": "Generate Audio",
   "vidcfg.inputImage": "Input Image",
   "vidcfg.inputVideo": "Input Video",

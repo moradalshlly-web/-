@@ -3,7 +3,7 @@ import { creditUnits, creditUnitLabel, formatCreditUnits } from "@/lib/credit-un
 import { isModelUnavailable } from "@/lib/surface-availability"
 import { VIDEO_DURATION_AUTO, supportsAutoVideoDuration, aspectRatioOptionsByKind, resolutionOptionsByKind, qualityOptionsByKind, durationsByMode, creditRangesAll, modelsWithFeature, isFlux2Model, isGvpSupportedProvider, isSeedance2Provider, GVP_SUPPORTED_PROVIDERS, VIDEO_GEN_COLLAPSED_T2V_IDS, type LabeledOption } from "@nodaro/shared"
 import { STYLES, curateEntries } from "@nodaro/prompts"
-import type { ImageGenProvider, ImageI2IProvider, ImageToVideoProvider, LipSyncProvider, MotionTransferProviderType, SunoModel, TextToVideoProvider, VideoGenProvider, VideoToVideoProvider } from "@nodaro/shared"
+import type { ImageGenProvider, ImageI2IProvider, ImageToVideoProvider, LipSyncProvider, MotionTransferProviderType, SunoModel, TextToVideoProvider, VideoGenProvider, VideoToVideoNodeProvider } from "@nodaro/shared"
 export { MODELS_WITH_REFERENCE_IMAGE_SUPPORT, REF_IMAGE_MAX_LIMITS, DEFAULT_REF_IMAGE_MAX, NATIVE_NEGATIVE_PROMPT_MODELS, I2I_STRENGTH_SUPPORT, I2I_MASK_SUPPORT, IMAGE_MASK_MODE, SEED_SUPPORT, RENDERING_SPEED_SUPPORT, GUIDANCE_SCALE_SUPPORT } from "@nodaro/shared"
 export type { ImageMaskMode } from "@nodaro/shared"
 
@@ -219,7 +219,16 @@ export const GVP_PROVIDERS: readonly { value: VideoGenProvider; label: string; d
 export const EVP_PROVIDERS: readonly { value: VideoGenProvider; label: string; desc: string }[] =
   GVP_PROVIDERS.filter((m) => isSeedance2Provider(m.value))
 
-export const VIDEO_V2V_MODELS: readonly { value: VideoToVideoProvider; label: string; desc: string }[] = [
+/**
+ * Every model the Video to Video NODE offers — typed `VideoToVideoNodeProvider`,
+ * NOT `VideoToVideoProvider`: the Seedance entry is deliberately not a
+ * `/v1/video-to-video` route provider. Seedance has no v2v endpoint, so that
+ * lane dispatches as a text-to-video job in edit shape (see
+ * SEEDANCE_VIDEO_EDIT_PROVIDERS in @nodaro/shared). `route-enum-sync.test.ts`
+ * pins the split.
+ */
+export const VIDEO_V2V_MODELS: readonly { value: VideoToVideoNodeProvider; label: string; desc: string }[] = [
+  { value: "seedance-2-5", label: "Seedance 2.5 Edit", desc: "Edit the clip by instruction — keeps its length and ratio; add image references" },
   { value: "luma-modify", label: "Luma Modify", desc: "Luma video modification" },
   { value: "runway-aleph", label: "Runway Aleph", desc: "Runway AI video-to-video conversion" },
   { value: "happyhorse-edit", label: "HappyHorse Edit", desc: "Video-to-video editing, up to 60s input" },

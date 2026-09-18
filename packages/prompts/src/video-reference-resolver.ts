@@ -46,7 +46,7 @@ import { insertBeforeStyleSection } from "./prompt-style-section.js"
 // The binding surface string and the id-addressed token resolver live in their
 // own modules (see them for the contracts); re-exported here so every existing
 // importer of this module — and the package index's `export *` — keeps working.
-export { REF_BINDING, identityRefsSentence } from "./ref-binding.js"
+export { REF_BINDING, identityRefsSentence, SEEDANCE_VIDEO_EDIT_PREFIX, buildSeedanceVideoEditPrompt } from "./ref-binding.js"
 export { resolveRefIdTokens, type RefIdTokenContext } from "./ref-id-tokens.js"
 
 

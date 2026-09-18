@@ -1,7 +1,7 @@
 ---
 node_type: video-to-video
-generated_at: 2026-08-29T19:02:38.549Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-18T15:14:07.953Z
+generated_from: 0e34343b1
 ---
 
 # Video to Video
@@ -10,13 +10,13 @@ generated_from: 7dbf4818b
 **Type:** `video-to-video`
 **Category:** ai
 **Credit cost:** 25
-**Inputs (target handles):** `video`, `cinematography`, `prompt`, `negative`
+**Inputs (target handles):** `video`, `cinematography`, `prompt`, `negative`, `imageReferences`, `audioReferences`
 **Outputs (source handles):** `video`
 
 **Required data fields:**
 - `label: string`
 - `prompt: string`
-- `provider: VideoToVideoProvider`
+- `provider: VideoToVideoNodeProvider`
 - `duration: number`
 - `fieldMappings: FieldMappings`
 
@@ -25,9 +25,10 @@ generated_from: 7dbf4818b
 - `promptSuffix?: string`
 - `negativePrompt?: string`
 - `v2vDuration?: "5" | "10"`
-- `v2vResolution?: "720p" | "1080p"`
+- `v2vResolution?: "480p" | "720p" | "1080p"`
 - `audio?: boolean`
 - `multiShots?: boolean`
+- `generateAudio?: boolean`
 - `videoEditDuration?: "0" | "5" | "10"`
 - `audioSetting?: "auto" | "origin"`
 - `promptExtend?: boolean`
@@ -78,6 +79,7 @@ generated_from: 7dbf4818b
 - `audio`
 - `multi_shots`
 - `reference_image_url`
+- `reference_image_urls`
 - `seed`
 <!-- AUTO-GEN:END mcp-call -->
 

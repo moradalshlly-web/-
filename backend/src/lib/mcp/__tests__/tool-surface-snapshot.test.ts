@@ -301,6 +301,13 @@ const CAPTION_WORD_WINDOW_WORDING_BYTES = 243
 // added, no arg added; `generate_video` is 8_182 B, under the 8_192 B per-tool
 // budget. Measured: 363_032 total − 362_980 = 52 B.
 const VIDEO_AUTO_DURATION_WORDING_BYTES = 52
+// Seedance video edit on `modify_video` (2026-09-18): `seedance-2-5` joins the
+// model options (dispatched through the Seedance reference-video lane — it has
+// no v2v endpoint), with one sentence on what it does and how it bills, a
+// `480p` resolution member, and ONE new arg, `reference_image_urls` (the
+// outfit / object / place an edit brings in; the other v2v models take a single
+// `reference_image_url`). No tool added. Measured: 363_409 − 363_032 = 377 B.
+const SEEDANCE_VIDEO_EDIT_VERB_BYTES = 377
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -324,7 +331,8 @@ export const TOOL_WIRE_BUDGET = {
     CAPTION_LOOK_PRESETS_BYTES +
     TRANSCRIBE_WORD_TIMESTAMPS_BYTES +
     CAPTION_WORD_WINDOW_WORDING_BYTES +
-    VIDEO_AUTO_DURATION_WORDING_BYTES,
+    VIDEO_AUTO_DURATION_WORDING_BYTES +
+    SEEDANCE_VIDEO_EDIT_VERB_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

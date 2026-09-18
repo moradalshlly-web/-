@@ -631,6 +631,7 @@ const MODEL_DESCRIPTIONS_HE: Record<string, string> = {
   "Light, fast, end frame support": "קליל, מהיר, תמיכה בפריים סיום",
   "Lightricks LTX 2.3 Fast — text/image→video, durations up to 20s": "Lightricks LTX 2.3 Fast — מטקסט/תמונה לווידאו, משך עד 20 שניות",
   "Lightricks LTX 2.3 Pro — text/image/audio→video, up to 4K": "Lightricks LTX 2.3 Pro — מטקסט/תמונה/אודיו לווידאו, עד 4K",
+  "Edit the clip by instruction — keeps its length and ratio; add image references": "עריכת הקליפ לפי הוראה — שומר על האורך ועל יחס המסך; אפשר להוסיף ייחוסי תמונה",
   "Luma video modification": "שינוי וידאו עם Luma",
   "MiniMax premium, 4-15s, 2K or 768P, multimodal references, native audio": "MiniMax פרימיום, 4–15 שניות, 2K או 768P, ייחוסים מולטימודליים, אודיו מובנה",
   "Move subjects within scene": "הזזת נושאים בתוך הסצנה",

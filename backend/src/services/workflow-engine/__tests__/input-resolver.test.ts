@@ -1044,3 +1044,40 @@ describe("resolveNodeInputs — wired parameter pickers beside a wired text-prom
     expect(resolveNodeInputs(target, edges, states, [text, lens, target]).prompt).toBe("a knight riding a horse")
   })
 })
+
+// ---------------------------------------------------------------------------
+// video-to-video — the SAME canonical reference handles, no node-type gate.
+// The Seedance EDIT lane needs `referenceImageUrls` / `referenceAudioUrls` on a
+// video-to-video target; REFERENCE_HANDLE_MAP routing is keyed by targetHandle
+// only, so this is already true. Pinned here so a future node-type gate on that
+// branch can't silently strip the Seedance lane's references. FE twin:
+// frontend/.../__tests__/node-input-resolver.test.ts.
+// ---------------------------------------------------------------------------
+
+describe("resolveNodeInputs — video-to-video reference handles", () => {
+  it("routes imageReferences edges into referenceImageUrls (in edge order)", () => {
+    const target = node("t", "video-to-video")
+    const a = node("s1", "generate-image")
+    const b = node("s2", "upload-image")
+    const edges = [edge("s1", "t", null, "imageReferences"), edge("s2", "t", null, "imageReferences")]
+    const states: Record<string, NodeExecutionState> = {
+      s1: { status: "completed", output: { imageUrl: "https://a.png" } },
+      s2: { status: "completed", output: { imageUrl: "https://b.png" } },
+    }
+
+    const result = resolveNodeInputs(target, edges, states, [a, b, target])
+    expect(result.referenceImageUrls).toEqual(["https://a.png", "https://b.png"])
+  })
+
+  it("routes audioReferences edges into referenceAudioUrls", () => {
+    const target = node("t", "video-to-video")
+    const src = node("s", "text-to-speech")
+    const edges = [edge("s", "t", null, "audioReferences")]
+    const states: Record<string, NodeExecutionState> = {
+      s: { status: "completed", output: { audioUrl: "https://ref.mp3" } },
+    }
+
+    const result = resolveNodeInputs(target, edges, states, [src, target])
+    expect(result.referenceAudioUrls).toEqual(["https://ref.mp3"])
+  })
+})

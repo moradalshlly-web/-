@@ -28,6 +28,8 @@ vi.mock("@/components/ui/popover", () => ({
 }))
 
 import { QuickConfigSelect, getQuickConfigs, type QuickConfigControl } from "../node-quick-configs"
+import { VIDEO_V2V_MODELS } from "@/components/editor/config-panels/model-options"
+import { MODEL_CATALOG } from "@nodaro/shared"
 
 // A provider-aware control mirroring video-to-video's resolution: runway-aleph
 // has no resolution lever (returns []), every other provider gets 720p/1080p.
@@ -657,5 +659,38 @@ describe("QuickConfigSelect defaultValue (unset-field display)", () => {
       <QuickConfigSelect nodeId="n1" control={aspectControl} value="16:9" data={{}} />,
     )
     expect(getByTestId("select-trigger").textContent).toContain("16:9 (Landscape)")
+  })
+})
+
+// ===========================================================================
+// video-to-video quick-config registration
+// ===========================================================================
+describe("video-to-video NODE_QUICK_CONFIGS registration", () => {
+  const resolve = (c: QuickConfigControl, data: Record<string, unknown> = {}) =>
+    typeof c.options === "function" ? c.options(data) : c.options
+
+  it("registers 2 controls: provider, v2vResolution", () => {
+    const controls = getQuickConfigs("video-to-video")
+    expect(controls.map((c) => c.field)).toEqual(["provider", "v2vResolution"])
+  })
+
+  it("offers every model the NODE supports — incl. the Seedance edit lane", () => {
+    const [providerControl] = getQuickConfigs("video-to-video")
+    const values = resolve(providerControl).map((o) => o.value)
+    expect(values).toEqual(VIDEO_V2V_MODELS.map((m) => m.value))
+    expect(values).toContain("seedance-2-5")
+  })
+
+  it("resolution is provider-aware: Seedance adds 480p, route providers do not", () => {
+    const [, resolutionControl] = getQuickConfigs("video-to-video")
+    // Seedance EDIT lane — straight off MODEL_CATALOG, so 480p is offered.
+    expect(resolve(resolutionControl, { provider: "seedance-2-5" }).map((o) => o.value)).toEqual(
+      MODEL_CATALOG["seedance-2-5"]?.resolutions,
+    )
+    // A route provider must NEVER be offered 480p — the /v1/video-to-video Zod
+    // enum rejects it (the recurring provider-sync trap).
+    expect(resolve(resolutionControl, { provider: "wan" }).map((o) => o.value)).toEqual(["720p", "1080p"])
+    // runway-aleph has no resolution lever at all → hidden + cleared.
+    expect(resolve(resolutionControl, { provider: "runway-aleph" })).toEqual([])
   })
 })

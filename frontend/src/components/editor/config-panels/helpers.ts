@@ -1,6 +1,6 @@
 import type { WorkflowNode, WorkflowEdge, FieldMappings } from "@/types/nodes"
 import type { SourceNodeInfo } from "./types"
-import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, editPlanSourceDurationSec, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
+import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, editPlanSourceDurationSec, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
 import { videoAuditAnalysisWired } from "@/components/editor/workflow-editor/types"
 import { renderVideoCreditIdForNode } from "@/lib/render-video-plan"
 import type { LlmFeature } from "@nodaro/shared"
@@ -493,6 +493,18 @@ export function getModelIdentifier(
 
   const provider = data.provider as string | undefined
   if (!provider) return nodeType
+
+  // Video to Video, Seedance EDIT lane: Seedance has no v2v endpoint — the node
+  // dispatches a text-to-video job in edit shape — so it reserves on the
+  // reference-video ladder at the model's longest clip. ONE shared builder with
+  // the orchestrator's reserve (payload-builder.ts) and the node's cost pill, so
+  // the Execute badge / run-confirm dialog / precheck quote exactly what the run
+  // holds. Falling through to `buildCreditModelIdentifier` would ask
+  // /v1/credits/model-cost for the bare `seedance-2-5` key — the 8s 720p row,
+  // an under-quote of every longer or higher-res edit.
+  if (nodeType === "video-to-video" && isSeedanceVideoEditProvider(provider)) {
+    return seedanceVideoEditCreditId(provider, data.v2vResolution as string | undefined)
+  }
 
   // Extend-video: VEO quality costs more than fast
   if (nodeType === "extend-video" && provider === "veo-extend" && data.model === "quality") {

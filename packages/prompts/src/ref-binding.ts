@@ -43,3 +43,22 @@ export const REF_BINDING = {
   frame: (n: number, role: "opening" | "closing") =>
     `Use @image_${n} as the ${role} (${role === "opening" ? "first" : "last"}) frame of the video.`,
 } as const
+
+/**
+ * The instruction that makes Seedance EDIT a wired clip rather than use it as a
+ * style reference — the Video to Video node's Seedance lane prepends it to the
+ * user's own sentence. Written with the EDITOR token (`{video:1}`) so it goes
+ * through the same reference resolver as any prompt: the source clip is the
+ * run's first reference video, so it resolves to `@video_1` on the wire. The
+ * instruction lands on its own line after it.
+ */
+export const SEEDANCE_VIDEO_EDIT_PREFIX = "edit {video:1} as follows:\n"
+
+/** The user's sentence, framed as an edit of the source clip. Idempotent: a
+ *  prompt that already opens with the instruction (a preset's pre text, a
+ *  hand-written one, either token spelling) is left alone. */
+export function buildSeedanceVideoEditPrompt(prompt: string | undefined): string {
+  const body = (prompt ?? "").trim()
+  if (/^edit\s+(?:\{video:1(?::[^}]*)?\}|@video_1(?!\w))/i.test(body)) return body
+  return `${SEEDANCE_VIDEO_EDIT_PREFIX}${body}`
+}

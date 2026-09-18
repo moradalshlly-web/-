@@ -17,8 +17,8 @@ import {
   uiMeta,
 } from "./_verb-helpers.js"
 import { WIDGET_URI } from "../widgets/registrar.js"
-import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, CAPTION_LOOK_IDS, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, TRANSCRIBE_LANES } from "@nodaro/shared"
-import { applyPromptAffixes } from "@nodaro/prompts"
+import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, CAPTION_LOOK_IDS, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_NODE_PROVIDERS, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, TRANSCRIBE_LANES } from "@nodaro/shared"
+import { applyPromptAffixes, buildSeedanceVideoEditPrompt } from "@nodaro/prompts"
 
 // Map list_models catalog/display ids → /v1/motion-transfer route providers.
 // The catalog advertises `motion-transfer` / `kling-3.0-motion` (the credit/
@@ -1440,11 +1440,12 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
           .string()
           .optional()
           .describe(
-            `v2v model. Default \`wan\`. Options: ${VIDEO_TO_VIDEO_PROVIDERS.join(", ")}. ` +
-            "Unknown values fall back to wan.",
+            `v2v model. Default \`wan\`. Options: ${VIDEO_TO_VIDEO_NODE_PROVIDERS.join(", ")}. ` +
+            "Unknown values fall back to wan. `seedance-2-5` edits the clip by instruction and keeps its " +
+            "length and ratio (clip 4-30s; billed on input + output seconds, settled to the delivered length).",
           ),
         duration: z.enum(["5", "10"]).optional().describe("Wan / Wan Flash only — 5s or 10s output."),
-        resolution: z.enum(["720p", "1080p"]).optional().describe("Wan / Wan Flash only."),
+        resolution: z.enum(["480p", "720p", "1080p"]).optional().describe("Wan / Wan Flash (720p/1080p), seedance-2-5 (480p-1080p)."),
         aspect_ratio: z
           .enum(["16:9", "9:16", "4:3", "3:4", "1:1", "21:9"])
           .optional()
@@ -1452,6 +1453,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         audio: z.boolean().optional().describe("Wan Flash only — preserve/regenerate audio."),
         multi_shots: z.boolean().optional().describe("Wan Flash only — allow multi-shot scene changes."),
         reference_image_url: z.string().url().optional().describe("Runway Aleph only — style reference image."),
+        reference_image_urls: z.array(z.string().url()).max(30).optional().describe("seedance-2-5 only — cite as {image:N} in the prompt."),
         seed: z.number().int().min(0).optional(),
       },
       outputSchema: {
@@ -1495,6 +1497,28 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         }
       }
       const provider = args.model ?? "wan"
+      // Seedance edits a REFERENCE video (no v2v endpoint): dispatch through the
+      // one Seedance reference-video lane, in edit shape, the clip as {video:1}.
+      if (isSeedanceVideoEditProvider(provider)) {
+        const refs = [...(args.reference_image_urls ?? []), ...(args.reference_image_url ? [args.reference_image_url] : [])]
+        return dispatchJob(fastify, session, {
+          url: "/v1/text-to-video",
+          payload: {
+            prompt: buildSeedanceVideoEditPrompt(args.prompt),
+            provider,
+            ...SEEDANCE_VIDEO_EDIT_SHAPE,
+            ...(args.resolution ? { resolution: args.resolution } : {}),
+            referenceVideoUrls: [videoUrl],
+            ...(refs.length ? { referenceImageUrls: refs } : {}),
+            ...(args.seed !== undefined ? { seed: args.seed } : {}),
+            mcp_client: session.clientName,
+            userId: session.userId,
+          },
+          label: "video-to-video",
+          widgetKind: "video",
+          widgetData: { prompt: args.prompt, model: provider, aspectRatio: SEEDANCE_VIDEO_EDIT_SHAPE.aspectRatio, resolution: args.resolution },
+        })
+      }
       const payload: Record<string, unknown> = {
         videoUrl,
         prompt: args.prompt,

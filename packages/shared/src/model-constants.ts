@@ -4,7 +4,7 @@
  */
 import { z } from "zod"
 import { MODEL_CATALOG } from "./model-catalog.js"
-import { isAutoVideoDuration } from "./video-duration-auto.js"
+import { isAutoVideoDuration, VIDEO_DURATION_AUTO } from "./video-duration-auto.js"
 
 /** Base USD value of 1 Nodaro credit. Used for cost→credit conversion. */
 export const CREDIT_BASE_USD = 0.002
@@ -1042,6 +1042,41 @@ export const VIDEO_TO_VIDEO_PROVIDERS = [
   "happyhorse-edit",
 ] as const
 export type VideoToVideoProvider = typeof VIDEO_TO_VIDEO_PROVIDERS[number]
+
+/**
+ * Seedance models the Video to Video NODE offers as a whole-clip, prompt-driven
+ * EDIT ("make it black and white", "she wears @image_1").
+ *
+ * These are deliberately NOT members of {@link VIDEO_TO_VIDEO_PROVIDERS} (the
+ * `/v1/video-to-video` route's own enum): Seedance has no separate edit
+ * endpoint — it edits a REFERENCE video when the prompt reads as an edit. So
+ * every surface (single-node run, DAG payload builder, MCP `modify_video`)
+ * dispatches these through the ONE existing Seedance reference-video lane
+ * (`text-to-video`), with the source clip as `@video_1` and the edit shape
+ * below. Reference-clip bounds, the unit×(input+output) reservation, the
+ * measured settlement, the edit-mode retry and the reconcile recovery are that
+ * lane's — there is no second copy to keep in step.
+ */
+export const SEEDANCE_VIDEO_EDIT_PROVIDERS = ["seedance-2-5"] as const
+export type SeedanceVideoEditProvider = typeof SEEDANCE_VIDEO_EDIT_PROVIDERS[number]
+
+export function isSeedanceVideoEditProvider(provider: string | undefined): provider is SeedanceVideoEditProvider {
+  return !!provider && (SEEDANCE_VIDEO_EDIT_PROVIDERS as readonly string[]).includes(provider)
+}
+
+/** Every model the Video to Video node can be set to: the route's own providers
+ *  plus the Seedance edit models dispatched through the text-to-video lane. */
+export const VIDEO_TO_VIDEO_NODE_PROVIDERS = [...VIDEO_TO_VIDEO_PROVIDERS, ...SEEDANCE_VIDEO_EDIT_PROVIDERS] as const
+export type VideoToVideoNodeProvider = typeof VIDEO_TO_VIDEO_NODE_PROVIDERS[number]
+
+/**
+ * The request shape Seedance edit mode requires, sent UP FRONT by the Video to
+ * Video node: the output takes the source clip's own ratio and length
+ * (`adaptive`, and Auto = `VIDEO_DURATION_AUTO`). Camel-cased twin of the KIE
+ * wire pair the provider layer resubmits with when Seedance reclassifies an
+ * ordinary run as an edit.
+ */
+export const SEEDANCE_VIDEO_EDIT_SHAPE = { aspectRatio: "adaptive", duration: VIDEO_DURATION_AUTO } as const
 
 /** Face swap providers */
 export const FACE_SWAP_PROVIDERS = [

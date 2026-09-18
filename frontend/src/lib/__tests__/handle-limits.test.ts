@@ -4,6 +4,7 @@ import {
   seedance2ImagePoolSlotsConsumed,
 } from "../handle-limits"
 import type { WorkflowEdge, WorkflowNode } from "@/types/nodes"
+import { VIDEO_REF_LIMITS_BY_PROVIDER, VIDEO_TO_VIDEO_PROVIDERS } from "@nodaro/shared"
 
 describe("getHandleConnectionLimit (generate-video)", () => {
   it("returns endFrame cap 1 for providers in PROVIDERS_WITH_END_FRAME", () => {
@@ -322,5 +323,38 @@ describe("getHandleConnectionLimit (generate-image references)", () => {
     )
     expect(result?.limit).toBe(1)
     expect(result?.isMultiProviderMin).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// video-to-video — the Seedance EDIT lane's two reference rails
+// ---------------------------------------------------------------------------
+describe("getHandleConnectionLimit (video-to-video)", () => {
+  const v2v = (provider: string): WorkflowNode =>
+    ({ id: "n", type: "video-to-video", data: { provider } }) as unknown as WorkflowNode
+
+  it("caps the Seedance edit lane from the shared per-provider ref limits", () => {
+    // SEEDANCE_2_5_REF_LIMITS — 30 images / 10 audio. Read through
+    // VIDEO_REF_LIMITS_BY_PROVIDER, never a literal in the UI.
+    expect(getHandleConnectionLimit(v2v("seedance-2-5"), "imageReferences")?.limit).toBe(
+      VIDEO_REF_LIMITS_BY_PROVIDER["seedance-2-5"]?.images,
+    )
+    expect(getHandleConnectionLimit(v2v("seedance-2-5"), "audioReferences")?.limit).toBe(
+      VIDEO_REF_LIMITS_BY_PROVIDER["seedance-2-5"]?.audio,
+    )
+  })
+
+  it("reports 0 on both rails for every /v1/video-to-video ROUTE provider", () => {
+    // The route takes at most one `referenceImageUrl` and no audio at all, so
+    // the pips dim rather than promising a payload slot that doesn't exist.
+    for (const p of VIDEO_TO_VIDEO_PROVIDERS) {
+      expect(getHandleConnectionLimit(v2v(p), "imageReferences")?.limit, p).toBe(0)
+      expect(getHandleConnectionLimit(v2v(p), "audioReferences")?.limit, p).toBe(0)
+    }
+  })
+
+  it("leaves the node's other handles uncapped", () => {
+    expect(getHandleConnectionLimit(v2v("seedance-2-5"), "video")).toBeNull()
+    expect(getHandleConnectionLimit(v2v("seedance-2-5"), "prompt")).toBeNull()
   })
 })
