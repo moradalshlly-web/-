@@ -2953,6 +2953,104 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
     },
   )
 
+  // ── silence_detect (podcast editing — CORE, ungated) ──
+  // Keyless ffmpeg silencedetect pass over a source's audio proxy — the
+  // analysis half of a tighten, no transcript and no pixels. The silence
+  // ranges land in the job's output_data (feed them to plan_edit, or hand-cut
+  // an EDL). Core verb: registers on EVERY install (no hasCredits() gate),
+  // unlike the cloud-only plan_edit below — the deliberate connected-self-host
+  // asymmetry (the editorial planner is cloud-only; the primitives are not).
+  server.registerTool(
+    "silence_detect",
+    {
+      title: "Silence Detect",
+      description:
+        "Detect the silent ranges in a recording — one ffmpeg pass over the source's audio, " +
+        "no transcript and no pixels. `audio_url` accepts an audio OR a video source (the " +
+        "audio track is read either way). Tune `threshold_db` (dBFS, at or below 0), " +
+        "`min_silence_ms`, and `pad_ms` (speech kept around each range). Returns a job_id — " +
+        "poll `get_job`; the silence ranges are in the job's `output_data`, ready to feed " +
+        "`plan_edit` or a hand-cut EDL for `apply_edl`.",
+      inputSchema: {
+        audio_url: z.string().url().describe("Audio OR video source URL — the audio track is read either way."),
+        threshold_db: z.number().min(-90).max(0).optional().describe("Silence threshold in dBFS (at or below 0). Default -35, a good spoken-word floor."),
+        min_silence_ms: z.number().int().min(1).max(600_000).optional().describe("Shortest silence to report, in ms. Default 700."),
+        pad_ms: z.number().int().min(0).max(60_000).optional().describe("Speech kept around each range, in ms (shrinks each range inward). Default 120."),
+      },
+      outputSchema: JOB_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      _meta: uiMeta(WIDGET_URI.jobAuto),
+    },
+    async (args) => {
+      const payload: Record<string, unknown> = {
+        audioUrl: args.audio_url,
+        ...(args.threshold_db !== undefined ? { thresholdDb: args.threshold_db } : {}),
+        ...(args.min_silence_ms !== undefined ? { minSilenceMs: args.min_silence_ms } : {}),
+        ...(args.pad_ms !== undefined ? { padMs: args.pad_ms } : {}),
+        mcp_client: session.clientName,
+        userId: session.userId,
+      }
+      return dispatchJob(fastify, session, {
+        url: "/v1/silence-detect",
+        payload,
+        label: "Silence detect",
+        widgetKind: "generic",
+        widgetData: { prompt: "(silence detect)" },
+      })
+    },
+  )
+
+  // ── apply_edl (podcast editing — CORE, ungated) ──
+  // Render an edit-decision list into a finished cut — the executor half of the
+  // podcast primitives. Consumes an EDL (from plan_edit, or hand-written to the
+  // @nodaro/shared Edl contract) and emits a video or audio file. Core verb:
+  // registers on EVERY install; the EDL it renders may come from the cloud-only
+  // plan_edit OR be hand-authored, so the renderer is available everywhere.
+  server.registerTool(
+    "apply_edl",
+    {
+      title: "Apply EDL",
+      description:
+        "Render an edit-decision list (EDL) into a finished cut. Pass `edl` — the plan from a " +
+        "`plan_edit` step, or hand-written to the @nodaro/shared `Edl` contract (integer-ms " +
+        "`segments` on a `master` clock, each naming a `sources[].id`). Media resolves from " +
+        "each source's `url`; `sources` optionally overrides those URLs positionally, in the " +
+        "EDL's `sources` order. `output`: `video` (default) or `audio`. An optional " +
+        "`transcript` is remapped through the cut. Returns a job_id — poll `get_job` for the " +
+        "rendered file. Priced per rendered minute.",
+      inputSchema: {
+        edl: z.record(z.string(), z.unknown()).describe("The edit-decision list — from plan_edit, or hand-authored to the @nodaro/shared Edl contract."),
+        sources: z.array(z.string().url()).optional().describe("Positional media-URL overrides for the EDL's sources[], in sources order."),
+        transcript: z.record(z.string(), z.unknown()).optional().describe("Optional upstream transcript, remapped through the cut for the result's transcript output."),
+        output: z.enum(["video", "audio"]).optional().describe("Render a video (default) or an audio-only cut."),
+        quality: z.enum(["proxy", "final"]).optional().describe("proxy (fast preview) or final (default)."),
+        crossfade_ms: z.number().min(0).max(5000).optional().describe("Default crossfade on boundaries with no explicit transition, in ms. 0 = hard cuts (default)."),
+      },
+      outputSchema: JOB_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      _meta: uiMeta(WIDGET_URI.jobAuto),
+    },
+    async (args) => {
+      const payload: Record<string, unknown> = {
+        edl: args.edl,
+        ...(args.sources ? { sources: args.sources } : {}),
+        ...(args.transcript !== undefined ? { transcript: args.transcript } : {}),
+        ...(args.output ? { output: args.output } : {}),
+        ...(args.quality ? { quality: args.quality } : {}),
+        ...(args.crossfade_ms !== undefined ? { crossfadeMs: args.crossfade_ms } : {}),
+        mcp_client: session.clientName,
+        userId: session.userId,
+      }
+      return dispatchJob(fastify, session, {
+        url: "/v1/apply-edl",
+        payload,
+        label: "Apply EDL",
+        widgetKind: args.output === "audio" ? "audio" : "video",
+        widgetData: { prompt: `(apply edl · ${args.output ?? "video"})` },
+      })
+    },
+  )
+
   // ── plan_edit (podcast editing) ──
   // Turn a timed transcript into an edit-decision-list (EDL) plan — no media
   // output; the EDL is in the job's output_data. Cloud feature: gated on
