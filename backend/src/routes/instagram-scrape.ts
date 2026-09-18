@@ -36,17 +36,23 @@ import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { config } from "../lib/config.js"
 import { shouldRunOnCloud } from "../providers/nodaro/run-on-cloud.js"
-import { callCloudRoute } from "../providers/nodaro/client.js"
+import { createCloudJob, waitForCloudJob } from "../providers/nodaro/client.js"
 
 const ROUTE_PATH = "/v1/instagram-scrape"
 const MEDIA_DEADLINE_MS = 570_000
 
 const STRUCTURED_VISION_MODEL_IDS = new Set(STRUCTURED_VISION_MODELS.map((m) => m.id))
 
-/** No Apify token + a live nodaro.ai connection: relay the whole run (billed to the connected account). */
+/**
+ * No Apify token + a live nodaro.ai connection: relay the whole run (billed to
+ * the connected account). The cloud route now answers with a job id and runs
+ * the scrape in the background, so create the cloud job and poll it to a
+ * terminal state; its `output_data` is the same shape this route builds locally.
+ */
 async function scrapeViaConnection(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const { jobId: _cloudJobId, ...result } = await callCloudRoute(ROUTE_PATH, body)
-  return result
+  const cloudJobId = await createCloudJob(ROUTE_PATH, body)
+  const cloudJob = await waitForCloudJob(cloudJobId)
+  return (cloudJob.output_data as Record<string, unknown> | null) ?? {}
 }
 
 const instagramScrapeBody = z.object({
@@ -122,69 +128,89 @@ export async function instagramScrapeRoutes(app: FastifyInstance) {
     if (reply.sent) return
     const usageLogId = reservation?.usageLogId
 
-    try {
-      const scraped = viaCloud
-        ? await scrapeViaConnection(body as Record<string, unknown>)
-        : await runInstagramScrape(body)
+    // Respond with the job id NOW and run the scrape as detached background
+    // work. A real profile scrape + media copy routinely runs past Cloudflare's
+    // ~100s edge timeout (a completed 20-post run measured ~176s), which would
+    // 524 the browser while the job actually finished and was charged. Every
+    // caller polls GET /v1/jobs/:id instead: the orchestrator already does
+    // (node-executor branches on `jobId`), and the editor's single-node Run and
+    // the cloud relay now poll too. Durability is unchanged — the work was
+    // always in-process here; there is no worker either way.
+    reply.send({ jobId: job.id, status: "pending" })
 
-      const scrapedPosts = (Array.isArray(scraped.json) ? scraped.json : []) as InstagramPost[]
-      const featuredIndex = clampInstagramFeaturedIndex(body.featuredIndex, scrapedPosts.length)
-      const media = await classifyAndStoreInstagramMedia(scrapedPosts, {
-        userId,
-        jobId: job.id,
-        deadlineAt: startedAt + MEDIA_DEADLINE_MS,
-        storeImages: !viaCloud,
-        storeFeaturedVideoIndex: body.ingestVideo && !viaCloud ? featuredIndex : undefined,
-        storeAllVideos: body.ingestAllVideos === true && !viaCloud,
-        formats: body.formats,
-      }).catch((err: unknown) => {
-        req.log.warn({ err, jobId: job.id }, "[instagram-scrape] media step failed; returning posts with their source urls")
-        return { posts: instagramWithoutMedia(scrapedPosts), stats: { classified: 0, stored: 0, videosStored: 0, kept: scrapedPosts.length, filteredOut: 0 } }
-      })
+    void (async () => {
+      try {
+        const scraped = viaCloud
+          ? await scrapeViaConnection(body as Record<string, unknown>)
+          : await runInstagramScrape(body)
 
-      const analysisModel = body.analysisModel ?? LLM_FEATURE_DEFAULTS["meta-ads-analysis"]
-      const analyzed = analysisTier && !viaCloud
-        ? await analyzeInstagramPosts(media.posts, { modelId: analysisModel, focus: body.analysisFocus, deadlineAt: startedAt + MEDIA_DEADLINE_MS })
-        : null
-      const posts = analyzed ? analyzed.posts : media.posts
-      const relayedAnalysis = (scraped as Record<string, unknown>).analysis
-      const analysisStats = analyzed
-        ? { model: analysisModel, ...analyzed.stats }
-        : viaCloud && relayedAnalysis && typeof relayedAnalysis === "object" ? relayedAnalysis : undefined
+        const scrapedPosts = (Array.isArray(scraped.json) ? scraped.json : []) as InstagramPost[]
+        const featuredIndex = clampInstagramFeaturedIndex(body.featuredIndex, scrapedPosts.length)
+        const media = await classifyAndStoreInstagramMedia(scrapedPosts, {
+          userId,
+          jobId: job.id,
+          deadlineAt: startedAt + MEDIA_DEADLINE_MS,
+          storeImages: !viaCloud,
+          storeFeaturedVideoIndex: body.ingestVideo && !viaCloud ? featuredIndex : undefined,
+          storeAllVideos: body.ingestAllVideos === true && !viaCloud,
+          formats: body.formats,
+        }).catch((err: unknown) => {
+          req.log.warn({ err, jobId: job.id }, "[instagram-scrape] media step failed; returning posts with their source urls")
+          return { posts: instagramWithoutMedia(scrapedPosts), stats: { classified: 0, stored: 0, videosStored: 0, kept: scrapedPosts.length, filteredOut: 0 } }
+        })
 
-      const result = {
-        json: posts,
-        mediaStorage: media.stats,
-        ...(analysisStats ? { analysis: analysisStats } : {}),
-        ...featuredInstagramOutputs(posts, featuredIndex),
-      }
+        const analysisModel = body.analysisModel ?? LLM_FEATURE_DEFAULTS["meta-ads-analysis"]
+        const analyzed = analysisTier && !viaCloud
+          ? await analyzeInstagramPosts(media.posts, { modelId: analysisModel, focus: body.analysisFocus, deadlineAt: startedAt + MEDIA_DEADLINE_MS })
+          : null
+        const posts = analyzed ? analyzed.posts : media.posts
+        const relayedAnalysis = (scraped as Record<string, unknown>).analysis
+        const analysisStats = analyzed
+          ? { model: analysisModel, ...analyzed.stats }
+          : viaCloud && relayedAnalysis && typeof relayedAnalysis === "object" ? relayedAnalysis : undefined
 
-      const completed = await markJobCompleted(job.id, {
-        output_data: result,
-        ...(analyzed ? { provider_cost: analyzed.stats.providerCostUsd || null } : {}),
-      })
-      if (!completed) {
-        return reply.status(409).send({ error: { code: "job_cancelled", message: "The job was cancelled before it completed." } })
-      }
-
-      if (usageLogId) {
-        if (analyzed && analysisTier) {
-          const [scrapeBase, perPost] = await Promise.all([
-            baseCreditCostFor(buildInstagramScrapeCreditId({ count: body.count, sources })),
-            baseCreditCostFor(instagramAnalysisCreditId(analysisTier)),
-          ])
-          await commitJobCredits(usageLogId, job.id, null, scrapeBase + perPost * analyzed.stats.analyzed, true)
-        } else {
-          await commitReservedCreditsForJob(job.id)
+        const result = {
+          json: posts,
+          mediaStorage: media.stats,
+          ...(analysisStats ? { analysis: analysisStats } : {}),
+          ...featuredInstagramOutputs(posts, featuredIndex),
         }
-      }
 
-      return reply.send({ jobId: job.id, ...result })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Scrape failed"
-      const flipped = await markJobFailed(job.id, { error_message: message, extra: { output_data: { error: message } } })
-      if (flipped && usageLogId) await refundReservedCreditsForJob(job.id)
-      return reply.status(502).send({ error: { code: "scrape_error", message } })
-    }
+        const completed = await markJobCompleted(job.id, {
+          output_data: result,
+          ...(analyzed ? { provider_cost: analyzed.stats.providerCostUsd || null } : {}),
+        })
+        if (!completed) {
+          // Cancelled mid-scrape — the refund is the cancel endpoint's job, not
+          // ours; never settle a cancelled reservation.
+          req.log.info({ jobId: job.id }, "[instagram-scrape] job cancelled before completion; skipping settlement")
+          return
+        }
+
+        if (usageLogId) {
+          if (analyzed && analysisTier) {
+            const [scrapeBase, perPost] = await Promise.all([
+              baseCreditCostFor(buildInstagramScrapeCreditId({ count: body.count, sources })),
+              baseCreditCostFor(instagramAnalysisCreditId(analysisTier)),
+            ])
+            await commitJobCredits(usageLogId, job.id, null, scrapeBase + perPost * analyzed.stats.analyzed, true)
+          } else {
+            await commitReservedCreditsForJob(job.id)
+          }
+        }
+      } catch (err) {
+        // The detached body must never throw: an escaping rejection is an
+        // unhandled promise rejection. Mark-failed + refund are themselves
+        // wrapped so a failure there is logged, not thrown.
+        const message = err instanceof Error ? err.message : "Scrape failed"
+        try {
+          const flipped = await markJobFailed(job.id, { error_message: message, extra: { output_data: { error: message } } })
+          if (flipped && usageLogId) await refundReservedCreditsForJob(job.id)
+        } catch (failErr) {
+          req.log.error({ err: failErr, jobId: job.id }, "[instagram-scrape] failed to mark job failed / refund")
+        }
+        req.log.error({ err, jobId: job.id }, "[instagram-scrape] scrape failed")
+      }
+    })()
   })
 }

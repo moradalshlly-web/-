@@ -96,3 +96,12 @@ Turning on **AI analysis** adds a per-post cost by the model's tier — **+1** (
 ## Providers
 
 Uses Apify (`apify/instagram-scraper`). Needs `APIFY_API_TOKEN`, or a connected nodaro.ai account (the run — scrape and analysis — is relayed and billed there). AI analysis additionally needs an LLM key on a local run.
+
+## Running it (editor vs. API)
+
+A real profile scrape (media copy included) routinely runs longer than a browser's ~100-second HTTP limit, so the request returns a **job id right away** and the scrape finishes on the server. In the editor and in a workflow there is nothing to do — both poll for you and show the posts when they land.
+
+A direct API/SDK caller gets `{ "jobId": "…", "status": "pending" }` and reads the result from the job:
+
+- SDK: `client.nodes.runAndWait("instagram-scrape", { … })` returns the posts (it polls for you); or `run(...)` then `client.jobs.get(jobId)` and read `output_data`.
+- The posts array, the featured `text` / `imageUrl` / `videoUrl`, `mediaStorage`, and any `analysis` all live on the completed job's `output_data`.

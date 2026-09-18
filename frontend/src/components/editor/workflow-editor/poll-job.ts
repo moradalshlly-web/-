@@ -43,6 +43,57 @@ export async function getJobStatusLeanForNode(jobId: string, nodeId: string) {
   return job;
 }
 
+/**
+ * Poll a scrape job (instagram-scrape / meta-ads-scrape) to a terminal state and
+ * return its `output_data`. Scrapes now respond with `{ jobId }` and finish
+ * server-side — a real run outlasts the ~100s edge timeout, which would 524 a
+ * held request — so the editor's single-node Run polls the job instead. Only
+ * `completed` (→ output_data) and `failed` / `cancelled` (→ throw) are terminal;
+ * `pending` / `processing` / `pending_review` are in-flight. Aborting (Stop)
+ * cancels the job so it stops charging, then throws an AbortError the caller
+ * treats as a non-failure.
+ */
+export async function pollScrapeJobOutput(
+  jobId: string,
+  nodeId: string,
+  opts: { signal?: AbortSignal; budgetMs?: number } = {},
+): Promise<Record<string, unknown>> {
+  const budgetMs = opts.budgetMs ?? 12 * 60_000;
+  const startedAt = Date.now();
+  let attempt = 0;
+  let transientFailures = 0;
+  while (Date.now() - startedAt < budgetMs) {
+    if (opts.signal?.aborted) {
+      void cancelJob(jobId).catch(() => {});
+      throw new DOMException("Aborted", "AbortError");
+    }
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, attempt < 5 ? 1500 : 3000));
+    }
+    attempt += 1;
+    let job: Awaited<ReturnType<typeof getJobStatusLeanForNode>>;
+    try {
+      // The wrapper (not the raw read) so a job HELD for review paints
+      // BaseNode's "Awaiting review" overlay instead of a bare spinner.
+      job = await getJobStatusLeanForNode(jobId, nodeId);
+    } catch {
+      transientFailures += 1;
+      if (transientFailures > MAX_CONSECUTIVE_POLL_FAILURES) {
+        throw new Error("Lost connection to the scrape job");
+      }
+      continue;
+    }
+    transientFailures = 0;
+    if (job.status === "completed") {
+      return (job.output_data as Record<string, unknown> | null) ?? {};
+    }
+    if (job.status === "failed" || job.status === "cancelled") {
+      throw new Error(job.error_message || "Scrape failed");
+    }
+  }
+  throw new Error("The scrape did not finish in time");
+}
+
 /** When true, toast notifications are suppressed (used during list fan-out). */
 let _suppressToasts = false;
 export function setSuppressToasts(suppress: boolean): void {
