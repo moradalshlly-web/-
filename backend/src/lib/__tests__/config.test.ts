@@ -136,3 +136,44 @@ describe("R2_SHARED_WITH_RELAY_TARGET strict parsing", () => {
     expect(config.R2_SHARED_WITH_RELAY_TARGET).toBe(false)
   })
 })
+
+describe("NODARO_SEED_MARKETPLACE_TEMPLATES strict parsing", () => {
+  // Same strict-boolean contract as R2_FORCE_PATH_STYLE: only "true"/"1" enable
+  // it. Default OFF is the byte-identical Cloud invariant — a compose file's
+  // literal "false" (or an unset var) must never turn a shared-prod boot seed on.
+  const ORIGINAL = process.env.NODARO_SEED_MARKETPLACE_TEMPLATES
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.doUnmock("../config.js")
+  })
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.NODARO_SEED_MARKETPLACE_TEMPLATES
+    else process.env.NODARO_SEED_MARKETPLACE_TEMPLATES = ORIGINAL
+  })
+
+  it("parses 'true' as true", async () => {
+    process.env.NODARO_SEED_MARKETPLACE_TEMPLATES = "true"
+    const { config } = await import("../config.js")
+    expect(config.NODARO_SEED_MARKETPLACE_TEMPLATES).toBe(true)
+  })
+
+  it("parses '1' as true", async () => {
+    process.env.NODARO_SEED_MARKETPLACE_TEMPLATES = "1"
+    const { config } = await import("../config.js")
+    expect(config.NODARO_SEED_MARKETPLACE_TEMPLATES).toBe(true)
+  })
+
+  it("parses 'false' as FALSE — z.coerce.boolean() would make it true", async () => {
+    process.env.NODARO_SEED_MARKETPLACE_TEMPLATES = "false"
+    const { config } = await import("../config.js")
+    expect(config.NODARO_SEED_MARKETPLACE_TEMPLATES).toBe(false)
+  })
+
+  it("treats an unset env var as false (the default: no Cloud boot seed)", async () => {
+    delete process.env.NODARO_SEED_MARKETPLACE_TEMPLATES
+    const { config } = await import("../config.js")
+    expect(config.NODARO_SEED_MARKETPLACE_TEMPLATES).toBe(false)
+  })
+})

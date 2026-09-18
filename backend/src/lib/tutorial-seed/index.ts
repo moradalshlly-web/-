@@ -10,16 +10,25 @@
 // creative content belongs here or in `@nodaro/prompts` — never in the Apache
 // packages. Same call, and same reasoning, as `lib/demo-workflow.ts`.
 //
-// CLOUD IS EXCLUDED — for the BUILT-IN set. Staging and production share one
-// Supabase project, so anything that ran as a migration would also run against
-// Cloud production, where these four templates already exist and belong to a
-// real user. A boot seeder can be gated; a migration cannot.
+// CLOUD IS EXCLUDED — for the BUILT-IN TUTORIAL set. Staging and production
+// share one Supabase project, so anything that ran as a migration would also
+// run against Cloud production, where those tutorial templates already exist and
+// belong to a real user. A boot seeder can be gated; a migration cannot.
 //
-// Operator packs (NODARO_TUTORIAL_PACKS) are the one exception. A dedicated
-// hosted instance runs EDITION=cloud against ITS OWN Supabase and ships its
-// tutorials as a pack; on such an instance the seeder seeds the packs and
-// nothing else. Nodaro's shared cloud never sets the env, so it still returns
-// before a single Supabase call — see seedTutorialTemplates.
+// Two narrow, opt-in exceptions seed on Cloud, each behind its own env var so
+// the default is still zero Supabase calls:
+//   1. Operator packs (NODARO_TUTORIAL_PACKS). A dedicated hosted instance runs
+//      EDITION=cloud against ITS OWN Supabase and ships its tutorials as a pack;
+//      on such an instance the seeder seeds the packs and nothing else.
+//   2. The built-in MARKETPLACE templates (NODARO_SEED_MARKETPLACE_TEMPLATES) —
+//      the built-in docs whose `listedIn` includes "marketplace" (the podcast
+//      editing templates). Unlike the tutorial slugs, these are platform-owned
+//      SYSTEM slugs NO real user owns, so seeding them under the system account
+//      on the shared cloud carries no user-row-conflict risk. They are
+//      INSERT-if-missing and creator-scoped (seedOne), so a reboot is a no-op
+//      and an admin's later edits (is_active / listed_in) are never clobbered.
+// Nodaro's shared cloud sets neither env by default, so it still returns before
+// a single Supabase call — see seedTutorialTemplates.
 
 import { createHash } from "node:crypto"
 import { readFile, readdir } from "node:fs/promises"
@@ -27,7 +36,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { normalizeTemplateCategory } from "@nodaro/shared"
 import { supabase } from "../supabase.js"
-import { isCloud } from "../config.js"
+import { config, isCloud } from "../config.js"
 import { isTransportError, withTransportRetry, type TransportRetryOptions } from "../boot-retry.js"
 import { TUTORIAL_SYSTEM_EMAIL } from "../system-account.js"
 import { loadTutorialPacks, parsePackDirList } from "./packs.js"
@@ -92,6 +101,24 @@ async function loadDocs(): Promise<TutorialTemplateDoc[]> {
 /** Find or create the owning account. The `handle_new_user` trigger creates the
  *  matching profile row, so nothing else is needed here. */
 async function ensureSystemUser(): Promise<string | null> {
+  // Primary lookup: the profiles row, keyed by the indexed email column
+  // (idx_profiles_email, migration 099). listUsers() PAGES — on a high-volume
+  // install (Nodaro's Cloud) the system account drops off the first page once
+  // there are more than `perPage` accounts, so the find() below misses it and
+  // createUser() then throws "already registered", killing the whole run on
+  // every later boot (the seed silently stops reaching updated content). A
+  // direct row lookup does not page, and is what keeps the seeder idempotent —
+  // and the Cloud marketplace lane alive — past the first few hundred signups.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", SYSTEM_EMAIL)
+    .maybeSingle()
+  if (profile?.id) return profile.id as string
+
+  // No profile row yet: a fresh install's first boot (the auth user and its
+  // profile are minted together by the handle_new_user trigger). Fall back to
+  // the auth list — on a fresh install it comfortably fits one page.
   const { data: list, error: listError } = await supabase.auth.admin.listUsers({ perPage: 200 })
   if (listError) throw listError
   const existing = list.users.find((u) => u.email === SYSTEM_EMAIL)
@@ -316,10 +343,11 @@ async function seedOne(
  * boot-retry schedule; an application error still skips at once.
  */
 export async function seedTutorialTemplates(retry: TransportRetryOptions = {}): Promise<void> {
-  // Cloud seeds operator packs only; with none configured there is nothing to
-  // do, and returning here keeps Nodaro's shared cloud byte-identical (no
-  // system account, no Supabase call).
-  if (isCloud() && !packsConfigured()) return
+  // Cloud seeds operator packs, and — behind an explicit opt-in — the built-in
+  // marketplace templates; with neither there is nothing to do, and returning
+  // here keeps Nodaro's shared cloud byte-identical (no system account, no
+  // Supabase call).
+  if (isCloud() && !packsConfigured() && !seedMarketplaceBuiltInsEnabled()) return
 
   try {
     await withTransportRetry("tutorial-seed", runSeed, retry)
@@ -333,13 +361,40 @@ function packsConfigured(): boolean {
   return parsePackDirList(process.env.NODARO_TUTORIAL_PACKS).length > 0
 }
 
+/**
+ * A built-in doc first listed in the public MARKETPLACE channel. Data-driven —
+ * it reads `doc.listedIn`, so any future built-in that ships `["marketplace"]`
+ * joins the Cloud lane automatically and the pure `["tutorial"]` set never does.
+ * No hand-maintained slug list to drift.
+ */
+function isMarketplaceDoc(doc: TutorialTemplateDoc): boolean {
+  return Array.isArray(doc.listedIn) && doc.listedIn.includes("marketplace")
+}
+
+/** Cloud opt-in (NODARO_SEED_MARKETPLACE_TEMPLATES) to seed the marketplace
+ *  built-ins. Read through config at call time, like packsConfigured — a test
+ *  flips it the same way it flips config.EDITION. Default off. */
+function seedMarketplaceBuiltInsEnabled(): boolean {
+  return config.NODARO_SEED_MARKETPLACE_TEMPLATES === true
+}
+
 async function runSeed(): Promise<void> {
   // The built-in set is loaded on every edition, but SEEDED only off Cloud
   // (header). On Cloud its slugs still feed the pack de-dup below, so a pack
   // can never shadow a built-in a real user already owns there.
   const docs = await loadDocs()
+  // The FULL built-in set (marketplace + tutorial) seeds off Cloud only. On
+  // Cloud there is ONE narrow exception, behind an opt-in: the marketplace-
+  // listed built-ins (the podcast editing templates). Those are platform-owned
+  // SYSTEM slugs no real user owns — unlike the tutorial set, whose slugs
+  // already belong to real users on the shared cloud — so seeding them carries
+  // no user-row-conflict risk. Either way seedOne is creator-scoped and applies
+  // listed_in on INSERT only.
   const seedBuiltIns = !isCloud()
-  if (!seedBuiltIns && !packsConfigured()) return
+  const marketplaceDocs = docs.filter(isMarketplaceDoc)
+  const seedMarketplaceCloud =
+    isCloud() && seedMarketplaceBuiltInsEnabled() && marketplaceDocs.length > 0
+  if (!seedBuiltIns && !seedMarketplaceCloud && !packsConfigured()) return
   if (docs.length === 0 && !packsConfigured()) return
 
   const userId = await ensureSystemUser()
@@ -361,7 +416,12 @@ async function runSeed(): Promise<void> {
     }
   }
 
-  if (seedBuiltIns) for (const doc of docs) await seedDoc(doc)
+  if (seedBuiltIns) {
+    for (const doc of docs) await seedDoc(doc)
+  } else if (seedMarketplaceCloud) {
+    // Cloud, opt-in: ONLY the marketplace subset — never the tutorial set.
+    for (const doc of marketplaceDocs) await seedDoc(doc)
+  }
 
   // Operator-supplied packs (business/self-host, or a dedicated Cloud instance). loadTutorialPacks has already
   // validated + de-duplicated them against the base slugs; a malformed pack was
