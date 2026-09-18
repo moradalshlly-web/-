@@ -57,6 +57,7 @@ const DocSchema = z.object({
   creatorDisplayName: z.string().nullish(),
   previewMediaUrl: z.string().nullish(),
   previewMediaType: z.string().nullish(),
+  listedIn: z.array(z.enum(["tutorial", "marketplace"])).optional(),
   tutorialCategorySlug: z.string().min(1),
   tutorialSortOrder: z.number().int(),
   nodes: z.array(z.unknown()),
