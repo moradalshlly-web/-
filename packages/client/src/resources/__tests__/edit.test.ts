@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
-import { createClient, StaticTokenAuth, NodaroError, EditResource } from "../../index.js"
-import type { Edl, Transcript } from "../../index.js"
+import { createClient, StaticTokenAuth, NodaroError, EditResource, unwrapEditPlanOutput } from "../../index.js"
+import type { Edl, Transcript, SilenceRanges } from "../../index.js"
 
 function mockOk<T>(body: T) {
   return Promise.resolve({ ok: true, status: 200, json: async () => body } as unknown as Response)
@@ -149,6 +149,39 @@ describe("edit.editPlan", () => {
     })
     const sent = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body) as Record<string, unknown>
     expect(Object.keys(sent).sort()).toEqual(["mode", "planTier", "sources", "transcript"].sort())
+  })
+
+  it("threads a SilenceRanges object as `silence`", async () => {
+    const fetchMock = vi.fn().mockReturnValueOnce(mockOk({ jobId: "j" }))
+    const silence: SilenceRanges = {
+      version: 1,
+      ranges: [{ startMs: 5000, endMs: 8000 }],
+      durationMs: 12000,
+    }
+    await client(fetchMock).edit.editPlan({
+      mode: "tighten",
+      planTier: "standard",
+      transcript,
+      sources: [{ id: "src-1", url: "https://r2/a.mp3", kind: "audio" }],
+      silence,
+    })
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body) as Record<string, unknown>
+    expect(sent.silence).toEqual(silence)
+  })
+})
+
+describe("unwrapEditPlanOutput re-export (result normalizer)", () => {
+  it("unwraps clips to a bare Edl[] and strips viaNodaroCloud", () => {
+    const clip: Edl = {
+      version: 1,
+      clock: "master",
+      sources: [{ id: "m", url: "https://r2/m.mp4", kind: "video", role: "master-audio" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 5000, video: "m" }],
+    }
+    const outputData = { version: 1, clips: [clip], viaNodaroCloud: true }
+    const out = unwrapEditPlanOutput(outputData)
+    expect(Array.isArray(out)).toBe(true)
+    expect(out).toEqual([clip])
   })
 })
 

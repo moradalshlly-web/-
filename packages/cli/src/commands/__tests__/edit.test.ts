@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { Command } from "commander"
-import { mkdtempSync, writeFileSync } from "node:fs"
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { editCommand } from "../edit.js"
@@ -47,9 +47,13 @@ async function runCmd(...args: string[]): Promise<void> {
   await program.parseAsync(["node", "test", ...args])
 }
 
+/** Temp dirs created by `fixture`, cleaned up in afterEach. */
+const tmpDirs: string[] = []
+
 /** Write a JSON fixture to a temp file and return its path. */
 function fixture(name: string, value: unknown): string {
   const dir = mkdtempSync(join(tmpdir(), "edit-cli-"))
+  tmpDirs.push(dir)
   const path = join(dir, name)
   writeFileSync(path, JSON.stringify(value), "utf8")
   return path
@@ -73,6 +77,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   exitSpy.mockRestore()
+  while (tmpDirs.length) rmSync(tmpDirs.pop()!, { recursive: true, force: true })
 })
 
 describe("edit silence-detect", () => {

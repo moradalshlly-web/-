@@ -1,6 +1,6 @@
 import { Command } from "commander"
 import { readFileSync } from "node:fs"
-import type { Edl, Transcript, EditPlanSource, EditPlanInput } from "@nodaro/sdk"
+import type { Edl, Transcript, EditPlanSource, EditPlanInput, SilenceRanges } from "@nodaro/sdk"
 import { buildClient, handleError } from "../client.js"
 import { warn, type OutputOpts } from "../output.js"
 import { reportQueuedJob, collectVariadic } from "../util.js"
@@ -15,9 +15,11 @@ interface WatchOpts {
 }
 
 /**
- * Read + JSON-parse a file into an arbitrary value (transcript / EDL / silence).
- * Unlike `loadParamsFile` this accepts ANY top-level JSON — a silence result may
- * be an array, and an EDL / transcript is an object.
+ * Read + JSON-parse a file into an arbitrary value (transcript / EDL / silence /
+ * a full sources array). Unlike `loadParamsFile` this accepts ANY top-level JSON:
+ * an EDL / transcript / silence result is an object (silence is the
+ * silence-detect job's `output_data.json` = `{ version, ranges, durationMs }`),
+ * while `--sources-file` is a top-level array (guarded at its call site).
  */
 function readJsonFile(path: string): unknown {
   let raw: string
@@ -154,7 +156,7 @@ export function editCommand(): Command {
     .requiredOption("--mode <mode>", "tighten | clips | chapters")
     .requiredOption("--plan-tier <tier>", "economy | standard | premium")
     .requiredOption("--transcript <file>", "path to a timed transcript JSON file")
-    .option("--silence <file>", "optional silence-ranges JSON file")
+    .option("--silence <file>", "optional silence JSON — the silence-detect job's output_data.json ({ version, ranges, durationMs })")
     .option(
       "--source <url>",
       "a media source as url or url@audio / url@video (repeatable); id + kind are minted",
@@ -226,7 +228,7 @@ export function editCommand(): Command {
             planTier: opts.planTier,
             transcript: readJsonFile(opts.transcript) as Transcript,
             sources,
-            ...(opts.silence ? { silence: readJsonFile(opts.silence) } : {}),
+            ...(opts.silence ? { silence: readJsonFile(opts.silence) as SilenceRanges } : {}),
             ...(opts.instructions !== undefined ? { instructions: opts.instructions } : {}),
             ...(opts.styleGuide !== undefined ? { styleGuide: opts.styleGuide } : {}),
             ...(opts.count !== undefined ? { count: opts.count } : {}),

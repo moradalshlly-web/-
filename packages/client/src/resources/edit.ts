@@ -1,13 +1,33 @@
 import type { NodaroClient } from "../client.js"
-import { remapTranscriptThroughEdl } from "@nodaro/shared"
-import type { Edl, Transcript, EditPlanMode, EditPlanTier } from "@nodaro/shared"
+import { remapTranscriptThroughEdl, unwrapEditPlanOutput } from "@nodaro/shared"
+import type { Edl, Transcript, EditPlanMode, EditPlanTier, EdlClipSet, ChapterSet } from "@nodaro/shared"
 
 // Re-export the canonical EDL / transcript vocabulary from `@nodaro/shared`
 // (single source of truth — the shapes live at `packages/shared/src/edl.ts`).
 // `@nodaro/shared` is already a hard dep of this package, so there is no
 // bundle-size cost to importing from it, and an integration builds requests and
-// reads results with one dependency.
-export type { Edl, Transcript, EditPlanMode, EditPlanTier }
+// reads results with one dependency. `EdlClipSet` / `ChapterSet` are the raw
+// `output_data` shapes of the `clips` / `chapters` modes, and
+// `unwrapEditPlanOutput` is the sanctioned way to normalize any edit-plan job's
+// `output_data` (it also strips the relay's `viaNodaroCloud` marker).
+export type { Edl, Transcript, EditPlanMode, EditPlanTier, EdlClipSet, ChapterSet }
+export { unwrapEditPlanOutput }
+
+/**
+ * A silence-detect job's `output_data.json` — the value to pass as
+ * {@link EditPlanInput.silence}. It is NOT what {@link EditResource.silenceDetect}
+ * returns (that is `{ jobId }`); fetch the finished job and read its
+ * `output_data.json`. The planner reads the `ranges` array — an input without
+ * one is silently ignored, so pass this whole object.
+ */
+export interface SilenceRanges {
+  /** Wire version of the payload. */
+  version?: number
+  /** Silence spans on the source clock, in ms. */
+  ranges: ReadonlyArray<{ startMs: number; endMs: number }>
+  /** Total source duration, in ms. */
+  durationMs?: number
+}
 
 /** Every editorial route answers with the queued job to poll. */
 export interface EditJobResult {
@@ -45,8 +65,9 @@ export interface ApplyEdlInput {
   sources?: string[]
   /**
    * Optional transcript to remap through the cut. The rendered job returns the
-   * remapped transcript on its `json` output. To do the same remap locally
-   * without a job, use {@link EditResource.remapTranscript}.
+   * remapped transcript on its `json` output. A word-level multi-hour transcript
+   * is several MB — if you only need the re-timed transcript (not a render), use
+   * {@link EditResource.remapTranscript} locally instead of sending it here.
    */
   transcript?: Transcript
   /** Render a full video (default) or an audio-only cut. */
@@ -85,10 +106,13 @@ export interface EditPlanSource {
 
 export interface EditPlanInput {
   /**
-   * Planning mode:
-   *   - `"tighten"`  → one tightened `Edl`.
-   *   - `"clips"`    → a bare `Edl[]`, one plan per clip.
-   *   - `"chapters"` → a `{ version, chapters }` marker list.
+   * Planning mode. The finished job's `output_data` carries the plan — read it
+   * with {@link unwrapEditPlanOutput}, which also strips the relay's
+   * `viaNodaroCloud` marker:
+   *   - `"tighten"`  → an `Edl`.
+   *   - `"clips"`    → an {@link EdlClipSet} (`{ version, clips: Edl[] }`);
+   *                    `unwrapEditPlanOutput` returns the bare `Edl[]`.
+   *   - `"chapters"` → a {@link ChapterSet} (`{ version, chapters: [...] }`).
    */
   mode: EditPlanMode
   /** Reasoning tier — affects plan quality AND the credit bucket. */
@@ -96,10 +120,12 @@ export interface EditPlanInput {
   /** The timed transcript driving the plan. */
   transcript: Transcript
   /**
-   * Optional detected silence ranges (e.g. the result of {@link EditResource.silenceDetect}),
-   * passed to the planner as an additional signal.
+   * Optional detected silence ranges. Pass the silence-detect JOB'S RESULT —
+   * `getStatus(jobId).data.output_data.json` (a {@link SilenceRanges} object),
+   * NOT the `{ jobId }` that {@link EditResource.silenceDetect} returns. The
+   * planner reads the `ranges` array; an input without one is silently ignored.
    */
-  silence?: unknown
+  silence?: SilenceRanges
   /** The recording's media sources (1–6). */
   sources: EditPlanSource[]
   /** Free-text editing steer. */
@@ -173,8 +199,9 @@ export class EditResource {
   /**
    * Plan a transcript-driven cut (`POST /v1/edit-plan`). Reads a timed
    * transcript (plus optional silence ranges) and the media sources, and plans
-   * the edit as an EDL — one `Edl` for `"tighten"`, an `Edl[]` for `"clips"`, or
-   * a chapter list for `"chapters"`.
+   * the edit. The finished job's `output_data` holds the plan: an `Edl`
+   * (`"tighten"`), an {@link EdlClipSet} (`"clips"`), or a {@link ChapterSet}
+   * (`"chapters"`) — normalize it with {@link unwrapEditPlanOutput}.
    *
    * On a self-hosted install the request relays to nodaro.ai and needs the
    * install connected (a 503 `code: "nodaro_connection_required"` otherwise);

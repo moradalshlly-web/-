@@ -304,6 +304,11 @@ nodaro audio mix --audio <url> --audio <url> ... [--volumes <csv>] [--watch] [--
 nodaro audio adjust-volume --audio <url>|--video <url> [--volume <0-200>] [--normalize] [--fade-in <sec>] [--fade-out <sec>] [--watch] [--poll-interval <ms>] [--json]
 nodaro audio combine --segment <url[@a-b]> --segment ... [--watch] [--poll-interval <ms>] [--json]
 
+# Edit — editorial primitives for podcast / long-form video
+nodaro edit silence-detect <audioUrl> [--threshold-db=-35] [--min-silence-ms <ms>] [--pad-ms <ms>] [--watch] [--poll-interval <ms>] [--json]
+nodaro edit apply-edl --edl <file.json> [--transcript <file.json>] [--source <url> ...] [--output video|audio] [--quality proxy|final] [--crossfade-ms <ms>] [--watch] [--poll-interval <ms>] [--json]
+nodaro edit plan --mode tighten|clips|chapters --plan-tier economy|standard|premium --transcript <file.json> (--source <url[@audio|@video]> ... | --sources-file <file.json>) [--silence <file.json>] [--instructions <text>] [--style-guide <text>] [--count <n>] [--target-duration-sec <n>] [--target-aspect 16:9|9:16|1:1|4:5] [--platform <name>] [--watch] [--poll-interval <ms>] [--json]
+
 # Organizations — only on instances that have them
 nodaro org list [--json]
 nodaro org get <id> [--json]

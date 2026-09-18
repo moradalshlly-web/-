@@ -1,5 +1,6 @@
 ---
 "@nodaro/sdk": minor
+"@nodaro/shared": patch
 ---
 
 Add the `edit` resource for the phase-1 editorial (podcast-editing) primitives.
@@ -16,6 +17,14 @@ Add the `edit` resource for the phase-1 editorial (podcast-editing) primitives.
 - `remapTranscript(edl, transcript)` — a PURE client-side helper (no request)
   that runs `@nodaro/shared`'s `remapTranscriptThroughEdl`.
 
-The EDL / transcript vocabulary (`Edl`, `Transcript`, `EditPlanMode`,
-`EditPlanTier`) is re-exported from `@nodaro/shared` for one-dependency use.
+The EDL / transcript / result vocabulary (`Edl`, `Transcript`, `EditPlanMode`,
+`EditPlanTier`, `EdlClipSet`, `ChapterSet`, `SilenceRanges`) and the
+`unwrapEditPlanOutput` result-normalizer are re-exported for one-dependency use.
 Additive — no existing surface changes.
+
+The `@nodaro/shared` patch bump carries no source change: it exists only to lift
+the SDK's `@nodaro/shared` floor to a version that ships `edl.ts`. The new
+resource static-imports `remapTranscriptThroughEdl` / `unwrapEditPlanOutput` from
+`@nodaro/shared`, so pairing this SDK with an older shared (pre-`edl.ts`) would
+fail the whole SDK at import — the changeset rewrites the dependency range so a
+consumer can never resolve that stale sibling.

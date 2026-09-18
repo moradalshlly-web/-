@@ -40,11 +40,17 @@ export type { GenericNode, GenericEdge, WorkflowExport, WorkflowExportCharacter,
   // workflow JSON or `apps.run(..., { inputOverrides })`.
   PromptAffixFields,
   // Editorial (podcast-editing) contract used by the `edit` resource: the EDL
-  // and transcript shapes, and the edit-plan mode/tier vocabularies.
+  // and transcript shapes, the edit-plan mode/tier vocabularies, and the raw
+  // `output_data` shapes of the clips / chapters modes.
   Edl,
   Transcript,
   EditPlanMode,
-  EditPlanTier } from "@nodaro/shared"
+  EditPlanTier,
+  EdlClipSet,
+  ChapterSet } from "@nodaro/shared"
+// `unwrapEditPlanOutput` (value) — the sanctioned way to read an edit-plan job's
+// `output_data` (normalizes clips → bare `Edl[]` and strips `viaNodaroCloud`).
+export { unwrapEditPlanOutput } from "@nodaro/shared"
 export type { WizardQuestion, WizardOption, WizardSelection, RecommendedModel, WizardNodeContext } from "@nodaro/prompts"
 
 // --- Resource classes (re-exported so consumers can typecheck `client.workflows`, etc.) ---
@@ -494,6 +500,7 @@ export type {
   ApplyEdlInput,
   EditPlanInput,
   EditPlanSource,
+  SilenceRanges,
 } from "./resources/edit.js"
 export { WorkspacesResource, type CreateWorkspaceInput } from "./resources/workspaces.js"
 export type {
