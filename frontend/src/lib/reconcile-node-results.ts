@@ -41,6 +41,15 @@ import type { GeneratedResult } from "@/types/nodes"
 export interface NodeResultsUpdate {
   nodeId: string
   generatedResults: GeneratedResult[]
+  /** transcribe transcript backfill: the structured Transcript to mirror onto
+   *  the node's bare `generatedJson` field. The `json` output handle reads
+   *  `generatedResults[i].transcript ?? generatedJson`, so both are written for
+   *  parity with a live transcribe run. Absent for the variant-URL rebuild. */
+  generatedJson?: unknown
+  /** The active result to keep selected. The variant rebuild always resets to 0;
+   *  the transcript backfill passes the node's existing index so the selection
+   *  never moves. Defaults to 0 when absent. */
+  activeResultIndex?: number
 }
 
 /**
@@ -143,6 +152,39 @@ export async function computeReconciledNodeResults(
     if (job.status !== "completed") continue
 
     const output = (job.output_data ?? null) as Record<string, unknown> | null
+
+    // Transcript backfill (transcribe). A result row saved before the structured
+    // `transcript` field shipped carries only { text, jobId, timestamp }, so the
+    // `json` output handle (generatedResults[i].transcript ?? generatedJson) is
+    // empty and every downstream `transcript`-input consumer (edit-plan,
+    // apply-edl, add-captions) rejects it with a misleading "connect a
+    // transcript" — even though the wire IS connected. The worker ALWAYS writes
+    // output_data.json (a Transcript, rebuilt from segments/words when the
+    // provider omits it — handlers/audio-ai.ts), so re-read it from the job of
+    // record and fill the gap for free (no re-transcription). Idempotent: once
+    // the active row (or the bare generatedJson) carries a transcript, skip.
+    if (node.type === "transcribe") {
+      const transcript = output?.json
+      if (transcript && typeof transcript === "object") {
+        const activeIndex = (data.activeResultIndex as number | undefined) ?? 0
+        const activeHasTranscript =
+          (gr[activeIndex] as { transcript?: unknown } | undefined)?.transcript !== undefined
+        if (!activeHasTranscript && data.generatedJson === undefined) {
+          const rebuilt = gr.map((r, i) =>
+            i === activeIndex ? { ...r, transcript } : r,
+          ) as GeneratedResult[]
+          updates.push({
+            nodeId: node.id,
+            generatedResults: rebuilt,
+            generatedJson: transcript,
+            activeResultIndex: activeIndex,
+          })
+        }
+      }
+      // transcribe never carries variant URLs — nothing further to reconcile.
+      continue
+    }
+
     const variantUrls = extractVariantUrls(output)
     if (!variantUrls || variantUrls.length <= gr.length) continue
 
@@ -178,11 +220,16 @@ export async function reconcileWorkflowNodeResults(
   try {
     const updates = await computeReconciledNodeResults(nodes)
     for (const u of updates) {
-      updateNodeData(u.nodeId, {
+      const patch: Record<string, unknown> = {
         generatedResults: u.generatedResults,
-        // Keep activeResultIndex at 0 — the primary URL doesn't change.
-        activeResultIndex: 0,
-      })
+        // Variant rebuild keeps the primary at 0; the transcript backfill passes
+        // the node's existing active index so the selection never moves.
+        activeResultIndex: u.activeResultIndex ?? 0,
+      }
+      // Transcript backfill also mirrors the Transcript onto the bare
+      // `json`-handle field, matching how a live transcribe run writes both.
+      if (u.generatedJson !== undefined) patch.generatedJson = u.generatedJson
+      updateNodeData(u.nodeId, patch)
     }
   } catch {
     // Whole-batch failure — keep the workflow loaded, log to devtools so the

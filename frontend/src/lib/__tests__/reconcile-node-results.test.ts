@@ -296,3 +296,120 @@ describe("computeReconciledNodeResults — per-track Suno ids (#819)", () => {
     expect(second!.sunoTaskId).toBe("task-9")
   })
 })
+
+describe("computeReconciledNodeResults — transcribe transcript backfill", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // A UUID job whose transcribe result predates the structured `transcript`
+  // field (the real prod shape: { text, jobId, timestamp } — no transcript, no
+  // language). The worker of record still holds output_data.json.
+  const tJob = "df53f6e8-9d7f-4a4c-8162-b0c41cfea0be"
+  const transcript = {
+    language: "en",
+    segments: [{ start: 0, end: 1.2, text: "Hello there" }],
+    words: [
+      { start: 0, end: 0.5, text: "Hello" },
+      { start: 0.6, end: 1.2, text: "there" },
+    ],
+  }
+
+  it("backfills a completed transcribe result missing its structured transcript from output_data.json", async () => {
+    mocks.getJobStatusLean.mockResolvedValueOnce({
+      id: tJob,
+      status: "completed",
+      output_data: { text: "Hello there", language: "en", json: transcript },
+    })
+
+    const node = makeNode("transcribe-1", "transcribe", {
+      executionStatus: "completed",
+      activeResultIndex: 0,
+      generatedResults: [{ text: "Hello there", jobId: tJob, timestamp: "2026-09-18T00:00:00Z" }],
+    })
+
+    const updates = await computeReconciledNodeResults([node])
+    expect(updates).toHaveLength(1)
+    expect(updates[0]!.nodeId).toBe("transcribe-1")
+    // The `json` handle reads generatedResults[i].transcript ?? generatedJson —
+    // both are written for parity with a live run.
+    expect((updates[0]!.generatedResults[0] as { transcript?: unknown }).transcript).toEqual(transcript)
+    expect(updates[0]!.generatedJson).toEqual(transcript)
+    expect(updates[0]!.activeResultIndex).toBe(0)
+  })
+
+  it("is idempotent when the active transcribe result already carries a transcript", async () => {
+    mocks.getJobStatusLean.mockResolvedValueOnce({
+      id: tJob,
+      status: "completed",
+      output_data: { text: "Hello there", json: transcript },
+    })
+
+    const node = makeNode("transcribe-1", "transcribe", {
+      executionStatus: "completed",
+      activeResultIndex: 0,
+      generatedResults: [{ text: "Hello there", jobId: tJob, timestamp: "t", transcript }],
+    })
+
+    const updates = await computeReconciledNodeResults([node])
+    expect(updates).toHaveLength(0)
+  })
+
+  it("is idempotent when the node already has a bare generatedJson", async () => {
+    mocks.getJobStatusLean.mockResolvedValueOnce({
+      id: tJob,
+      status: "completed",
+      output_data: { text: "Hello there", json: transcript },
+    })
+
+    const node = makeNode("transcribe-1", "transcribe", {
+      executionStatus: "completed",
+      activeResultIndex: 0,
+      generatedJson: transcript,
+      generatedResults: [{ text: "Hello there", jobId: tJob, timestamp: "t" }],
+    })
+
+    const updates = await computeReconciledNodeResults([node])
+    expect(updates).toHaveLength(0)
+  })
+
+  it("preserves a non-zero active index and only patches the active row", async () => {
+    mocks.getJobStatusLean.mockResolvedValueOnce({
+      id: tJob,
+      status: "completed",
+      output_data: { text: "second", json: transcript },
+    })
+
+    const node = makeNode("transcribe-1", "transcribe", {
+      executionStatus: "completed",
+      activeResultIndex: 1,
+      generatedResults: [
+        { text: "first", jobId: tJob, timestamp: "t0" },
+        { text: "second", jobId: tJob, timestamp: "t1" },
+      ],
+    })
+
+    const updates = await computeReconciledNodeResults([node])
+    expect(updates).toHaveLength(1)
+    expect(updates[0]!.activeResultIndex).toBe(1)
+    expect((updates[0]!.generatedResults[1] as { transcript?: unknown }).transcript).toEqual(transcript)
+    expect((updates[0]!.generatedResults[0] as { transcript?: unknown }).transcript).toBeUndefined()
+  })
+
+  it("does not backfill when the completed job carries no output_data.json", async () => {
+    mocks.getJobStatusLean.mockResolvedValueOnce({
+      id: tJob,
+      status: "completed",
+      output_data: { text: "Hello there" },
+    })
+
+    const node = makeNode("transcribe-1", "transcribe", {
+      executionStatus: "completed",
+      activeResultIndex: 0,
+      generatedResults: [{ text: "Hello there", jobId: tJob, timestamp: "t" }],
+    })
+
+    const updates = await computeReconciledNodeResults([node])
+    expect(updates).toHaveLength(0)
+  })
+})
