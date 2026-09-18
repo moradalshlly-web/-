@@ -1577,6 +1577,37 @@ if ("jobId" in result) {
 }
 ```
 
+The input/source nodes work the same way. A scraper answers synchronously —
+the response carries both a `jobId` (for history) and the data — so you can use
+the result directly. Meta Ads (`meta-ads-scrape`), for example, pulls public
+Facebook + Instagram ads from Meta's Ad Library by keyword, advertiser or Page:
+
+```ts
+const result = await client.nodes.run("meta-ads-scrape", {
+  mode: "search",          // or "pages" (pageUrls) / "advertiser" (see below)
+  query: "running shoes",
+  count: 20,               // 1..100 ads; pricing is 1 credit per requested ad, tiered
+  period: "30d",           // 24h | 7d | 30d | all
+  // formats: ["vertical"],        // keep only phone/square/web creatives (may return fewer)
+  // analyze: true,                // attach a per-ad AI analysis object (extra credits per ad)
+})
+console.log(result.json)   // the array of ads (copy, CTA, images, videos, …)
+
+// By advertiser name instead of keyword — mode "pages" with advertiserNames,
+// resolved to Facebook Pages server-side (verified match first):
+const byAdvertiser = await client.nodes.run("meta-ads-scrape", {
+  mode: "pages",
+  advertiserNames: ["Nike", "Adidas"],
+  count: 30,
+})
+console.log(byAdvertiser.resolvedAdvertisers) // [{ name, pageId, url }, …]
+```
+
+> Needs an `APIFY_API_TOKEN` on the server, or a connected nodaro.ai account
+> (the scrape — including advertiser resolution and AI analysis — is relayed
+> and billed there). The CLI runs the identical path: `nodaro nodes run
+> meta-ads-scrape --param mode=search --param query="running shoes"`.
+
 > **Parameter corrections.** For the image node types (`generate-image`,
 > `image-to-image`, `edit-image`) the result may carry `adjustments` — one
 > entry per parameter the server corrected because the chosen model does not

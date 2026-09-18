@@ -434,6 +434,20 @@ nodaro nodes run generate-image \
 
 For arrays, nested objects, or any value that doesn't fit the flag form, use `--params-file body.json`. Flag values override file values for the same key.
 
+Input/source nodes run the same way. Meta Ads (`meta-ads-scrape`) pulls public Facebook + Instagram ads from Meta's Ad Library and answers synchronously (the result carries the ad array directly):
+
+```bash
+# By keyword
+nodaro nodes run meta-ads-scrape \
+  --param mode=search --param query="running shoes" --param count=20 --param period=30d
+
+# By advertiser name(s) — resolved to Facebook Pages server-side; use a file for the array
+echo '{"mode":"pages","advertiserNames":["Nike","Adidas"],"count":30}' > body.json
+nodaro nodes run meta-ads-scrape --params-file body.json
+```
+
+Needs `APIFY_API_TOKEN` on the server, or a connected nodaro.ai account (the scrape is relayed and billed there).
+
 ## Output formatting
 
 Every read command supports `--json` for machine-readable output:

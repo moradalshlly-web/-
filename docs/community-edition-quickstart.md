@@ -98,7 +98,7 @@ on that page) and, once you are in the app, **Integrations → Model
 providers**. Every provider is a tile — nodaro.ai, KIE.ai, Replicate,
 Anthropic, Google Gemini, ElevenLabs, fal.ai, and, grouped apart as *used by
 specific nodes*, HeyGen (avatar nodes), Beeble (Relight & Switch), Apify (Web
-Scrape) — with a **PASTE KEY** field. (Connected to nodaro.ai? Then none of
+Scrape, Meta Ads) — with a **PASTE KEY** field. (Connected to nodaro.ai? Then none of
 them is required — every tile is covered by the connection.) Paste, Save, hit
 Run on the demo's Scene Image node: Z-Image, the cheapest model, answers in
 seconds. The key is stored
@@ -113,7 +113,7 @@ in or create a free account there (1,500 free credits on first sign-in — see
 [Free credits](features/free-credits.md)), approve, and
 you land back on your install connected — image, video, speech and LLM models
 route through your nodaro.ai account — including the vendor-direct nodes
-(AI Avatar / Cinematic Avatar, Relight & Switch, Web Scrape), which run on the
+(AI Avatar / Cinematic Avatar, Relight & Switch, Web Scrape, Meta Ads), which run on the
 connection whenever their own key is empty.
 Details and the two-accounts model:
 [Connect your instance to Nodaro Cloud](./community-cloud-connect.md).
