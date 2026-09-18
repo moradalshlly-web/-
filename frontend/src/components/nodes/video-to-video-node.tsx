@@ -1,11 +1,13 @@
 "use client"
 
 import { useT } from "@/lib/i18n"
-import { memo, useState, useEffect, useRef, useCallback } from "react"
-import { Position, type NodeProps } from "@xyflow/react"
-import { Clapperboard, Film, Type, Minus, Loader2, AlertCircle, X, Download, LayoutGrid, Expand, Link, Settings, Scissors, Aperture } from "lucide-react"
+import { memo, useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { Position, useUpdateNodeInternals, type NodeProps } from "@xyflow/react"
+import { Clapperboard, Film, Type, Minus, Images, Music, Loader2, AlertCircle, X, Download, LayoutGrid, Expand, Link, Settings, Scissors, Aperture } from "lucide-react"
 import { HandleWithPopover, HANDLE_COLORS, TEXT_HANDLE_COLOR } from "./handle-with-popover"
 import { isValidVideoToVideoConnection } from "@/lib/video-producer-handles"
+import { getHandleConnectionLimit } from "@/lib/handle-limits"
+import type { WorkflowNode } from "@/types/nodes"
 import { VISUAL_PARAMETER_PICKER_NODE_TYPES } from "@/lib/parameter-picker-types"
 import { NodeJobProgress } from "./node-job-progress"
 import { BaseNode } from "./base-node"
@@ -14,6 +16,7 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { MediaPreviewModal } from "@/components/editor/media-preview-modal"
 import { CachedImage } from "@/components/ui/cached-image"
 import { useModelCredits } from "@/ee/hooks/use-model-credits"
+import { isSeedanceVideoEditProvider, seedanceVideoEditCreditId } from "@nodaro/shared"
 import { useResultAspectRatio } from "@/hooks/use-result-aspect-ratio"
 import { videoNodeSizing } from "./video-node-defaults"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
@@ -26,6 +29,20 @@ const ACCEPTS_VIDEO          = (t: string) => isValidVideoToVideoConnection("vid
 const ACCEPTS_CINEMATOGRAPHY = (t: string) => isValidVideoToVideoConnection("cinematography", t, isPickerType)
 const ACCEPTS_PROMPT         = (t: string) => isValidVideoToVideoConnection("prompt",         t, isPickerType)
 const ACCEPTS_NEGATIVE       = (t: string) => isValidVideoToVideoConnection("negative",       t, isPickerType)
+const ACCEPTS_IMAGE_REFS     = (t: string) => isValidVideoToVideoConnection("imageReferences", t, isPickerType)
+const ACCEPTS_AUDIO_REFS     = (t: string) => isValidVideoToVideoConnection("audioReferences", t, isPickerType)
+
+/** One vertical ladder for the six target pips — bottom-up, 32px apart, so the
+ *  BaseNode `handles` array and the HandleWithPopover row below can never
+ *  disagree about a position. */
+const HANDLE_TOP = {
+  video:           "calc(100% - 24px)",
+  cinematography:  "calc(100% - 56px)",
+  prompt:          "calc(100% - 88px)",
+  negative:        "calc(100% - 120px)",
+  imageReferences: "calc(100% - 152px)",
+  audioReferences: "calc(100% - 184px)",
+} as const
 
 function VideoToVideoNodeComponent({ id, data, selected }: NodeProps) {
   const t = useT()
@@ -49,7 +66,31 @@ function VideoToVideoNodeComponent({ id, data, selected }: NodeProps) {
   const [showThumbnails, setShowThumbnails] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const v2vProvider = (nodeData.provider as string | undefined) ?? "wan"
-  const credits = useModelCredits(v2vProvider, v2vProvider === "luma-modify" ? 32 : 25)
+  // The Seedance lane reserves on the reference-video ladder at the model's
+  // LONGEST clip (Auto duration) — the exact identifier payload-builder.ts
+  // builds — so the pill quotes what the run will actually hold. Every route
+  // provider keeps its flat per-provider key.
+  const creditIdentifier = isSeedanceVideoEditProvider(v2vProvider)
+    ? seedanceVideoEditCreditId(v2vProvider, nodeData.v2vResolution)
+    : v2vProvider
+  const credits = useModelCredits(creditIdentifier, v2vProvider === "luma-modify" ? 32 : 25)
+
+  // Per-provider "this handle has cap 0" set — drives the muted pip styling on
+  // the two Seedance-edit-lane reference rails (the same
+  // getHandleConnectionLimit source the popover reads, so they can't drift).
+  const disabledHandles = useMemo(() => {
+    const fakeNode = { type: "video-to-video", data: { provider: v2vProvider } } as unknown as WorkflowNode
+    const set = new Set<string>()
+    for (const hid of ["imageReferences", "audioReferences"] as const) {
+      if (getHandleConnectionLimit(fakeNode, hid)?.limit === 0) set.add(hid)
+    }
+    return set
+  }, [v2vProvider])
+
+  // React Flow v12 doesn't re-measure handles on its own — re-register when the
+  // pip set's enabled/disabled shape changes so new edges render reliably.
+  const updateNodeInternals = useUpdateNodeInternals()
+  useEffect(() => { updateNodeInternals(id) }, [id, disabledHandles, updateNodeInternals])
   const { aspectRatio: mediaAspectRatio, onLoadDimensions: handleLoadDimensions } =
     useResultAspectRatio(id, results, activeIndex)
 
@@ -145,11 +186,13 @@ function VideoToVideoNodeComponent({ id, data, selected }: NodeProps) {
                   <NodeQuickStrip nodeId={id} credits={credits} isRunning={status === "running"} />
       }
       handles={[
-        { id: "video",          type: "target", position: Position.Left,  customStyle: { top: 'calc(100% - 24px)',  left: '-29px' }, external: true },
-        { id: "cinematography", type: "target", position: Position.Left,  customStyle: { top: 'calc(100% - 56px)',  left: '-29px' }, external: true },
-        { id: "prompt",         type: "target", position: Position.Left,  customStyle: { top: 'calc(100% - 88px)',  left: '-29px' }, external: true },
-        { id: "negative",       type: "target", position: Position.Left,  customStyle: { top: 'calc(100% - 120px)', left: '-29px' }, external: true },
-        { id: "video",          type: "source", position: Position.Right, customStyle: { top: '24px',               right: '-29px' }, external: true },
+        { id: "video",           type: "target", position: Position.Left,  customStyle: { top: HANDLE_TOP.video,           left: '-29px' }, external: true },
+        { id: "cinematography",  type: "target", position: Position.Left,  customStyle: { top: HANDLE_TOP.cinematography,  left: '-29px' }, external: true },
+        { id: "prompt",          type: "target", position: Position.Left,  customStyle: { top: HANDLE_TOP.prompt,          left: '-29px' }, external: true },
+        { id: "negative",        type: "target", position: Position.Left,  customStyle: { top: HANDLE_TOP.negative,        left: '-29px' }, external: true },
+        { id: "imageReferences", type: "target", position: Position.Left,  customStyle: { top: HANDLE_TOP.imageReferences, left: '-29px' }, external: true },
+        { id: "audioReferences", type: "target", position: Position.Left,  customStyle: { top: HANDLE_TOP.audioReferences, left: '-29px' }, external: true },
+        { id: "video",           type: "source", position: Position.Right, customStyle: { top: '24px',                     right: '-29px' }, external: true },
       ]}
     >
       <div className="relative w-full h-full group/video">
@@ -285,10 +328,12 @@ function VideoToVideoNodeComponent({ id, data, selected }: NodeProps) {
         )}
       </div>
     </BaseNode>
-    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="video"          type="target" position={Position.Left}  label="Video"          color={HANDLE_COLORS.video} icon={<Film />}     side="left"  top="calc(100% - 24px)"  accepts={ACCEPTS_VIDEO} />
-    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="cinematography" type="target" position={Position.Left}  label="Cinematography" color={HANDLE_COLORS.look} icon={<Aperture />} side="left"  top="calc(100% - 56px)"  accepts={ACCEPTS_CINEMATOGRAPHY} />
-    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="prompt"         type="target" position={Position.Left}  label="Prompt"         color={TEXT_HANDLE_COLOR} icon={<Type />}     side="left"  top="calc(100% - 88px)"  accepts={ACCEPTS_PROMPT} />
-    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="negative"       type="target" position={Position.Left}  label="Negative"       color={HANDLE_COLORS.negative} icon={<Minus />}    side="left"  top="calc(100% - 120px)" accepts={ACCEPTS_NEGATIVE} />
+    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="video"          type="target" position={Position.Left}  label="Video"          color={HANDLE_COLORS.video} icon={<Film />}     side="left"  top={HANDLE_TOP.video}  accepts={ACCEPTS_VIDEO} />
+    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="cinematography" type="target" position={Position.Left}  label="Cinematography" color={HANDLE_COLORS.look} icon={<Aperture />} side="left"  top={HANDLE_TOP.cinematography}  accepts={ACCEPTS_CINEMATOGRAPHY} />
+    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="prompt"         type="target" position={Position.Left}  label="Prompt"         color={TEXT_HANDLE_COLOR} icon={<Type />}     side="left"  top={HANDLE_TOP.prompt}  accepts={ACCEPTS_PROMPT} />
+    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="negative"       type="target" position={Position.Left}  label="Negative"       color={HANDLE_COLORS.negative} icon={<Minus />}    side="left"  top={HANDLE_TOP.negative} accepts={ACCEPTS_NEGATIVE} />
+    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="imageReferences" type="target" position={Position.Left} label="Image Refs"    color={HANDLE_COLORS.imageRef} icon={<Images />}   side="left"  top={HANDLE_TOP.imageReferences} orderMatters accepts={ACCEPTS_IMAGE_REFS} disabled={disabledHandles.has("imageReferences")} />
+    <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="audioReferences" type="target" position={Position.Left} label="Audio Refs"    color={HANDLE_COLORS.audioRef} icon={<Music />}    side="left"  top={HANDLE_TOP.audioReferences} orderMatters accepts={ACCEPTS_AUDIO_REFS} disabled={disabledHandles.has("audioReferences")} />
     <HandleWithPopover nodeId={id} nodeType="video-to-video" handleId="video"          type="source" position={Position.Right} label="Video"          color={HANDLE_COLORS.video} icon={<Film />}     side="right" top="24px" />
 
     <DeleteConfirmationDialog

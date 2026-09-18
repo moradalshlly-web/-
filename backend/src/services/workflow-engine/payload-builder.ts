@@ -13,8 +13,8 @@ import { normalizeCollageLabels } from "../../providers/image/collage-badges.js"
 
 // Shared logic from packages/shared — single source of truth
 import { resolveVideoRequestNorm } from "../../lib/video-request-norm.js"
-import { resolveSlideshowTransition, collectAncestorRefs as sharedCollectAncestorRefs, applyDefaultVideoSelection, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionableAssetArrays, buildCreditModelIdentifier, sunoCreditType, resolveImageGenCreditIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, applyVideoNegativePrompt, resolveVideoProviderForMode, resolveVideoModeForInputs, videoProviderRequiresImage, isVeoProvider, buildLipSyncCreditId, isPerSecondLipSyncProvider, resolveAiAvatarCreditId, resolveSwitchXCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, buildVideoAuditCreditId, resolveVideoAnalysisModel, extractReferencedLabels, combineSameLabelRefs, refHandleCategory, canonicalVarName, validateAiAvatarPayload, validateCinematicAvatarPayload, resolveNodeRefs, resolveEffectiveSourceType, PARAMETER_NODE_TYPES, characterMentionSlug, expandExtraRefsToConnectedReferences, PLATFORM_SPECS, isSeedance2Provider, isMinimaxH3Provider, isWan3Provider, isGeminiOmniProvider, PRICING_DEFAULT_RESOLUTION, supportsExtendRender, MODEL_CATALOG, hasFeature, referenceModalityForHandle, countRefModalityEdges as countRefModalityEdgesCore, type ReferenceModality, COMPOSER_PLAN_MAP, ASPECT_RATIO_DIMENSIONS, buildLlmCreditIdentifier, motionGraphicsFeature, FLUX_LORA_CHARACTER_MODEL_ID, extractCharacterLoraFields, clampSmartCutWindow, resolveGvpAnchorWire, normalizeModelInput, readPromptAffixes, findImageMentionTokens, knownImageSlugsFromRefs, findEntityMentionTokens, knownEntitySlugsFromRefs, uiAspectRatioFill, uiResolutionFill, resolveTopazUpscale, unresolvedRefTokens, classifyRefToken, parseNodeRef, NODE_REF_PATTERN, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, newScene3DRevisionId, resolveScene3DAuthoringEngine, scene3DPlanSchema, PRO3D_RENDER_CREDIT_ID, PRO3D_RENDER_DEFAULT_ENGINE, buildPro3DRenderSource, pro3DRenderTimingOverrides, renderVideoCreditId, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, normalizeTranscript, isKineticCaptionStyle, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, transcriptDurationSec, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps, type Scene3DPlan } from "@nodaro/shared"
-import { composeNegative, resolveTemplate, applyTemplate, computeNodePrompt, assembleImageInput, readDirectionFields, readStructuredFields, readSubjectFields, buildImagePrompt, buildScenePrompt, collectIdentityLockClause as sharedCollectIdentityLockClause, getParameterPromptHint, characterLockToRefLock, buildCharacterPrompt, buildObjectPrompt, buildCreaturePrompt, buildLocationPrompt, buildFaceTemplateInputs, appendMusicMeta, composeSoundHintFromConnections, truncateForField, appendField, assembleSunoInput, type SoundConsumerType, type SoundComposition, resolveVideoReferenceCore, applyPromptAffixes, composeVideoPromptText, isMinorAge, containsMinorAgeHint, type DirectionFields, type StructuredPromptFields, type SubjectFields, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
+import { resolveSlideshowTransition, collectAncestorRefs as sharedCollectAncestorRefs, applyDefaultVideoSelection, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionableAssetArrays, buildCreditModelIdentifier, sunoCreditType, resolveImageGenCreditIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, applyVideoNegativePrompt, resolveVideoProviderForMode, resolveVideoModeForInputs, videoProviderRequiresImage, isVeoProvider, buildLipSyncCreditId, isPerSecondLipSyncProvider, resolveAiAvatarCreditId, resolveSwitchXCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, buildVideoAuditCreditId, resolveVideoAnalysisModel, extractReferencedLabels, combineSameLabelRefs, refHandleCategory, canonicalVarName, validateAiAvatarPayload, validateCinematicAvatarPayload, resolveNodeRefs, resolveEffectiveSourceType, PARAMETER_NODE_TYPES, characterMentionSlug, expandExtraRefsToConnectedReferences, PLATFORM_SPECS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, seedanceVideoEditCreditId, isMinimaxH3Provider, isWan3Provider, isGeminiOmniProvider, PRICING_DEFAULT_RESOLUTION, supportsExtendRender, MODEL_CATALOG, hasFeature, referenceModalityForHandle, countRefModalityEdges as countRefModalityEdgesCore, type ReferenceModality, COMPOSER_PLAN_MAP, ASPECT_RATIO_DIMENSIONS, buildLlmCreditIdentifier, motionGraphicsFeature, FLUX_LORA_CHARACTER_MODEL_ID, extractCharacterLoraFields, clampSmartCutWindow, resolveGvpAnchorWire, normalizeModelInput, readPromptAffixes, findImageMentionTokens, knownImageSlugsFromRefs, findEntityMentionTokens, knownEntitySlugsFromRefs, uiAspectRatioFill, uiResolutionFill, resolveTopazUpscale, unresolvedRefTokens, classifyRefToken, parseNodeRef, NODE_REF_PATTERN, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, newScene3DRevisionId, resolveScene3DAuthoringEngine, scene3DPlanSchema, PRO3D_RENDER_CREDIT_ID, PRO3D_RENDER_DEFAULT_ENGINE, buildPro3DRenderSource, pro3DRenderTimingOverrides, renderVideoCreditId, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, normalizeTranscript, isKineticCaptionStyle, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, transcriptDurationSec, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps, type Scene3DPlan } from "@nodaro/shared"
+import { composeNegative, resolveTemplate, applyTemplate, computeNodePrompt, assembleImageInput, readDirectionFields, readStructuredFields, readSubjectFields, buildImagePrompt, buildScenePrompt, collectIdentityLockClause as sharedCollectIdentityLockClause, getParameterPromptHint, characterLockToRefLock, buildCharacterPrompt, buildObjectPrompt, buildCreaturePrompt, buildLocationPrompt, buildFaceTemplateInputs, appendMusicMeta, composeSoundHintFromConnections, truncateForField, appendField, assembleSunoInput, type SoundConsumerType, type SoundComposition, resolveVideoReferenceCore, buildSeedanceVideoEditPrompt, applyPromptAffixes, composeVideoPromptText, isMinorAge, containsMinorAgeHint, type DirectionFields, type StructuredPromptFields, type SubjectFields, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import { labelRefHintContext } from "./label-ref-hint-context.js"
 import type { CharacterDef, ConnectedReference, SceneData, ExtraRefInput, ExtraRefCharacterContext } from "@nodaro/shared"
 import type { CharacterMeta } from "@nodaro/prompts"
@@ -4266,6 +4266,55 @@ export function buildPayload(
         if (identityClause) p = p ? `${p} ${identityClause}` : identityClause
         return p
       })()
+      // Seedance edits a REFERENCE video — there is no v2v endpoint for it — so
+      // this node's Seedance lane is a `text-to-video` job in edit shape, riding
+      // the one Seedance reference-video lane (clip bounds, unit×(input+output)
+      // reservation, measured settlement, edit-mode retry, reconcile recovery).
+      // The source clip is reference video 1, which is what `{video:1}` in the
+      // edit instruction resolves against. Mirrors the FE run (execute-node.ts).
+      if (isSeedanceVideoEditProvider(v2vProvider)) {
+        const editVideoUrl = (resolvedInputs.videoUrl || data.videoUrl) as string | undefined
+        const editMention = resolveVideoPromptMentions(buildSeedanceVideoEditPrompt(v2vPrompt), node.id, buildCtx, readExtraRefs(data), {
+          referenceOrder: readStringArray(data.referenceOrder),
+          suppressedCanonicalCharacterIds: readStringArray(data.suppressedCanonicalCharacterIds),
+          imageRefCount: countRefModalityEdges(node.id, "image", buildCtx),
+          videoRefCount: 1,
+          audioRefCount: countRefModalityEdges(node.id, "audio", buildCtx),
+        })
+        const wiredImages = typeof resolvedInputs.referenceImageUrls === "string"
+          ? [resolvedInputs.referenceImageUrls]
+          : Array.isArray(resolvedInputs.referenceImageUrls) ? (resolvedInputs.referenceImageUrls as string[]) : []
+        const editImageUrls = [...wiredImages, ...editMention.additionalUrls.filter((u) => !wiredImages.includes(u))]
+        const editNorm = resolveVideoRequestNorm({
+          provider: v2vProvider,
+          aspectRatio: SEEDANCE_VIDEO_EDIT_SHAPE.aspectRatio,
+          // The node's one resolution field (`v2vResolution`) serves every provider.
+          resolution: (data.v2vResolution as string | undefined) ?? uiResolutionFill(v2vProvider),
+          duration: SEEDANCE_VIDEO_EDIT_SHAPE.duration,
+        })
+        return {
+          jobName: "text-to-video",
+          queueName: "video-generation",
+          // ONE builder, shared with the pre-run estimator and both FE quote
+          // sites — a quote that disagrees with this reserve is the documented
+          // price_not_configured / blank-pill trap.
+          modelIdentifier: seedanceVideoEditCreditId(v2vProvider, editNorm.resolution),
+          payload: {
+            jobId,
+            prompt: editMention.prompt,
+            provider: v2vProvider,
+            duration: SEEDANCE_VIDEO_EDIT_SHAPE.duration,
+            aspectRatio: SEEDANCE_VIDEO_EDIT_SHAPE.aspectRatio,
+            resolution: editNorm.resolution,
+            generateAudio: data.generateAudio as boolean | undefined,
+            seed: data.seed as number | undefined,
+            referenceVideoUrls: editVideoUrl ? [editVideoUrl] : undefined,
+            referenceImageUrls: editImageUrls.length > 0 ? editImageUrls : undefined,
+            referenceAudioUrls: resolvedInputs.referenceAudioUrls,
+            usageLogId,
+          },
+        }
+      }
       // `{image:N}` token resolution — see i2v note. Mirrors the FE v2v run
       // (execute-node.ts: `v2vProviderSupportsRefs` gate). Wan 2.6 et al. are
       // non-ref → 0 → bare-label (the FE strips for the same case).

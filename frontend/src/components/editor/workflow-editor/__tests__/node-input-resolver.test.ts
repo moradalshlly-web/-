@@ -1298,3 +1298,44 @@ describe("extractNodeOutputAsList — transcribe dual text+json handle (FE/BE li
     expect(extractNodeOutputAsList(node, "text")).toEqual(["hi there"])
   })
 })
+
+// ---------------------------------------------------------------------------
+// video-to-video — the SAME canonical reference handles, no node-type gate.
+// The Seedance EDIT lane needs `referenceImageUrls` / `referenceAudioUrls` on a
+// video-to-video target; REFERENCE_HANDLE_MAP routing is keyed by targetHandle
+// only, so this is already true. Pinned here so a future node-type gate on that
+// branch can't silently strip the Seedance lane's references.
+// ---------------------------------------------------------------------------
+
+describe("resolveNodeInputs — video-to-video reference handles", () => {
+  it("routes imageReferences edges into referenceImageUrls (in edge order)", () => {
+    const a = makeNode("s1", "generate-image", {
+      generatedResults: [{ url: "https://a.png", timestamp: "t", jobId: "j" }],
+      activeResultIndex: 0,
+    })
+    const b = makeNode("s2", "upload-image", { url: "https://b.png" })
+    const target = makeNode("t1", "video-to-video")
+    const edges = [
+      { id: "s1->t1", source: "s1", target: "t1", sourceHandle: null, targetHandle: "imageReferences" },
+      { id: "s2->t1", source: "s2", target: "t1", sourceHandle: null, targetHandle: "imageReferences" },
+    ]
+
+    const inputs = resolveNodeInputs(target, [a, b, target], edges as any)
+    expect(inputs.referenceImageUrls).toEqual(["https://a.png", "https://b.png"])
+  })
+
+  it("routes audioReferences edges into referenceAudioUrls", () => {
+    const src = makeNode("s1", "text-to-speech", {
+      generatedResults: [{ url: "https://ref.mp3", timestamp: "t", jobId: "j" }],
+      activeResultIndex: 0,
+    })
+    const target = makeNode("t1", "video-to-video")
+    const edges = [{
+      id: "s1->t1", source: "s1", target: "t1",
+      sourceHandle: null, targetHandle: "audioReferences",
+    }]
+
+    const inputs = resolveNodeInputs(target, [src, target], edges as any)
+    expect(inputs.referenceAudioUrls).toEqual(["https://ref.mp3"])
+  })
+})

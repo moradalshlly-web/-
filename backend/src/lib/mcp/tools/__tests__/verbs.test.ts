@@ -1209,6 +1209,30 @@ describe("modify_video verb", () => {
     expect(received.body?.provider).toBe("wan")
   })
 
+  it("seedance-2-5 dispatches through the Seedance reference-video lane, in edit shape", async () => {
+    const { fastify, received } = stubRoute("POST", "/v1/text-to-video", { jobId: "j-edit" })
+    const server = buildServer()
+    registerVerbs({ server, session: executeSession(), fastify })
+    const result = await callTool(server, "modify_video", {
+      prompt: "the woman wears {image:1}",
+      video_url: "https://a/v.mp4",
+      model: "seedance-2-5",
+      resolution: "480p",
+      reference_image_urls: ["https://a/coat.jpg"],
+    })
+    expect(result.isError).toBeUndefined()
+    expect(received.body).toMatchObject({
+      provider: "seedance-2-5",
+      prompt: "edit {video:1} as follows:\nthe woman wears {image:1}",
+      aspectRatio: "adaptive",
+      duration: -1,
+      resolution: "480p",
+      referenceVideoUrls: ["https://a/v.mp4"],
+      referenceImageUrls: ["https://a/coat.jpg"],
+    })
+    expect(received.body).not.toHaveProperty("videoUrl")
+  })
+
   it("returns isError without video", async () => {
     const { fastify } = stubRoute("POST", "/v1/video-to-video", { jobId: "j" })
     const server = buildServer()

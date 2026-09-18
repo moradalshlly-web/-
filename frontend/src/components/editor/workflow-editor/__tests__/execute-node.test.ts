@@ -1456,6 +1456,71 @@ describe("video-to-video", () => {
     const passedOptions = callArgs[5] as { negativePrompt?: string }
     expect(passedOptions.negativePrompt).toBe("wired text")
   })
+
+  // ── Seedance EDIT lane ──
+  // Seedance has no v2v endpoint — it EDITS a reference video — so the node's
+  // Seedance lane dispatches a TEXT-TO-VIDEO job in edit shape with the source
+  // clip as reference video 1. Mirrors the orchestrator's
+  // payload-builder.ts "video-to-video" + seedance branch.
+  it("seedance-2-5: dispatches text-to-video in edit shape, source clip as @video_1", async () => {
+    const v2vNode = makeNode("video-to-video", {
+      provider: "seedance-2-5",
+      prompt: "the woman wears {image:1}",
+      v2vResolution: "480p",
+      generateAudio: true,
+      seed: 7,
+    })
+    mockNodes = [v2vNode]
+    mockEdges = [
+      { source: "img-a", target: "n1", targetHandle: "imageReferences" },
+      { source: "img-b", target: "n1", targetHandle: "imageReferences" },
+    ]
+    mockResolveNodeInputs.mockReturnValue({
+      videoUrl: "http://vid.mp4",
+      referenceImageUrls: ["http://a.png", "http://b.png"],
+    })
+    mockRunTextToVideoGeneration.mockResolvedValue(undefined)
+
+    await executeNode(v2vNode as any, makeCtx())
+
+    // The v2v ROUTE executor is never touched on this lane.
+    expect(mockRunVideoToVideoGeneration).not.toHaveBeenCalled()
+    const [nodeId, prompt, , provider, options] = mockRunTextToVideoGeneration.mock.calls[0] as [
+      string, string, unknown, string, Record<string, unknown>,
+    ]
+    expect(nodeId).toBe("n1")
+    expect(provider).toBe("seedance-2-5")
+    // The edit instruction leads, `{video:1}` bound to the source clip.
+    expect(prompt.startsWith("edit @video_1 as follows:\n")).toBe(true)
+    expect(prompt).toContain("the woman wears")
+    expect(options).toMatchObject({
+      aspectRatio: "adaptive",
+      duration: -1,
+      resolution: "480p",
+      generateAudio: true,
+      seed: 7,
+      // The source clip is the ONE reference video …
+      referenceVideoUrls: ["http://vid.mp4"],
+      // … and EVERY wired image ref rides along (not just slot 0).
+      referenceImageUrls: ["http://a.png", "http://b.png"],
+    })
+  })
+
+  it("seedance-2-5: an already-instructed prompt is not double-prefixed", async () => {
+    const v2vNode = makeNode("video-to-video", {
+      provider: "seedance-2-5",
+      prompt: "edit {video:1} as follows:\nmake it black and white",
+    })
+    mockNodes = [v2vNode]
+    mockEdges = []
+    mockResolveNodeInputs.mockReturnValue({ videoUrl: "http://vid.mp4" })
+    mockRunTextToVideoGeneration.mockResolvedValue(undefined)
+
+    await executeNode(v2vNode as any, makeCtx())
+
+    const prompt = mockRunTextToVideoGeneration.mock.calls[0][1] as string
+    expect(prompt).toBe("edit @video_1 as follows:\nmake it black and white")
+  })
 })
 
 // ---------------------------------------------------------------------------

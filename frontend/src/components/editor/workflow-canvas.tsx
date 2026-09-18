@@ -914,6 +914,12 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
     getIsDirty: () => useWorkflowStore.getState().isDirty,
     getLoadedUpdatedAt: () => useWorkflowStore.getState().loadedUpdatedAt,
     getLoadedVersion: () => useWorkflowStore.getState().loadedVersion,
+    // A save on the wire raises `saveStatus` to "saving" (set before the fetch,
+    // cleared by applySaveSuccess / the error paths). While saving, a newer-
+    // version broadcast is this tab's own save's echo beating its response — see
+    // the hook's `getSaveInFlight` doc for why suppressing it stops the
+    // autosave-freeze loop a large scrape result triggers.
+    getSaveInFlight: () => useWorkflowStore.getState().saveStatus === "saving",
     // `version` MUST be forwarded: the store's `loadedVersion` is the CAS token
     // of the next full save. Dropping it here left the token stale after every
     // external write (MCP / Copilot / another device), so the user's next save

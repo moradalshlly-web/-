@@ -16,8 +16,8 @@
  */
 
 import type { WorkflowNode, WorkflowEdge, CharacterNodeData, ExtraRef } from "@/types/nodes"
-import { characterMentionSlug, isGeminiOmniProvider, extractCharacterLoraFields, characterMentionableAssetArrays, resolveEffectiveSourceType, resolveVideoProviderForMode, hasFeature, countRefModalityEdges, type ReferenceModality } from "@nodaro/shared"
-import { computeNodePrompt, characterLockToRefLock, collectIdentityLockClause, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, resolveVideoReferenceCore, type CharacterMeta } from "@nodaro/prompts"
+import { characterMentionSlug, isGeminiOmniProvider, isSeedanceVideoEditProvider, extractCharacterLoraFields, characterMentionableAssetArrays, resolveEffectiveSourceType, resolveVideoProviderForMode, hasFeature, countRefModalityEdges, type ReferenceModality } from "@nodaro/shared"
+import { computeNodePrompt, buildSeedanceVideoEditPrompt, characterLockToRefLock, collectIdentityLockClause, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, resolveVideoReferenceCore, type CharacterMeta } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
   collectScene3DLayoutReferences,
@@ -596,6 +596,28 @@ export function assembleVideoPrompt(nodeType: string, args: AssembleVideoPromptA
     // `undefined` (the core then falls back to its own merged-URL count).
     const countRefModality = (modality: ReferenceModality): number =>
       countRefModalityEdges(edges, id, modality)
+    // ── Seedance EDIT lane (video-to-video only) ──
+    // Seedance has no v2v endpoint: the node dispatches a text-to-video job in
+    // edit shape with the SOURCE CLIP as reference video 1. The run
+    // (execute-node.ts) and the orchestrator (payload-builder.ts) both wrap the
+    // composed prompt in the edit instruction and then resolve mentions with
+    // `videoRefCount: 1`, so the preview must do exactly the same — otherwise
+    // the Final view shows a prompt the provider never receives. The early
+    // return skips the Scene3D rail, which this lane does not carry.
+    if (effectiveType === "video-to-video" && isSeedanceVideoEditProvider(provider)) {
+      const edited = resolveVideoPromptMentions(
+        buildSeedanceVideoEditPrompt(prompt), id, nodes, edges,
+        data.extraRefs as readonly ExtraRef[] | undefined,
+        {
+          referenceOrder: data.referenceOrder as readonly string[] | undefined,
+          suppressedCanonicalCharacterIds: data.suppressedCanonicalCharacterIds as readonly string[] | undefined,
+          imageRefCount: countRefModality("image"),
+          videoRefCount: 1,
+          audioRefCount: countRefModality("audio"),
+        },
+      )
+      return edited.prompt ?? ""
+    }
     // Scene3D layout references (a clay render on a reference rail): a scoping
     // caption per clip seat and a scoping line per still seat, from the same
     // doctrine the orchestrator applies (payload-builder.ts). Empty without

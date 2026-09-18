@@ -28,6 +28,8 @@ import {
   getVideoAudioCapability,
 } from "./model-constants.js"
 import { isFlux2Model, FLUX2_RES_MP, type Flux2Model } from "./flux2-pricing.js"
+import { VIDEO_DURATION_AUTO } from "./video-duration-auto.js"
+import { uiResolutionFill } from "./video-ui-defaults.js"
 import { MODEL_CATALOG, normalizeModelInput, defaultResolutionFor, type ModelInputAdjustment } from "./model-catalog.js"
 
 /**
@@ -459,6 +461,35 @@ export function buildVideoCreditModelIdentifier(
   }
 
   return identifier
+}
+
+/**
+ * The credit identifier a Video to Video node's Seedance EDIT lane reserves
+ * under. Seedance has no v2v endpoint — the lane is a text-to-video job in edit
+ * shape with the source clip as reference video 1 — so it prices on the
+ * REFERENCE-VIDEO ladder at the model's LONGEST clip (Auto duration), and the
+ * measured settlement refunds down to what was actually delivered.
+ *
+ * It exists because that is a 7-positional-argument call with four
+ * easy-to-transpose slots, and FOUR surfaces must agree on it exactly: the
+ * orchestrator's reservation (payload-builder.ts), the backend pre-run
+ * estimator (ee/billing/credits.ts), the node's cost pill, and the frontend
+ * run-level estimate (config-panels/helpers.ts). A quote that disagrees with
+ * the reserve is the documented `price_not_configured` / blank-pill trap.
+ *
+ * `resolution` is the node's one `v2vResolution` field; when unset the model's
+ * own UI fill is priced, which is what the lane will send.
+ */
+export function seedanceVideoEditCreditId(provider: string, resolution?: string): string {
+  return buildVideoCreditModelIdentifier(
+    provider,
+    VIDEO_DURATION_AUTO,
+    undefined,
+    "text-to-video",
+    undefined,
+    resolution ?? uiResolutionFill(provider),
+    /* hasVideoRef */ true,
+  )
 }
 
 /** What the video credit identifier PRICES for a request, for the levers whose

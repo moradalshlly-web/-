@@ -658,6 +658,10 @@ const BASE_TARGET_HANDLE_ACCEPTS: Record<string, ReadonlyArray<TargetHandleEntry
     { handleId: "cinematography", label: VIDEO_PRODUCER_HANDLE_LABELS["video-to-video"].cinematography, accepts: (s) => isValidVideoToVideoConnection("cinematography", s, isVisualPickerType) },
     { handleId: "prompt",         label: VIDEO_PRODUCER_HANDLE_LABELS["video-to-video"].prompt,          accepts: (s) => isValidVideoToVideoConnection("prompt",         s, isVisualPickerType) },
     { handleId: "negative",       label: VIDEO_PRODUCER_HANDLE_LABELS["video-to-video"].negative,        accepts: (s) => isValidVideoToVideoConnection("negative",       s, isVisualPickerType) },
+    // Seedance-edit-lane reference rails — always offered as candidates; the
+    // per-provider budget (0 for every route provider) is getHandleConnectionLimit's.
+    { handleId: "imageReferences", label: VIDEO_PRODUCER_HANDLE_LABELS["video-to-video"].imageReferences, accepts: (s) => isValidVideoToVideoConnection("imageReferences", s, isVisualPickerType) },
+    { handleId: "audioReferences", label: VIDEO_PRODUCER_HANDLE_LABELS["video-to-video"].audioReferences, accepts: (s) => isValidVideoToVideoConnection("audioReferences", s, isVisualPickerType) },
   ],
   "video-upscale": [
     { handleId: "video", label: VIDEO_PRODUCER_HANDLE_LABELS["video-upscale"].video, accepts: (s) => isValidVideoUpscaleConnection("video", s) },

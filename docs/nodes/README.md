@@ -312,7 +312,7 @@ Generate video from images, text, or other video using state-of-the-art models.
 | [Edit Video Pro](./ai-video/edit-video-pro.md) | Replace a span (min 4s, max 120s) of an existing video with newly generated content — Seedance 2 reference bridge, stitched back into the source (self-host: via your nodaro.ai connection) | Reshoot or restyle a portion of an existing clip without regenerating the whole thing |
 | [Image to Video](./ai-video/image-to-video.md) (legacy) | Redirects to Generate Video; legacy `image-to-video` workflows auto-migrate on load | New workflows: use Generate Video instead |
 | [Text to Video](./ai-video/text-to-video.md) (legacy) | Redirects to Generate Video; legacy `text-to-video` workflows auto-migrate on load | New workflows: use Generate Video instead |
-| [Video to Video](./ai-video/video-to-video.md) | Transform video with text prompt | Style transfer or content modification on existing video |
+| [Video to Video](./ai-video/video-to-video.md) | Transform video with text prompt | Style transfer, content modification, or a whole-clip Seedance 2.5 edit that keeps the source length and ratio |
 | [Relight & Switch](./ai-video/switchx.md) | Relight + switch/composite driven by the source pixels (Beeble SwitchX) | Relight a subject, swap/restyle a background, or composite via reference image + alpha mask |
 | [AI Avatar](./ai-video/ai-avatar.md) | Talking-avatar video from a HeyGen avatar + script or wired audio | Generate presenter or spokesperson videos; two speech modes (script+voice / wired audio) |
 | [Cinematic Avatar](./ai-video/cinematic-avatar.md) | Prompt-driven generative avatar clip from 1-3 HeyGen avatar looks (no script/voice) | Cinematic intros, teasers, and stylized character moments driven by a text prompt |

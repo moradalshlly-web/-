@@ -46,7 +46,7 @@ import type {
   VideoAuditNodeData,
 } from "@/types/nodes"
 import { GENERATE_VIDEO_PRO_MAX_DURATION_FALLBACK, VIDEO_I2V_MODELS, VIDEO_T2V_MODELS, VIDEO_V2V_MODELS, VIDEO_GEN_MODELS, GVP_PROVIDERS, EVP_PROVIDERS, MOTION_TRANSFER_MODELS, KIE_VIDEO_DURATIONS, KIE_T2V_DURATIONS, VIDEO_DURATION_OPTIONS, VIDEO_FPS_OPTIONS, PROVIDERS_WITH_END_FRAME, KLING3_DURATIONS, VIDEO_RATIOS, SEEDANCE_2_VIDEO_RATIOS, PROVIDERS_WITH_REFERENCES, V2V_DURATION_OPTIONS, V2V_RESOLUTION_OPTIONS, V2V_ALEPH_ASPECT_RATIOS, EXTEND_VIDEO_MODELS, getVideoResolutionOptions, getAspectRatiosForVideoModel, getVideoModelCapabilitiesTooltip, withoutDeniedModels } from "./model-options"
-import { isAutoVideoDuration, isSeedance2Provider, isMinimaxH3Provider, isGeminiOmniProvider, isWan3Provider, VIDEO_REF_LIMITS_BY_PROVIDER, defaultVideoAspectRatio, maxSegmentSecFor, supportsExtendRender, MODEL_CATALOG, SEEDANCE_2_REF_LIMITS, VIDEO_PROMPT_MAX, getMaxVideoPromptChars, getMaxNegativePromptChars, buildVideoCreditModelIdentifier, characterMentionSlug, characterMentionableAssetArrays, DEFAULT_LABEL_BY_SOURCE, locationMentionSlug, resolveEffectiveSourceType, FRAME_TARGET_HANDLES, VIDEO_ANALYSIS_TIER_ORDER, VIDEO_ANALYSIS_TIER_LABELS, VIDEO_ANALYSIS_TIERS, VIDEO_ANALYSIS_LEGACY_MODELS, DEFAULT_VIDEO_ANALYSIS_TIER, isVideoAnalysisTier, VIDEO_AUDIT_BUCKET_CREDITS, LLM_MODELS, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT, GVP_ANCHOR_CHOICES, uiResolutionFill, uiDurationFill, type GvpAnchorChoice } from "@nodaro/shared"
+import { isAutoVideoDuration, isSeedance2Provider, isSeedanceVideoEditProvider, isMinimaxH3Provider, isGeminiOmniProvider, isWan3Provider, VIDEO_REF_LIMITS_BY_PROVIDER, defaultVideoAspectRatio, maxSegmentSecFor, supportsExtendRender, MODEL_CATALOG, SEEDANCE_2_REF_LIMITS, VIDEO_PROMPT_MAX, getMaxVideoPromptChars, getMaxNegativePromptChars, buildVideoCreditModelIdentifier, characterMentionSlug, characterMentionableAssetArrays, DEFAULT_LABEL_BY_SOURCE, locationMentionSlug, resolveEffectiveSourceType, FRAME_TARGET_HANDLES, VIDEO_ANALYSIS_TIER_ORDER, VIDEO_ANALYSIS_TIER_LABELS, VIDEO_ANALYSIS_TIERS, VIDEO_ANALYSIS_LEGACY_MODELS, DEFAULT_VIDEO_ANALYSIS_TIER, isVideoAnalysisTier, VIDEO_AUDIT_BUCKET_CREDITS, LLM_MODELS, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT, GVP_ANCHOR_CHOICES, uiResolutionFill, uiDurationFill, type GvpAnchorChoice } from "@nodaro/shared"
 import type { ReferenceSource, ConnectedReference } from "@nodaro/shared"
 import { resolveSeedance2Inputs } from "@nodaro/prompts"
 import { probeVideoAnalysis } from "@/lib/api"
@@ -1395,7 +1395,20 @@ function VideoToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
   const isWanFlash = provider === "wan-flash"
   const isAleph = provider === "runway-aleph"
   const isVideoEdit = provider === "wan-videoedit"
+  // Seedance has no v2v endpoint — it EDITS a reference video — so this lane is
+  // dispatched as a text-to-video job in edit shape. None of the Wan/Aleph
+  // levers apply (length and ratio come from the source clip), so its own
+  // fields live in their own block below.
+  const isSeedanceEdit = isSeedanceVideoEditProvider(provider)
+  // Provider-aware resolution list, straight off MODEL_CATALOG (never a literal
+  // — a retune of the model's resolutions reaches this select for free).
+  const seedanceResolutions = getVideoResolutionOptions(provider) ?? []
 
+  // Fail-safe (CLAUDE.md Provider Enum Sync step 12b). Keyed on the PROVIDER,
+  // not on one boolean: `v2vResolution` is the node's ONE resolution field and
+  // its valid set differs per lane (Seedance adds 480p, the Wan lanes do not),
+  // so a wan→seedance→wan round trip could otherwise leave `480p` on the node
+  // and the /v1/video-to-video Zod enum would reject it at generate time.
   useEffect(() => {
     const updates: Partial<VideoToVideoData> = {}
     if (isVideoEdit) {
@@ -1409,8 +1422,18 @@ function VideoToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
       if (data.audioSetting !== undefined) updates.audioSetting = undefined
       if (data.promptExtend !== undefined) updates.promptExtend = undefined
     }
+    if (!isVideoEdit && data.v2vResolution !== undefined) {
+      // Leaving Seedance: 480p is not a Wan resolution → snap to the first valid
+      // option. Entering Seedance: 720p/1080p are both valid, so nothing moves.
+      const valid = isSeedanceEdit
+        ? seedanceResolutions.map((o) => o.value)
+        : V2V_RESOLUTION_OPTIONS.map((o) => o.value as string)
+      if (!valid.includes(data.v2vResolution)) {
+        updates.v2vResolution = valid[0] as VideoToVideoData["v2vResolution"]
+      }
+    }
     if (Object.keys(updates).length > 0) onUpdate(updates)
-  }, [isVideoEdit]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [provider]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const connectedImages = useMemo(() => {
     return sources.filter((s) => V2V_IMAGE_TYPES.includes(s.type)).map((s) => ({
@@ -1485,9 +1508,14 @@ function VideoToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
         )}
       </MappableField>
 
-      {/* Negative Prompt — always visible. Wan family providers send it
-          natively as `negative_prompt`; non-native providers get it
-          appended to the prompt as "Avoid: …" by the backend helper. */}
+      {/* Negative Prompt — visible on every ROUTE lane. Wan family providers
+          send it natively as `negative_prompt`; the other route providers get
+          it appended to the prompt as "Avoid: …" by the backend helper. Hidden
+          on the Seedance EDIT lane: that dispatch (execute-node.ts +
+          payload-builder.ts) carries no negative field at all, and Seedance is
+          not in NATIVE_NEGATIVE_VIDEO_PROVIDERS — showing the box would promise
+          an effect the run cannot deliver. */}
+      {!isSeedanceEdit && (
       <MappableField field="negativePrompt" label={t("field.negativePrompt")} sources={sources} fieldMappings={fieldMappings} onMapField={onMapField} labelAction={<span className="inline-flex items-center gap-0.5">
         <PromptFieldModeToggle mode={negativeFieldMode.mode} onToggle={negativeFieldMode.toggle} />
         <SnippetMenuButton pool={negativeSnippets} value={data.negativePrompt || ""} onInsert={(v) => onUpdate({ negativePrompt: v || undefined })} target="negative" media="video" />
@@ -1517,6 +1545,7 @@ function VideoToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
           </>
         )}
       </MappableField>
+      )}
 
       <ExtraRefsSection
         extraRefs={data.extraRefs}
@@ -1549,6 +1578,49 @@ function VideoToVideoConfigImpl({ data, onUpdate, sources, fieldMappings, onMapF
         label={t("field.injectedReferences")}
       />
       <SeedanceReferenceTip provider={data.provider} />
+
+      {/* Seedance EDIT lane: Resolution, native audio, seed.
+          Deliberately NO duration / aspect-ratio / audio-setting / multi-shot /
+          prompt-extend levers — the output takes the SOURCE clip's own length
+          and ratio (the lane sends `adaptive` + Auto up front), so any of those
+          controls would be a promise the provider ignores. */}
+      {isSeedanceEdit && (
+        <>
+          <MappableField field="v2vResolution" label={t("field.resolution")} sources={sources} fieldMappings={fieldMappings} onMapField={onMapField}>
+            <Select
+              value={data.v2vResolution || uiResolutionFill(provider)}
+              onValueChange={(v) => onUpdate({ v2vResolution: v as VideoToVideoData["v2vResolution"] })}
+            >
+              <SelectTrigger aria-label={t("field.resolution")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {seedanceResolutions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{localizeOption(o.label)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </MappableField>
+          <div className="flex items-center gap-2 px-1">
+            <input
+              type="checkbox"
+              id="v2vSeedanceAudio"
+              checked={data.generateAudio ?? true}
+              onChange={(e) => onUpdate({ generateAudio: e.target.checked })}
+              className="rounded border-muted-foreground/40"
+            />
+            <label htmlFor="v2vSeedanceAudio" className="text-xs">{t("vidcfg.generateAudioDefaultOn")}</label>
+          </div>
+          <MappableField field="seed" label={t("field.seed")} sources={sources} fieldMappings={fieldMappings} onMapField={onMapField}>
+            <Input
+              type="number"
+              min={0}
+              value={data.seed ?? ""}
+              onChange={(e) => onUpdate({ seed: e.target.value ? Number(e.target.value) : undefined })}
+              placeholder={t("vidcfg.phRandom")}
+            />
+          </MappableField>
+          <p className="px-1 text-[11px] leading-snug text-muted-foreground">{t("vidcfg.v2vSeedanceEditHint")}</p>
+        </>
+      )}
 
       {/* Wan / Wan Flash: Duration & Resolution */}
       {isWan && (

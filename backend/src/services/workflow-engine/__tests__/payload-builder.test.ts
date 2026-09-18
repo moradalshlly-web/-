@@ -438,6 +438,41 @@ describe("buildPayload", () => {
       expect(result.payload.audioSetting).toBe("origin")
       expect(result.payload.promptExtend).toBe(true)
     })
+
+    // Seedance has no v2v endpoint — it EDITS a reference video. The node's
+    // Seedance lane is therefore a text-to-video job in edit shape, so it rides
+    // the one Seedance reference-video lane (bounds, reservation, settlement).
+    it("seedance-2-5: a text-to-video job in edit shape, the source clip as @video_1", () => {
+      const n = node("n1", "video-to-video", { provider: "seedance-2-5", v2vResolution: "480p", generateAudio: true })
+      const inputs: ResolvedInputs = {
+        videoUrl: "https://v.mp4",
+        prompt: "the woman wears a red coat",
+        referenceImageUrls: ["https://a.jpg", "https://b.jpg"],
+      }
+      const result = buildPayload(n, jobId, inputs)
+      expect(result.jobName).toBe("text-to-video")
+      expect(result.payload).toMatchObject({
+        provider: "seedance-2-5",
+        prompt: "edit @video_1 as follows:\nthe woman wears a red coat",
+        aspectRatio: "adaptive",
+        duration: -1,
+        resolution: "480p",
+        generateAudio: true,
+        referenceVideoUrls: ["https://v.mp4"],
+        referenceImageUrls: ["https://a.jpg", "https://b.jpg"],
+      })
+      // Reserved on the reference-video ladder at the model's longest clip.
+      expect(result.modelIdentifier).toBe("seedance-2-5:30s:480p-ref")
+      // No v2v-route fields leak into the t2v job.
+      expect(result.payload).not.toHaveProperty("videoUrl")
+      expect(result.payload).not.toHaveProperty("referenceImageUrl")
+    })
+
+    it("seedance-2-5: a prompt that already opens with the edit instruction is not double-prefixed", () => {
+      const n = node("n1", "video-to-video", { provider: "seedance-2-5" })
+      const result = buildPayload(n, jobId, { videoUrl: "https://v.mp4", prompt: "edit {video:1} as follows:\nmake it black and white" })
+      expect(result.payload.prompt).toBe("edit @video_1 as follows:\nmake it black and white")
+    })
   })
 
   // --- Audio ---

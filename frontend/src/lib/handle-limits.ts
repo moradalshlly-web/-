@@ -1,4 +1,4 @@
-import { imageReferenceLimit, VIDEO_REF_LIMITS_BY_PROVIDER, getModel, isSeedance2Provider, isMinimaxH3Provider, isWan3Provider } from "@nodaro/shared"
+import { imageReferenceLimit, VIDEO_REF_LIMITS_BY_PROVIDER, getModel, isSeedance2Provider, isSeedanceVideoEditProvider, isMinimaxH3Provider, isWan3Provider } from "@nodaro/shared"
 import { isAnalyzablePicker } from "@nodaro/prompts"
 import {
   PROVIDERS_WITH_END_FRAME,
@@ -294,6 +294,29 @@ export function getHandleConnectionLimit(
       default:
         return null
     }
+  }
+
+  // Video to Video — `imageReferences` / `audioReferences` exist for the
+  // Seedance EDIT lane only (Seedance has no v2v endpoint; the node dispatches
+  // a text-to-video job in edit shape, which is what carries multimodal refs).
+  // Every `/v1/video-to-video` ROUTE provider takes at most a single
+  // `referenceImageUrl` and no audio at all, so both handles report 0 there —
+  // the node dims the pip and the popover says "not supported by [Model]",
+  // exactly as generate-video does for a provider without the capability.
+  // Caps come from VIDEO_REF_LIMITS_BY_PROVIDER (the shared numeric source),
+  // never a literal, so a retune of the Seedance caps reaches this handle for
+  // free. No pool subtraction: unlike generate-video's Seedance-2 mode this
+  // node has no frame handles, and the source clip rides
+  // `referenceVideoUrls` — a separate array from `reference_image_urls`.
+  if (node.type === "video-to-video" && (handleId === "imageReferences" || handleId === "audioReferences")) {
+    const provider = (node.data as { provider?: string } | undefined)?.provider
+    const providerLabel = (provider && getModel(provider)?.label) ?? provider ?? "Video to Video"
+    if (!isSeedanceVideoEditProvider(provider)) {
+      return { limit: 0, providerLabel, isMultiProviderMin: false }
+    }
+    const caps = VIDEO_REF_LIMITS_BY_PROVIDER[provider]
+    const cap = handleId === "imageReferences" ? caps?.images : caps?.audio
+    return { limit: cap ?? 0, providerLabel, isMultiProviderMin: false }
   }
 
   // Video SFX — single video producer feeds the SFX generator. The prompt

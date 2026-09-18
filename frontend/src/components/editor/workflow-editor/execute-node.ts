@@ -110,8 +110,8 @@ import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, spli
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
-  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
-import { applyPromptAffixes, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
+  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
+import { applyPromptAffixes, buildSeedanceVideoEditPrompt, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
   collectScene3DLayoutReferences,
@@ -2930,6 +2930,57 @@ function executeNodeCore(
       const identityClause = collectIdentityLockClause(node.id, nodes, edges);
       if (identityClause) prompt = prompt ? `${prompt} ${identityClause}` : identityClause;
     }
+    const countRefModality = (modality: ReferenceModality): number =>
+      countRefModalityEdges(edges, node.id, modality);
+    // Seedance edits a REFERENCE video — there is no v2v endpoint for it — so
+    // this node's Seedance lane is a `text-to-video` job in edit shape, riding
+    // the one Seedance reference-video lane (clip bounds, unit×(input+output)
+    // reservation, measured settlement, edit-mode retry, reconcile recovery).
+    // The source clip is reference video 1, which is what `{video:1}` in the
+    // edit instruction resolves against. Mirrors the orchestrator
+    // (payload-builder.ts, case "video-to-video") byte-for-byte: the prompt is
+    // already carrying the cinematography hints + identity clause above, the
+    // edit instruction wraps THAT, and only then are mentions resolved.
+    if (isSeedanceVideoEditProvider(provider)) {
+      // Always a string (at minimum the instruction itself) — the `??` below is
+      // only the type floor for a resolver that never returns undefined here.
+      const editPrompt = buildSeedanceVideoEditPrompt(prompt);
+      const editMention = resolveVideoPromptMentions(
+        editPrompt, node.id, nodes, edges, v2vData.extraRefs,
+        {
+          referenceOrder: v2vData.referenceOrder,
+          suppressedCanonicalCharacterIds: v2vData.suppressedCanonicalCharacterIds,
+          imageRefCount: countRefModality("image"),
+          videoRefCount: 1,
+          audioRefCount: countRefModality("audio"),
+        },
+      );
+      // EVERY image ref, not just slot 0: the t2v lane carries an ARRAY. Wired
+      // refs keep their edge order, mention-resolved URLs append, deduped.
+      const wiredImages = typeof inputs.referenceImageUrls === "string"
+        ? [inputs.referenceImageUrls]
+        : Array.isArray(inputs.referenceImageUrls) ? (inputs.referenceImageUrls as string[]) : [];
+      const editImageUrls = [...wiredImages, ...editMention.additionalUrls.filter((u) => !wiredImages.includes(u))];
+      const editAudioUrls = inputs.referenceAudioUrls as string[] | undefined;
+      setUserPromptTemplate((typeof v2vData.prompt === "string" ? v2vData.prompt.trim() : "") || undefined);
+      return runTextToVideoGeneration(
+        node.id,
+        editMention.prompt ?? editPrompt,
+        ctx,
+        provider,
+        {
+          ...SEEDANCE_VIDEO_EDIT_SHAPE,
+          // The node's ONE resolution field serves every provider.
+          resolution: v2vData.v2vResolution ?? uiResolutionFill(provider),
+          generateAudio: v2vData.generateAudio,
+          seed: v2vData.seed,
+          referenceVideoUrls: [sourceVideoUrl],
+          referenceImageUrls: editImageUrls.length > 0 ? editImageUrls : undefined,
+          referenceAudioUrls: editAudioUrls?.length ? editAudioUrls : undefined,
+        },
+        idempotencyKey,
+      );
+    }
     // Resolve @-mentions in the v2v prompt. Mirrors the backend
     // `resolveVideoPromptMentions` in `payload-builder.ts`. v2v has only a
     // single `referenceImageUrl` slot — when an upstream ref image is wired
@@ -2938,8 +2989,6 @@ function executeNodeCore(
     // accept exactly one reference image and silently ignore the rest, so
     // there's no payload key to plumb them into. Prompt token replacement
     // still happens so the LLM sees the character names regardless.
-    const countRefModality = (modality: ReferenceModality): number =>
-      countRefModalityEdges(edges, node.id, modality);
     const v2vMention = resolveVideoPromptMentions(prompt, node.id, nodes, edges, v2vData.extraRefs, {
       referenceOrder: v2vData.referenceOrder,
       suppressedCanonicalCharacterIds: v2vData.suppressedCanonicalCharacterIds,

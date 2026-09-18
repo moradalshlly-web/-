@@ -46,8 +46,16 @@ const ACCEPTS_CINEMATOGRAPHY = (
 ): boolean => isVisualPicker(sourceType)
 
 // ─── video-to-video ────────────────────────────────────────────────────
-// Inputs: video, cinematography, prompt, negative (text-only).
-// Source: video (already correct).
+// Inputs: video, cinematography, prompt, negative (text-only),
+// imageReferences, audioReferences. Source: video (already correct).
+//
+// The two reference handles only carry a payload on the Seedance EDIT lane
+// (SEEDANCE_VIDEO_EDIT_PROVIDERS) — every route provider takes at most a single
+// reference image and no audio. They are nonetheless accepted here
+// UNCONDITIONALLY, matching lip-sync / modify-image's mask precedent: the
+// predicate answers "can this SOURCE TYPE sit on this handle", the per-provider
+// budget is `getHandleConnectionLimit` (which returns 0 → a dimmed pip for the
+// route providers), so a saved edge survives a provider flip.
 export function isValidVideoToVideoConnection(
   targetHandleId: string,
   sourceType: string,
@@ -62,6 +70,10 @@ export function isValidVideoToVideoConnection(
       return ACCEPTS_PROMPT(sourceType, isVisualPicker)
     case "negative":
       return ACCEPTS_TEXT_OR_DYN(sourceType)
+    case "imageReferences":
+      return ACCEPTS_IMAGE_OR_DYN(sourceType)
+    case "audioReferences":
+      return ACCEPTS_AUDIO_OR_DYN(sourceType)
     default:
       return false
   }
@@ -321,7 +333,7 @@ export function isValidSwitchXConnection(
 // ─── Friendly labels for source-direction popover candidate rows ──────
 
 export const VIDEO_PRODUCER_HANDLE_LABELS: Record<string, Record<string, string>> = {
-  "video-to-video":   { video: "Video", cinematography: "Cinematography", prompt: "Prompt", negative: "Negative" },
+  "video-to-video":   { video: "Video", cinematography: "Cinematography", prompt: "Prompt", negative: "Negative", imageReferences: "Image Refs", audioReferences: "Audio Refs" },
   "video-upscale":    { video: "Video" },
   "extend-video":     { video: "Video", cinematography: "Cinematography", prompt: "Prompt" },
   "lip-sync":         { image: "Portrait", video: "Source video", audio: "Audio" },

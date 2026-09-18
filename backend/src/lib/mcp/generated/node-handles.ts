@@ -191,7 +191,7 @@ export const NODE_HANDLES: Readonly<Record<string, NodeHandleSpec>> = {
   "video-composer": { inputs: ["in"], outputs: ["composition"] },
   "video-retake": { inputs: ["video", "prompt", "look"], outputs: ["video"] },
   "video-sfx": { inputs: ["prompt", "negative", "video"], outputs: ["video"] },
-  "video-to-video": { inputs: ["video", "cinematography", "prompt", "negative"], outputs: ["video"] },
+  "video-to-video": { inputs: ["video", "cinematography", "prompt", "negative", "imageReferences", "audioReferences"], outputs: ["video"] },
   "video-upscale": { inputs: ["video"], outputs: ["video"] },
   "voice-changer": { inputs: ["audio", "video"], outputs: ["audio"] },
   "voice-changer-pro": { inputs: ["audio", "video"], outputs: ["audio", "video"] },

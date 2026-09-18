@@ -41,9 +41,10 @@ import {
   GENERATE_VIDEO_PRO_MAX_DURATION_FALLBACK,
   getAspectRatiosForVideoModel,
   getDurationsForVideoModel,
+  getVideoResolutionOptions,
   VIDEO_RESOLUTION_OPTIONS,
 } from "@/components/editor/config-panels/model-options"
-import { availableReasoningEfforts, orderedLlmModels, STRUCTURED_VISION_MODELS, SHEET_TYPES, SHEET_SKINS, VIDEO_ANALYSIS_TIER_ORDER, VIDEO_ANALYSIS_TIER_LABELS, DEFAULT_VIDEO_ANALYSIS_TIER, SCENE3D_LIMITS } from "@nodaro/shared"
+import { availableReasoningEfforts, isSeedanceVideoEditProvider, orderedLlmModels, STRUCTURED_VISION_MODELS, SHEET_TYPES, SHEET_SKINS, VIDEO_ANALYSIS_TIER_ORDER, VIDEO_ANALYSIS_TIER_LABELS, DEFAULT_VIDEO_ANALYSIS_TIER, SCENE3D_LIMITS } from "@nodaro/shared"
 import { EFFORT_LABELS } from "@/components/editor/config-panels/reasoning-effort-select"
 import { ALL_LANGUAGES } from "@/lib/audio-tags"
 
@@ -334,13 +335,25 @@ const removeBgMotionControl: QuickConfigControl = {
     { value: "dynamic", label: "Dynamic" },
   ],
 }
-/** video-to-video resolution. Provider-aware: runway-aleph has no resolution
- *  lever (it uses an aspect-ratio control instead — see video-configs.tsx), so
- *  return `[]` there and QuickConfigSelect hides + clears the field. Options are
- *  the SAME V2V_RESOLUTION_OPTIONS the panel renders, so they can't drift. */
+/** video-to-video resolution. Provider-aware, three ways:
+ *   - runway-aleph has no resolution lever (it uses an aspect-ratio control
+ *     instead — see video-configs.tsx) → `[]`, so QuickConfigSelect hides the
+ *     control AND clears the stale value.
+ *   - the Seedance EDIT lane adds 480p, read straight off MODEL_CATALOG via
+ *     `getVideoResolutionOptions` — the SAME source that panel's select and its
+ *     fail-safe snap read, so the two can never drift.
+ *   - every other route provider keeps V2V_RESOLUTION_OPTIONS (720p/1080p).
+ *  A static superset here would be the Zod-reject trap CLAUDE.md calls out:
+ *  480p written by the strip and then carried onto a Wan provider is rejected
+ *  by the /v1/video-to-video enum at generate time. */
 const v2vResolutionControl: QuickConfigControl = {
   field: "v2vResolution", ariaLabel: "Resolution", icon: Sparkles,
-  options: (data) => (data.provider === "runway-aleph" ? [] : toOptions(V2V_RESOLUTION_OPTIONS)),
+  options: (data) => {
+    const provider = typeof data.provider === "string" ? data.provider : "wan"
+    if (provider === "runway-aleph") return []
+    if (isSeedanceVideoEditProvider(provider)) return getVideoResolutionOptions(provider) ?? []
+    return toOptions(V2V_RESOLUTION_OPTIONS)
+  },
 }
 /** cinematic-avatar duration (numeric, 4–15s). Provider-aware: when
  *  `data.autoDuration` is on, HeyGen picks the length, so there's no duration

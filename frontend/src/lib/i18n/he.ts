@@ -4138,6 +4138,7 @@ export const he: ChromeDict = {
   "vidcfg.fun": "כיפי",
   "vidcfg.generateAudioPricing": "יצירת אודיו (משפיע על התמחור)",
   "vidcfg.generateAudioDefaultOn": "יצירת אודיו (פעיל כברירת מחדל)",
+  "vidcfg.v2vSeedanceEditHint": "הפרומפט שלך נשלח בצורה “edit @video_1 as follows: …” — התוצאה שומרת על אורך הקליפ המקורי ועל יחס המסך שלו. אורך הקליפ חייב להיות 4–30 שניות. חבר תמונות ל-Image Refs וציין אותן במונים {image:1}, {image:2}…",
   "vidcfg.generateAudio": "יצירת אודיו",
   "vidcfg.inputImage": "תמונת קלט",
   "vidcfg.inputVideo": "וידאו קלט",

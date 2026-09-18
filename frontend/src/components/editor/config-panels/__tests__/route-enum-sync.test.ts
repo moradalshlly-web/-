@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect } from "vitest"
-import { IMAGE_GEN_PROVIDERS, IMAGE_I2I_PROVIDERS, IMAGE_EDIT_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, LIP_SYNC_PROVIDERS, TTS_PROVIDERS, SUNO_MODELS as SUNO_PROVIDERS_SHARED } from "@nodaro/shared"
+import { IMAGE_GEN_PROVIDERS, IMAGE_I2I_PROVIDERS, IMAGE_EDIT_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, VIDEO_TO_VIDEO_NODE_PROVIDERS, SEEDANCE_VIDEO_EDIT_PROVIDERS, LIP_SYNC_PROVIDERS, TTS_PROVIDERS, SUNO_MODELS as SUNO_PROVIDERS_SHARED } from "@nodaro/shared"
 import {
   IMAGE_GEN_MODELS,
   IMAGE_I2I_MODELS,
@@ -81,8 +81,29 @@ describe("frontend dropdown ⊆ shared provider list", () => {
     checkSubset("VIDEO_T2V_MODELS", VIDEO_T2V_MODELS, new Set(TEXT_TO_VIDEO_PROVIDERS))
   })
 
-  it("VIDEO_V2V_MODELS values ⊆ VIDEO_TO_VIDEO_PROVIDERS", () => {
-    checkSubset("VIDEO_V2V_MODELS", VIDEO_V2V_MODELS, new Set(VIDEO_TO_VIDEO_PROVIDERS))
+  // The Video to Video NODE and the `/v1/video-to-video` ROUTE no longer have
+  // the same provider set, and that split is deliberate: Seedance has no v2v
+  // endpoint — it EDITS a reference video — so the node's Seedance lane is
+  // dispatched as a text-to-video job in edit shape by every surface (FE run,
+  // orchestrator, MCP). Adding it to the ROUTE enum would advertise an endpoint
+  // that cannot serve it. So the dropdown is pinned against the NODE list, and
+  // the node list is pinned as "route providers + Seedance edit providers".
+  it("VIDEO_V2V_MODELS values ⊆ VIDEO_TO_VIDEO_NODE_PROVIDERS", () => {
+    checkSubset("VIDEO_V2V_MODELS", VIDEO_V2V_MODELS, new Set(VIDEO_TO_VIDEO_NODE_PROVIDERS))
+  })
+
+  it("VIDEO_TO_VIDEO_NODE_PROVIDERS = route providers + Seedance edit providers", () => {
+    expect([...VIDEO_TO_VIDEO_NODE_PROVIDERS]).toEqual([
+      ...VIDEO_TO_VIDEO_PROVIDERS,
+      ...SEEDANCE_VIDEO_EDIT_PROVIDERS,
+    ])
+    // …and no Seedance edit provider ever leaks into the route's own enum.
+    for (const p of SEEDANCE_VIDEO_EDIT_PROVIDERS) {
+      expect(
+        (VIDEO_TO_VIDEO_PROVIDERS as readonly string[]).includes(p),
+        `${p} must NOT be in VIDEO_TO_VIDEO_PROVIDERS — /v1/video-to-video has no Seedance lane`,
+      ).toBe(false)
+    }
   })
 
   it("LIP_SYNC_MODELS values ⊆ LIP_SYNC_PROVIDERS", () => {
