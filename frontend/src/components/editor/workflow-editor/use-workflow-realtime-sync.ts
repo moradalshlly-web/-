@@ -147,6 +147,18 @@ export interface UseWorkflowRealtimeSyncParams {
    */
   readonly getLoadedVersion: () => number | null
   /**
+   * Whether a save for this workflow is in flight (`saveStatus === "saving"`).
+   * While true, a broadcast at a version NEWER than `loadedVersion` is this
+   * tab's OWN save's echo, arriving before the save's HTTP response advanced
+   * `loadedVersion` — a large REPLICA-IDENTITY-FULL row echoes slowly over the
+   * WAL. Skip it: otherwise it lands on the dirty branch, strands
+   * `remoteUpdatedAt`, and freezes autosave (the durable "updated on another
+   * device" loop). A genuine remote write in this window still 0-row-conflicts
+   * our CAS on the next save and surfaces from the save response, so nothing is
+   * lost. Optional; treated as never-in-flight when absent.
+   */
+  readonly getSaveInFlight?: () => boolean
+  /**
    * Apply the broadcast as a full reconcile: replace local nodes/edges
    * (and `settings`-derived fields) with the payload and advance
    * `loadedUpdatedAt`. Only called when local state is clean. The
@@ -196,6 +208,7 @@ export function useWorkflowRealtimeSync(
     getIsDirty,
     getLoadedUpdatedAt,
     getLoadedVersion,
+    getSaveInFlight,
     onReconcile,
     onAppendNodes,
     onAppendEdges,
@@ -211,6 +224,7 @@ export function useWorkflowRealtimeSync(
   const getIsDirtyRef = useRef(getIsDirty)
   const getLoadedUpdatedAtRef = useRef(getLoadedUpdatedAt)
   const getLoadedVersionRef = useRef(getLoadedVersion)
+  const getSaveInFlightRef = useRef(getSaveInFlight)
   const onReconcileRef = useRef(onReconcile)
   const onAppendNodesRef = useRef(onAppendNodes)
   const onAppendEdgesRef = useRef(onAppendEdges)
@@ -223,6 +237,7 @@ export function useWorkflowRealtimeSync(
   getIsDirtyRef.current = getIsDirty
   getLoadedUpdatedAtRef.current = getLoadedUpdatedAt
   getLoadedVersionRef.current = getLoadedVersion
+  getSaveInFlightRef.current = getSaveInFlight
   onReconcileRef.current = onReconcile
   onAppendNodesRef.current = onAppendNodes
   onAppendEdgesRef.current = onAppendEdges
@@ -262,6 +277,16 @@ export function useWorkflowRealtimeSync(
           // has nothing to reconcile either.
           const localVersion = getLoadedVersionRef.current()
           if (typeof next.version === "number" && localVersion != null && next.version <= localVersion) return
+
+          // Own IN-FLIGHT save echo: while a save is on the wire (saveStatus ===
+          // "saving"), a broadcast at a NEWER version is our own not-yet-
+          // acknowledged write — its ~116KB REPLICA-IDENTITY-FULL echo beat the
+          // HTTP response that advances `loadedVersion`. Skip it; letting it
+          // reach the dirty branch strands `remoteUpdatedAt` and freezes
+          // autosave (the durable "updated on another device" loop a large
+          // scrape result triggers). A genuine remote write in this window still
+          // 0-row-conflicts our next save's CAS and surfaces from the response.
+          if (getSaveInFlightRef.current?.() && typeof next.version === "number" && localVersion != null && next.version > localVersion) return
 
           // Rows without a version: the echo of the latest save only.
           // Without this short-circuit, every successful save would

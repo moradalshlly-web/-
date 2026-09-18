@@ -77,6 +77,8 @@ interface HarnessParams {
   loadedUpdatedAt: string | null
   /** The tab's CAS token; null = unknown (the pre-version-column behaviour). */
   loadedVersion?: number | null
+  /** Whether a save is in flight (saveStatus === "saving"). */
+  saveInFlight?: boolean
   onReconcile: (args: {
     nodes: Node[]
     edges: Edge[]
@@ -96,6 +98,7 @@ function Harness(props: HarnessParams) {
     getIsDirty: () => props.isDirty,
     getLoadedUpdatedAt: () => props.loadedUpdatedAt,
     getLoadedVersion: () => props.loadedVersion ?? null,
+    getSaveInFlight: () => props.saveInFlight ?? false,
     onReconcile: props.onReconcile,
     onAppendNodes: props.onAppendNodes,
     onAppendEdges: props.onAppendEdges,
@@ -438,6 +441,61 @@ describe("useWorkflowRealtimeSync", () => {
     expect(onAppendNodes).not.toHaveBeenCalled()
     expect(onAppendEdges).not.toHaveBeenCalled()
     expect(onRemoteUpdatedAt).not.toHaveBeenCalled()
+  })
+
+  it("skips the tab's OWN in-flight save echo (newer version WHILE saving) — no banner, no autosave freeze", () => {
+    // The completion save's ~116KB echo (version 21) travels the slow WAL and
+    // arrives before the save's HTTP response advanced loadedVersion (still 20).
+    // While the save is in flight, that newer version is OUR write; skipping it
+    // is what stops the false "updated on another device" that stranded
+    // remoteUpdatedAt and froze autosave.
+    const onReconcile = vi.fn()
+    const onAppendNodes = vi.fn()
+    const onRemoteUpdatedAt = vi.fn()
+    render(
+      <Harness
+        {...defaultProps({
+          currentNodes: [makeNode("n1")],
+          isDirty: true,
+          loadedUpdatedAt: "T20",
+          loadedVersion: 20,
+          saveInFlight: true,
+          onReconcile,
+          onAppendNodes,
+          onRemoteUpdatedAt,
+        })}
+      />,
+    )
+
+    lastSubscription().handler({
+      new: { id: "wf-1", nodes: [makeNode("n1")], edges: [], updated_at: "T21", version: 21 },
+    })
+
+    expect(onRemoteUpdatedAt).not.toHaveBeenCalled()
+    expect(onReconcile).not.toHaveBeenCalled()
+    expect(onAppendNodes).not.toHaveBeenCalled()
+  })
+
+  it("still reports a genuinely newer version when NO save is in flight (real remotes are not suppressed)", () => {
+    const onRemoteUpdatedAt = vi.fn()
+    render(
+      <Harness
+        {...defaultProps({
+          currentNodes: [makeNode("n1")],
+          isDirty: true,
+          loadedUpdatedAt: "T20",
+          loadedVersion: 20,
+          saveInFlight: false,
+          onRemoteUpdatedAt,
+        })}
+      />,
+    )
+
+    lastSubscription().handler({
+      new: { id: "wf-1", nodes: [makeNode("n1")], edges: [], updated_at: "T21", version: 21 },
+    })
+
+    expect(onRemoteUpdatedAt).toHaveBeenCalledWith("T21")
   })
 
   it("skips an updated_at-only write (same version: thumbnail, share toggle) — nothing to reconcile", () => {
