@@ -3,7 +3,7 @@
 import { useT } from "@/lib/i18n"
 import { memo, useState, useMemo, useCallback } from "react"
 import { Position, type NodeProps } from "@xyflow/react"
-import { Captions, Loader2, AlertCircle, X, Film, LayoutGrid } from "lucide-react"
+import { Captions, Loader2, AlertCircle, X, Film, LayoutGrid, Braces } from "lucide-react"
 import { BaseNode } from "./base-node"
 import { NodeJobProgress } from "./node-job-progress"
 import { RunNodeButton } from "./run-node-button"
@@ -11,6 +11,7 @@ import { EditableNodeLabel } from "./editable-node-label"
 import { HandleWithPopover } from "./handle-with-popover"
 import { ResultsThumbnailsPanel } from "./results-thumbnails-panel"
 import { ACCEPTS_VIDEO, FFMPEG_COLORS } from "@/lib/ffmpeg-handles"
+import { ACCEPTS_JSON, DATA_HANDLE_COLORS } from "@/lib/data-handles"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { MediaPreviewModal } from "@/components/editor/media-preview-modal"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
@@ -102,6 +103,7 @@ function AddCaptionsNodeComponent({ id, data, selected }: NodeProps) {
         }
         handles={[
           { id: "in", type: "target", position: Position.Left, customStyle: { top: 'calc(100% - 24px)', left: '-29px' }, external: true },
+          { id: "transcript", type: "target", position: Position.Left, customStyle: { top: '24px', left: '-29px' }, external: true },
           { id: "video-out", type: "source", position: Position.Right, customStyle: { top: '24px', right: '-29px' }, external: true },
         ]}
       >
@@ -167,8 +169,9 @@ function AddCaptionsNodeComponent({ id, data, selected }: NodeProps) {
         />
       )}
 
-      <HandleWithPopover nodeId={id} nodeType="add-captions" handleId="in"        type="target" position={Position.Left}  label="Video" color={FFMPEG_COLORS.video} icon={<Film />} side="left"  top="calc(100% - 24px)" accepts={ACCEPTS_VIDEO} />
-      <HandleWithPopover nodeId={id} nodeType="add-captions" handleId="video-out" type="source" position={Position.Right} label="Video" color={FFMPEG_COLORS.video} icon={<Film />} side="right" top="24px" />
+      <HandleWithPopover nodeId={id} nodeType="add-captions" handleId="in"         type="target" position={Position.Left}  label="Video"      color={FFMPEG_COLORS.video}    icon={<Film />}   side="left"  top="calc(100% - 24px)" accepts={ACCEPTS_VIDEO} />
+      <HandleWithPopover nodeId={id} nodeType="add-captions" handleId="transcript" type="target" position={Position.Left}  label="Transcript" color={DATA_HANDLE_COLORS.json} icon={<Braces />} side="left"  top="24px"              accepts={ACCEPTS_JSON} />
+      <HandleWithPopover nodeId={id} nodeType="add-captions" handleId="video-out"  type="source" position={Position.Right} label="Video"      color={FFMPEG_COLORS.video}    icon={<Film />}   side="right" top="24px" />
       {activeUrl && <MediaPreviewModal isOpen={previewOpen} onClose={() => setPreviewOpen(false)} type="video" url={activeUrl} results={results} initialIndex={activeIndex} />}
       <DeleteConfirmationDialog
         isOpen={deleteConfirm !== null}

@@ -1,7 +1,7 @@
 ---
 node_type: add-captions
-generated_at: 2026-09-17T21:28:25.414Z
-generated_from: 5fbf9f883
+generated_at: 2026-09-17T23:34:21.284Z
+generated_from: 3fdede8c9
 ---
 
 # Add Captions
@@ -10,7 +10,7 @@ generated_from: 5fbf9f883
 **Type:** `add-captions`
 **Category:** processing
 **Credit cost:** 2
-**Inputs (target handles):** `in`
+**Inputs (target handles):** `in`, `transcript`
 **Outputs (source handles):** `video`
 
 **Required data fields:**
@@ -30,6 +30,7 @@ generated_from: 5fbf9f883
 - `activeResultIndex?: number`
 - `autoTranscribe?: boolean`
 - `transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"`
+- `wordLevel?: boolean`
 
 **Default data:**
 ```json

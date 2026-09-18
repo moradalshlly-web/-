@@ -3784,7 +3784,7 @@ export async function audioFxApi(params: {
   })
 }
 
-export async function addCaptionsApi(videoUrl: string, text: string, style?: string, position?: string, fontSize?: number, color?: string, backgroundColor?: string, userId?: string, opts?: { autoTranscribe?: boolean; transcribeProvider?: string }): Promise<{ jobId: string }> {
+export async function addCaptionsApi(videoUrl: string, text: string, style?: string, position?: string, fontSize?: number, color?: string, backgroundColor?: string, userId?: string, opts?: { autoTranscribe?: boolean; transcribeProvider?: string; transcript?: unknown; wordLevel?: boolean }): Promise<{ jobId: string }> {
   // text is OMITTED when empty — the route's schema is `min(1).optional()`,
   // so sending `text: ""` fails validation even though absent-text is the
   // normal auto-transcribe request (#759's second half: with the guard fixed,
@@ -3801,6 +3801,15 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
   }
   if (opts?.transcribeProvider) {
     body.transcribe_provider = opts.transcribeProvider
+  }
+  // A Transcript wired into the node's `transcript` handle (resolved by the
+  // input-resolver) — the caption source for a single-node Run, matching DAG
+  // runs. wordLevel picks word-level captions vs grouped lines.
+  if (opts?.transcript !== undefined && opts.transcript !== null) {
+    body.transcript = opts.transcript
+  }
+  if (opts?.wordLevel !== undefined) {
+    body.wordLevel = opts.wordLevel
   }
   return apiJson("/v1/add-captions", {
     body,

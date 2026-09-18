@@ -36,7 +36,7 @@ import { slideshow } from "../../providers/video/slideshow.js"
 import { transcribe, type TranscribeProvider } from "../../providers/audio/transcribe.js"
 import { detectSilence } from "../../providers/audio/silence-detect.js"
 import { config } from "../../lib/config.js"
-import { syntheticCaptionsFromText } from "../../providers/audio/captions-mappers.js"
+import { syntheticCaptionsFromText, transcriptToCaptions } from "../../providers/audio/captions-mappers.js"
 import { resolveCaptionSegments, type CaptionSegmentInput } from "../../providers/video/caption-segments.js"
 import {
   commitJobCredits,
@@ -553,6 +553,8 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
     videoUrl: string
     text?: string
     captions?: Caption[]
+    transcript?: unknown
+    wordLevel?: boolean
     auto_transcribe?: boolean
     transcribe_provider?: TranscribeProvider
     style?: string
@@ -564,7 +566,16 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
   }
   const style = data.style ?? "subtitle"
   const hasSegments = !!(data.segments && data.segments.length > 0)
-  console.log(`[worker] add-captions ${ctx.jobId} style=${style}${hasSegments ? ` segments=${data.segments!.length}` : ""}`)
+  const hasTranscript = data.transcript !== undefined && data.transcript !== null
+  console.log(`[worker] add-captions ${ctx.jobId} style=${style}${hasSegments ? ` segments=${data.segments!.length}` : ""}${hasTranscript ? " transcript" : ""}`)
+
+  // DAG-path parity with the route's superRefine: a wired transcript is TIMED
+  // and only the kinetic (Remotion) path honours per-caption timing. The
+  // orchestrator bypasses the route, so guard the same combination here rather
+  // than let the transcript be silently dropped on the static subtitle path.
+  if (hasTranscript && !hasSegments && !isKineticCaptionStyle(style)) {
+    throw new Error(`a wired transcript needs a kinetic caption style; the "${style}" style ignores it`)
+  }
 
   // Per-segment captions always render via Remotion (each segment its own style).
   if (hasSegments || isKineticCaptionStyle(style)) {
@@ -596,6 +607,8 @@ async function dispatchKineticCaptions(
     videoUrl: string
     text?: string
     captions?: Caption[]
+    transcript?: unknown
+    wordLevel?: boolean
     auto_transcribe?: boolean
     transcribe_provider?: TranscribeProvider
     style?: string
@@ -621,11 +634,14 @@ async function dispatchKineticCaptions(
   // don't carry their own text/captions. If every segment is self-sourced, skip
   // transcription entirely.
   const hasSegments = !!(data.segments && data.segments.length > 0)
+  const hasTranscript = data.transcript !== undefined && data.transcript !== null
   const someSegmentNeedsShared =
     hasSegments && data.segments!.some((s) => !(s.text || (s.captions && s.captions.length > 0)))
-  // Probe + transcribe in parallel — both depend only on data.videoUrl
+  // Probe + transcribe in parallel — both depend only on data.videoUrl. A wired
+  // transcript IS the shared caption source, so skip the vendor call entirely
+  // (otherwise we would pay for a transcription we then discard).
   const needTranscribe =
-    !data.captions?.length && data.auto_transcribe !== false && (!hasSegments || someSegmentNeedsShared)
+    !data.captions?.length && !hasTranscript && data.auto_transcribe !== false && (!hasSegments || someSegmentNeedsShared)
 
   // THE SAME THREE-WAY LADDER handleTranscribe uses (workers/handlers/audio-ai.ts),
   // for the same reason (#761): transcription calls a vendor client straight
@@ -689,6 +705,21 @@ async function dispatchKineticCaptions(
   let captions: Caption[]
   if (data.captions && data.captions.length > 0) {
     captions = data.captions
+  } else if (hasTranscript) {
+    // A wired Transcript (json handle) — object or stringified — reshaped into
+    // the caption list. wordLevel:true (default) = one caption per word for the
+    // per-word kinetic styles; false groups words into lines. Both ingress paths
+    // (route + payload-builder) already reject a non-JSON / empty transcript
+    // before credits reserve; these throws are defence-in-depth with the SAME
+    // split messages so a bypass still fails clearly, not misleadingly.
+    const raw = typeof data.transcript === "string" ? safeParseJson(data.transcript) : data.transcript
+    if (typeof data.transcript === "string" && raw === undefined) {
+      throw new Error("transcript input is not JSON — wire the Transcript (json) output")
+    }
+    captions = transcriptToCaptions(normalizeTranscript(raw), { wordLevel: data.wordLevel })
+    if (captions.length === 0) {
+      throw new Error("wired transcript has no words to caption")
+    }
   } else if (needTranscribe) {
     if (transcribeResult.status === "rejected") {
       // Identity invariant (B6b): a DrainAbortError must never be rewrapped —

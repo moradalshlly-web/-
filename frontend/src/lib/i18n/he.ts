@@ -1084,6 +1084,8 @@ export const he: ChromeDict = {
   "proccfg.fontSize": "גודל הגופן",
   "proccfg.color": "צבע",
   "proccfg.kineticStylesRenderViaRemotion5": "סגנונות קינטיים מרונדרים דרך Remotion (5 קרדיטים). הכתוביות מתומללות אוטומטית מווידאו הקלט, אלא אם תחברו רכיב תמלול למחבר {handle} של הרכיב הזה.",
+  "proccfg.wordLevelCaptions": "כתוביות ברמת מילה",
+  "proccfg.wordLevelCaptionsHint": "כתובית אחת לכל מילה (קריוקי, הדגשת מילה). כבו כדי לקבץ מילים לשורות.",
   "proccfg.targetAspectRatio": "יחס גובה־רוחב היעד",
   "proccfg.method": "שיטה",
   "proccfg.pad": "ריפוד",

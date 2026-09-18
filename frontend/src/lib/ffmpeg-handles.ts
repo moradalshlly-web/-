@@ -19,6 +19,7 @@
  */
 import { VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, DYNAMIC_PRODUCER_TYPES } from "@nodaro/shared"
 import { HANDLE_COLORS } from "./handle-colors"
+import { ACCEPTS_JSON } from "./data-handles"
 
 /** Accepts any node whose output is a video stream (URL pointing at .mp4
  *  / .mov / etc.). Used by trim-video, combine-videos, extract-frame,
@@ -95,19 +96,26 @@ export function isValidFfmpegConnection(
 ): boolean {
   switch (targetNodeType) {
     // Pure video-input nodes: trim-video / extract-frame / loop-video /
-    // resize-video / add-captions / combine-videos. All accept any
-    // video-producer source on their single `in` handle.
+    // resize-video / combine-videos. All accept any video-producer source on
+    // their single `in` handle.
     case "trim-video":
     case "extract-frame":
     case "loop-video":
     case "resize-video":
-    case "add-captions":
     case "combine-videos":
     // Extract Audio (video → audio) and Remove Audio (video → silent video)
     // both take a single video input on their `in` handle.
     case "extract-audio":
     case "remove-audio":
       return targetHandle === "in" && ACCEPTS_VIDEO(sourceType)
+
+    // Add Captions: a video on `in`, plus an optional Transcript (json) on
+    // `transcript` — the word-timed caption source (transcribe / apply-edl
+    // json), burned in as timed captions.
+    case "add-captions":
+      if (targetHandle === "in") return ACCEPTS_VIDEO(sourceType)
+      if (targetHandle === "transcript") return ACCEPTS_JSON(sourceType)
+      return false
 
     // Pure audio-input nodes: trim-audio / combine-audio / mix-audio.
     case "trim-audio":

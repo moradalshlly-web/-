@@ -51,6 +51,19 @@ Instead of `auto_transcribe`, you can pass a `captions[]` array. For the **kinet
 | `timestampMs` | no (default null) | The word timestamp, used by `tiktok-words` token timing |
 | `confidence` | no (default null) | Transcription confidence — metadata, ignored by rendering |
 
+### Transcript input
+
+Instead of transcribing in-place, you can **wire an upstream Transcript into the node's `transcript` input** (the JSON handle) — the word-timed output of a [Transcribe](../ai-text/transcribe.md) node, or the remapped transcript from an [Apply EDL](apply-edl.md) render. The node reshapes that transcript's words into the caption list and burns them in, so **captions stay aligned to a re-cut timeline**: an Apply EDL render remaps every word through the cut, and the captions follow (aligned to within ~80 ms across a crossfade boundary).
+
+A wired transcript is a **timed** caption source, so it needs one of the **kinetic** styles — it is **rejected on the static `subtitle` style** (the FFmpeg path burns one fixed overlay and can't honour per-word timing), the same way the kinetic look levers are. A transcript that has no words is rejected up front, before any credits are reserved.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `transcript` | JSON (handle) | — | An upstream Transcript (`{ version, words[], segments? }`). Object or JSON string. |
+| `wordLevel` | Boolean | `true` | `true` = one caption **per word** (karaoke / word-highlight). `false` = words **grouped into lines** (a line closes on a speaker change, a sentence-ending word, a silence gap, or a maximum word count). |
+
+> `wordLevel` only matters when a transcript is wired and a kinetic style is selected. Word-level is the default because the per-word kinetic styles highlight one word at a time; turn it off for calmer, line-at-a-time captions.
+
 ### Per-segment captions (API / MCP)
 
 Apply **different caption treatments to different time ranges of the same video in one call** — e.g. a large uppercase phrase at the top for the intro, then one word at a time at the bottom for the body — by passing `segments[]`. When `segments` is present the whole render goes through the animated engine (so any `style`, including `subtitle`, and any look lever is valid on a segment).
@@ -85,7 +98,7 @@ Per-segment captions render through the animated engine, so they bill at the kin
 
 ## Inputs & Outputs
 
-**Inputs:** Video with audio (required)
+**Inputs:** Video with audio (required); an optional Transcript (JSON) on the `transcript` handle
 **Outputs:** Video with burned-in captions
 ## Best Practices
 

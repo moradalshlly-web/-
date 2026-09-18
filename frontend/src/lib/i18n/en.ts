@@ -1100,6 +1100,8 @@ export const en = {
   "proccfg.fontSize": "Font Size",
   "proccfg.color": "Color",
   "proccfg.kineticStylesRenderViaRemotion5": "Kinetic styles render via Remotion (5 credits). Captions are auto-transcribed from the input video unless you wire a Transcribe node to this node's {handle} input.",
+  "proccfg.wordLevelCaptions": "Word-level captions",
+  "proccfg.wordLevelCaptionsHint": "One caption per word (karaoke, word-highlight). Turn off to group words into lines.",
   "proccfg.targetAspectRatio": "Target Aspect Ratio",
   "proccfg.method": "Method",
   "proccfg.pad": "Pad",

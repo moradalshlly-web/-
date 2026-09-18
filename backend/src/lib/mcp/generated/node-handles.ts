@@ -10,7 +10,7 @@ export interface NodeHandleSpec {
 export const NODE_HANDLES: Readonly<Record<string, NodeHandleSpec>> = {
   "3d-title": { inputs: ["background"], outputs: ["composition"] },
   "action-fx": { inputs: ["in"], outputs: ["out"] },
-  "add-captions": { inputs: ["in"], outputs: ["video"] },
+  "add-captions": { inputs: ["in", "transcript"], outputs: ["video"] },
   "adjust-volume": { inputs: ["in"], outputs: ["audio"] },
   "aesthetic": { inputs: ["in"], outputs: ["out"] },
   "after-effects": { inputs: ["in"], outputs: ["composition"] },
