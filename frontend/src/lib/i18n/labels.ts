@@ -159,6 +159,7 @@ const NODE_LABELS_HE: Record<string, string> = {
   "Extract Audio": "חילוץ אודיו",
   "Silence Detect": "זיהוי שקט",
   "Apply EDL": "החלת רשימת עריכה",
+  "Edit Plan": "תוכנית עריכה",
   "Remove Audio": "הסרת אודיו",
   "Mix Audio": "מיקס אודיו",
   "Combine Audio": "שילוב אודיו",

@@ -229,4 +229,11 @@ export const FAN_OUT_EACH_TYPES: ReadonlySet<string> = new Set([
   "merge-lists",
   "sort-list",
   "selector",
+  // edit-plan `clips` mode emits a bare `Edl[]` on `data.generatedJson`, so an
+  // edge leaving it defaults to "each" — one downstream execution (typically an
+  // apply-edl render) per clip. The `tighten`/`chapters` modes emit an OBJECT,
+  // for which the list extractors return undefined, so an "each" edge falls back
+  // to the scalar `edl` value (no fan-out) — the same graceful degradation
+  // web-scrape relies on. See `unwrapEditPlanOutput` in `edl.ts`.
+  "edit-plan",
 ])

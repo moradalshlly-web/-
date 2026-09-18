@@ -754,6 +754,21 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     }
     return undefined;
   }
+  // edit-plan: single `edl` (json) output — the EDL plan (already unwrapped onto
+  // generatedJson: an Edl for tighten, a bare Edl[] for clips, a
+  // { version, chapters } for chapters). The clips FAN-OUT (>1 clip) reads the
+  // array per-item via extractNodeOutputAsList; this SCALAR path (N=1, empty, or
+  // an explicit "last"/first edge) must NEVER stringify the ARRAY — apply-edl's
+  // normalizeEdl would treat `[edl]` as an EDL with no sources/segments →
+  // validate 400. Emit the FIRST clip (one valid EDL), or nothing when empty.
+  // Mirrors the backend getPrimaryOutput edit-plan branch.
+  if (type === "edit-plan") {
+    const d = node.data as { generatedJson?: unknown };
+    const plan = d.generatedJson;
+    if (plan === undefined || plan === null) return undefined;
+    if (Array.isArray(plan)) return plan.length > 0 ? JSON.stringify(plan[0]) : undefined;
+    return JSON.stringify(plan);
+  }
   if (type === "describe-to-picker") {
     const d = node.data as DescribeToPickerData;
     // Single picker-json handle — stringify for any consumer; the person picker
@@ -1130,6 +1145,8 @@ export function detectPreviewItemType(
   // media URL — classify it as data so its preview isn't mis-typed by the URL
   // fallthrough below.
   if (nodeType === "silence-detect") return "data"
+  // edit-plan emits an EDL plan (json), never a media URL — classify as data.
+  if (nodeType === "edit-plan") return "data"
   // apply-edl `json` handle = the remapped Transcript (data). Its media handle
   // falls through to the URL regex below (mp4 → video, m4a → audio).
   if (nodeType === "apply-edl" && sourceHandle === "json") return "data"

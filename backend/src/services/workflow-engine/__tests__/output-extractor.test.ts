@@ -325,6 +325,26 @@ describe("getPrimaryOutput", () => {
     expect(getPrimaryOutput({}, "web-scrape", "json")).toBeUndefined()
   })
 
+  it("edit-plan tighten (object json) stringifies the EDL", () => {
+    const edl = { version: 1, clock: "master", sources: [], segments: [{ id: "s0", inMs: 0, outMs: 1000 }] }
+    expect(getPrimaryOutput({ json: edl }, "edit-plan", "edl")).toBe(JSON.stringify(edl))
+  })
+
+  it("edit-plan clips scalar path emits ONE valid EDL (the first clip), never the array", () => {
+    const c0 = { version: 1, clock: "master", sources: [], segments: [] }
+    const c1 = { version: 1, clock: "master", sources: [{ id: "m", url: "u", kind: "audio" }], segments: [] }
+    // N=1 → the single element; N>1 scalar ("last"/first edge) → the first element.
+    expect(getPrimaryOutput({ json: [c0] }, "edit-plan", "edl")).toBe(JSON.stringify(c0))
+    expect(getPrimaryOutput({ json: [c0, c1] }, "edit-plan", "edl")).toBe(JSON.stringify(c0))
+    // Crucially NOT the stringified array (apply-edl's normalizeEdl would 400 on it).
+    expect(getPrimaryOutput({ json: [c0] }, "edit-plan", "edl")).not.toBe(JSON.stringify([c0]))
+  })
+
+  it("edit-plan empty clip set emits NO output (never hands apply-edl an invalid EDL)", () => {
+    expect(getPrimaryOutput({ json: [] }, "edit-plan", "edl")).toBeUndefined()
+    expect(getPrimaryOutput({}, "edit-plan", "edl")).toBeUndefined()
+  })
+
   it("routes extract-field to extractedText", () => {
     expect(getPrimaryOutput({ extractedText: "line1\nline2" }, "extract-field")).toBe("line1\nline2")
   })
@@ -673,6 +693,25 @@ describe("buildNodeOutputFromJobData", () => {
   it("returns empty output for empty data", () => {
     const result = buildNodeOutputFromJobData({}, "unknown")
     expect(result).toEqual({})
+  })
+
+  it("edit-plan clips: unwraps the top-level EdlClipSet into json + a stringified Edl[] listResults (fan-out)", () => {
+    const clips = [
+      { version: 1, clock: "master", sources: [], segments: [] },
+      { version: 1, clock: "master", sources: [], segments: [] },
+    ]
+    const result = buildNodeOutputFromJobData({ version: 1, clips, viaNodaroCloud: true }, "edit-plan")
+    // json = the bare Edl[] (what generatedJson stores); listResults = per-clip
+    // JSON strings the live fan-out reads off state.output.listResults.
+    expect(result.json).toEqual(clips)
+    expect(result.listResults).toEqual(clips.map((c) => JSON.stringify(c)))
+  })
+
+  it("edit-plan tighten: unwraps the top-level Edl into json, no listResults (scalar)", () => {
+    const edl = { version: 1, clock: "master", sources: [], segments: [{ id: "s0", inMs: 0, outMs: 1000 }] }
+    const result = buildNodeOutputFromJobData({ ...edl, viaNodaroCloud: true }, "edit-plan")
+    expect(result.json).toEqual(edl)
+    expect(result.listResults).toBeUndefined()
   })
 
   it("maps reduce output_data.output to NodeOutput.result", () => {

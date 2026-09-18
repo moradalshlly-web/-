@@ -299,6 +299,22 @@ describe("getModelIdentifier", () => {
     expect(getModelIdentifier(node)).toBe("motion-graphics")
   })
 
+  // edit-plan run-estimate: a composite mode×tier×duration-bucket id from the
+  // MASTER source's length — NOT the bare "edit-plan" (the video-analysis
+  // under-quote trap). The audio master's length lives on metadata.durationSeconds.
+  it("edit-plan buckets on the wired audio master's duration (metadata lane)", () => {
+    const editPlan = makeNode({ id: "ep", type: "edit-plan", data: { label: "EP", mode: "clips", planTier: "premium" } as any })
+    const audio = makeNode({ id: "a1", type: "upload-audio", data: { label: "A", metadata: { durationSeconds: 45 * 60 } } as any })
+    const edges: WorkflowEdge[] = [{ id: "e1", source: "a1", target: "ep", targetHandle: "sources" } as WorkflowEdge]
+    // 45 min → the 60m bucket.
+    expect(getModelIdentifier(editPlan, edges, [editPlan, audio])).toBe("edit-plan:clips:premium:60m")
+  })
+
+  it("edit-plan with no wired source falls to the tier's ceiling bucket, never the bare id", () => {
+    const editPlan = makeNode({ id: "ep", type: "edit-plan", data: { label: "EP", mode: "tighten", planTier: "standard" } as any })
+    expect(getModelIdentifier(editPlan, [], [editPlan])).toBe("edit-plan:tighten:standard:180m")
+  })
+
   it("motion-graphics with engine 'lottie' uses the lottie feature", () => {
     const node = makeNode({ type: "motion-graphics", data: { label: "MG", engine: "lottie" } as any })
     expect(getModelIdentifier(node)).toBe("motion-graphics-lottie")

@@ -7,6 +7,7 @@ import {
   sendStorageWarnings,
   sweepSoftDeletedLocationAssets,
   sweepVideoAnalysisTmp,
+  sweepEditPlanTmp,
   expireTopupCredits,
 } from "./cleanup-service.js"
 import { recordKieCreditSnapshot, fetchKieCreditSnapshotsSince } from "../routes/admin-kie-credits.js"
@@ -171,15 +172,19 @@ export function startCleanupCron(): void {
     console.log("[cron] Starting video-analysis tmp orphan sweep...")
     const start = Date.now()
     try {
+      // Both cloud-plugin JSON producers key transient intermediates under their
+      // own `*-tmp/` prefix and self-delete in `finally`; a double-stall skips
+      // that, and no DB reaper covers them. Sweep both, each prefix-scoped.
       const result = await sweepVideoAnalysisTmp()
+      const editPlan = await sweepEditPlanTmp()
       console.log(
-        `[cron] video-analysis tmp sweep done: ` +
-        `listed=${result.objectsListed} deleted=${result.deleted} ` +
-        `failed=${result.failed} skippedOutOfPrefix=${result.skippedOutOfPrefix} ` +
+        `[cron] tmp orphan sweep done: ` +
+        `video-analysis(listed=${result.objectsListed} deleted=${result.deleted} failed=${result.failed}) ` +
+        `edit-plan(listed=${editPlan.objectsListed} deleted=${editPlan.deleted} failed=${editPlan.failed}) ` +
         `(${Date.now() - start}ms)`,
       )
     } catch (err) {
-      console.error("[cron] video-analysis tmp sweep failed:", err)
+      console.error("[cron] tmp orphan sweep failed:", err)
     }
   })
 

@@ -12,7 +12,7 @@ import type {
 } from "./types.js"
 import { extractSourceNodeOutput, extractSourceNodeOutputAsList, extractSavedNodeOutput, extractAllGeneratedResults, extractVideoDurationFromNode, getPrimaryOutput, ANALYSIS_PRODUCER_TYPES } from "./output-extractor.js"
 import {
-  pro3DRenderShotStills, extractGeneratedJsonAsList, splitGeneratedItems, resolveNodeRefs, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, SOCIAL_POST_NODE_TYPES, PARAMETER_NODE_TYPES, getParameterValue, FAN_OUT_EACH_TYPES, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, extractReferencedLabels, canonicalVarName, REFERENCE_HANDLE_MAP, parseGroupHandle, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
+  pro3DRenderShotStills, extractGeneratedJsonAsList, splitGeneratedItems, resolveNodeRefs, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, SOCIAL_POST_NODE_TYPES, PARAMETER_NODE_TYPES, getParameterValue, FAN_OUT_EACH_TYPES, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, editPlanSourceDurationSec, extractReferencedLabels, canonicalVarName, REFERENCE_HANDLE_MAP, parseGroupHandle, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
 import { isSourceNode } from "./execution-graph.js"
 import { overlayHandleIndex } from "../../providers/image/overlay-contract.js"
 import { buildNodeRefMap } from "./payload-builder.js"
@@ -1379,6 +1379,39 @@ function routeOutput(
       if (analysis !== undefined && analysis !== null) inputs.analysis = analysis
     }
     return
+  }
+
+  // --- edit-plan inputs: routed by targetHandle BEFORE any source-type branch
+  // (same reason as apply-edl below — the json `transcript`/`silence` edges must
+  // not fall into inputs.prompt, and the media `sources` edges must not fall into
+  // inputs.videoUrl). `output` is the value getPrimaryOutput narrowed for the
+  // handle: a stringified Transcript/SilenceRanges for the json inputs, a media
+  // URL for a `sources` row. Each `sources` row keeps its source NODE id (minted
+  // once as the EdlSource id) + a kind derived from the producer type. Gated on
+  // targetType. Mirrors the frontend node-input-resolver edit-plan branch. ---
+  if (targetType === "edit-plan") {
+    if (edge.targetHandle === "transcript") {
+      inputs.transcript = output
+      return
+    }
+    if (edge.targetHandle === "silence") {
+      inputs.silence = output
+      return
+    }
+    if (edge.targetHandle === "sources") {
+      const kind: "video" | "audio" =
+        VIDEO_PRODUCER_TYPES.has(srcType) ? "video" : AUDIO_PRODUCER_TYPES.has(srcType) ? "audio" : "video"
+      // Carry the source's own duration (when the producer exposes it) so the
+      // reserve buckets on the MASTER source's real length, not the 180m ceiling.
+      // editPlanSourceDurationSec adds the AUDIO lane (metadata.durationSeconds) —
+      // a podcast's upload-audio master has its length there ONLY.
+      const duration = editPlanSourceDurationSec(src.data as Record<string, unknown>)
+      inputs.editPlanSources = [
+        ...(inputs.editPlanSources ?? []),
+        { nodeId: src.id, url: output, kind, ...(duration !== undefined ? { duration } : {}) },
+      ]
+      return
+    }
   }
 
   // --- apply-edl inputs: routed by targetHandle BEFORE any source-type branch

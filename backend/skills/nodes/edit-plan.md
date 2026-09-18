@@ -1,0 +1,86 @@
+---
+node_type: edit-plan
+generated_at: 2026-09-18T01:36:03.776Z
+generated_from: a48b46290
+---
+
+# Edit Plan
+
+<!-- AUTO-GEN:START node-data-shape -->
+**Type:** `edit-plan`
+**Category:** processing
+**Credit cost:** 240
+**Inputs (target handles):** `transcript`, `silence`, `sources`
+**Outputs (source handles):** `edl`
+
+**Required data fields:**
+- `label: string`
+- `fieldMappings: FieldMappings`
+
+**Optional data fields:**
+- `promptPrefix?: string`
+- `promptSuffix?: string`
+- `mode?: "tighten" | "clips" | "chapters"`
+- `planTier?: "economy" | "standard" | "premium"`
+- `sourceConfig?: Record<string, EditPlanSourceConfig>`
+- `sourceOrder?: string[]`
+- `instructions?: string`
+- `styleGuide?: string`
+- `count?: number`
+- `targetDurationSec?: number`
+- `targetAspect?: "16:9" | "9:16" | "1:1" | "4:5"`
+- `platform?: string`
+- `transcript?: unknown`
+- `silence?: unknown`
+- `executionStatus?: "idle" | "running" | "completed" | "failed"`
+- `errorMessage?: string`
+- `currentJobId?: string`
+- `currentJobProgress?: number`
+- `generatedJson?: unknown`
+
+**Default data:**
+```json
+{
+  "label": "Edit Plan",
+  "mode": "tighten",
+  "planTier": "standard",
+  "instructions": "",
+  "fieldMappings": {},
+  "executionStatus": "idle"
+}
+```
+<!-- AUTO-GEN:END node-data-shape -->
+
+## When to use
+
+(Add prose here. Auto-gen will preserve it across regenerations.)
+
+<!-- AUTO-GEN:START mcp-call -->
+<!-- AUTO-GEN:END mcp-call -->
+
+## Common gotchas
+
+(Add prose here.)
+
+<!-- AUTO-GEN:START examples -->
+## Worked example
+
+```json
+{
+  "id": "edit-plan-1",
+  "type": "edit-plan",
+  "position": {
+    "x": 0,
+    "y": 0
+  },
+  "data": {
+    "label": "Edit Plan",
+    "mode": "tighten",
+    "planTier": "standard",
+    "instructions": "",
+    "fieldMappings": {},
+    "executionStatus": "idle"
+  }
+}
+```
+<!-- AUTO-GEN:END examples -->

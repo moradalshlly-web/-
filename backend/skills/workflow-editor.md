@@ -1,6 +1,6 @@
 ---
-generated_at: 2026-09-17T19:57:48.393Z
-generated_from: a03903d30
+generated_at: 2026-09-18T01:36:02.725Z
+generated_from: a48b46290
 ---
 
 # Nodaro Workflow Editor — General Patterns
@@ -109,6 +109,7 @@ Call `get_node_skill(<type>)` for the full schema of any node type:
 - `dubbing` — Dubbing
 - `duration` — Duration
 - `edit-3d-scene` — Edit 3D Scene
+- `edit-plan` — Edit Plan
 - `edit-video-pro` — Edit Video Pro
 - `era` — Era / Period
 - `exposure-settings` — Exposure Settings

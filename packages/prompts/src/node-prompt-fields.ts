@@ -128,6 +128,10 @@ export const NODE_PROMPT_FIELDS: Readonly<Record<string, PromptFieldSpec>> = {
   // Video Analysis — its focus hint is the editable prompt (renders a JSON scene
   // table, not a media preview → no inline editor).
   "video-analysis": { prompt: "analysisFocus", promptLabel: "Analysis focus", media: "video", inline: false },
+  // Edit Plan (podcast editing) — its free-text editing instructions are the
+  // editable prompt; the affixes wrap them. Emits an EDL (JSON), not a media
+  // preview, so no inline editor.
+  "edit-plan": { prompt: "instructions", promptLabel: "Editing instructions", media: "video", inline: false },
 }
 
 /** The prompt-field spec for a node type, or undefined if it has none. */

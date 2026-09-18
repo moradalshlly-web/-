@@ -54,6 +54,14 @@ describe("cloud-only node gating stays in step across the stack", () => {
     expect(overlap).toEqual([])
   })
 
+  it("edit-plan (podcast editing) is a Nodaro-exclusive relayed type, not a truly cloud-only one", () => {
+    // It saves everywhere and relays through the nodaro.ai connection — so it
+    // belongs in the exclusive set (discovery/run gate on isNodaroConnected),
+    // never in CLOUD_ONLY_NODE_TYPES (which has no relay).
+    expect(NODARO_EXCLUSIVE_NODE_TYPES.has("edit-plan")).toBe(true)
+    expect(CLOUD_ONLY_NODE_TYPES.has("edit-plan")).toBe(false)
+  })
+
   it("parses non-empty sets (guards the parser itself from silently matching nothing)", () => {
     const source = readFileSync(FRONTEND_SOURCE, "utf8")
     const exclusives = parseFrontendSet(source, "NODARO_EXCLUSIVE_NODE_TYPES")

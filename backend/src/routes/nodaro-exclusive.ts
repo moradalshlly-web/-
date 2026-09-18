@@ -59,6 +59,20 @@ const gvpBody = z.object({}).passthrough()
 const evpBody = z.object({ videoUrl: safeUrlSchema }).passthrough()
 const vaBody = z.object({ videoUrl: safeUrlSchema }).passthrough()
 const auditBody = z.object({ videoUrl: safeUrlSchema }).passthrough()
+// edit-plan (podcast editing): a transcript-driven planner. Light passthrough —
+// the cloud plugin's own Zod is the schema authority; here we only fail an
+// obviously-empty request (no transcript, no sources) before a confusing cloud
+// 400. `transcript` is opaque (its upstream shape can drift ahead of the
+// plugin's pin); each `sources` row needs an SSRF-safe `url`. Everything else
+// passes through. `planTier` (NOT `tier` — the relay strips a field named
+// `tier`) and the clips-only levers are validated cloud-side.
+const editPlanSourceRow = z.object({ url: safeUrlSchema }).passthrough()
+const editPlanBody = z.object({
+  transcript: z.unknown(),
+  sources: z.array(editPlanSourceRow).min(1).max(6),
+}).passthrough().refine((v) => v.transcript !== undefined && v.transcript !== null, {
+  message: "transcript is required",
+})
 const continueBody = z.object({
   fromJobId: z.string().min(1),
   fromSegment: z.number().int().min(1).optional(),
@@ -70,6 +84,22 @@ interface EnqueueArgs {
   readonly jobType: string
   readonly body: Record<string, unknown>
   readonly extraPayload?: Record<string, unknown>
+}
+
+/** For edit-plan, keep the up-to-24MB transcript/silence OUT of `jobs.input_data`
+ *  (which get_job / list_jobs / admin return VERBATIM) — store a size summary
+ *  instead. The full payload still rides the queue job data below. Mirrors the
+ *  cloud plugin route's slimming; a no-op for every other exclusive type. */
+function slimInputData(body: Record<string, unknown>, jobType: string): Record<string, unknown> {
+  if (jobType !== "edit-plan") return body
+  const { transcript, silence, ...slim } = body
+  const words = (transcript as { words?: unknown } | null | undefined)?.words
+  return {
+    ...slim,
+    transcriptWordCount: Array.isArray(words) ? words.length : 0,
+    transcriptBytes: JSON.stringify(transcript ?? null).length,
+    silenceIncluded: silence !== undefined,
+  }
 }
 
 /** insertJob + enqueue, mirroring routes/ai-avatar.ts. */
@@ -84,7 +114,7 @@ async function enqueueExclusive({ req, reply, jobType, body, extraPayload }: Enq
     force_private: extractForcePrivate(req.body) || undefined,
     user_id: userId,
     status: "pending",
-    input_data: buildJobInputData(body, jobType),
+    input_data: buildJobInputData(slimInputData(body, jobType), jobType),
   })
   if (error) {
     return sendInternalError(reply, req, error, "Failed to create job")
@@ -123,6 +153,11 @@ export async function nodaroExclusiveRoutes(app: FastifyInstance) {
   app.post("/v1/edit-video-pro", guarded("edit-video-pro"), jobHandler("edit-video-pro", evpBody))
   app.post("/v1/video-analysis", guarded("video-analysis"), jobHandler("video-analysis", vaBody))
   app.post("/v1/video-audit", guarded("video-audit"), jobHandler("video-audit", auditBody))
+  // A word-level transcript for a multi-hour episode is several MB — well over
+  // the app's 1 MB default JSON bodyLimit — so this shim raises its own, matching
+  // the cloud plugin's route (the relay carries the transcript in the job payload,
+  // not the HTTP body, so this only guards the direct REST POST).
+  app.post("/v1/edit-plan", { ...guarded("edit-plan"), bodyLimit: 24 * 1024 * 1024 }, jobHandler("edit-plan", editPlanBody))
 
   // ── video-analysis probe: synchronous passthrough ─────────────────────
   app.post("/v1/video-analysis/probe", async (req, reply) => {

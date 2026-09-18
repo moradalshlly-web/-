@@ -396,6 +396,19 @@ export interface ResolvedInputs {
   /** apply-edl: optional media-URL overrides for `EdlSource[i].url`, positional
    *  in wire order (the `sources` handle). */
   sources?: string[]
+  /** edit-plan: an optional upstream silence-ranges object (json) wired into the
+   *  `silence` handle — the stringified `{version, ranges}` from a silence-detect
+   *  node's json output. Parsed in the payload builder. */
+  silence?: string
+  /** edit-plan: the wired media sources (the `sources` handle), each carrying its
+   *  source NODE id (minted once as the EdlSource id, never re-derived), its URL,
+   *  a kind derived from the producer type, and (when the producer exposes it) the
+   *  source's duration in seconds — the payload builder picks the master source's
+   *  duration for the reserve bucket so an orchestrated run is not forced to the
+   *  ceiling. The builder also annotates each row with the node's per-source config
+   *  (role/speakers/offsetMs/kind override) into the plugin's `sources[]`. Richer
+   *  than apply-edl's positional `sources`. */
+  editPlanSources?: Array<{ nodeId: string; url: string; kind: "video" | "audio"; duration?: number }>
 }
 
 // ---------------------------------------------------------------------------

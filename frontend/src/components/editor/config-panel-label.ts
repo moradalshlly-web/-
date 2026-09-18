@@ -114,6 +114,7 @@ const NODE_TYPE_DISPLAY_NAMES: Record<string, string> = {
   "llm-chat": "Prompt",
   "combine-videos": "Combine Videos",
   "apply-edl": "Apply EDL",
+  "edit-plan": "Edit Plan",
   "assemble-narrated-video": "Assemble Narrated Video",
   "image-collage": "Image Collage",
   "image-overlay": "Image Overlay",

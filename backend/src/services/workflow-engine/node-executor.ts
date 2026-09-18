@@ -214,6 +214,8 @@ export function extractUserPromptTemplate(node: SimpleNode): string | undefined 
       return pick("transcript")
     case "video-analysis":
       return pick("analysisFocus")
+    case "edit-plan":
+      return pick("instructions")
 
     // --- Music ---
     case "generate-music":

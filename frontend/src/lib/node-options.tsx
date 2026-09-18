@@ -1120,6 +1120,14 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
     keywords: ["edl", "edit decision list", "cut", "assemble", "timeline", "render", "transcript", "podcast", "tighten"],
   },
   {
+    type: "edit-plan",
+    label: "Edit Plan",
+    icon: <ListTree className="h-4 w-4" />,
+    category: "Processing",
+    group: "video-cut-assemble",
+    keywords: ["edit plan", "edl", "tighten", "clips", "chapters", "podcast", "transcript", "cut", "plan", "shorts"],
+  },
+  {
     type: "assemble-narrated-video",
     label: "Assemble Narrated Video",
     icon: <Merge className="h-4 w-4" />,

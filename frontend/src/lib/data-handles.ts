@@ -84,6 +84,11 @@ export const JSON_PRODUCER_TYPES: ReadonlySet<string> = new Set<string>([
   // dual-handle node. Lets its `json` handle feed a data/json consumer (e.g.
   // add-captions' transcript input).
   "apply-edl",
+  // edit-plan's single `edl` output handle carries the EDL plan (json). Its
+  // clips-mode output is a bare Edl[] that fans out (edit-plan ∈
+  // FAN_OUT_EACH_TYPES), but the handle is still a json/data producer — so it
+  // feeds apply-edl's `edl` input (ACCEPTS_JSON). See unwrapEditPlanOutput.
+  "edit-plan",
 ])
 
 /** True when `sourceType` can flow into a generic data input (text, list,

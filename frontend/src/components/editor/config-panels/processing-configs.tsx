@@ -26,6 +26,8 @@ import { WaveformAudioPlayer } from "@/components/audio-player"
 import type {
   CombineVideosData,
   ApplyEdlData,
+  EditPlanNodeData,
+  EditPlanSourceConfig,
   ImageCollageData,
   AddCaptionsData,
   ResizeVideoData,
@@ -557,6 +559,148 @@ export function ApplyEdlConfig({ data, onUpdate }: ConfigProps<ApplyEdlData>) {
           onChange={(e) => onUpdate({ crossfadeMs: Math.max(0, Math.min(5000, parseInt(e.target.value) || 0)) })}
         />
         <p className="text-[10px] text-muted-foreground mt-1">{t("proccfg.applyEdlCrossfadeHint")}</p>
+      </div>
+    </div>
+  )
+}
+
+const EDIT_PLAN_ROLES = ["auto", "master-audio", "camera", "wide", "screen"] as const
+
+export function EditPlanConfig({ data, onUpdate, sources }: ConfigProps<EditPlanNodeData>) {
+  const t = useT()
+  const mode = data.mode ?? "tighten"
+  const sourceConfig = data.sourceConfig ?? {}
+  // Only the media wired into the `sources` handle (not the transcript/silence
+  // json edges) belongs in the source table.
+  const mediaSources = sources.filter((s) => s.targetHandle === "sources")
+
+  const setSourceRole = (nodeId: string, role: string) => {
+    const next: Record<string, EditPlanSourceConfig> = { ...sourceConfig }
+    const existing = next[nodeId] ?? {}
+    if (role === "auto") {
+      const { role: _drop, ...rest } = existing
+      if (Object.keys(rest).length === 0) delete next[nodeId]
+      else next[nodeId] = rest
+    } else {
+      next[nodeId] = { ...existing, role: role as EditPlanSourceConfig["role"] }
+    }
+    onUpdate({ sourceConfig: next })
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] text-muted-foreground">{t("proccfg.editPlanHint")}</p>
+
+      <div>
+        <Label>{t("proccfg.editPlanMode")}</Label>
+        <Select value={mode} onValueChange={(v) => onUpdate({ mode: v as EditPlanNodeData["mode"] })}>
+          <SelectTrigger aria-label={t("proccfg.editPlanModeAria")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tighten">{t("proccfg.editPlanModeTighten")}</SelectItem>
+            <SelectItem value="clips">{t("proccfg.editPlanModeClips")}</SelectItem>
+            <SelectItem value="chapters">{t("proccfg.editPlanModeChapters")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>{t("proccfg.editPlanTier")}</Label>
+        <Select value={data.planTier ?? "standard"} onValueChange={(v) => onUpdate({ planTier: v as EditPlanNodeData["planTier"] })}>
+          <SelectTrigger aria-label={t("proccfg.editPlanTierAria")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="economy">{t("proccfg.editPlanTierEconomy")}</SelectItem>
+            <SelectItem value="standard">{t("proccfg.editPlanTierStandard")}</SelectItem>
+            <SelectItem value="premium">{t("proccfg.editPlanTierPremium")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="edit-plan-instructions">{t("proccfg.editPlanInstructions")}</Label>
+        <Textarea
+          id="edit-plan-instructions"
+          value={data.instructions ?? ""}
+          placeholder={t("proccfg.editPlanInstructionsPlaceholder")}
+          rows={2}
+          onChange={(e) => onUpdate({ instructions: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="edit-plan-style-guide">{t("proccfg.editPlanStyleGuide")}</Label>
+        <Textarea
+          id="edit-plan-style-guide"
+          value={data.styleGuide ?? ""}
+          placeholder={t("proccfg.editPlanStyleGuidePlaceholder")}
+          rows={2}
+          onChange={(e) => onUpdate({ styleGuide: e.target.value })}
+        />
+      </div>
+
+      {mode === "clips" && (
+        <>
+          <div>
+            <Label htmlFor="edit-plan-count">{t("proccfg.editPlanCount")}</Label>
+            <Input
+              id="edit-plan-count"
+              type="number"
+              min={1}
+              max={50}
+              value={data.count ?? ""}
+              placeholder={t("proccfg.editPlanCountPlaceholder")}
+              onChange={(e) => onUpdate({ count: e.target.value ? Math.max(1, Math.min(50, parseInt(e.target.value) || 1)) : undefined })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-plan-target-duration">{t("proccfg.editPlanTargetDuration")}</Label>
+            <Input
+              id="edit-plan-target-duration"
+              type="number"
+              min={5}
+              max={180}
+              value={data.targetDurationSec ?? ""}
+              placeholder={t("proccfg.editPlanTargetDurationPlaceholder")}
+              onChange={(e) => onUpdate({ targetDurationSec: e.target.value ? Math.max(5, Math.min(180, parseInt(e.target.value) || 5)) : undefined })}
+            />
+          </div>
+          <div>
+            <Label>{t("proccfg.editPlanTargetAspect")}</Label>
+            <Select value={data.targetAspect ?? "none"} onValueChange={(v) => onUpdate({ targetAspect: v === "none" ? undefined : (v as EditPlanNodeData["targetAspect"]) })}>
+              <SelectTrigger aria-label={t("proccfg.editPlanTargetAspectAria")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("proccfg.editPlanTargetAspectAny")}</SelectItem>
+                <SelectItem value="16:9">16:9</SelectItem>
+                <SelectItem value="9:16">9:16</SelectItem>
+                <SelectItem value="1:1">1:1</SelectItem>
+                <SelectItem value="4:5">4:5</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <Label>{t("proccfg.editPlanSources")}</Label>
+        <ConnectedMediaList
+          sources={mediaSources}
+          mediaOrder={data.sourceOrder ?? []}
+          onUpdateOrder={(order) => onUpdate({ sourceOrder: order })}
+          mediaType="any"
+          emptyMessage={t("proccfg.editPlanSourcesEmpty")}
+          renderRowExtra={(entry) => (
+            <Select
+              value={sourceConfig[entry.id]?.role ?? "auto"}
+              onValueChange={(v) => setSourceRole(entry.id, v)}
+            >
+              <SelectTrigger aria-label={t("proccfg.editPlanRoleAria")} className="h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {EDIT_PLAN_ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>{t(`proccfg.editPlanRole.${r}` as MessageKey)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
     </div>
   )

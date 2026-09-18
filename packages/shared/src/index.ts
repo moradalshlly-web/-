@@ -261,7 +261,7 @@ export {
 export type { NormalizedImageGen, PricedVideoSelection } from "./credit-identifiers.js"
 
 export * from "./credit-estimators/index.js"
-export { extractVideoDurationFromNode } from "./video-duration.js"
+export { extractVideoDurationFromNode, editPlanSourceDurationSec } from "./video-duration.js"
 
 export {
   resolveTopazUpscale,

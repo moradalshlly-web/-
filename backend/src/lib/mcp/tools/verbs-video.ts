@@ -17,7 +17,7 @@ import {
   uiMeta,
 } from "./_verb-helpers.js"
 import { WIDGET_URI } from "../widgets/registrar.js"
-import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS } from "@nodaro/shared"
+import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
 import { applyPromptAffixes } from "@nodaro/prompts"
 
 // Map list_models catalog/display ids → /v1/motion-transfer route providers.
@@ -28,6 +28,7 @@ const MOTION_TRANSFER_PROVIDER_ALIASES: Record<string, string> = {
   "kling-3.0-motion": "kling-3.0",
 }
 import { normalizeVideoInput } from "../normalize.js"
+import { hasCredits } from "../../config.js"
 import { getUserMcpPreferences } from "../user-preferences.js"
 import { resolvePreset } from "../../presets/resolve-preset.js"
 import { mcpInject } from "../internal-request.js"
@@ -2951,4 +2952,83 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
       })
     },
   )
+
+  // ── plan_edit (podcast editing) ──
+  // Turn a timed transcript into an edit-decision-list (EDL) plan — no media
+  // output; the EDL is in the job's output_data. Cloud feature: gated on
+  // hasCredits() so it appears only where the /v1/edit-plan route + settlement
+  // live (on a self-host the canvas node still relays; this MCP surface stays
+  // cloud-only). Returns a job_id — poll get_job.
+  if (hasCredits()) {
+    server.registerTool(
+      "plan_edit",
+      {
+        title: "Edit Plan",
+        description:
+          "Turn a timed transcript into an edit-decision-list (EDL) plan for a recording. " +
+          "`mode`: `tighten` (remove silence/filler/false-starts → one tightened EDL), " +
+          "`clips` (find N short shareable clips → one EDL per clip), or `chapters` " +
+          "(mark chapter boundaries with titles). Reads the transcript, never pixels. " +
+          "Pass the timed `transcript` (word-level, from a transcribe step) and the media " +
+          "`sources` (1–6). Returns a job_id — poll `get_job`; the EDL plan is in the " +
+          "job's `output_data`.",
+        inputSchema: {
+          mode: z.enum(EDIT_PLAN_MODES as unknown as [string, ...string[]]).describe("tighten | clips | chapters."),
+          plan_tier: z.enum(EDIT_PLAN_TIERS as unknown as [string, ...string[]]).optional()
+            .describe("Reasoning tier: economy | standard (default) | premium."),
+          transcript: z.record(z.string(), z.unknown()).describe("The timed word-level transcript object (from a transcribe step)."),
+          silence: z.record(z.string(), z.unknown()).optional().describe("Optional silence ranges object (from a silence-detect step)."),
+          sources: z.array(z.object({
+            url: z.string().url().describe("Media URL for this source."),
+            kind: z.enum(["video", "audio"]).optional(),
+            role: z.enum(["master-audio", "camera", "wide", "screen"]).optional(),
+            speakers: z.array(z.string()).max(16).optional(),
+            offset_ms: z.number().optional().describe("This source's origin on the master clock (masterMs = sourceMs + offsetMs)."),
+          })).min(1).max(6).describe("1–6 media sources for the edit."),
+          instructions: z.string().max(4000).optional().describe("Free-text editing steer."),
+          style_guide: z.string().max(8000).optional(),
+          count: z.number().int().min(1).max(50).optional().describe("clips only: how many clips to find."),
+          target_duration_sec: z.number().int().min(5).max(180).optional().describe("clips only: target clip length."),
+          target_aspect: z.enum(["16:9", "9:16", "1:1", "4:5"]).optional(),
+          platform: z.string().max(64).optional(),
+        },
+        outputSchema: JOB_OUTPUT_SCHEMA,
+        annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+        _meta: uiMeta(WIDGET_URI.jobAuto),
+      },
+      async (args) => {
+        const payload: Record<string, unknown> = {
+          mode: args.mode,
+          ...(args.plan_tier ? { planTier: args.plan_tier } : {}),
+          transcript: args.transcript,
+          ...(args.silence ? { silence: args.silence } : {}),
+          sources: args.sources.map((s) => ({
+            url: s.url,
+            ...(s.kind ? { kind: s.kind } : {}),
+            ...(s.role ? { role: s.role } : {}),
+            ...(s.speakers && s.speakers.length > 0 ? { speakers: s.speakers } : {}),
+            ...(s.offset_ms !== undefined ? { offsetMs: s.offset_ms } : {}),
+          })),
+          ...(args.instructions ? { instructions: args.instructions } : {}),
+          ...(args.style_guide ? { styleGuide: args.style_guide } : {}),
+          ...(args.count !== undefined ? { count: args.count } : {}),
+          ...(args.target_duration_sec !== undefined ? { targetDurationSec: args.target_duration_sec } : {}),
+          ...(args.target_aspect ? { targetAspect: args.target_aspect } : {}),
+          ...(args.platform ? { platform: args.platform } : {}),
+          mcp_client: session.clientName,
+          userId: session.userId,
+        }
+        return dispatchJob(fastify, session, {
+          url: "/v1/edit-plan",
+          payload,
+          label: "Edit plan",
+          widgetKind: "generic",
+          widgetData: {
+            prompt: args.instructions ? args.instructions.slice(0, 80) : `(edit plan · ${args.mode})`,
+            model: args.plan_tier ?? "standard",
+          },
+        })
+      },
+    )
+  }
 }
