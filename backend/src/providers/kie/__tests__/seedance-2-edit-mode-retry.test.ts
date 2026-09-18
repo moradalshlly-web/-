@@ -160,6 +160,31 @@ describe("seedance-2-5 edit-mode retry (i2v entry path)", () => {
     expect(first.duration).not.toBe(-1)
   })
 
+  it("recognises the rejection in the error runKieTask REALLY throws — a sanitized KieError", async () => {
+    // Production never hands the provider layer a plain Error: runKieTask
+    // throws createSanitizedError's KieError, whose `.message` is the user-safe
+    // text ("the provider rejected these settings…") and whose
+    // `.internalDetails` carries KIE's own words. A detector reading only
+    // `.message` never fires — field report 2026-09-18, job 83e90e87, a 25s /
+    // 9:16 "edit @video_1 …" run that failed with the retry code deployed.
+    const actual = await vi.importActual<typeof import("../client.js")>("../client.js")
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const kieError = actual.createSanitizedError(EDIT_MODE_FAILMSG.replace("[500]", "[400]"), "Generation", true)
+    expect(isSeedance2EditModeRejection(kieError.message)).toBe(false) // the trap
+
+    mocks.mockRunKieTask.mockRejectedValueOnce(kieError).mockResolvedValueOnce(OK)
+
+    const result = await provider.textToVideo("edit @video_1 as follows: …", "seedance-2-5", 25, {
+      aspectRatio: "9:16",
+      resolution: "480p",
+      referenceVideoUrls: ["https://cdn.nodaro.ai/videos/source.mp4"],
+    } as never)
+
+    expect(result.url).toBe("https://cdn.kie.ai/video.mp4")
+    expect(mocks.mockRunKieTask).toHaveBeenCalledTimes(2)
+    expect(sentInputs()[1]).toMatchObject(SEEDANCE_2_EDIT_MODE_PARAMS)
+  })
+
   it("retries at most once — a second edit-mode rejection surfaces", async () => {
     mocks.mockRunKieTask.mockRejectedValue(new Error(EDIT_MODE_FAILMSG))
 

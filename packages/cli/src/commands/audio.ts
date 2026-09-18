@@ -3,6 +3,18 @@ import { buildClient, handleError } from "../client.js"
 import { warn, type OutputOpts } from "../output.js"
 import { collectVariadic, reportQueuedJob } from "../util.js"
 import type { AudioFxPreset } from "@nodaro/sdk"
+import {
+  TRANSCRIBE_PROVIDERS,
+  DEFAULT_TRANSCRIBE_PROVIDER,
+  transcribeLaneSupportsWordTimestamps,
+  type TranscribeProvider,
+} from "@nodaro/shared"
+
+// The providers this command ACCEPTS that can also honour word timestamps —
+// the capability table intersected with the accepted enum, exactly as
+// `/v1/transcribe` does it, so the refusal below never names a provider this
+// same command would reject on `--provider`.
+const WORD_TIMESTAMP_PROVIDERS = TRANSCRIBE_PROVIDERS.filter((p) => transcribeLaneSupportsWordTimestamps(p))
 
 interface GlobalOpts extends OutputOpts {
   profile?: string
@@ -32,7 +44,7 @@ function parseSegment(raw: string): { url: string; startTime?: number; endTime?:
 
 export function audioCommand(): Command {
   const cmd = new Command("audio").description(
-    "audio primitives — the building blocks Voice Changer Pro composes: separate, isolate, fx, mix, level, combine",
+    "audio primitives — the building blocks Voice Changer Pro composes: separate, isolate, fx, mix, level, combine, transcribe",
   )
 
   cmd
@@ -230,6 +242,79 @@ Example:
             ...opts,
             note: `${segments.length} segment${segments.length === 1 ? "" : "s"}`,
           })
+        } catch (err) {
+          handleError(err)
+        }
+      },
+    )
+
+  cmd
+    .command("transcribe")
+    .description("transcribe an audio (or video) track to text — elevenlabs-stt is always word-level and can diarize + tag audio events")
+    .requiredOption("--audio <url>", "audio (or video) URL to transcribe")
+    .option(
+      "--provider <name>",
+      `transcription engine: ${TRANSCRIBE_PROVIDERS.join(" | ")} — omit it and the legacy "${DEFAULT_TRANSCRIBE_PROVIDER}" lane runs, which returns NO word timings`,
+    )
+    .option("--language <code>", "language code to force (default: auto-detect)")
+    .option("--diarize", "label which speaker said each word (elevenlabs-stt)")
+    .option("--tag-audio-events", "tag laughter / applause / other non-speech events (elevenlabs-stt)")
+    .option("--word-timestamps", "ask for per-word timings — rejected up front on a lane that cannot produce them")
+    .option("--watch", "poll until the job completes")
+    .option("--poll-interval <ms>", "watch poll interval in ms", (v) => parseInt(v, 10), 2000)
+    .option("--profile <name>")
+    .option("--json")
+    .addHelpText("after", `
+The completed job's output_data carries: text (the whole transcript), words
+(one entry per word, in MILLISECONDS) and json (the normalized transcript, also
+ms). A top-level segments array (SECONDS) exists only on the legacy lanes —
+elevenlabs-stt returns none, so read words.
+
+Feed the words straight into a kinetic caption render:
+  $ nodaro audio transcribe --audio https://.../talk.mp3 --provider elevenlabs-stt --watch
+  $ nodaro jobs get <jobId> --json | jq '.output_data.words' > words.json
+  $ nodaro media add-captions https://.../talk.mp4 --captions-file words.json \\
+      --style word-highlight --no-auto-transcribe --watch
+
+Example:
+  $ nodaro audio transcribe --audio https://.../interview.mp3 --provider elevenlabs-stt --diarize --watch`)
+    .action(
+      async (
+        opts: {
+          audio: string
+          provider?: string
+          language?: string
+          diarize?: boolean
+          tagAudioEvents?: boolean
+          wordTimestamps?: boolean
+        } & WatchOpts,
+      ) => {
+        try {
+          if (opts.provider && !(TRANSCRIBE_PROVIDERS as readonly string[]).includes(opts.provider)) {
+            warn(`--provider must be one of ${TRANSCRIBE_PROVIDERS.join(", ")} (got "${opts.provider}")`)
+            process.exit(1)
+          }
+          // Word timings are a per-lane CAPABILITY, asked of the same shared
+          // table the route asks — so this pre-empts the route's 400 with the
+          // identical verdict instead of encoding a second copy of the policy.
+          const resolvedLane = opts.provider ?? DEFAULT_TRANSCRIBE_PROVIDER
+          if (opts.wordTimestamps && !transcribeLaneSupportsWordTimestamps(resolvedLane)) {
+            warn(
+              `--word-timestamps is not supported by "${resolvedLane}"${opts.provider ? "" : " (the default when --provider is omitted)"} — ` +
+                `pass --provider ${WORD_TIMESTAMP_PROVIDERS.join(" or ")}`,
+            )
+            process.exit(1)
+          }
+          const client = buildClient(opts.profile)
+          const result = await client.audio.transcribe({
+            audioUrl: opts.audio,
+            ...(opts.provider ? { provider: opts.provider as TranscribeProvider } : {}),
+            ...(opts.language ? { language: opts.language } : {}),
+            ...(opts.diarize ? { diarize: true } : {}),
+            ...(opts.tagAudioEvents ? { tagAudioEvents: true } : {}),
+            ...(opts.wordTimestamps ? { wordTimestamps: true } : {}),
+          })
+          await reportQueuedJob(result, () => client.jobs.get(result.jobId), { ...opts, note: resolvedLane })
         } catch (err) {
           handleError(err)
         }

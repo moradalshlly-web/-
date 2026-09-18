@@ -383,12 +383,13 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
   const storedFeatured = clampFeaturedIndex(nodeData.featuredIndex, items.length)
   const featured = visible.includes(storedFeatured) ? storedFeatured : (visible[0] ?? storedFeatured)
   const featuredPos = Math.max(0, visible.indexOf(featured))
-  // The outputs read `featuredIndex` without knowing about the view filter,
-  // so whenever the card had to fall back, write the fallback back: the ad on
-  // the card and the ad on the wires are always the same one.
-  useEffect(() => {
-    if (showResults && featured !== storedFeatured) updateNodeData(id, { featuredIndex: featured })
-  }, [showResults, featured, storedFeatured, id, updateNodeData])
+  // `featured` is DISPLAY-only: when a format filter hides the stored ad, show
+  // the first visible one. Do NOT persist that coercion — `featuredIndex` isn't
+  // a transient key, so writing it on mount / filter-change dirties the workflow
+  // with no user edit and surfaces as a spurious autosave + a false "updated on
+  // another device". Only an explicit click (`setFeatured`) changes the
+  // selection; the outputs read the stored `featuredIndex` clamped to the full
+  // list, so filtering the view never changes what the wires emit.
 
   // The card has two very different boxes (480px empty state, 680px featured
   // ad). A node keeps whatever width/height React Flow last stored for it, so

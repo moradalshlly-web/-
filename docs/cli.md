@@ -265,13 +265,21 @@ nodaro voice dub --audio <url> --target-language <code> [--source-language <code
 nodaro voice clones list [--json]                        # clones made before cloning was retired
 nodaro voice clones delete <id> [--json]
 
-# Media — ingestion + compositing: social-video import, trim, still-to-video, slideshow, image collage, image overlay, save-to-storage, metadata probe
+# Media — ingestion + compositing: social-video import, trim, caption burn-in, still-to-video, slideshow, image collage, image overlay, save-to-storage, metadata probe
 nodaro media download <url> [--max-height <px>] [--section <a-b>] [--watch] [--json]
                                                          # YouTube / TikTok / Instagram / X / Facebook → your storage. --section fetches only
                                                          # that time range (seconds). --watch streams live progress (no job to poll later).
 nodaro media metadata <url> [--json]                     # probe duration/dimensions/title WITHOUT downloading
 nodaro media trim-video --video <url> --start <sec> --end <sec>|--keep-first <sec>|--keep-last <sec> [--watch] [--poll-interval <ms>] [--json]
 nodaro media trim-audio --video <url>|--audio <url> [--start <sec>] [--end <sec>] [--format mp3|wav|aac] [--watch] [--poll-interval <ms>] [--json]
+nodaro media add-captions <videoUrl> [--text <text>] [--captions-file <file.json>] [--style subtitle|word-highlight|karaoke|tiktok-words|word-pop|bouncy] [--look outline|clean] [--position bottom|top|center] [--position-y <pct>] [--font-size <px>] [--font-family <name>] [--font-weight <100-900>] [--color <c>] [--background-color <c>] [--stroke-color <c>] [--stroke-width <px>] [--highlight-color <c>] [--uppercase|--no-uppercase] [--no-auto-transcribe] [--transcribe-provider <lane>] [--segments-file <file.json>] [--watch] [--poll-interval <ms>] [--json]
+                                                         # burn captions in. `subtitle` is static (FFmpeg); the kinetic styles render via
+                                                         # Remotion and take the look levers (--look, --font-family, --font-weight, --stroke-*,
+                                                         # --highlight-color, --uppercase, --position-y), which the static style REJECTS. An unset --look renders as `outline`. --captions-file is a
+                                                         # JSON array of word-timed entries [{ text, startMs, endMs }] — one per WORD for the
+                                                         # kinetic styles, and an `audio transcribe` job's output_data.words drops in verbatim
+                                                         # (pair it with --no-auto-transcribe). --segments-file gives non-overlapping ranges
+                                                         # their own style/look/position.
 nodaro media still-to-video --image <url> --audio <url> [--motion none|zoom-in|zoom-out|pan-left|pan-right|ken-burns] [--intensity <1-10>] [--resolution 720p|1080p|4K] [--aspect-ratio <W:H>] [--fps 24|30] [--fit cover|contain] [--pad-color <hex>] [--watch] [--poll-interval <ms>] [--json]
                                                          # one still + one audio → MP4, local FFmpeg, 0 credits. Length = the audio's length
                                                          # (no duration flag by design). --motion animates the still.
@@ -296,13 +304,21 @@ nodaro media overlay-placement <imageUrl> [--intent <text>] [--aspect <ratio>] [
                                                          # anchor, x, y, width + a one-line reason. Synchronous (no job to poll); one image-to-text call.
 nodaro media save <url> [--filename <name>] [--type image|video|audio] [--watch] [--poll-interval <ms>] [--json]
 
-# Audio — the primitives Voice Changer Pro composes, standalone
+# Audio — the primitives Voice Changer Pro composes, standalone, plus speech-to-text
 nodaro audio separate --audio <url> [--mode vocal_instrumental|stems] [--quality auto|fast|best] [--watch] [--poll-interval <ms>] [--json]
 nodaro audio isolate --audio <url> [--watch] [--poll-interval <ms>] [--json]
 nodaro audio fx --audio <url> [--preset <preset>] [--mix <0-100>] [--delay <20-2000>] [--decay <0-1>] [--eq-low <db>] [--eq-high <db>] [--watch] [--poll-interval <ms>] [--json]
 nodaro audio mix --audio <url> --audio <url> ... [--volumes <csv>] [--watch] [--poll-interval <ms>] [--json]
 nodaro audio adjust-volume --audio <url>|--video <url> [--volume <0-200>] [--normalize] [--fade-in <sec>] [--fade-out <sec>] [--watch] [--poll-interval <ms>] [--json]
 nodaro audio combine --segment <url[@a-b]> --segment ... [--watch] [--poll-interval <ms>] [--json]
+nodaro audio transcribe --audio <url> [--provider elevenlabs-stt] [--language <code>] [--diarize] [--tag-audio-events] [--word-timestamps] [--watch] [--poll-interval <ms>] [--json]
+                                                         # speech → text. --provider elevenlabs-stt is always word-level and is the lane that
+                                                         # honours --diarize / --tag-audio-events; OMITTING --provider runs the legacy whisper
+                                                         # lane, which has no word timings (--word-timestamps is refused there, before credits).
+                                                         # The completed job's output_data carries text, words (one per word, in MILLISECONDS)
+                                                         # and json (the normalized transcript, also ms); top-level segments (SECONDS) exist only
+                                                         # on the legacy lanes — elevenlabs-stt returns none, so read words.
+                                                         # Feed output_data.words to `media add-captions --captions-file` for a kinetic render.
 
 # Edit — editorial primitives for podcast / long-form video
 nodaro edit silence-detect <audioUrl> [--threshold-db=-35] [--min-silence-ms <ms>] [--pad-ms <ms>] [--watch] [--poll-interval <ms>] [--json]
@@ -515,6 +531,25 @@ nodaro nodes run generate-image \
   --param resolution=2K \
   --watch --json | jq -r '.output_data.imageUrl'
 ```
+
+### Transcribe a track, then burn its words in as kinetic captions
+
+```bash
+# 1. word-level transcription (elevenlabs-stt is always word-level)
+nodaro audio transcribe --audio https://example.com/talk.mp3 \
+  --provider elevenlabs-stt --watch
+
+# 2. take the words (MILLISECONDS; the top-level segments are in seconds)
+nodaro jobs get <jobId> --json | jq '.output_data.words' > words.json
+
+# 3. burn them in — supplying captions means add-captions runs no STT of its own
+nodaro media add-captions https://example.com/talk.mp4 \
+  --captions-file words.json \
+  --style word-highlight --no-auto-transcribe --watch
+```
+
+Correct a word's `text` in `words.json` between steps 2 and 3 and the correction
+is what burns in.
 
 ### Wrap an app's prompt with hidden text for one run
 

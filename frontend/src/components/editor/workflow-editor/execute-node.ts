@@ -276,7 +276,7 @@ import { resolveNodeInputs, extractNodeOutputAsList, resolveSourceThroughConnect
 import { collectPreviewItems } from "./preview-items";
 import { buildNodeRefMap, resolveTextRefs } from "@/lib/node-refs";
 import { resolveFieldMappings, NODE_MAPPABLE_FIELDS } from "./resolve-field-mappings";
-import { pollJobWithNodeUpdate, guardedToast, getJobStatusLeanForNode, RUN_START_RESET } from "./poll-job";
+import { pollJobWithNodeUpdate, guardedToast, getJobStatusLeanForNode, pollScrapeJobOutput, RUN_START_RESET } from "./poll-job";
 import type { OutputKeySpec } from "./poll-job";
 import { ensureNodeSheetPanels, SHEET_STAGE_A_CANCELLED } from "../reference-sheet/node-sheet-stage-a";
 import { shouldAbandonNode } from "./abandon-guard";
@@ -5168,12 +5168,20 @@ function executeNodeCore(
       analysisModel: typeof d.analysisModel === "string" && d.analysisModel ? d.analysisModel : undefined,
       analysisFocus: typeof d.analysisFocus === "string" && d.analysisFocus.trim() ? d.analysisFocus : undefined,
     })
-      .then((res) => {
-        updateNodeData(node.id, applyInstagramScrapeResult(res.json));
-        guardedToast.success(applyInstagramScrapeResult(res.json).lastRunOutcome === "empty" ? "Instagram completed — 0 posts" : "Instagram completed");
-        return res.json === undefined ? "" : JSON.stringify(res.json);
+      // The scrape runs past the ~100s edge timeout, so the route answers with a
+      // job id and finishes server-side; poll it to completion here.
+      .then(({ jobId }) => pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal }))
+      .then((output) => {
+        const json = output.json;
+        const patch = applyInstagramScrapeResult(json);
+        updateNodeData(node.id, patch);
+        guardedToast.success(patch.lastRunOutcome === "empty" ? "Instagram completed — 0 posts" : "Instagram completed");
+        return json === undefined ? "" : JSON.stringify(json);
       })
       .catch((err: Error) => {
+        // Stop → the poll was aborted; the central Stop handler already restored
+        // the node, so don't overwrite it with a failure (mirrors llm-chat).
+        if (err?.name === "AbortError" || ctx.signal?.aborted) return "";
         updateNodeData(node.id, applyInstagramScrapeFailure(err.message || "Scrape failed"));
         guardedToast.error(`Instagram failed: ${err.message}`);
         throw err;

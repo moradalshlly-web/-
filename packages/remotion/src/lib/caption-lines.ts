@@ -249,3 +249,41 @@ export function activeCaptionLine(lines: readonly CaptionLine[], ms: number): Ac
   }
   return null
 }
+
+/** The pop a SHORT active word gets. */
+export const ACTIVE_WORD_MAX_SCALE = 1.15
+
+/**
+ * Horizontal padding every word span carries (each side, in em) — layout room
+ * for the active word's pop. A CSS `scale()` grows a word around its centre
+ * WITHOUT reserving space, and the only thing between two words is a space glyph
+ * of ~0.25 em: on a long word even a 4.6 % pop (~9 px per side at 50 px) ate the
+ * whole gap and the row read "Nore-prompting." (verified on a rendered frame —
+ * with the scale off the same row had a normal space).
+ */
+export const CAPTION_WORD_PAD_EM = 0.1
+
+/** A space glyph's advance, in em (Inter/Montserrat are ~0.25-0.28). */
+const SPACE_GLYPH_EM = 0.25
+
+/**
+ * How far the active word may grow PER SIDE, in em. The resting gap between two
+ * words is space + both paddings (~0.45 em); capping the growth at 0.16 em keeps
+ * the gap at ~0.29 em while a word is popped — never less than a normal space.
+ */
+export const ACTIVE_WORD_GROWTH_EM = 0.16
+
+/**
+ * The highlight scale for the active word — bounded so the pop can never close
+ * the gap to a neighbour, whatever the word's length or face. The word's box is
+ * estimated in em (chars x the face's average advance + its space + paddings) and
+ * the scale is whatever grows that box by at most `ACTIVE_WORD_GROWTH_EM` per
+ * side: short words keep the full pop ("No" → 1.15), long ones taper
+ * ("re-prompting." → ~1.04) — they already carry their own weight.
+ */
+export function activeWordScale(text: string, metrics: CaptionFaceMetrics = {}): number {
+  const length = text.trim().length
+  if (length === 0) return 1
+  const boxEm = length * captionCharWidthEm(metrics) + SPACE_GLYPH_EM + 2 * CAPTION_WORD_PAD_EM
+  return Math.min(ACTIVE_WORD_MAX_SCALE, 1 + (2 * ACTIVE_WORD_GROWTH_EM) / boxEm)
+}

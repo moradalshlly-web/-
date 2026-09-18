@@ -272,6 +272,20 @@ export function isSeedance2EditModeRejection(message: string): boolean {
 }
 
 /**
+ * Everything an error says, for matching the PROVIDER's words. `runKieTask`
+ * throws `createSanitizedError`'s KieError: `.message` is the user-safe text and
+ * KIE's own failMsg lives in `.internalDetails` — so a detector reading only
+ * `.message` never sees the provider (job 83e90e87, 2026-09-18: the edit-mode
+ * retry was deployed and never fired). Duck-typed like the cross-repo
+ * `contentPolicy` contract, so it holds across module copies and mocks.
+ */
+function providerErrorText(err: unknown): string {
+  if (!(err instanceof Error)) return String(err)
+  const details = (err as { internalDetails?: unknown }).internalDetails
+  return typeof details === "string" && details ? `${err.message}\n${details}` : err.message
+}
+
+/**
  * The shape Seedance edit mode demands: the clip's own ratio, and its own length
  * (KIE spells "inherit the source" as -1 — the only place we ever emit it).
  */
@@ -314,7 +328,7 @@ async function runVideoTaskWithSeedanceEditRetry(
     const first = await runKieTask(taskModel, input, MAX_POLL_ATTEMPTS_VIDEO, options?.onProgress, meta(input))
     return { ...first, sentInput: input }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = providerErrorText(err)
     if (
       !isSeedance2Provider(provider) ||
       !isSeedance2EditModeRejection(message) ||

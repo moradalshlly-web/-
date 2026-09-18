@@ -290,6 +290,12 @@ export class MediaResource {
    * one call (e.g. a large top intro, then a small bottom body); a segment that
    * names its own `look` starts fresh from that preset and does not inherit the
    * top-level explicit levers. Poll `jobs.get(jobId)`.
+   *
+   * `word-highlight` shows ONE held line at a time and a word's
+   * `startMs`/`endMs` is its SPOKEN window (what times the highlight, not how
+   * long the text is on screen) — so `captions[]` can be handed over verbatim
+   * from an `audio.transcribe()` job's `output_data.words`, with
+   * `autoTranscribe: false`.
    */
   addCaptions(input: AddCaptionsInput): Promise<{ jobId: string }> {
     const { autoTranscribe, transcribeProvider, ...rest } = input

@@ -89,6 +89,11 @@ summary.
 - **Providers / keys.** Needs `APIFY_API_TOKEN`, or a connected nodaro.ai
   account (the run is relayed and billed there); AI analysis additionally needs
   an LLM key on a local run.
+- **Async result.** A real scrape runs past the ~100s HTTP edge timeout, so the
+  route returns `{ jobId, status: "pending" }` and finishes server-side. The
+  workflow runner and the editor poll automatically; a direct caller reads the
+  posts from the completed job's `output_data` (poll `GET /v1/jobs/:id`), or uses
+  the SDK's `runAndWait`.
 
 <!-- AUTO-GEN:START examples -->
 ## Worked example

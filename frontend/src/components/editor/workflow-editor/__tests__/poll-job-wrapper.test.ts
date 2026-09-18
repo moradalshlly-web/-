@@ -117,8 +117,10 @@ describe("poll-loop wrapper coverage", () => {
       "workflow-editor/execute-node.ts": 12,
       "workflow-editor/node-executors.ts": 2,
       // pollJobWithNodeUpdate + pollImageRefineToNode (the reference-board
-      // refine / region-edit lane, wrapped after it was found outside).
-      "workflow-editor/poll-job.ts": 2,
+      // refine / region-edit lane, wrapped after it was found outside) +
+      // pollScrapeJobOutput (the scrape-node poll — wrapped so a held job paints
+      // the awaiting-review overlay).
+      "workflow-editor/poll-job.ts": 3,
       "workflow-editor/run-handlers.ts": 1,
       "workflow-editor/scene-story-handlers.ts": 1,
       // The config panel's own detect loop — outside workflow-editor/, which is

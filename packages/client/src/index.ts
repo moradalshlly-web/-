@@ -431,6 +431,7 @@ export type {
   AudioFxPreset,
 } from "./resources/voices.js"
 export type { VideoMetadata, DownloadVideoProgress, MediaProcessInput, MediaProcessResult, OverlayPlacement, AddCaptionsInput, CaptionLookInput, CaptionSegmentInput, CaptionEntry } from "./resources/media.js"
+export type { TranscribeWord, TranscribeJobOutput, TranscribeProvider } from "./resources/audio.js"
 
 export type {
   UserBalance,

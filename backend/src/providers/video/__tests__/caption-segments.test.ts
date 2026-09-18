@@ -179,6 +179,27 @@ describe("resolveCaptionSegments — look cascade", () => {
   })
 })
 
+describe("resolveCaptionSegments — placement", () => {
+  // positionY overrides position at render, so an INHERITED positionY must not
+  // beat a placement the segment asked for itself.
+  const withY: CaptionStyleDefaults = { ...DEFAULTS, positionY: 85 }
+
+  it("a segment that names its own position does NOT inherit the top-level positionY", () => {
+    const [intro] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000, position: "top" }], withY)
+    expect(intro!.position).toBe("top")
+    expect(intro!.positionY).toBeUndefined()
+  })
+  it("a segment with no placement of its own inherits both", () => {
+    const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000 }], withY)
+    expect(seg!.position).toBe("bottom")
+    expect(seg!.positionY).toBe(85)
+  })
+  it("a segment's own positionY always wins", () => {
+    const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000, position: "top", positionY: 40 }], withY)
+    expect(seg!.positionY).toBe(40)
+  })
+})
+
 describe("resolveCaptionSegments — plan contract", () => {
   it("resolved segments validate against the render plan schema (resolver ↔ plan contract)", () => {
     const segments = resolveCaptionSegments(
