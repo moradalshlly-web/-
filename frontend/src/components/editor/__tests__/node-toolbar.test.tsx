@@ -244,7 +244,7 @@ describe("NODE_DEFINITIONS category distribution", () => {
     //   meta-ads-scrape — Apify network call (Meta Ad Library), tiered per ad
     // The invariant this test guards is "users don't accidentally pay for
     // uploading or writing text", which these exceptions preserve.
-    const paidInputExceptions = new Set(["web-scrape", "suno-voice", "telegram-channel-feed", "meta-ads-scrape"])
+    const paidInputExceptions = new Set(["web-scrape", "suno-voice", "telegram-channel-feed", "meta-ads-scrape", "instagram-scrape"])
     const zeroCostCategories = ["input", "parameter"]
     for (const def of NODE_DEFINITIONS) {
       if (zeroCostCategories.includes(def.category) && !paidInputExceptions.has(def.type)) {

@@ -238,6 +238,13 @@ export const NODE_OPTIONS: ReadonlyArray<NodeOption> = [
     category: "Data",
     group: "automate-get-content",
   },
+  {
+    type: "instagram-scrape",
+    label: "Instagram",
+    icon: <Instagram className="h-4 w-4" />,
+    category: "Data",
+    group: "automate-get-content",
+  },
   // Hidden — uncomment to restore in the Add Node UI:
   // {
   //   type: "json-process",  // note: re-add the Filter icon import if restored

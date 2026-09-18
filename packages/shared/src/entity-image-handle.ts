@@ -54,11 +54,14 @@ const AGGREGATE_LANE_EFFECTIVE_TYPE: Readonly<Record<string, string>> = {
  * `combine-text` (ONE string, not a list), so it reaches prompt inputs but
  * not the list consumers.
  */
-const META_ADS_HANDLE_EFFECTIVE_TYPE: Readonly<Record<string, string>> = {
+// Shared by every scraper node (Meta Ads, Instagram, …): the typed
+// text / image / video handles emit the canonical single-media producers.
+const SCRAPER_HANDLE_EFFECTIVE_TYPE: Readonly<Record<string, string>> = {
   text: "combine-text",
   image: "upload-image",
   video: "upload-video",
 }
+const SCRAPER_SOURCE_TYPES = new Set(["meta-ads-scrape", "instagram-scrape"])
 
 /**
  * The effective output TYPE a given source handle emits. Returns the raw node
@@ -82,8 +85,8 @@ export function resolveEffectiveSourceType(
     const effective = AGGREGATE_LANE_EFFECTIVE_TYPE[sourceHandleId ?? ""]
     if (effective) return effective
   }
-  if (rawSourceType === "meta-ads-scrape") {
-    const effective = META_ADS_HANDLE_EFFECTIVE_TYPE[sourceHandleId ?? ""]
+  if (SCRAPER_SOURCE_TYPES.has(rawSourceType ?? "")) {
+    const effective = SCRAPER_HANDLE_EFFECTIVE_TYPE[sourceHandleId ?? ""]
     if (effective) return effective
   }
   return rawSourceType ?? ""

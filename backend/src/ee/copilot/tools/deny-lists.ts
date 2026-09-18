@@ -34,6 +34,7 @@ export const DENIED_NODE_TYPES: ReadonlySet<string> = new Set([
   // query string is an exfiltration channel even though nothing is "posted".
   "web-scrape",
   "meta-ads-scrape",
+  "instagram-scrape",
   "rss-feed",
   "telegram-channel-feed",
   "youtube-video",

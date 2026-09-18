@@ -32,6 +32,7 @@ One row per node **type**. Generative model wrappers are not rows — a type tha
 | `upload-video` | Upload Video | input | Upload a video asset | `in`:text | `video`:video | NO |
 | `web-scrape` | Web Scrape | input | Fetch data from web pages, Google Search, Instagram, TikTok, or RSS feeds and emit structured JSON | `in`:text | `json`:json | NO |
 | `meta-ads-scrape` | Meta Ads | input | Pull public Facebook and Instagram ads from Meta's Ad Library by keyword, advertiser or Facebook Page and emit structured JSON (copy, CTA, images, videos) | `in`:text | `json`:json | NO |
+| `instagram-scrape` | Instagram | input | Pull public Instagram posts (images, carousels, reels) by profile or hashtag and emit structured JSON (caption, media, likes, comments) | `in`:text | `json`:json | NO |
 | `webhook-trigger` | Webhook Trigger | input | Trigger the workflow via HTTP POST | — | `payload`:any | NO |
 | `youtube-video` | Video URL | input | Download video or audio from YouTube, TikTok, Instagram, Facebook, or X | `in`:text | `video`:video | NO |
 | `action-fx` | Action FX | parameter | Pick environmental effects (multi-pick) from the action-fx catalog (earthquake, lightning, explosion, falling-objects, ...) | `in`:any | `out`:look | NO |

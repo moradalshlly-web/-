@@ -77,6 +77,7 @@ export const NODE_HANDLES: Readonly<Record<string, NodeHandleSpec>> = {
   "image-to-text": { inputs: ["image", "video", "text"], outputs: ["text"] },
   "image-to-video": { inputs: ["startFrame", "endFrame", "audio"], outputs: ["video"] },
   "instagram-post": { inputs: ["in"], outputs: [] },
+  "instagram-scrape": { inputs: ["in"], outputs: ["json", "text", "image", "video"] },
   "instrumentation": { inputs: ["in"], outputs: ["out"] },
   "json-process": { inputs: ["in"], outputs: ["out"] },
   "lens": { inputs: ["in", "picker-json"], outputs: ["out"] },

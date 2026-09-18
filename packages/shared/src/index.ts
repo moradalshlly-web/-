@@ -684,6 +684,39 @@ export {
   type MetaAdsScrapeTier,
 } from "./meta-ads-scrape.js"
 
+export {
+  INSTAGRAM_SCRAPE_NODE_TYPE,
+  INSTAGRAM_SCRAPE_MODES,
+  INSTAGRAM_SCRAPE_PERIODS,
+  INSTAGRAM_SCRAPE_DEFAULT_COUNT,
+  INSTAGRAM_SCRAPE_MAX_COUNT,
+  INSTAGRAM_SCRAPE_MAX_SOURCES,
+  INSTAGRAM_SCRAPE_MAX_TARGET_LENGTH,
+  INSTAGRAM_SCRAPE_TIERS,
+  INSTAGRAM_SCRAPE_CREDIT_COSTS,
+  INSTAGRAM_SCRAPE_FALLBACK_CREDIT_ID,
+  INSTAGRAM_ANALYSIS_CREDIT_ID,
+  isInstagramScrapeMode,
+  instagramScrapeMode,
+  isInstagramScrapeCount,
+  instagramScrapeTier,
+  instagramAnalysisTierFrom,
+  instagramAnalysisCreditId,
+  buildInstagramScrapeCreditId,
+  resolveInstagramScrapeCreditId,
+  instagramScrapeSources,
+  instagramScrapeCreditIdFromNode,
+  splitInstagramTargets,
+  clampInstagramFeaturedIndex,
+  featuredInstagramOutputs,
+  type InstagramScrapeMode,
+  type InstagramScrapePeriod,
+  type InstagramScrapeTier,
+  type InstagramFormat,
+  type FeaturedInstagramOutputs,
+  type InstagramNodeQuoteFields,
+} from "./instagram-scrape.js"
+
 export { VARIABLES_HANDLE_ID, buildConditionVariables } from "./condition-variables.js"
 
 export { extractAllGeneratedResults, extractGeneratedJsonAsList, spreadJsonArrayIfSingleton } from "./generated-results.js"

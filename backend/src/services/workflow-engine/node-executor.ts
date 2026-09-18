@@ -31,7 +31,7 @@ import { resolveFieldMappings, NODE_MAPPABLE_FIELDS } from "./resolve-field-mapp
 
 import { executeCombineText, executeSplitText, executeComposite, executeWebhookOutput, executePreview, executeTeleporterPassthrough, executeRouter, executeExtractField, executeJsonProcess, executeFilterList, executeDeduplicateList, executeMergeLists, executeSortList, executeSelector } from "./inline-executor.js"
 import { executeSubWorkflow } from "./sub-workflow-handler.js"
-import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER, metaAdsScrapeWireSources } from "@nodaro/shared"
+import { mergeExposedSettings, applyHandleInputOverride, isHandleInputWired, resolveNodeRefs, SOCIAL_POST_NODE_TYPES, isSeedance2Provider, pricedOutputDurationSec, isMinimaxH3Provider, readPromptAffixes, WORKSPACE_HEADER_LOWER, metaAdsScrapeWireSources, splitInstagramTargets } from "@nodaro/shared"
 import { computeLlmChatFields, computeNodePrompt, pickerFanoutTargets, applyPromptAffixes } from "@nodaro/prompts"
 import type { ComponentMetadata } from "@nodaro/shared"
 import { getAppSettings } from "../../lib/app-settings.js"
@@ -84,6 +84,7 @@ const SYNC_HTTP_NODES = new Set([
   "save-to-storage",
   "web-scrape",
   "meta-ads-scrape",
+  "instagram-scrape",
   "reduce",
 ])
 
@@ -111,6 +112,7 @@ export const SYNC_HTTP_ROUTES: Record<string, string> = {
   "save-to-storage": "/v1/save-to-storage",
   "web-scrape": "/v1/web-scrape",
   "meta-ads-scrape": "/v1/meta-ads-scrape",
+  "instagram-scrape": "/v1/instagram-scrape",
   "instagram-post": "/v1/social/publish",
   "tiktok-post": "/v1/social/publish",
   "youtube-upload": "/v1/social/publish",
@@ -272,6 +274,8 @@ export function extractUserPromptTemplate(node: SimpleNode): string | undefined 
       return pick("query", "url", "target")
     case "meta-ads-scrape":
       return pick("query", "pageUrls")
+    case "instagram-scrape":
+      return pick("targets")
 
     // --- Social posts ---
     case "instagram-post":
@@ -593,11 +597,10 @@ async function executeSyncHttpNode(
     if (cursor !== undefined) body.sinceId = cursor
   }
 
-  // Meta Ads: a creative video is only copied into the user's library when
-  // its `video` output is actually wired — videos are the expensive bytes,
-  // and an unwired one would just sit in the quota. Same rule as the editor's
-  // buildMetaAdsScrapeParams.
-  if (node.type === "meta-ads-scrape" && edges) {
+  // Scrapers copy the featured item's video into the library only when its
+  // `video` output is actually wired — videos are the expensive bytes, and an
+  // unwired one would just sit in the quota. Same rule as the editors.
+  if ((node.type === "meta-ads-scrape" || node.type === "instagram-scrape") && edges) {
     body.ingestVideo = edges.some((e) => e.source === node.id && e.sourceHandle === "video")
   }
 
@@ -1091,6 +1094,27 @@ export function buildSyncHttpBody(
         ingestAllVideos: data.ingestAllVideos === true ? true : undefined,
         // Optional per-ad AI analysis — priced into the same identifier the
         // route's guard resolves, so the node's quote and the reservation agree.
+        analyze: data.analyze === true ? true : undefined,
+        analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
+        analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,
+        userId: ctx.userId,
+      }
+      return withUserPrompt(body)
+    }
+
+    case "instagram-scrape": {
+      // Targets (profiles / hashtags) are typed one per line, or arrive as the
+      // upstream text so a Prompt / List node can drive the scrape.
+      const own = splitInstagramTargets(data.targets)
+      const targets = own.length > 0 ? own : splitInstagramTargets(resolvedInputs.prompt)
+      const body: Record<string, unknown> = {
+        mode: data.mode === "hashtag" ? "hashtag" : "profile",
+        targets,
+        count: data.count,
+        period: data.period,
+        formats: Array.isArray(data.formats) ? data.formats : undefined,
+        featuredIndex: typeof data.featuredIndex === "number" ? data.featuredIndex : undefined,
+        ingestAllVideos: data.ingestAllVideos === true ? true : undefined,
         analyze: data.analyze === true ? true : undefined,
         analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
         analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,

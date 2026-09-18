@@ -152,7 +152,7 @@ here for each one anyway.
 | `FAL_KEY` | `""` | fal.ai-hosted models |
 | `HEYGEN_API_KEY` | `""` | AI Avatar / Cinematic Avatar (or run them on the nodaro.ai connection) |
 | `BEEBLE_API_KEY` | `""` | Relight & Switch |
-| `APIFY_API_TOKEN` | `""` | Web Scrape, Meta Ads (or run them on the nodaro.ai connection) |
+| `APIFY_API_TOKEN` | `""` | Web Scrape, Meta Ads, Instagram (or run them on the nodaro.ai connection) |
 | `NODARO_API_KEY` | `""` | The nodaro.ai connection by key instead of OAuth (§11) |
 | `NODARO_CLOUD_URL` | `https://app.nodaro.ai` | Where the connection talks to; CI points it at an unreachable host |
 | `NODARO_ENCRYPTION_KEY` | `""` (compose: generated) | 64-char hex; encrypts pasted provider keys and social connections at rest |

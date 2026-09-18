@@ -70,6 +70,7 @@ export const NODE_MAPPABLE_FIELDS: Readonly<Record<string, readonly string[]>> =
   "location":            ["locationName", "description"],
   "web-scrape":          ["query", "url", "target"],
   "meta-ads-scrape":     ["query", "pageUrls"],
+  "instagram-scrape":    ["targets"],
 }
 
 /** suno-generate secondary text fields exposed as `field-<key>` canvas handles. */

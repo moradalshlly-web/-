@@ -48,6 +48,7 @@ const NODE_LABELS_HE: Record<string, string> = {
   "Video URL": "כתובת וידאו",
   "Web Scrape": "גריפת אתר",
   "Meta Ads": "מודעות Meta",
+  "Instagram": "אינסטגרם",
   "Video Analysis": "ניתוח וידאו",
   "Reference Audio": "אודיו ייחוס",
   // Parameter pickers (Look / Camera / Subject)

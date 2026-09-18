@@ -1282,7 +1282,7 @@ function routeOutput(
   // already the featured ad's text / image url / video url (or the stringified
   // json) — getPrimaryOutput narrowed it by handle. Mirrors the group / collect
   // lane branch above and the frontend node-input-resolver.
-  if (srcType === "meta-ads-scrape") {
+  if (srcType === "meta-ads-scrape" || srcType === "instagram-scrape") {
     const handle = edge.sourceHandle
     if (handle === "image") {
       if (IMAGE_REFERENCE_TARGET_TYPES.has(targetType)) {

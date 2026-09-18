@@ -26,6 +26,7 @@ export { WebhookTriggerConfig, ScheduleTriggerConfig, TelegramTriggerConfig, Tel
 export { InstagramPostConfig, TiktokPostConfig, YoutubeUploadConfig, LinkedinPostConfig, XPostConfig, FacebookPostConfig, TelegramPostConfig, PublishSocialConfig } from "./social-configs"
 export { WebScrapeConfig } from "./scraper-configs"
 export { MetaAdsScrapeConfig } from "./meta-ads-configs"
+export { InstagramScrapeConfig } from "./instagram-configs"
 export { ResultsGallery } from "./results-gallery"
 export { PresentationDisplayConfig } from "./presentation-display-config"
 export { getConnectedSources, getModelIdentifier, buildCreditModelIdentifier } from "./helpers"

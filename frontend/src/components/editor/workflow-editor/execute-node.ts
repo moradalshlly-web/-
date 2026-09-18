@@ -97,6 +97,7 @@ import {
   saveToStorageApi,
   webScrape,
   metaAdsScrape,
+  instagramScrape,
   startVideoAnalysis,
   runVideoAudit,
   editPlan,
@@ -104,7 +105,8 @@ import {
 } from "@/lib/api";
 import { applyWebScrapeFailure, applyWebScrapeResult, webScrapeRunStartPatch } from "@/components/nodes/web-scrape-run-state";
 import { applyMetaAdsScrapeFailure, applyMetaAdsScrapeResult, metaAdsScrapeRunStartPatch } from "@/components/nodes/meta-ads-scrape-run-state";
-import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, splitMetaAdsAdvertiserNames } from "@nodaro/shared";
+import { applyInstagramScrapeFailure, applyInstagramScrapeResult, instagramScrapeRunStartPatch } from "@/components/nodes/instagram-scrape-run-state";
+import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, splitMetaAdsAdvertiserNames, splitInstagramTargets } from "@nodaro/shared";
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
@@ -233,6 +235,7 @@ import type {
   GeneratedResult,
   WebScrapeNodeData,
   MetaAdsScrapeNodeData,
+  InstagramScrapeNodeData,
   TelegramChannelFeedData,
   ExtractFieldNodeData,
   JsonProcessNodeData,
@@ -5125,6 +5128,45 @@ function executeNodeCore(
           throw err;
         }),
     );
+  }
+
+  if (node.type === "instagram-scrape") {
+    const d = node.data as InstagramScrapeNodeData;
+    const { updateNodeData, edges: liveEdges } = useWorkflowStore.getState();
+    const own = splitInstagramTargets(d.targets);
+    const targets = own.length > 0 ? own : splitInstagramTargets(inputs.prompt);
+    if (targets.length === 0) {
+      const message = tx("cfgext.igTargetsNeeded");
+      updateNodeData(node.id, applyInstagramScrapeFailure(message));
+      guardedToast.error(message);
+      throw new Error(message);
+    }
+    const videoWired = liveEdges.some((e) => e.source === node.id && e.sourceHandle === "video");
+    updateNodeData(node.id, instagramScrapeRunStartPatch(d));
+    setUserPromptTemplate(undefined);
+    return instagramScrape({
+      mode: d.mode === "hashtag" ? "hashtag" : "profile",
+      targets,
+      count: d.count,
+      period: d.period,
+      formats: Array.isArray(d.formats) ? d.formats : undefined,
+      featuredIndex: typeof d.featuredIndex === "number" ? d.featuredIndex : undefined,
+      ingestVideo: videoWired,
+      ingestAllVideos: d.ingestAllVideos === true ? true : undefined,
+      analyze: d.analyze === true ? true : undefined,
+      analysisModel: typeof d.analysisModel === "string" && d.analysisModel ? d.analysisModel : undefined,
+      analysisFocus: typeof d.analysisFocus === "string" && d.analysisFocus.trim() ? d.analysisFocus : undefined,
+    })
+      .then((res) => {
+        updateNodeData(node.id, applyInstagramScrapeResult(res.json));
+        guardedToast.success(applyInstagramScrapeResult(res.json).lastRunOutcome === "empty" ? "Instagram completed — 0 posts" : "Instagram completed");
+        return res.json === undefined ? "" : JSON.stringify(res.json);
+      })
+      .catch((err: Error) => {
+        updateNodeData(node.id, applyInstagramScrapeFailure(err.message || "Scrape failed"));
+        guardedToast.error(`Instagram failed: ${err.message}`);
+        throw err;
+      });
   }
 
   if (node.type === "meta-ads-scrape") {

@@ -60,6 +60,13 @@ export interface AdCreativeAnalysisStats {
 export interface AnalyzeAdCreativesOptions {
   readonly modelId: string
   readonly deadlineAt: number
+  /**
+   * The analyst persona. Defaults to the competitor-AD analyst; a scraper of
+   * organic content (Instagram / TikTok / LinkedIn posts) passes a post /
+   * content-analyst prompt instead. The output shape is the same — the fields
+   * (hooks, audiences, USPs, CTA, summary) read for both ads and posts.
+   */
+  readonly systemPrompt?: string
   readonly concurrency?: number
   readonly now?: () => number
   /** Test seam. */
@@ -86,7 +93,7 @@ export async function analyzeAdCreatives(
       const out = await complete(
         {
           modelId: opts.modelId,
-          system: AD_CREATIVE_ANALYSIS_SYSTEM_PROMPT,
+          system: opts.systemPrompt ?? AD_CREATIVE_ANALYSIS_SYSTEM_PROMPT,
           messages: [{ role: "user", content }],
           maxTokens: MAX_OUTPUT_TOKENS,
         },
