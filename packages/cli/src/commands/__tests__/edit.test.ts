@@ -181,6 +181,16 @@ describe("edit plan", () => {
     })
   })
 
+  it("errors when --sources-file is not a JSON array", async () => {
+    const tPath = fixture("t.json", TRANSCRIPT)
+    const badPath = fixture("bad-sources.json", { not: "an array" })
+    await expect(
+      runCmd("edit", "plan", "--mode", "tighten", "--plan-tier", "standard", "--transcript", tPath, "--sources-file", badPath),
+    ).rejects.toThrow("process.exit(1)")
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--sources-file"))
+    expect(mocks.editPlan).not.toHaveBeenCalled()
+  })
+
   it("errors on an unknown --mode", async () => {
     const tPath = fixture("t.json", TRANSCRIPT)
     await expect(

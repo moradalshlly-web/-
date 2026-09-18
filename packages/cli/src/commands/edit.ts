@@ -204,9 +204,17 @@ export function editCommand(): Command {
           warn(`--target-aspect must be one of 16:9, 9:16, 1:1, 4:5 (got "${opts.targetAspect}")`)
           process.exit(1)
         }
-        const sources: EditPlanSource[] = opts.sourcesFile
-          ? (readJsonFile(opts.sourcesFile) as EditPlanSource[])
-          : (opts.source ?? []).map(parseSourceSpec)
+        let sources: EditPlanSource[]
+        if (opts.sourcesFile) {
+          const parsed = readJsonFile(opts.sourcesFile)
+          if (!Array.isArray(parsed)) {
+            warn(`--sources-file ${opts.sourcesFile} must contain a JSON array of source rows`)
+            process.exit(1)
+          }
+          sources = parsed as EditPlanSource[]
+        } else {
+          sources = (opts.source ?? []).map(parseSourceSpec)
+        }
         if (sources.length === 0) {
           warn("at least one source is required — pass --source <url> (repeatable) or --sources-file <file>")
           process.exit(1)

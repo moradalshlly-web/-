@@ -171,11 +171,14 @@ export class EditResource {
   }
 
   /**
-   * Plan a transcript-driven cut (`POST /v1/edit-plan`, Cloud edition). Reads a
-   * timed transcript (plus optional silence ranges) and the media sources, and
-   * plans the edit as an EDL — one `Edl` for `"tighten"`, an `Edl[]` for
-   * `"clips"`, or a chapter list for `"chapters"`. Requires the install to be
-   * connected to nodaro.ai (a 503 `code: "nodaro_connection_required"` otherwise).
+   * Plan a transcript-driven cut (`POST /v1/edit-plan`). Reads a timed
+   * transcript (plus optional silence ranges) and the media sources, and plans
+   * the edit as an EDL — one `Edl` for `"tighten"`, an `Edl[]` for `"clips"`, or
+   * a chapter list for `"chapters"`.
+   *
+   * On a self-hosted install the request relays to nodaro.ai and needs the
+   * install connected (a 503 `code: "nodaro_connection_required"` otherwise);
+   * on nodaro.ai it runs directly.
    */
   editPlan(input: EditPlanInput): Promise<EditJobResult> {
     return this.client.request("POST", "/v1/edit-plan", {
