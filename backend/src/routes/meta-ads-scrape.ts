@@ -126,6 +126,8 @@ const commonFields = {
   featuredIndex: z.number().int().min(0).optional(),
   /** Copy the featured ad's video into the library too (only when its video output is wired — the expensive bytes). */
   ingestVideo: z.boolean().optional(),
+  /** Copy EVERY returned ad's video into the library (the "copy all videos" setting — the expensive bytes, opt-in). */
+  ingestAllVideos: z.boolean().optional(),
   /** Per-ad AI analysis (the "competitor ad analyst" pass): priced per requested ad by the model's tier, settled per ad analysed. */
   analyze: z.boolean().optional(),
   /** An image-capable structured-output model; absent = the feature default. */
@@ -150,7 +152,11 @@ const searchBody = z.object({
 
 const pagesBody = z.object({
   mode: z.literal("pages"),
-  pageUrls: z.array(facebookPageUrl).min(1).max(META_ADS_SCRAPE_MAX_SOURCES),
+  // Either Page urls, advertiser names to resolve, or both — the combined
+  // count (1..MAX_SOURCES) is checked in the handler (a discriminated-union
+  // member must stay a bare object, so no cross-field refine here).
+  pageUrls: z.array(facebookPageUrl).max(META_ADS_SCRAPE_MAX_SOURCES).default([]),
+  advertiserNames: z.array(z.string().trim().min(2).max(META_ADS_SCRAPE_MAX_QUERY_LENGTH)).max(META_ADS_SCRAPE_MAX_SOURCES).optional(),
   ...commonFields,
 })
 
@@ -227,19 +233,60 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
     }
 
     const body = parsed.data
-    const sources = body.mode === "pages" ? body.pageUrls.length : 1
-    const analysisTier = metaAdsAnalysisTierFrom(body)
-    const modelIdentifier = buildMetaAdsScrapeCreditId({ count: body.count, sources, analysis: analysisTier })
+    const advertiserNames = body.mode === "pages" ? (body.advertiserNames ?? []) : []
+    if (body.mode === "pages") {
+      const total = body.pageUrls.length + advertiserNames.length
+      if (total < 1 || total > META_ADS_SCRAPE_MAX_SOURCES) {
+        return reply.status(400).send({
+          error: { code: "validation_error", message: `Provide 1 to ${META_ADS_SCRAPE_MAX_SOURCES} Facebook Page URLs or advertiser names.` },
+        })
+      }
+    }
 
-    // Decided up front: a keyless install relays the WHOLE run (scrape and
-    // analysis) to the connected account, so only a local run needs an LLM
-    // key — and a run that could never analyse must refuse before it reserves.
+    const analysisTier = metaAdsAnalysisTierFrom(body)
+    // Decided up front: a keyless install relays the WHOLE run (scrape,
+    // advertiser resolution and analysis) to the connected account, so only a
+    // local run needs an LLM key — and a run that could never analyse must
+    // refuse before it reserves.
     const viaCloud = await shouldRunOnCloud(config.APIFY_API_TOKEN)
     if (analysisTier && !viaCloud && !config.KIE_API_KEY && !config.ANTHROPIC_API_KEY && !config.GEMINI_API_KEY) {
       return reply.status(503).send({
         error: { code: "provider_unavailable", message: "AI analysis needs an LLM key (KIE_API_KEY, ANTHROPIC_API_KEY or GEMINI_API_KEY) — or run without analysis." },
       })
     }
+
+    // Advertiser names → Page urls, resolved here (before anything is
+    // reserved) so a name that finds nobody fails cleanly with no job. Cloud
+    // relays the names untouched — the connected account resolves them. The
+    // heuristic: the first VERIFIED match, else the first (that is what tells
+    // the real brand from a fan page).
+    let resolvedPageUrls = body.mode === "pages" ? [...body.pageUrls] : []
+    let resolvedAdvertisers: Array<{ name: string; pageId: string; url: string }> = []
+    if (advertiserNames.length > 0 && !viaCloud) {
+      for (const name of advertiserNames) {
+        try {
+          const { items } = await searchMetaAdvertisers(name)
+          const pick = items.find((a) => a.verified) ?? items[0]
+          if (pick) resolvedAdvertisers.push({ name, pageId: pick.pageId, url: pick.url })
+        } catch (err) {
+          req.log.warn({ err, name }, "[meta-ads-scrape] advertiser name resolution failed")
+        }
+      }
+      resolvedPageUrls = [...resolvedPageUrls, ...resolvedAdvertisers.map((a) => a.url)]
+      if (resolvedPageUrls.length === 0) {
+        return reply.status(404).send({
+          error: { code: "advertiser_not_found", message: `No Facebook advertiser matched ${advertiserNames.map((n) => `"${n}"`).join(", ")}.` },
+        })
+      }
+    }
+
+    // Sources bill AFTER resolution: page urls plus the names that resolved
+    // (cloud can't be resolved here, so its names count as sources — the guard
+    // over-checked the same way).
+    const sources = body.mode === "pages"
+      ? (viaCloud ? body.pageUrls.length + advertiserNames.length : resolvedPageUrls.length)
+      : 1
+    const modelIdentifier = buildMetaAdsScrapeCreditId({ count: body.count, sources, analysis: analysisTier })
 
     const { data: job, error: jobError } = await insertJob(req, {
       workflow_id: extractWorkflowId(req.body),
@@ -259,9 +306,17 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
     const usageLogId = reservation?.usageLogId
 
     try {
+      // Local run scrapes the resolved Page urls (names already turned into
+      // urls above); cloud gets the raw body (names included) to resolve itself.
+      const scrapeArgs = body.mode === "pages" ? { ...body, pageUrls: resolvedPageUrls } : body
       const scraped = viaCloud
         ? await scrapeViaConnection(body as Record<string, unknown>)
-        : await runMetaAdsScrape(body)
+        : await runMetaAdsScrape(scrapeArgs)
+      // Cloud reports who it resolved; surface that instead of the local list.
+      const relayedResolved = (scraped as Record<string, unknown>).resolvedAdvertisers
+      if (viaCloud && Array.isArray(relayedResolved)) {
+        resolvedAdvertisers = relayedResolved as typeof resolvedAdvertisers
+      }
 
       // Classify every creative's format, apply the format filter, and copy
       // the kept creatives into the user's library (durable urls) — under
@@ -274,14 +329,15 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
         jobId: job.id,
         deadlineAt: startedAt + MEDIA_DEADLINE_MS,
         storeImages: !viaCloud,
-        storeVideoForAdIndex: body.ingestVideo && !viaCloud ? featuredIndex : undefined,
+        storeFeaturedVideoIndex: body.ingestVideo && !viaCloud ? featuredIndex : undefined,
+        storeAllVideos: body.ingestAllVideos === true && !viaCloud,
         formats: body.formats,
       }).catch((err: unknown) => {
         // The media step degrades internally; this is the belt to its braces —
         // a scrape the user already paid for never fails because the library
         // copy did. Source urls go out instead (they expire; the UI says so).
         req.log.warn({ err, jobId: job.id }, "[meta-ads-scrape] media step failed; returning the ads with their source urls")
-        return { ads: metaAdsWithoutMedia(scrapedAds), stats: { classified: 0, stored: 0, kept: scrapedAds.length, filteredOut: 0 } }
+        return { ads: metaAdsWithoutMedia(scrapedAds), stats: { classified: 0, stored: 0, videosStored: 0, kept: scrapedAds.length, filteredOut: 0 } }
       })
       // Per-ad AI analysis, under what is left of the same deadline. A cloud
       // relay already analysed on the connected account (its `analysis`
@@ -299,6 +355,9 @@ export async function metaAdsScrapeRoutes(app: FastifyInstance) {
         json: ads,
         mediaStorage: media.stats,
         ...(analysisStats ? { analysis: analysisStats } : {}),
+        // Who each advertiser NAME resolved to, so a list-driven run shows
+        // which Page a name landed on.
+        ...(resolvedAdvertisers.length > 0 ? { resolvedAdvertisers } : {}),
         // The featured ad's typed outputs ride on output_data so the
         // orchestrator's NodeOutput carries them (see output-extractor).
         ...featuredMetaAdOutputs(ads, featuredIndex),

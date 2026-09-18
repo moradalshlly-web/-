@@ -115,6 +115,15 @@ export function buildAdLibrarySearchUrl(args: MetaAdsScrapeArgs, now: Date = new
   if (days !== null) {
     url.searchParams.set("start_date[min]", isoDate(new Date(now.getTime() - days * 86_400_000)))
     url.searchParams.set("start_date[max]", isoDate(now))
+    // The keyword search ignores the date window (it filters nothing — live
+    // 2026-09-17), so results come back in relevance order spanning years and
+    // the post-filter throws most away. This sort DOES take: `desc` +
+    // `relevancy_monthly_grouped` front-loads the most recent ads
+    // (live-verified 2026-09-18: top results all within the last two months
+    // vs a 2023-2026 spread unsorted), so the over-fetch actually fills the
+    // window. Only set when a window is in play; "all" keeps relevance order.
+    url.searchParams.set("sort_data[direction]", "desc")
+    url.searchParams.set("sort_data[mode]", "relevancy_monthly_grouped")
   }
   return url.toString()
 }
@@ -131,14 +140,17 @@ export function metaAdsSourceUrls(args: MetaAdsScrapeArgs, now: Date = new Date(
  * has enough to fill the paid-for count; the actor bills per ad scraped and
  * the multiplier is a sub-cent difference.
  */
-const PERIOD_OVERFETCH = 3
 const ACTOR_MAX_PER_SOURCE = 300
+// Post-filter headroom by window. Even with the recency sort above, the
+// tighter the window the more of the recent-first stream falls outside it, so
+// a narrower period asks for more. Capped at the actor ceiling.
+const PERIOD_OVERFETCH: Record<MetaAdsScrapePeriod, number> = { "24h": 8, "7d": 5, "30d": 3, all: 1 }
 
 export function actorLimitPerSource(count: number, period: MetaAdsScrapePeriod, mode: MetaAdsScrapeMode): number {
   // Page urls honour `scrapePageAds.period` server-side; only a keyword
   // search needs the post-filter headroom.
   if (period === "all" || mode === "pages") return count
-  return Math.min(ACTOR_MAX_PER_SOURCE, count * PERIOD_OVERFETCH)
+  return Math.min(ACTOR_MAX_PER_SOURCE, count * PERIOD_OVERFETCH[period])
 }
 
 /** Pure — exported for tests. `count` (the actor's TOTAL cap) is left unset on purpose: the per-url cap plus our own slice is the contract. */

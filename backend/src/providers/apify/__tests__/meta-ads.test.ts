@@ -120,6 +120,14 @@ describe("buildAdLibrarySearchUrl", () => {
     expect(url.searchParams.has("start_date[max]")).toBe(false)
   })
 
+  it("sorts a windowed search most-recent-first (fills the window), keeps relevance order for 'all'", () => {
+    const windowed = new URL(buildAdLibrarySearchUrl(searchArgs, NOW))
+    expect(windowed.searchParams.get("sort_data[direction]")).toBe("desc")
+    expect(windowed.searchParams.get("sort_data[mode]")).toBe("relevancy_monthly_grouped")
+    const all = new URL(buildAdLibrarySearchUrl({ ...searchArgs, period: "all" }, NOW))
+    expect(all.searchParams.has("sort_data[direction]")).toBe(false)
+  })
+
   it("adds the UI's publisher_platforms[] filter for a strict subset, nothing for none / all", () => {
     const some = new URL(buildAdLibrarySearchUrl({ ...searchArgs, platforms: ["INSTAGRAM", "FACEBOOK"] }, NOW))
     expect(some.searchParams.get("publisher_platforms[0]")).toBe("instagram")
@@ -156,8 +164,8 @@ describe("buildMetaAdsActorInput", () => {
   it("search mode → one Ad Library search url, over-fetched per-source cap for a period, dotted page keys", () => {
     const input = buildMetaAdsActorInput(searchArgs, NOW)
     expect(input.urls).toEqual([{ url: buildAdLibrarySearchUrl(searchArgs, NOW) }])
-    // period = 7d → 3× over-fetch so the post-filter can still fill 20
-    expect(input.limitPerSource).toBe(60)
+    // period = 7d → 5× over-fetch so the post-filter can still fill 20
+    expect(input.limitPerSource).toBe(100)
     expect(input.scrapeAdDetails).toBe(false)
     expect(input["scrapePageAds.period"]).toBe("last7d")
     expect(input["scrapePageAds.activeStatus"]).toBe("active")
@@ -178,8 +186,11 @@ describe("buildMetaAdsActorInput", () => {
     expect(input["scrapePageAds.countryCode"]).toBe("ALL")
   })
 
-  it("over-fetches only for a keyword search with a window, capped at the actor ceiling", () => {
-    expect(actorLimitPerSource(100, "24h", "search")).toBe(300)
+  it("over-fetches a keyword search by window (tighter = more), capped at the actor ceiling", () => {
+    expect(actorLimitPerSource(20, "24h", "search")).toBe(160) // 20 × 8
+    expect(actorLimitPerSource(20, "7d", "search")).toBe(100) // 20 × 5
+    expect(actorLimitPerSource(20, "30d", "search")).toBe(60) // 20 × 3
+    expect(actorLimitPerSource(100, "24h", "search")).toBe(300) // 800 capped at 300
     expect(actorLimitPerSource(100, "all", "search")).toBe(100)
     // pages honour scrapePageAds.period server-side — no headroom needed
     expect(actorLimitPerSource(100, "24h", "pages")).toBe(100)
@@ -282,10 +293,10 @@ describe("runMetaAdsScrape", () => {
     const result = await runMetaAdsScrape(searchArgs)
     expect(mocks.actorFn).toHaveBeenCalledWith(META_ADS_ACTOR.apifyActorId)
     expect(mocks.actorCall).toHaveBeenCalledWith(
-      // searchArgs asks for 20 over a 7-day window → 3× over-fetch
-      expect.objectContaining({ limitPerSource: 60, scrapeAdDetails: false }),
+      // searchArgs asks for 20 over a 7-day window → 5× over-fetch
+      expect.objectContaining({ limitPerSource: 100, scrapeAdDetails: false }),
       // platform-side ceilings ride along: run timeout + the charged-items cap
-      { waitSecs: META_ADS_ACTOR.timeoutSecs, timeout: META_ADS_ACTOR.timeoutSecs, maxItems: 60 },
+      { waitSecs: META_ADS_ACTOR.timeoutSecs, timeout: META_ADS_ACTOR.timeoutSecs, maxItems: 100 },
     )
     expect(mocks.datasetFn).toHaveBeenCalledWith("ds-1")
     expect(result.json).toHaveLength(1)

@@ -104,7 +104,7 @@ import {
 } from "@/lib/api";
 import { applyWebScrapeFailure, applyWebScrapeResult, webScrapeRunStartPatch } from "@/components/nodes/web-scrape-run-state";
 import { applyMetaAdsScrapeFailure, applyMetaAdsScrapeResult, metaAdsScrapeRunStartPatch } from "@/components/nodes/meta-ads-scrape-run-state";
-import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources } from "@nodaro/shared";
+import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, splitMetaAdsAdvertiserNames } from "@nodaro/shared";
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
@@ -437,6 +437,7 @@ export function buildMetaAdsScrapeParams(
     // The creative video is the expensive bytes — copied into the library
     // only when something downstream will actually consume it.
     ingestVideo: opts.videoWired === true,
+    ingestAllVideos: data.ingestAllVideos === true ? true : undefined,
     analyze: data.analyze === true ? true : undefined,
     analysisModel: typeof data.analysisModel === "string" && data.analysisModel ? data.analysisModel : undefined,
     analysisFocus: typeof data.analysisFocus === "string" && data.analysisFocus.trim() ? data.analysisFocus : undefined,
@@ -5129,10 +5130,15 @@ function executeNodeCore(
   if (node.type === "meta-ads-scrape") {
     const d = node.data as MetaAdsScrapeNodeData;
     const { updateNodeData, edges: liveEdges } = useWorkflowStore.getState();
-    // Advertiser mode with nothing picked would reach the route as an empty
-    // page list — a 400 about a field the user never saw (and an admin
-    // validation-reject report). Say the real thing here, before any request.
-    if (metaAdsNodeMode(d.mode) === "advertiser" && metaAdsAdvertisersFrom(d.advertisers).length === 0) {
+    // Advertiser mode with no picks AND no upstream name would reach the route
+    // as an empty page list — a 400 about a field the user never saw. Say the
+    // real thing here, before any request. An upstream `in` name is fine: the
+    // route resolves it to a Page at run time.
+    if (
+      metaAdsNodeMode(d.mode) === "advertiser" &&
+      metaAdsAdvertisersFrom(d.advertisers).length === 0 &&
+      splitMetaAdsAdvertiserNames(inputs.prompt).length === 0
+    ) {
       const message = tx("cfgext.metaAdsAdvertiserNeeded");
       updateNodeData(node.id, applyMetaAdsScrapeFailure(message));
       guardedToast.error(message);

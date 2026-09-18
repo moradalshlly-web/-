@@ -670,6 +670,7 @@ export {
   metaAdsNodeMode,
   isFacebookPageUrl,
   isMetaCdnImageUrl,
+  splitMetaAdsAdvertiserNames,
   metaAdsAdvertisersFrom,
   metaAdsScrapeSources,
   metaAdsScrapeWireSources,

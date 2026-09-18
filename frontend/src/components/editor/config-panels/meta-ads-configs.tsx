@@ -352,6 +352,14 @@ function MetaAdsScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapF
 
       <p className="text-[11.5px] leading-normal text-[var(--meta-ads-faint)]">{t("cfgext.metaAdsOutputsHelp")}</p>
 
+      <div className="flex items-start justify-between gap-3 rounded-[14px] border border-[var(--meta-ads-info-card-border)] bg-[var(--meta-ads-info-card)] px-4 py-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] font-extrabold text-[var(--meta-ads-text)]">{t("cfgext.metaAdsCopyAllVideos")}</span>
+          <span className="text-[11.5px] leading-normal text-[var(--meta-ads-muted)]">{t("cfgext.metaAdsCopyAllVideosHint")}</span>
+        </div>
+        <Switch checked={data.ingestAllVideos === true} onCheckedChange={(v) => onUpdate({ ingestAllVideos: v })} />
+      </div>
+
       <div className="flex flex-col gap-2.5 rounded-[14px] border border-[var(--meta-ads-info-card-border)] bg-[var(--meta-ads-info-card)] px-4 py-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">

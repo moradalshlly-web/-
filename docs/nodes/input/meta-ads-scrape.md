@@ -20,7 +20,7 @@ The Meta Ads node searches Meta's public Ad Library — the same archive you can
 | Mode | Input | Description |
 |------|-------|-------------|
 | `search` (Keyword) | Keyword | Full-text search across the Ad Library — words **inside** the ads, not the advertiser (up to 100 characters). Use `{}` to inject an upstream text value |
-| `advertiser` (Advertiser) | Advertiser picks | Type an advertiser's name, press **Find**, and pick the right Facebook Page from the matches (avatar, name, verified badge — the verified one is usually it), up to 5. The run pulls only those advertisers' ads. The lookup itself costs no credits (10 per minute) |
+| `advertiser` (Advertiser) | Advertiser picks | Type an advertiser's name, press **Find**, and pick the right Facebook Page from the matches (avatar, name, verified badge — the verified one is usually it), up to 5. The run pulls only those advertisers' ads. The lookup itself costs no credits (10 per minute). You can also drive it from the input: connect a Text / List node and each upstream line is resolved to a Page at run time (the verified match, else the first), reported back in `resolvedAdvertisers` |
 | `pages` (Facebook pages) | Facebook Page URLs | One Page address per line, up to 5 (`https://www.facebook.com/nike`; `https://` is optional). An advertiser's Ad Library link works here too. Use `{}` to inject an upstream list |
 
 Advertiser picks run exactly like Facebook Pages — each pick is one source for pricing (below), and the API only knows `search` and `pages`: the editor sends a pick as its Page URL.
@@ -41,7 +41,7 @@ After a run the node card features one ad — creative preview, advertiser, head
 
 ## Creatives in your library
 
-Meta's image and video links are signed and expire within days, so after every run the node copies each returned ad's images and video posters into your library (they count towards your storage; they stay out of the media picker until you press **Save to library** on an ad). The featured ad's video is copied too, but only when the node's **video** output is wired — videos are the expensive bytes. When storage is full, or on an install without media storage, the ads keep their original Meta links instead, and the run still succeeds.
+Meta's image and video links are signed and expire within days, so after every run the node copies each returned ad's images and video posters into your library (they count towards your storage; they stay out of the media picker until you press **Save to library** on an ad). The featured ad's video is copied too, but only when the node's **video** output is wired — videos are the expensive bytes. Turn on **Copy all videos to your library** to copy every returned ad's video (they count towards your storage). When storage is full, or on an install without media storage, the ads keep their original Meta links instead, and the run still succeeds.
 
 Each ad carries a `format` and a `creatives` array (`kind`, `url`, `sourceUrl`, `width`, `height`, `format`, `assetId`, `stored`) alongside the `images` / `videos` / `videoPreviews` urls, which point at your library once stored.
 
@@ -125,7 +125,7 @@ Worked examples:
 - 2 advertisers picked by name, 30 ads each → total 60 → **100 CR** (a pick is a source, like a Page)
 - 5 Facebook Pages, 100 ads per Page → total 500 → **500 CR**
 
-Credits are charged for the requested batch; a narrow period or a quiet keyword may return fewer ads than requested.
+Credits are charged for the requested batch; a narrow period or a quiet keyword may return fewer ads than requested. A keyword search over a window is sorted most-recent-first and over-fetched (more for tighter windows) so the period filter still fills the count where the ads exist.
 
 ### AI analysis add-on
 

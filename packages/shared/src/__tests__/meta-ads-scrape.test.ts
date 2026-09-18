@@ -22,6 +22,7 @@ import {
   META_ADS_SCRAPE_MODES,
   metaAdsAdvertisersFrom,
   metaAdsNodeMode,
+  splitMetaAdsAdvertiserNames,
   metaAdsScrapeSources,
   metaAdsScrapeTier,
   metaAdsScrapeWireSources,
@@ -220,10 +221,23 @@ describe("meta-ads-scrape credit identifiers", () => {
       expect(metaAdsScrapeSources({ mode: "pages", pageUrls: "a", advertisers: [openart, nike] })).toBe(1)
     })
 
+    it("splitMetaAdsAdvertiserNames: one per line or comma, keeps spaces, dedupes, caps at MAX_SOURCES", () => {
+      expect(splitMetaAdsAdvertiserNames("OpenArt AI\nNike, Adidas")).toEqual(["OpenArt AI", "Nike", "Adidas"])
+      expect(splitMetaAdsAdvertiserNames("Nike\nnike\nNIKE")).toEqual(["Nike"]) // case-insensitive dedupe
+      expect(splitMetaAdsAdvertiserNames("x")).toEqual([]) // under 2 chars
+      expect(splitMetaAdsAdvertiserNames(["  Meta ", "", "Threads"])).toEqual(["Meta", "Threads"])
+      expect(splitMetaAdsAdvertiserNames(Array.from({ length: 9 }, (_, i) => `Brand ${i}`))).toHaveLength(META_ADS_SCRAPE_MAX_SOURCES)
+      expect(splitMetaAdsAdvertiserNames(undefined)).toEqual([])
+    })
+
     it("metaAdsScrapeWireSources: advertiser picks run as their Page urls; the route never sees 'advertiser'", () => {
       expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [openart, nike] })).toEqual({ mode: "pages", pageUrls: [openart.url, nike.url] })
-      // No upstream fallback for picks — an empty pick list is an empty page list (the route's 400).
-      expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [] }, "https://www.facebook.com/x")).toEqual({ mode: "pages", pageUrls: [] })
+      // No picks + upstream text → the `in` value is advertiser NAME(s) to resolve at run time.
+      expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [] }, "OpenArt AI, Nike")).toEqual({ mode: "pages", pageUrls: [], advertiserNames: ["OpenArt AI", "Nike"] })
+      // No picks, no upstream → empty (the editor blocks the run before here).
+      expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [] })).toEqual({ mode: "pages", pageUrls: [], advertiserNames: [] })
+      // Picks win over upstream text.
+      expect(metaAdsScrapeWireSources({ mode: "advertiser", advertisers: [nike] }, "OpenArt AI")).toEqual({ mode: "pages", pageUrls: [nike.url] })
       expect(metaAdsScrapeWireSources({ mode: "pages", pageUrls: "" }, "facebook.com/a, facebook.com/b")).toEqual({ mode: "pages", pageUrls: ["facebook.com/a", "facebook.com/b"] })
       expect(metaAdsScrapeWireSources({ mode: "pages", pageUrls: "https://www.facebook.com/own" }, "facebook.com/up")).toEqual({ mode: "pages", pageUrls: ["https://www.facebook.com/own"] })
       expect(metaAdsScrapeWireSources({ mode: "search", query: "" }, "shoes")).toEqual({ mode: "search", query: "shoes" })
@@ -236,6 +250,11 @@ describe("meta-ads-scrape credit identifiers", () => {
     it("reads mode + count + pageUrls", () => {
       expect(resolveMetaAdsScrapeCreditId({ mode: "search", query: "nike", count: 50 })).toBe("meta-ads-scrape:50")
       expect(resolveMetaAdsScrapeCreditId({ mode: "pages", pageUrls: ["a", "b"], count: 30 })).toBe("meta-ads-scrape:100")
+    })
+
+    it("counts advertiser names as sources (they resolve to Page urls at run time)", () => {
+      expect(resolveMetaAdsScrapeCreditId({ mode: "pages", pageUrls: [], advertiserNames: ["OpenArt AI", "Nike"], count: 30 })).toBe("meta-ads-scrape:100")
+      expect(resolveMetaAdsScrapeCreditId({ mode: "pages", pageUrls: ["a"], advertiserNames: ["Nike"], count: 20 })).toBe("meta-ads-scrape:50") // (1+1)×20=40→50 tier
     })
 
     it("an OMITTED count is the route default, so the guard lands on the reservation's tier", () => {

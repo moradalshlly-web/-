@@ -126,10 +126,40 @@ describe("classifyAndStoreMetaAdsMedia", () => {
 
   it("stores the featured ad's video only when asked, quota-reserved, with an asset row", async () => {
     const ads = [ad("1", { videos: ["https://cdn/v.mp4"], videoPreviews: ["https://cdn/poster.jpg"] })]
-    const { ads: out } = await classifyAndStoreMetaAdsMedia(ads, { ...OPTS, storeVideoForAdIndex: 0 })
+    const { ads: out, stats } = await classifyAndStoreMetaAdsMedia(ads, { ...OPTS, storeFeaturedVideoIndex: 0 })
     expect(mocks.uploadToR2).toHaveBeenCalledWith("https://cdn/v.mp4", expect.stringMatching(/^meta-ad-1-/), "video", "u1", { reserveQuota: true })
     expect(out[0].videos).toEqual(["https://r2/videos/meta-ad-1.mp4"])
     expect(out[0].creatives[0]).toMatchObject({ kind: "video", stored: true, assetId: "asset-video" })
+    expect(stats.videosStored).toBe(1)
+  })
+
+  it("copy-all-videos stores every ad's first video; the featured is not copied twice", async () => {
+    const ads = [
+      ad("1", { videos: ["https://cdn/v1.mp4"], videoPreviews: ["https://cdn/p1.jpg"] }),
+      ad("2", { videos: ["https://cdn/v2.mp4"], videoPreviews: ["https://cdn/p2.jpg"] }),
+    ]
+    mocks.uploadToR2.mockImplementation(async (url: string) => `https://r2/videos/${url.split("/").pop()}`)
+    const { stats } = await classifyAndStoreMetaAdsMedia(ads, { ...OPTS, storeAllVideos: true, storeFeaturedVideoIndex: 0 })
+    // Two ads → two video uploads (not three — the featured overlaps the all-set).
+    const videoCalls = mocks.uploadToR2.mock.calls.filter((c: unknown[]) => c[2] === "video")
+    expect(videoCalls).toHaveLength(2)
+    expect(stats.videosStored).toBe(2)
+  })
+
+  it("copy-all-videos stops at the storage quota instead of hammering failed uploads", async () => {
+    const ads = [
+      ad("1", { videos: ["https://cdn/v1.mp4"], videoPreviews: ["https://cdn/p1.jpg"] }),
+      ad("2", { videos: ["https://cdn/v2.mp4"], videoPreviews: ["https://cdn/p2.jpg"] }),
+      ad("3", { videos: ["https://cdn/v3.mp4"], videoPreviews: ["https://cdn/p3.jpg"] }),
+    ]
+    mocks.storeImportedImageBuffer.mockResolvedValue({ ok: true, url: "https://r2/poster.jpg", assetId: "a", width: 1, height: 1 })
+    mocks.uploadToR2.mockRejectedValue(new Error("storage-limit-exceeded: atomic reservation refused"))
+    const { stats } = await classifyAndStoreMetaAdsMedia(ads, { ...OPTS, storeAllVideos: true, concurrency: 1 })
+    expect(stats.videosStored).toBe(0)
+    expect(stats.skipReason).toBe("storage_limit_exceeded")
+    // Stopped early: not one upload attempt per ad after the first refusal.
+    const videoCalls = mocks.uploadToR2.mock.calls.filter((c: unknown[]) => c[2] === "video")
+    expect(videoCalls.length).toBeLessThan(3)
   })
 
   it("degrades honestly: a full quota keeps the external urls and says so; no storage config never stores", async () => {

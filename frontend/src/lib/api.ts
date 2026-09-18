@@ -4354,6 +4354,8 @@ export async function metaAdsScrape(params: {
   mode: import("@nodaro/shared").MetaAdsScrapeMode
   query?: string
   pageUrls?: string[]
+  /** Advertiser names to resolve to Page urls server-side (advertiser mode driven by `in`). */
+  advertiserNames?: string[]
   count?: number
   period?: import("@nodaro/shared").MetaAdsScrapePeriod
   activeStatus?: import("@nodaro/shared").MetaAdsScrapeStatus
@@ -4363,6 +4365,8 @@ export async function metaAdsScrape(params: {
   featuredIndex?: number
   /** Copy the featured ad's video into the library too — set only when the node's video output is wired. */
   ingestVideo?: boolean
+  /** Copy every returned ad's video into the library (opt-in). */
+  ingestAllVideos?: boolean
   /** Per-ad AI analysis. */
   analyze?: boolean
   analysisModel?: string

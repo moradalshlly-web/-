@@ -1086,6 +1086,9 @@ export function buildSyncHttpBody(
         platforms: Array.isArray(data.platforms) ? data.platforms : undefined,
         formats: Array.isArray(data.formats) ? data.formats : undefined,
         featuredIndex: typeof data.featuredIndex === "number" ? data.featuredIndex : undefined,
+        // Copy every ad's video (the expensive bytes) — opt-in node setting,
+        // independent of the featured-video-when-wired rule below.
+        ingestAllVideos: data.ingestAllVideos === true ? true : undefined,
         // Optional per-ad AI analysis — priced into the same identifier the
         // route's guard resolves, so the node's quote and the reservation agree.
         analyze: data.analyze === true ? true : undefined,

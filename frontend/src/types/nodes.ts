@@ -5340,6 +5340,8 @@ export type MetaAdsScrapeNodeData = {
   featuredIndex?: number
   /** Results-side view filter by creative format ("all" or a format); the card's thumb strip follows it */
   viewFormat?: string
+  /** Copy EVERY returned ad's video into the library (the expensive bytes; opt-in) */
+  ingestAllVideos?: boolean
   /** Per-ad AI analysis (the competitor-ad-analyst pass); priced per requested ad by the model's tier */
   analyze?: boolean
   /** Which image-capable structured-output model runs the analysis; absent = the feature default */

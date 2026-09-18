@@ -303,6 +303,32 @@ export function isMetaAdsScrapeMode(value: unknown): value is MetaAdsScrapeMode 
   return typeof value === "string" && (META_ADS_SCRAPE_MODES as readonly string[]).includes(value)
 }
 
+/**
+ * Advertiser NAMES to resolve at run time (advertiser mode driven by the `in`
+ * input) — one per line or comma-separated. Unlike page urls, a name contains
+ * spaces, so this never splits on whitespace. Trimmed, de-duped, each 2..100
+ * chars, capped at `MAX_SOURCES`.
+ */
+export function splitMetaAdsAdvertiserNames(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : typeof value === "string"
+      ? value.split(/[\n,]+/)
+      : []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of raw) {
+    const name = item.trim()
+    if (name.length < 2 || name.length > META_ADS_SCRAPE_MAX_QUERY_LENGTH) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(name)
+    if (out.length >= META_ADS_SCRAPE_MAX_SOURCES) break
+  }
+  return out
+}
+
 /** The node-data fields that decide what a run scrapes (and therefore what it costs). Index-signature so any node-data bag is accepted as-is. */
 export interface MetaAdsNodeSourceFields {
   readonly [key: string]: unknown
@@ -332,7 +358,7 @@ export function metaAdsScrapeSources(data: MetaAdsNodeSourceFields): number {
 
 export type MetaAdsWireSources =
   | { readonly mode: "search"; readonly query: string | undefined }
-  | { readonly mode: "pages"; readonly pageUrls: string[] }
+  | { readonly mode: "pages"; readonly pageUrls: string[]; readonly advertiserNames?: string[] }
 
 /**
  * The wire half of a request from node data — ONE mapping for the editor's
@@ -348,8 +374,15 @@ export function metaAdsScrapeWireSources(data: MetaAdsNodeSourceFields, upstream
       const own = splitMetaAdsPageUrls(data.pageUrls)
       return { mode: "pages", pageUrls: own.length > 0 ? own : splitMetaAdsPageUrls(upstreamText) }
     }
-    case "advertiser":
-      return { mode: "pages", pageUrls: metaAdsAdvertisersFrom(data.advertisers).map((a) => a.url) }
+    case "advertiser": {
+      // Explicit picks run as their Page urls. With no picks but upstream
+      // text, the `in` value is advertiser NAME(s) to resolve at run time
+      // (the route looks each up and picks the verified/first Page).
+      const picks = metaAdsAdvertisersFrom(data.advertisers)
+      if (picks.length > 0) return { mode: "pages", pageUrls: picks.map((a) => a.url) }
+      const names = splitMetaAdsAdvertiserNames(upstreamText)
+      return { mode: "pages", pageUrls: [], advertiserNames: names }
+    }
     default: {
       const own = typeof data.query === "string" ? data.query : ""
       return { mode: "search", query: own || upstreamText }
@@ -397,12 +430,15 @@ export function metaAdsAnalysisTierFrom(data: { readonly analyze?: unknown; read
  * the fixed mid tier, and the route then rejects it with a 400 and refunds.
  */
 export function resolveMetaAdsScrapeCreditId(body: unknown): string {
-  const raw = body as { mode?: unknown; count?: unknown; pageUrls?: unknown; analyze?: unknown; analysisModel?: unknown } | null | undefined
+  const raw = body as { mode?: unknown; count?: unknown; pageUrls?: unknown; advertiserNames?: unknown; analyze?: unknown; analysisModel?: unknown } | null | undefined
   if (!raw || typeof raw !== "object") return META_ADS_SCRAPE_FALLBACK_CREDIT_ID
   const count = raw.count === undefined ? META_ADS_SCRAPE_DEFAULT_COUNT : raw.count
   if (!isMetaAdsScrapeCount(count)) return META_ADS_SCRAPE_FALLBACK_CREDIT_ID
+  // Pages mode bills per source: the page urls PLUS any advertiser names the
+  // route will resolve to page urls at run time. Counting names may over-check
+  // when one doesn't resolve — the safe direction (the reservation trues down).
   const sources = raw.mode === "pages"
-    ? (Array.isArray(raw.pageUrls) ? raw.pageUrls.length : 0)
+    ? (Array.isArray(raw.pageUrls) ? raw.pageUrls.length : 0) + (Array.isArray(raw.advertiserNames) ? raw.advertiserNames.length : 0)
     : 1
   if (sources < 1 || sources > META_ADS_SCRAPE_MAX_SOURCES) return META_ADS_SCRAPE_FALLBACK_CREDIT_ID
   return buildMetaAdsScrapeCreditId({ count, sources, analysis: metaAdsAnalysisTierFrom(raw) })

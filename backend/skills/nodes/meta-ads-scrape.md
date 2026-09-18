@@ -1,7 +1,7 @@
 ---
 node_type: meta-ads-scrape
-generated_at: 2026-09-17T19:52:22.402Z
-generated_from: 368e95a0d
+generated_at: 2026-09-18T05:06:12.011Z
+generated_from: c79489ee8
 ---
 
 # Meta Ads
@@ -29,6 +29,7 @@ generated_from: 368e95a0d
 - `formats?: string[]`
 - `featuredIndex?: number`
 - `viewFormat?: string`
+- `ingestAllVideos?: boolean`
 - `analyze?: boolean`
 - `analysisModel?: string`
 - `analysisFocus?: string`
