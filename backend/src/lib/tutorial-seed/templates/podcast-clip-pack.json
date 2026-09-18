@@ -1,7 +1,7 @@
 {
   "slug": "podcast-clip-pack",
   "name": "Clip Pack",
-  "description": "Cut a long recording into a pack of short, captioned clips. The editor finds the best moments, each one renders on its own, gets word-level captions, and all the clips collect into a single set.",
+  "description": "Cut a long recording into a pack of short clips. The editor finds the best moments and each one renders on its own with word-level (karaoke) captions.",
   "markdownDescription": null,
   "category": "automations",
   "outputTypes": [
@@ -21,7 +21,18 @@
   ],
   "tutorialCategorySlug": "workflows",
   "tutorialSortOrder": 1,
-  "estimatedCredits": 0,
+  "estimatedCredits": 155,
+  "nodeTypesUsed": [
+    "upload-video",
+    "transcribe",
+    "edit-plan",
+    "apply-edl",
+    "add-captions",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "elevenlabs-stt"
+  ],
   "nodes": [
     {
       "id": "clips-note-intro",
@@ -33,7 +44,7 @@
       },
       "data": {
         "bold": false,
-        "text": "Clip Pack\n\nUpload a recording and get a pack of short clips. Find Clips (Cloud) plans several highlight moments as a list of edits; the Clips node fans that list out so Render Clip runs once per moment. Each clip gets word-level (karaoke) captions, then Collect Clips gathers them into one set.\n\nDrop your recording on Episode Recording and Run.",
+        "text": "Clip Pack\n\nUpload a recording and get a pack of short clips. Find Clips (Cloud) plans several highlight moments; because it emits a list of edits, the edge into Render Clip fans out — one render per moment. Each clip then gets its own word-level (karaoke) captions.\n\nDrop your recording on Episode Recording and Run.",
         "color": "#2d2d44",
         "label": "Sticky Note",
         "width": 480,
@@ -99,39 +110,10 @@
       }
     },
     {
-      "id": "clips-list",
-      "type": "list",
-      "position": {
-        "x": 1340,
-        "y": 20
-      },
-      "data": {
-        "label": "Clips",
-        "columns": [
-          {
-            "id": "default",
-            "name": "Clips (fan-out)",
-            "type": "json",
-            "handleId": "col_default",
-            "connectedSourceId": "clips-plan",
-            "connectedSourceHandle": "edl"
-          }
-        ],
-        "rows": [
-          [
-            ""
-          ]
-        ],
-        "viewMode": "list",
-        "showData": true,
-        "fieldMappings": {}
-      }
-    },
-    {
       "id": "clips-apply",
       "type": "apply-edl",
       "position": {
-        "x": 1780,
+        "x": 1360,
         "y": 20
       },
       "data": {
@@ -146,29 +128,18 @@
       "id": "clips-captions",
       "type": "add-captions",
       "position": {
-        "x": 2220,
+        "x": 1820,
         "y": 20
       },
       "data": {
         "label": "Caption Clip",
         "style": "karaoke",
+        "wordLevel": true,
+        "autoTranscribe": true,
         "position": "bottom",
         "fontSize": 28,
         "color": "#ffffff",
-        "wordLevel": true,
         "fieldMappings": {}
-      }
-    },
-    {
-      "id": "clips-collect",
-      "type": "collect",
-      "position": {
-        "x": 2660,
-        "y": 20
-      },
-      "data": {
-        "label": "Collect Clips",
-        "order": []
       }
     },
     {
@@ -176,24 +147,24 @@
       "type": "sticky-note",
       "zIndex": -1,
       "position": {
-        "x": 1320,
-        "y": -300
+        "x": 1340,
+        "y": -320
       },
       "data": {
         "bold": false,
-        "text": "One run per clip\n\nFind Clips emits a list of edits. The Clips node fans it out, so everything to its right runs once per clip. Caption Clip reads Render Clip's remapped transcript for word-level captions, then Collect Clips gathers every finished clip into one set.",
+        "text": "One run per clip\n\nFind Clips emits a list of edits, so the edge into Render Clip fans out — everything to its right runs once per clip. Each Caption Clip transcribes its own clip (autoTranscribe) for word-level captions, so a run costs one transcription per clip.\n\nGathering all clips into a single set (and pairing each clip with its remapped transcript) is deferred engine work — for now each clip is an independent captioned result.",
         "color": "#2d2d44",
         "label": "Sticky Note",
-        "width": 400,
-        "height": 260,
+        "width": 440,
+        "height": 300,
         "italic": false,
         "fontSize": "base",
         "alignment": "left",
         "textColor": "#ffffff"
       },
       "measured": {
-        "width": 400,
-        "height": 260
+        "width": 440,
+        "height": 300
       }
     }
   ],
@@ -227,53 +198,28 @@
       "targetHandle": "transcript"
     },
     {
-      "id": "clips-e-plan-list",
+      "id": "clips-e-plan-apply",
       "source": "clips-plan",
-      "target": "clips-list",
+      "target": "clips-apply",
       "sourceHandle": "edl",
-      "targetHandle": "col_default_in"
-    },
-    {
-      "id": "clips-e-list-apply",
-      "source": "clips-list",
-      "target": "clips-apply",
-      "sourceHandle": "col_default",
       "targetHandle": "edl"
-    },
-    {
-      "id": "clips-e-transcribe-apply",
-      "source": "clips-transcribe",
-      "target": "clips-apply",
-      "sourceHandle": "json",
-      "targetHandle": "transcript"
     },
     {
       "id": "clips-e-apply-captions",
       "source": "clips-apply",
       "target": "clips-captions",
       "sourceHandle": "media",
-      "targetHandle": "in"
-    },
-    {
-      "id": "clips-e-apply-captions-transcript",
-      "source": "clips-apply",
-      "target": "clips-captions",
-      "sourceHandle": "json",
-      "targetHandle": "transcript"
-    },
-    {
-      "id": "clips-e-captions-collect",
-      "source": "clips-captions",
-      "target": "clips-collect",
-      "sourceHandle": "video",
-      "targetHandle": "in"
+      "targetHandle": "in",
+      "data": {
+        "outputMode": "each"
+      }
     }
   ],
   "settings": {
     "viewport": {
       "x": 120,
       "y": 340,
-      "zoom": 0.5
+      "zoom": 0.55
     },
     "flowPromptTemplates": {},
     "characterDefinitions": [],

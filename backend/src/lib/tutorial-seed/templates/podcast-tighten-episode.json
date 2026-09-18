@@ -21,7 +21,19 @@
   ],
   "tutorialCategorySlug": "workflows",
   "tutorialSortOrder": 0,
-  "estimatedCredits": 0,
+  "estimatedCredits": 130,
+  "nodeTypesUsed": [
+    "upload-video",
+    "transcribe",
+    "silence-detect",
+    "edit-plan",
+    "apply-edl",
+    "add-captions",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "elevenlabs-stt"
+  ],
   "nodes": [
     {
       "id": "tighten-note-intro",
@@ -33,7 +45,7 @@
       },
       "data": {
         "bold": false,
-        "text": "Tighten Episode\n\nUpload a recording, and this canvas plans a tighter cut for you. Transcribe reads the words, Silence Detect finds the dead air, and the Tighten Plan node (Cloud) decides what to trim. Apply Cut renders the result, and Add Captions burns in the remapped subtitles.\n\nDrop your recording on the Episode Recording node, then Run down the chain.",
+        "text": "Tighten Episode\n\nUpload a recording, and this canvas plans a tighter cut for you. Transcribe reads the words, Silence Detect finds the dead air, and the Tighten Plan node (Cloud) decides what to trim. Apply Cut renders the result, and Add Captions burns in the remapped word-highlight captions.\n\nDrop your recording on the Episode Recording node, then Run down the chain.",
         "color": "#2d2d44",
         "label": "Sticky Note",
         "width": 460,
@@ -135,7 +147,8 @@
       },
       "data": {
         "label": "Add Captions",
-        "style": "subtitle",
+        "style": "word-highlight",
+        "wordLevel": false,
         "position": "bottom",
         "fontSize": 24,
         "color": "#ffffff",
@@ -152,7 +165,7 @@
       },
       "data": {
         "bold": false,
-        "text": "Captions are optional\n\nAdd Captions reads the REMAPPED transcript from Apply Cut (not the raw one), so the subtitles stay aligned to the tightened video. Delete this node if you just want the clean cut.",
+        "text": "Captions are optional\n\nAdd Captions reads the REMAPPED transcript from Apply Cut (not the raw one), so the highlighted-word captions stay aligned to the tightened video. A wired transcript needs a kinetic style, so this uses Word Highlight (grouped lines, current word lit). Delete this node if you just want the clean cut.",
         "color": "#2d2d44",
         "label": "Sticky Note",
         "width": 360,

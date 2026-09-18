@@ -133,9 +133,13 @@ rebuilding the image. Point `NODARO_TUTORIAL_PACKS` at one or more directories
   showing the finished run rather than empty boxes. Optional card metadata the
   full tutorials list (Explore › Level up › All tutorials) surfaces:
   `estimatedCredits` (credits a run costs), `nodeTypesUsed` / `providersUsed`
-  (the chips shown on the card), and a per-tutorial `creatorDisplayName`
-  (overrides the pack-wide author for this one tutorial). Omit any of them and
-  the card falls back to `0` / no chips / the default author.
+  (the chips shown on the card), a per-tutorial `creatorDisplayName`
+  (overrides the pack-wide author for this one tutorial), and `listedIn`
+  (which channel the tutorial is first listed in — `["tutorial"]` for the
+  Tutorials tab, the default, or `["marketplace"]` to surface it in the
+  template marketplace browse instead). Omit any of them and the card falls
+  back to `0` / no chips / the default author / the Tutorials tab. `listedIn`
+  applies only on first seed; afterward the install owns the listing.
 
 Packs are **additive**: they add tutorials to the built-in set and never change
 it. Each tutorial's category must be declared in the pack's `manifest.json`

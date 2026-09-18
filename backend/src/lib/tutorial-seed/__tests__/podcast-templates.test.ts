@@ -18,7 +18,7 @@ import { describe, it, expect } from "vitest"
 import { readFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { TEMPLATE_CATEGORIES } from "@nodaro/shared"
+import { TEMPLATE_CATEGORIES, isKineticCaptionStyle } from "@nodaro/shared"
 import { NODE_HANDLES } from "../../mcp/generated/node-handles.js"
 import type { TutorialTemplateDoc } from "../types.js"
 
@@ -32,7 +32,7 @@ async function loadTemplate(slug: string): Promise<TutorialTemplateDoc> {
 }
 
 type Node = { id: string; type: string; data?: Record<string, unknown> }
-type Edge = { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }
+type Edge = { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; data?: Record<string, unknown> }
 
 /** The valid input/output handle ids for a node, resolving the `list` node's
  *  dynamic per-column handles from its stored columns. */
@@ -116,12 +116,16 @@ describe("podcast editing templates — structural validity", () => {
     expect(transcriptEdge, "add-captions has a transcript edge").toBeDefined()
     expect(transcriptEdge!.source).toBe(applyEdl.id)
     expect(transcriptEdge!.sourceHandle).toBe("json")
+    // A wired transcript requires a KINETIC caption style (payload-builder throws
+    // otherwise, since a non-kinetic subtitle style ignores the transcript).
+    const capStyle = (captions.data as { style?: string }).style
+    expect(isKineticCaptionStyle(capStyle), `add-captions style "${capStyle}" is kinetic`).toBe(true)
     // edit-plan is in tighten mode with no fan-out list.
     expect((nodes.find((n) => n.type === "edit-plan")!.data as { mode?: string }).mode).toBe("tighten")
     expect(nodes.some((n) => n.type === "list")).toBe(false)
   })
 
-  it("Clip Pack fans out the clips list into per-clip render + word-level captions + collect", async () => {
+  it("Clip Pack fans out edit-plan directly into per-clip render + self-transcribed word-level captions", async () => {
     const t = await loadTemplate("podcast-clip-pack")
     const nodes = t.nodes as Node[]
     const edges = t.edges as Edge[]
@@ -129,31 +133,34 @@ describe("podcast editing templates — structural validity", () => {
     const plan = nodes.find((n) => n.type === "edit-plan")!
     expect((plan.data as { mode?: string }).mode).toBe("clips")
 
-    // edit-plan → list column (the fan-out staging point)
-    const list = nodes.find((n) => n.type === "list")!
-    const planToList = edges.find((e) => e.source === plan.id && e.target === list.id)
-    expect(planToList, "edit-plan → list edge exists").toBeDefined()
-    expect(planToList!.sourceHandle).toBe("edl")
-    expect(planToList!.targetHandle).toBe("col_default_in")
+    // The current engine's fan-out carrier (listResults) is primary-only, so the
+    // fan-out is a DIRECT edit-plan → apply-edl edge (edit-plan ∈ FAN_OUT_EACH_TYPES),
+    // not a `list` staging node, and there is no fan-in `collect` (it can't gather
+    // a member's fan-out results). Both deferred to later engine work.
+    expect(nodes.some((n) => n.type === "list"), "no list staging node").toBe(false)
+    expect(nodes.some((n) => n.type === "collect"), "no collect fan-in node").toBe(false)
 
-    // list column → apply-edl edl (per-clip fan-out)
+    // edit-plan:edl → apply-edl:edl (fans out one render per clip)
     const applyEdl = nodes.find((n) => n.type === "apply-edl")!
-    const listToApply = edges.find((e) => e.source === list.id && e.target === applyEdl.id)
-    expect(listToApply, "list → apply-edl edge exists").toBeDefined()
-    expect(listToApply!.sourceHandle).toBe("col_default")
-    expect(listToApply!.targetHandle).toBe("edl")
+    const planToApply = edges.find((e) => e.source === plan.id && e.target === applyEdl.id)
+    expect(planToApply, "edit-plan → apply-edl edge exists").toBeDefined()
+    expect(planToApply!.sourceHandle).toBe("edl")
+    expect(planToApply!.targetHandle).toBe("edl")
 
-    // word-level (karaoke) captions from the remapped transcript
+    // apply-edl:media → add-captions:in with outputMode "each" (fan out per clip)
     const captions = nodes.find((n) => n.type === "add-captions")!
-    expect((captions.data as { wordLevel?: boolean }).wordLevel).toBe(true)
-    const capTranscript = edges.find((e) => e.target === captions.id && e.targetHandle === "transcript")
-    expect(capTranscript!.source).toBe(applyEdl.id)
-    expect(capTranscript!.sourceHandle).toBe("json")
+    const applyToCaptions = edges.find((e) => e.source === applyEdl.id && e.target === captions.id)
+    expect(applyToCaptions, "apply-edl → add-captions edge exists").toBeDefined()
+    expect(applyToCaptions!.sourceHandle).toBe("media")
+    expect(applyToCaptions!.targetHandle).toBe("in")
+    expect((applyToCaptions!.data as { outputMode?: string } | undefined)?.outputMode).toBe("each")
 
-    // fan-in: add-captions → collect
-    const collect = nodes.find((n) => n.type === "collect")!
-    const capToCollect = edges.find((e) => e.source === captions.id && e.target === collect.id)
-    expect(capToCollect, "add-captions → collect edge exists").toBeDefined()
-    expect(capToCollect!.targetHandle).toBe("in")
+    // word-level karaoke captions, self-sourced per clip (autoTranscribe) — no
+    // wired transcript edge (the per-clip remap pairing is deferred engine work).
+    expect((captions.data as { wordLevel?: boolean }).wordLevel).toBe(true)
+    expect(isKineticCaptionStyle((captions.data as { style?: string }).style)).toBe(true)
+    expect((captions.data as { autoTranscribe?: boolean }).autoTranscribe).toBe(true)
+    const capTranscript = edges.find((e) => e.target === captions.id && e.targetHandle === "transcript")
+    expect(capTranscript, "add-captions has NO wired transcript edge").toBeUndefined()
   })
 })
