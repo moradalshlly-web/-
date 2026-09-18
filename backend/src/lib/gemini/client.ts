@@ -16,7 +16,8 @@
  *  2. **Structured output.** `responseJsonSchema` accepts real JSON Schema
  *     including `additionalProperties`, so record/map-shaped fields survive.
  *     KIE's `response_format` silently drops them (the `z.record` rule in
- *     backend/CLAUDE.md); on this lane that rule does not apply.
+ *     backend/CLAUDE.md); on this lane that rule does not apply. What this
+ *     lane does NOT accept is an array cap — see `./response-schema.ts`.
  *  3. **Reasoning.** `thinkingLevel` is a real, documented lever here, and
  *     thinking tokens are billed at the OUTPUT rate — so they are folded into
  *     `outputTokens` rather than discarded.
@@ -27,6 +28,7 @@ import type { LlmModelDef, LlmReasoningEffort } from "@nodaro/shared"
 import { config } from "../config.js"
 import { calculateLlmCost } from "../pricing/llm-cost.js"
 import { blocksToGeminiParts } from "./media.js"
+import { toGeminiResponseSchema } from "./response-schema.js"
 import type { LlmRequest, LlmResponse } from "../llm-client.js"
 
 /** Per-call params already derived by `llm-client.deriveParams` — passed in so
@@ -89,7 +91,7 @@ function buildConfig(model: LlmModelDef, req: LlmRequest, p: GeminiCallParams, s
     // vendor id — a model with no native mode falls through to
     // llmCompleteStructured's parse+retry, exactly as on the KIE lane.
     ...(req.jsonSchema && model.structuredOutputMode
-      ? { responseMimeType: "application/json", responseJsonSchema: req.jsonSchema.schema }
+      ? { responseMimeType: "application/json", responseJsonSchema: toGeminiResponseSchema(req.jsonSchema.schema) }
       : {}),
     ...(signal ? { abortSignal: signal } : {}),
   }
