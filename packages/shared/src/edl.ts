@@ -247,6 +247,43 @@ export interface Transcript {
   }>
 }
 
+/** Duration (seconds) implied by a transcript — the LATEST word/segment `endMs`
+ *  across the whole transcript, in seconds. Used as the edit-plan reserve's
+ *  duration fallback when the MASTER source node exposes no length of its own
+ *  (a `reference-audio`/youtube or direct-URL master carries its length in
+ *  neither `data.duration` nor `metadata.durationSeconds` — see
+ *  `editPlanSourceDurationSec` — and its live orchestrator output is a bare
+ *  URL). The transcript is a REQUIRED edit-plan input and is the timing map of
+ *  that same master, so its last word's `endMs` is the source's own clock.
+ *
+ *  Accepts `unknown` because the cloud plugin's Zod is the transcript's schema
+ *  authority; this reads defensively and returns `undefined` for any shape it
+ *  can't measure (so the caller falls back to the ceiling bucket — the safe
+ *  over-reserve direction). Takes the MAX endMs rather than the last element so
+ *  an out-of-order words array can't under-report. NOTE the direction: a
+ *  transcript's last spoken word ends at or before the true media end (trailing
+ *  music/silence is not transcribed), so this can UNDER-estimate; bucket
+ *  round-up is the headroom, and the cloud re-probe money-gate refuses (never
+ *  overcharges) if the probed master still exceeds the reserved bucket. */
+export function transcriptDurationSec(transcript: unknown): number | undefined {
+  if (!transcript || typeof transcript !== "object") return undefined
+  const t = transcript as { words?: unknown; segments?: unknown }
+  let maxEndMs = 0
+  const scan = (rows: unknown): void => {
+    if (!Array.isArray(rows)) return
+    for (const row of rows) {
+      const endMs = (row as { endMs?: unknown } | null)?.endMs
+      if (typeof endMs === "number" && Number.isFinite(endMs) && endMs > maxEndMs) {
+        maxEndMs = endMs
+      }
+    }
+  }
+  scan(t.words)
+  // Segments are a coarser fallback when a transcript carries them but no words.
+  if (maxEndMs === 0) scan(t.segments)
+  return maxEndMs > 0 ? maxEndMs / 1000 : undefined
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 //  Pure functions
 // ─────────────────────────────────────────────────────────────────────────
