@@ -147,7 +147,10 @@ describe("podcast editing templates — structural validity", () => {
     expect(planToApply!.sourceHandle).toBe("edl")
     expect(planToApply!.targetHandle).toBe("edl")
 
-    // apply-edl:media → add-captions:in with outputMode "each" (fan out per clip)
+    // apply-edl:media → add-captions:in needs an EXPLICIT outputMode "each":
+    // apply-edl is NOT in FAN_OUT_EACH_TYPES, so this edge would default to
+    // "last" (only the final clip captioned). The edit-plan → apply-edl edge
+    // above needs no flag — edit-plan IS in the set, so it defaults to "each".
     const captions = nodes.find((n) => n.type === "add-captions")!
     const applyToCaptions = edges.find((e) => e.source === applyEdl.id && e.target === captions.id)
     expect(applyToCaptions, "apply-edl → add-captions edge exists").toBeDefined()
