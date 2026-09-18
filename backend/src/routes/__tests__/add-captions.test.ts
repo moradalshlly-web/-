@@ -9,12 +9,14 @@ function issuePaths(result: ParseResult): string[] {
 }
 
 describe("addCaptionsBody — look levers gate on kinetic style", () => {
-  it("accepts a kinetic style with the full look", () => {
+  it("accepts a kinetic style with the full look (incl. look preset + fontWeight)", () => {
     const r = addCaptionsBody.safeParse({
       videoUrl: VIDEO,
       text: "hello world",
       style: "tiktok-words",
+      look: "outline",
       fontFamily: "Montserrat",
+      fontWeight: 900,
       strokeColor: "#000000",
       strokeWidth: 6,
       highlightColor: "#22ff88",
@@ -40,6 +42,9 @@ describe("addCaptionsBody — look levers gate on kinetic style", () => {
       videoUrl: VIDEO,
       text: "hi",
       style: "subtitle",
+      look: "outline",
+      fontFamily: "Anton",
+      fontWeight: 700,
       strokeColor: "#000000",
       strokeWidth: 4,
       highlightColor: "#fff",
@@ -48,9 +53,26 @@ describe("addCaptionsBody — look levers gate on kinetic style", () => {
     })
     expect(r.success).toBe(false)
     const paths = issuePaths(r)
-    for (const k of ["strokeColor", "strokeWidth", "highlightColor", "uppercase", "positionY"]) {
+    for (const k of ["look", "fontFamily", "fontWeight", "strokeColor", "strokeWidth", "highlightColor", "uppercase", "positionY"]) {
       expect(paths).toContain(k)
     }
+  })
+
+  it("rejects the look preset on subtitle (it selects levers the FFmpeg path can't apply)", () => {
+    const r = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hi", style: "subtitle", look: "outline" })
+    expect(r.success).toBe(false)
+    expect(issuePaths(r)).toContain("look")
+  })
+
+  it("rejects a fontWeight that is not a 100-step (100–900) even on a kinetic style", () => {
+    const notStep = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hi", style: "word-pop", fontWeight: 650 })
+    expect(notStep.success).toBe(false)
+    expect(issuePaths(notStep)).toContain("fontWeight")
+    const outOfRange = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hi", style: "word-pop", fontWeight: 1000 })
+    expect(outOfRange.success).toBe(false)
+    const unknownLook = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hi", style: "word-pop", look: "sparkles" })
+    expect(unknownLook.success).toBe(false)
+    expect(issuePaths(unknownLook)).toContain("look")
   })
 
   it("plain subtitle with no look still parses", () => {
@@ -146,11 +168,22 @@ describe("addCaptionsBody — per-segment captions", () => {
       videoUrl: VIDEO,
       auto_transcribe: false,
       segments: [
-        { startMs: 0, endMs: 3000, style: "subtitle", position: "top", fontSize: 96, uppercase: true, strokeColor: "#000000", strokeWidth: 8, text: "Same face, every shot. No re-prompting." },
-        { startMs: 3000, endMs: 12000, style: "word-pop", position: "bottom", fontSize: 48, uppercase: true, text: "Studio. Drift. Not once." },
+        { startMs: 0, endMs: 3000, style: "subtitle", position: "top", fontSize: 96, look: "outline", fontFamily: "Anton", fontWeight: 400, text: "Same face, every shot. No re-prompting." },
+        { startMs: 3000, endMs: 12000, style: "word-pop", position: "bottom", fontSize: 48, look: "clean", uppercase: true, text: "Studio. Drift. Not once." },
       ],
     })
+    // A look lever on a subtitle SEGMENT is fine — a segmented render is all
+    // Remotion, so the subtitle overlay honours it (unlike the static path).
     expect(r.success).toBe(true)
+  })
+
+  it("rejects an invalid per-segment look/fontWeight (segment schema mirrors the top-level constraints)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      auto_transcribe: false,
+      segments: [{ startMs: 0, endMs: 3000, look: "sparkles", fontWeight: 650, text: "x" }],
+    })
+    expect(r.success).toBe(false)
   })
 
   it("rejects overlapping segments", () => {

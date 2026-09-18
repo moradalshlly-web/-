@@ -7532,6 +7532,15 @@ function executeNodeCore(
             // wordLevel is node data. Matches the DAG payload-builder.
             transcript: inputs.transcript,
             wordLevel: d.wordLevel,
+            // Kinetic look levers — addCaptionsApi drops them for a static style.
+            look: d.look,
+            fontFamily: d.fontFamily,
+            fontWeight: d.fontWeight,
+            strokeColor: d.strokeColor,
+            strokeWidth: d.strokeWidth,
+            highlightColor: d.highlightColor,
+            uppercase: d.uppercase,
+            positionY: d.positionY,
           },
         ),
       "generatedVideoUrl",

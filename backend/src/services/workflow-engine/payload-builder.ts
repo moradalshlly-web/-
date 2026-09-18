@@ -6107,8 +6107,12 @@ export function buildPayload(
         // Kinetic look levers + per-segment captions — pass through so an
         // orchestrated (DAG) run matches a single-node run (audit-dag parity).
         // Undefined for canvas nodes that don't carry them; honoured for
-        // authored/imported node data.
+        // authored/imported node data. This path bypasses the route Zod, so a
+        // stale look lever on a `subtitle` node just flows to the worker and is
+        // ignored on the FFmpeg branch — harmless, no rejection here.
+        look: data.look,
         fontFamily: data.fontFamily,
+        fontWeight: data.fontWeight,
         strokeColor: data.strokeColor,
         strokeWidth: data.strokeWidth,
         highlightColor: data.highlightColor,

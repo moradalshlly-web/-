@@ -19,7 +19,7 @@ import {
 import { AspectRatioSelector } from "./aspect-ratio-selector"
 import { COMPOSITION_RATIOS, COLLAGE_ASPECT_RATIOS } from "./model-options"
 import { CombineTransitionPicker } from "@/lib/picker-ui"
-import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT } from "@nodaro/shared"
+import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT, CAPTION_LOOK_IDS, DEFAULT_CAPTION_LOOK, SUPPORTED_FONT_NAMES, resolveCaptionLook, type CaptionLookId, type CaptionLookLevers, type SupportedFontName } from "@nodaro/shared"
 import { isCloud } from "@/lib/edition"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { WaveformAudioPlayer } from "@/components/audio-player"
@@ -339,6 +339,21 @@ export function CombineVideosConfig({ data, onUpdate, sources }: ConfigProps<Com
   )
 }
 
+// Which explicit lever fields the config panel exposes as overrides (kinetic
+// only). `look`/`fontSize`/`color`/`position` have their own controls above.
+function explicitFromData(data: AddCaptionsData): CaptionLookLevers {
+  const e: CaptionLookLevers = {}
+  if (data.fontFamily !== undefined) e.fontFamily = data.fontFamily
+  if (data.fontWeight !== undefined) e.fontWeight = data.fontWeight
+  if (data.strokeColor !== undefined) e.strokeColor = data.strokeColor
+  if (data.strokeWidth !== undefined) e.strokeWidth = data.strokeWidth
+  if (data.highlightColor !== undefined) e.highlightColor = data.highlightColor
+  if (data.uppercase !== undefined) e.uppercase = data.uppercase
+  return e
+}
+
+const FONT_FAMILY_AUTO = "__auto"
+
 export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsData>) {
   const t = useT()
   const localizeHandle = useLocalizeHandleLabel()
@@ -353,6 +368,12 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
     }
     onUpdate(update)
   }
+
+  // What the caption will actually render as, so the controls below seed from
+  // the RESOLVED look (a control left untouched shows the preset's value; a
+  // change becomes an explicit override). Editing here only writes on user
+  // interaction, so switching to `clean` still drops the preset's levers.
+  const resolved = resolveCaptionLook(data.look, explicitFromData(data), data.fontSize ?? KINETIC_STYLE_FONT_DEFAULT)
 
   return (
     <div className="flex flex-col gap-3">
@@ -374,6 +395,24 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
         </Select>
       </div>
 
+      {isKinetic && (
+        <div>
+          <Label>{t("proccfg.look")}</Label>
+          <Select
+            value={data.look ?? DEFAULT_CAPTION_LOOK}
+            onValueChange={(v) => onUpdate({ look: v as CaptionLookId })}
+          >
+            <SelectTrigger aria-label={t("proccfg.look")}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CAPTION_LOOK_IDS.map((id) => (
+                <SelectItem key={id} value={id}>{t(`proccfg.look_${id}` as MessageKey)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-muted-foreground">{t("proccfg.lookHint")}</p>
+        </div>
+      )}
+
       <Suspense fallback={<div className="text-xs text-muted-foreground py-2">{t("proccfg.loadingPreview")}</div>}>
         <CaptionsStylePreview
           style={data.style}
@@ -381,6 +420,14 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
           fontSize={data.fontSize}
           color={data.color}
           backgroundColor={data.backgroundColor as string | undefined}
+          look={data.look}
+          fontFamily={data.fontFamily}
+          fontWeight={data.fontWeight}
+          strokeColor={data.strokeColor}
+          strokeWidth={data.strokeWidth}
+          highlightColor={data.highlightColor}
+          uppercase={data.uppercase}
+          positionY={data.positionY}
         />
       </Suspense>
 
@@ -408,6 +455,43 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
       </div>
       {isKinetic && (
         <>
+          <div>
+            <Label>{t("proccfg.font")}</Label>
+            <Select
+              value={data.fontFamily ?? FONT_FAMILY_AUTO}
+              onValueChange={(v) => onUpdate({ fontFamily: v === FONT_FAMILY_AUTO ? undefined : (v as SupportedFontName) })}
+            >
+              <SelectTrigger aria-label={t("proccfg.font")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FONT_FAMILY_AUTO}>{t("proccfg.fontAuto")}</SelectItem>
+                {SUPPORTED_FONT_NAMES.map((f) => (
+                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="caption-uppercase">{t("proccfg.uppercase")}</Label>
+            <Switch
+              id="caption-uppercase"
+              checked={resolved.uppercase ?? false}
+              onCheckedChange={(v) => onUpdate({ uppercase: v })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="caption-highlight">{t("proccfg.highlightColor")}</Label>
+            <Input id="caption-highlight" type="color"
+              value={resolved.highlightColor ?? "#FFE600"}
+              onChange={(e) => onUpdate({ highlightColor: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="caption-stroke">{t("proccfg.strokeColor")}</Label>
+            <Input id="caption-stroke" type="color"
+              value={resolved.strokeColor ?? "#000000"}
+              onChange={(e) => onUpdate({ strokeColor: e.target.value })}
+            />
+          </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Label htmlFor="captions-word-level" className="text-xs font-medium">

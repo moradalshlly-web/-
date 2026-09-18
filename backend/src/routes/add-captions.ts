@@ -8,7 +8,15 @@ import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
-import { ALL_CAPTION_STYLES, isKineticCaptionStyle, SUPPORTED_FONT_NAMES, normalizeTranscript } from "@nodaro/shared"
+import {
+  ALL_CAPTION_STYLES,
+  isKineticCaptionStyle,
+  SUPPORTED_FONT_NAMES,
+  CAPTION_LOOK_IDS,
+  KINETIC_ONLY_CAPTION_LEVER_KEYS,
+  normalizeTranscript,
+} from "@nodaro/shared"
+import { captionFontWeightSchema } from "../lib/plan-schemas.js"
 import { findSegmentOverlap } from "../providers/video/caption-segments.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
@@ -56,7 +64,10 @@ const captionSegmentInputSchema = z.object({
   fontSize: z.number().min(12).max(200).optional(),
   color: z.string().optional(),
   backgroundColor: z.string().optional(),
+  // A named look preset (outline/clean); explicit levers below override it.
+  look: z.enum(CAPTION_LOOK_IDS).optional(),
   fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+  fontWeight: captionFontWeightSchema.optional(),
   strokeColor: z.string().optional(),
   strokeWidth: z.number().min(0).max(40).optional(),
   highlightColor: z.string().optional(),
@@ -99,8 +110,13 @@ export const addCaptionsBody = z.object({
   fontSize: z.number().min(12).max(200).optional().default(32),
   color: z.string().optional().default("white"),
   backgroundColor: z.string().optional(),
-  // Kinetic-style look levers (kinetic styles only — see LOOK_LEVER_KEYS).
+  // Kinetic-style look levers (kinetic styles only — see KINETIC_ONLY_CAPTION_LEVER_KEYS).
+  // `look` selects a named preset (outline/clean); the explicit levers below
+  // override individual fields of it. An unset `look` resolves to the default
+  // preset in the worker (resolveCaptionLook), so it is NOT defaulted here.
+  look: z.enum(CAPTION_LOOK_IDS).optional(),
   fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+  fontWeight: captionFontWeightSchema.optional(),
   strokeColor: z.string().optional(),
   strokeWidth: z.number().min(0).max(40).optional(),
   highlightColor: z.string().optional(),
@@ -132,18 +148,13 @@ export const addCaptionsBody = z.object({
   }
   // Top-level look levers only apply to the Remotion kinetic path. With segments
   // the whole render is Remotion (so any style + look is fine); without them the
-  // static `subtitle` (FFmpeg) path can't honour a look lever, so reject it.
+  // static `subtitle` (FFmpeg) path can't honour a look lever, so reject it. The
+  // key list is shared (KINETIC_ONLY_CAPTION_LEVER_KEYS) so a new lever is
+  // covered here and in the frontend strip by adding it once; iterating `v[k]`
+  // also makes tsc fail if a key isn't a field of this body (totality guard).
   if (!hasSegments && !isKineticCaptionStyle(v.style)) {
-    const looks: Array<[string, unknown]> = [
-      ["fontFamily", v.fontFamily],
-      ["strokeColor", v.strokeColor],
-      ["strokeWidth", v.strokeWidth],
-      ["highlightColor", v.highlightColor],
-      ["uppercase", v.uppercase],
-      ["positionY", v.positionY],
-    ]
-    for (const [k, val] of looks) {
-      if (val !== undefined) {
+    for (const k of KINETIC_ONLY_CAPTION_LEVER_KEYS) {
+      if (v[k] !== undefined) {
         ctx.addIssue({
           code: "custom",
           path: [k],

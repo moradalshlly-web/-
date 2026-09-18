@@ -1,7 +1,7 @@
 ---
 node_type: add-captions
-generated_at: 2026-09-17T23:34:21.284Z
-generated_from: 3fdede8c9
+generated_at: 2026-09-18T07:26:59.160Z
+generated_from: 8d392afb1
 ---
 
 # Add Captions
@@ -31,6 +31,14 @@ generated_from: 3fdede8c9
 - `autoTranscribe?: boolean`
 - `transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"`
 - `wordLevel?: boolean`
+- `look?: CaptionLookId`
+- `fontWeight?: number`
+- `fontFamily?: SupportedFontName`
+- `strokeColor?: string`
+- `strokeWidth?: number`
+- `highlightColor?: string`
+- `uppercase?: boolean`
+- `positionY?: number`
 
 **Default data:**
 ```json
@@ -38,7 +46,7 @@ generated_from: 3fdede8c9
   "label": "Add Captions",
   "style": "subtitle",
   "position": "bottom",
-  "fontSize": 24,
+  "fontSize": 32,
   "color": "#ffffff",
   "fieldMappings": {}
 }
@@ -64,7 +72,9 @@ generated_from: 3fdede8c9
 - `font_size`
 - `color`
 - `background_color`
+- `look`
 - `font_family`
+- `font_weight`
 - `stroke_color`
 - `stroke_width`
 - `highlight_color`
@@ -92,7 +102,7 @@ generated_from: 3fdede8c9
     "label": "Add Captions",
     "style": "subtitle",
     "position": "bottom",
-    "fontSize": 24,
+    "fontSize": 32,
     "color": "#ffffff",
     "fieldMappings": {}
   }

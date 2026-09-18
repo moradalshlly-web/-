@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase"
-import { WORKSPACE_HEADER, DEFAULT_SUNO_MODEL } from "@nodaro/shared"
+import { WORKSPACE_HEADER, DEFAULT_SUNO_MODEL, isKineticCaptionStyle, KINETIC_ONLY_CAPTION_LEVER_KEYS } from "@nodaro/shared"
 import { clearActiveWorkspaceAfterRefusal, getActiveWorkspaceId } from "@/lib/workspace-context"
 import { nodaroClient } from "@/lib/nodaro-client"
 import type { SubWorkflowRouteSnapshot, SocialConnection, CharacterVoice, JobErrorHint } from "@/types/nodes"
@@ -3825,7 +3825,11 @@ export async function audioFxApi(params: {
   })
 }
 
-export async function addCaptionsApi(videoUrl: string, text: string, style?: string, position?: string, fontSize?: number, color?: string, backgroundColor?: string, userId?: string, opts?: { autoTranscribe?: boolean; transcribeProvider?: string; transcript?: unknown; wordLevel?: boolean }): Promise<{ jobId: string }> {
+export async function addCaptionsApi(videoUrl: string, text: string, style?: string, position?: string, fontSize?: number, color?: string, backgroundColor?: string, userId?: string, opts?: {
+  autoTranscribe?: boolean; transcribeProvider?: string; transcript?: unknown; wordLevel?: boolean;
+  // Kinetic-style look levers (see AddCaptionsData). Sent only for a kinetic style.
+  look?: string; fontFamily?: string; fontWeight?: number; strokeColor?: string; strokeWidth?: number; highlightColor?: string; uppercase?: boolean; positionY?: number;
+}): Promise<{ jobId: string }> {
   // text is OMITTED when empty — the route's schema is `min(1).optional()`,
   // so sending `text: ""` fails validation even though absent-text is the
   // normal auto-transcribe request (#759's second half: with the guard fixed,
@@ -3851,6 +3855,26 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
   }
   if (opts?.wordLevel !== undefined) {
     body.wordLevel = opts.wordLevel
+  }
+  // Kinetic-only look levers: send ONLY for a kinetic style. A subtitle node may
+  // still carry stale look levers in its data (the config panel hides them but
+  // doesn't clear them), and the route Zod REJECTS a look lever on the static
+  // style — so a stale value would 400 the run. The strip list is the same
+  // shared constant the route rejects on (KINETIC_ONLY_CAPTION_LEVER_KEYS).
+  if (opts && isKineticCaptionStyle(style)) {
+    const leverVals: Record<(typeof KINETIC_ONLY_CAPTION_LEVER_KEYS)[number], unknown> = {
+      look: opts.look,
+      fontFamily: opts.fontFamily,
+      fontWeight: opts.fontWeight,
+      strokeColor: opts.strokeColor,
+      strokeWidth: opts.strokeWidth,
+      highlightColor: opts.highlightColor,
+      uppercase: opts.uppercase,
+      positionY: opts.positionY,
+    }
+    for (const k of KINETIC_ONLY_CAPTION_LEVER_KEYS) {
+      if (leverVals[k] !== undefined) body[k] = leverVals[k]
+    }
   }
   return apiJson("/v1/add-captions", {
     body,

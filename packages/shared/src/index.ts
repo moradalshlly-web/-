@@ -844,8 +844,14 @@ export {
   KINETIC_CAPTION_STYLES,
   ALL_CAPTION_STYLES,
   isKineticCaptionStyle,
+  CAPTION_LOOK_IDS,
+  CAPTION_LOOKS,
+  DEFAULT_CAPTION_LOOK,
+  KINETIC_ONLY_CAPTION_LEVER_KEYS,
+  autoStrokeWidth,
+  resolveCaptionLook,
 } from "./caption-styles.js"
-export type { StaticCaptionStyle, KineticCaptionStyle, CaptionStyle } from "./caption-styles.js"
+export type { StaticCaptionStyle, KineticCaptionStyle, CaptionStyle, CaptionLookId, CaptionLookLevers, KineticOnlyCaptionLeverKey } from "./caption-styles.js"
 
 // Sound parameter-node dimensions (music + voice pickers + backend hints)
 

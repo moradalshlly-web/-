@@ -2,7 +2,7 @@ import React, { useMemo } from "react"
 import { useCurrentFrame, useVideoConfig, spring } from "remotion"
 import { createTikTokStyleCaptions, type Caption } from "@remotion/captions"
 import type { OverlayCommonProps } from "./subtitle-overlay"
-import { captionTop, captionLookStyle, captionWord } from "./caption-look"
+import { captionAnchor, captionLookStyle, captionWord } from "./caption-look"
 import { directionStyle } from "./text-direction"
 
 export interface TikTokPagesOverlayProps extends OverlayCommonProps {
@@ -12,7 +12,7 @@ export interface TikTokPagesOverlayProps extends OverlayCommonProps {
 /** TikTok-style 1-4 word pages via @remotion/captions::createTikTokStyleCaptions. */
 export const TikTokPagesOverlay: React.FC<TikTokPagesOverlayProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, strokeColor, strokeWidth, highlightColor, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY,
   combineTokensWithinMilliseconds = 1200,
 }) => {
   const frame = useCurrentFrame()
@@ -31,13 +31,16 @@ export const TikTokPagesOverlay: React.FC<TikTokPagesOverlayProps> = ({
   const spokenIdx = highlightColor
     ? active.tokens.reduce((hit, t, i) => (ms >= t.fromMs ? i : hit), -1)
     : -1
+  const anchor = captionAnchor(position, positionY)
   return (
     <div style={{
-      position: "absolute", left: "5%", right: "5%", top: captionTop(position, positionY),
-      transform: `translateY(-50%) scale(${0.9 + enterScale * 0.1})`,
+      position: "absolute", left: "5%", right: "5%",
+      ...(anchor.top !== undefined ? { top: anchor.top } : {}),
+      ...(anchor.bottom !== undefined ? { bottom: anchor.bottom } : {}),
+      transform: `${anchor.translate} scale(${0.9 + enterScale * 0.1})`.trim(),
       textAlign: "center", fontSize, color, fontWeight: 800, lineHeight: 1.1,
       whiteSpace: "pre",
-      ...captionLookStyle({ fontFamily, strokeColor, strokeWidth, uppercase }),
+      ...captionLookStyle({ fontFamily, fontWeight, strokeColor, strokeWidth, uppercase }),
       ...(backgroundColor ? { background: backgroundColor, padding: "0.3em 0.7em", borderRadius: "0.4em", display: "inline-block" } : {}),
       // active.text is the pre-joined multi-word page string (no per-word
       // spans here), so it IS the "row container" and the "fullLineText" —

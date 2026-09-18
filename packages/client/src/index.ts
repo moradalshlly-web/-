@@ -430,7 +430,7 @@ export type {
   DubbingInput,
   AudioFxPreset,
 } from "./resources/voices.js"
-export type { VideoMetadata, DownloadVideoProgress, MediaProcessInput, MediaProcessResult, OverlayPlacement } from "./resources/media.js"
+export type { VideoMetadata, DownloadVideoProgress, MediaProcessInput, MediaProcessResult, OverlayPlacement, AddCaptionsInput, CaptionLookInput, CaptionSegmentInput, CaptionEntry } from "./resources/media.js"
 
 export type {
   UserBalance,

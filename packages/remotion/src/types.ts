@@ -68,6 +68,7 @@ export interface BurnCaptionsSegment {
   color: string
   backgroundColor?: string
   fontFamily?: string
+  fontWeight?: number
   strokeColor?: string
   strokeWidth?: number
   highlightColor?: string
@@ -89,6 +90,7 @@ export interface BurnCaptionsPlan {
    *  Google-font face name, an outline, the spoken-word colour, casing, and a
    *  free vertical position (0-100 % of composition height). */
   fontFamily?: string
+  fontWeight?: number
   strokeColor?: string
   strokeWidth?: number
   highlightColor?: string

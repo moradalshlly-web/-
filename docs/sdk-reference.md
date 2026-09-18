@@ -3927,6 +3927,44 @@ Trim a video to a range (`POST /v1/trim-video`). Give the range in whichever
 unit fits: `startTime`/`endTime` seconds, `trim*Frames`, `trim*Seconds`, or
 `keepFirstSeconds`/`keepLastSeconds`.
 
+#### `addCaptions(input)`
+
+```ts
+addCaptions(input: {
+  videoUrl: string
+  text?: string
+  captions?: Array<{ text: string; startMs: number; endMs: number; timestampMs?: number | null; confidence?: number | null }>
+  autoTranscribe?: boolean            // transcribe the audio when no text/captions given (default true)
+  transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
+  style?: CaptionStyle                // "subtitle" (static) | "word-highlight" | "karaoke" | "tiktok-words" | "word-pop" | "bouncy"
+  position?: "bottom" | "top" | "center"
+  fontSize?: number
+  color?: string
+  backgroundColor?: string
+  // Kinetic-style look levers — rejected on the static "subtitle" style:
+  look?: "outline" | "clean"          // preset; UNSET renders as "outline"
+  fontFamily?: SupportedFontName
+  fontWeight?: number                 // 100–900 in 100s
+  strokeColor?: string
+  strokeWidth?: number
+  highlightColor?: string
+  uppercase?: boolean
+  positionY?: number                  // caption CENTER as % of height; overrides position
+  // Apply different treatments to non-overlapping time ranges in one call:
+  segments?: CaptionSegmentInput[]
+}): Promise<{ jobId: string }>
+```
+
+Burn captions into a video (`POST /v1/add-captions`). Give the words as `text`,
+word-timed `captions[]` (one entry per WORD for the kinetic styles), or let it
+transcribe (the default). The kinetic styles carry a `look` preset — `outline`
+(Montserrat 900, UPPERCASE, black outline, yellow spoken word — the TikTok read)
+or `clean`; an unset `look` renders as `outline`, and the explicit levers
+override individual fields of it. `segments[]` applies different treatments to
+non-overlapping time ranges; a segment that names its own `look` starts fresh
+from that preset and does not inherit the top-level explicit levers. Poll
+`jobs.get(jobId)`.
+
 #### `trimAudio(input)`
 
 ```ts

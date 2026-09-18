@@ -1,6 +1,61 @@
 import type { NodaroClient } from "../client.js"
 import { readSseStream } from "../sse.js"
-import type { OverlayAnchor } from "@nodaro/shared"
+import type { OverlayAnchor, CaptionStyle, CaptionLookId, SupportedFontName } from "@nodaro/shared"
+
+/** One word-timed caption entry (one per WORD for the kinetic styles). */
+export interface CaptionEntry {
+  text: string
+  startMs: number
+  endMs: number
+  timestampMs?: number | null
+  confidence?: number | null
+}
+
+/** Kinetic-style look levers — see {@link MediaResource.addCaptions}. Rejected
+ *  on the static `subtitle` style. `look` is a named preset the explicit levers
+ *  override; an unset look renders as `outline` (the default). */
+export interface CaptionLookInput {
+  look?: CaptionLookId
+  fontFamily?: SupportedFontName
+  fontWeight?: number
+  strokeColor?: string
+  strokeWidth?: number
+  highlightColor?: string
+  uppercase?: boolean
+  positionY?: number
+}
+
+/** One caption SEGMENT: a time range with optional style/look overrides and its
+ *  own words (`text`/`captions`, else the shared transcript filtered to range).
+ *  A segmented render is entirely Remotion, so any `style` is valid here. */
+export interface CaptionSegmentInput extends CaptionLookInput {
+  startMs: number
+  endMs: number
+  style?: CaptionStyle
+  position?: "bottom" | "top" | "center"
+  fontSize?: number
+  color?: string
+  backgroundColor?: string
+  text?: string
+  captions?: CaptionEntry[]
+}
+
+/** {@link MediaResource.addCaptions} input. */
+export interface AddCaptionsInput extends CaptionLookInput {
+  videoUrl: string
+  text?: string
+  captions?: CaptionEntry[]
+  /** Transcribe the video's audio when no text/captions are given (default true). */
+  autoTranscribe?: boolean
+  transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
+  style?: CaptionStyle
+  position?: "bottom" | "top" | "center"
+  fontSize?: number
+  color?: string
+  backgroundColor?: string
+  /** Apply different treatments to time ranges in one call (non-overlapping). */
+  segments?: CaptionSegmentInput[]
+}
 
 /**
  * Media ingestion + trimming — the source-preparation steps a Voice Changer Pro
@@ -215,6 +270,37 @@ export class MediaResource {
     keepLastSeconds?: number
   }): Promise<{ jobId: string }> {
     return this.client.request<{ jobId: string }>("POST", "/v1/trim-video", { body: input })
+  }
+
+  /**
+   * Burn captions into a video (`POST /v1/add-captions`). Give the words as
+   * `text`, word-timed `captions[]`, or let it transcribe (`autoTranscribe`,
+   * the default when neither is set).
+   *
+   * `style: "subtitle"` renders statically (FFmpeg); the KINETIC styles
+   * (`word-highlight` / `karaoke` / `tiktok-words` / `word-pop` / `bouncy`)
+   * render via Remotion and accept the look levers. `look` picks a preset —
+   * `outline` (Montserrat 900, UPPERCASE, black outline, yellow spoken word — the
+   * TikTok/Reels read) or `clean`; an UNSET look renders as `outline`. The
+   * explicit levers (`fontFamily`, `fontWeight`, `strokeColor`/`strokeWidth`,
+   * `highlightColor`, `uppercase`, `positionY`) override individual fields of it.
+   * Look levers are REJECTED on the static `subtitle` style.
+   *
+   * `segments[]` applies DIFFERENT treatments to non-overlapping time ranges in
+   * one call (e.g. a large top intro, then a small bottom body); a segment that
+   * names its own `look` starts fresh from that preset and does not inherit the
+   * top-level explicit levers. Poll `jobs.get(jobId)`.
+   */
+  addCaptions(input: AddCaptionsInput): Promise<{ jobId: string }> {
+    const { autoTranscribe, transcribeProvider, ...rest } = input
+    // The route body is camelCase except these two flags (worker snake_case);
+    // omit each when unset so an absent flag stays absent on the wire.
+    const body: Record<string, unknown> = {
+      ...rest,
+      ...(autoTranscribe !== undefined ? { auto_transcribe: autoTranscribe } : {}),
+      ...(transcribeProvider !== undefined ? { transcribe_provider: transcribeProvider } : {}),
+    }
+    return this.client.request<{ jobId: string }>("POST", "/v1/add-captions", { body })
   }
 
   /**

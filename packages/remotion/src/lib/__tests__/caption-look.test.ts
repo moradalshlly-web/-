@@ -1,24 +1,27 @@
 import { describe, it, expect } from "vitest"
-import { captionTop, captionLookStyle, captionWord } from "../caption-look"
-import { POSITION_Y } from "../overlay-position"
-import { FONT_MAP, withRtlFallback } from "../font-registry"
+import { captionAnchor, captionLookStyle, captionRowColors, captionWord } from "../caption-look"
+import { CAPTION_EDGE_INSET } from "../overlay-position"
+import { FONT_MAP, FONT_LOADED_WEIGHTS, withRtlFallback } from "../font-registry"
+import { CAPTION_LOOK_IDS, CAPTION_LOOKS, resolveCaptionLook, DEFAULT_CAPTION_LOOK } from "@nodaro/shared"
 
-describe("captionTop", () => {
-  it("falls back to the named slot when positionY is unset (byte-identical default)", () => {
-    expect(captionTop("top")).toBe(POSITION_Y.top)
-    expect(captionTop("center")).toBe(POSITION_Y.center)
-    expect(captionTop("bottom")).toBe(POSITION_Y.bottom)
+describe("captionAnchor", () => {
+  it("edge-anchors the named top/bottom slots (block grows toward the frame centre, no clip)", () => {
+    expect(captionAnchor("top")).toEqual({ top: CAPTION_EDGE_INSET.top, translate: "" })
+    expect(captionAnchor("bottom")).toEqual({ bottom: CAPTION_EDGE_INSET.bottom, translate: "" })
   })
-  it("positionY wins over the named slot", () => {
-    expect(captionTop("bottom", 65)).toBe("65%")
-    expect(captionTop("top", 0)).toBe("0%")
+  it("center is a true centre", () => {
+    expect(captionAnchor("center")).toEqual({ top: "50%", translate: "translateY(-50%)" })
+  })
+  it("positionY wins and centres the block at that % (any position)", () => {
+    expect(captionAnchor("bottom", 65)).toEqual({ top: "65%", translate: "translateY(-50%)" })
+    expect(captionAnchor("top", 0)).toEqual({ top: "0%", translate: "translateY(-50%)" })
   })
   it("clamps positionY to 0-100", () => {
-    expect(captionTop("bottom", -10)).toBe("0%")
-    expect(captionTop("bottom", 150)).toBe("100%")
+    expect(captionAnchor("bottom", -10).top).toBe("0%")
+    expect(captionAnchor("bottom", 150).top).toBe("100%")
   })
   it("NaN positionY falls back to the named slot", () => {
-    expect(captionTop("center", Number.NaN)).toBe(POSITION_Y.center)
+    expect(captionAnchor("center", Number.NaN)).toEqual({ top: "50%", translate: "translateY(-50%)" })
   })
 })
 
@@ -46,6 +49,10 @@ describe("captionLookStyle", () => {
   it("passes an unknown font name through (never hard-blocks a typo)", () => {
     expect(captionLookStyle({ fontFamily: "Nonesuch" }).fontFamily).toBe(withRtlFallback("Nonesuch"))
   })
+  it("applies fontWeight when set, absent otherwise", () => {
+    expect(captionLookStyle({ fontWeight: 900 }).fontWeight).toBe(900)
+    expect(captionLookStyle({}).fontWeight).toBeUndefined()
+  })
   it("stroke: width + default black, painted behind the glyph", () => {
     expect(captionLookStyle({ strokeWidth: 4 })).toMatchObject({
       WebkitTextStrokeWidth: "4px",
@@ -62,6 +69,53 @@ describe("captionLookStyle", () => {
   })
   it("highlightColor is not a container-level style (it is applied per-word by the overlays)", () => {
     expect(captionLookStyle({ highlightColor: "#ff0000" })).toEqual({})
+  })
+})
+
+describe("CAPTION_LOOKS — every preset's font/weight is actually loaded (design-honesty guard)", () => {
+  // captionLookStyle sets `fontSynthesis: none` whenever a face is chosen, so a
+  // preset asking for a weight the face doesn't ship would render at the nearest
+  // LOADED weight with NO faux-bold — silently wrong. Pin that every preset's
+  // (fontFamily, fontWeight) pair is a weight the font-registry loads for it.
+  it.each(CAPTION_LOOK_IDS)("look %s uses a loaded (face, weight)", (id) => {
+    const levers = CAPTION_LOOKS[id](64)
+    if (levers.fontFamily === undefined) return // no face pinned → nothing to load
+    const loaded = FONT_LOADED_WEIGHTS[levers.fontFamily]
+    expect(loaded, `${id} pins an unknown face "${levers.fontFamily}"`).toBeDefined()
+    if (levers.fontWeight !== undefined) {
+      expect(
+        loaded.includes(levers.fontWeight),
+        `${id} wants ${levers.fontFamily} ${levers.fontWeight}, but only ${loaded.join("/")} are loaded`,
+      ).toBe(true)
+    }
+  })
+})
+
+describe("captionRowColors — spoken vs rest for karaoke / word-highlight", () => {
+  it("with a highlight colour: rest is the FULL color (separate by hue), spoken is the highlight", () => {
+    expect(captionRowColors("#ffffff", "#FFE600")).toEqual({ spoken: "#FFE600", rest: "#ffffff" })
+    expect(captionRowColors("#ff3366", "#FFE600")).toEqual({ spoken: "#FFE600", rest: "#ff3366" })
+  })
+  it("without a highlight colour: rest is `color` dimmed toward black (separate by luminance), spoken is `color`", () => {
+    expect(captionRowColors("#ffffff")).toEqual({ spoken: "#ffffff", rest: "color-mix(in srgb, #ffffff 55%, #000000)" })
+    expect(captionRowColors("#ff3366")).toEqual({ spoken: "#ff3366", rest: "color-mix(in srgb, #ff3366 55%, #000000)" })
+  })
+})
+
+describe("resolveCaptionLook — coerces, never throws (worker crash guard)", () => {
+  // The orchestrator / authored-JSON / import / Copilot paths write `look` onto
+  // node data with NO Zod validation. An out-of-vocabulary id must fall back to
+  // the default preset, not throw a TypeError after a paid transcription.
+  it("an unknown look id falls back to the default preset", () => {
+    const bad = resolveCaptionLook("Outline" as never, {}, 64) // wrong case → not a valid id
+    expect(bad).toEqual(resolveCaptionLook(DEFAULT_CAPTION_LOOK, {}, 64))
+  })
+  it("an empty-string look id also coerces to the default (no crash)", () => {
+    expect(() => resolveCaptionLook("" as never, {}, 64)).not.toThrow()
+    expect(resolveCaptionLook("" as never, {}, 64).fontFamily).toBe(CAPTION_LOOKS[DEFAULT_CAPTION_LOOK](64).fontFamily)
+  })
+  it("explicit levers still win over the coerced default", () => {
+    expect(resolveCaptionLook("nonsense" as never, { highlightColor: "#abcabc" }, 64).highlightColor).toBe("#abcabc")
   })
 })
 

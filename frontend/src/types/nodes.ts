@@ -1,7 +1,7 @@
 import type { Node, Edge } from "@xyflow/react"
 import { MODIFY_IMAGE_PROVIDERS, OVERLAY_ANCHORS } from "@nodaro/shared"
 import { MUSIC_GENRE_DEFAULT_DATA, MUSIC_MOOD_DEFAULT_DATA, INSTRUMENTATION_DEFAULT_DATA, VOICE_CHARACTER_DEFAULT_DATA, VOICE_DELIVERY_DEFAULT_DATA } from "@nodaro/prompts"
-import type { ImageI2IProvider, ImageGenProvider, ImageEditProvider, ModifyImageProvider, UpscaleImageProvider, ImageToVideoProvider, TextToVideoProvider, VideoToVideoProvider, VideoGenProvider, VideoUpscaleProvider, ExtendVideoProvider, FaceSwapProvider, TtsProvider, TextToAudioProvider, MusicProvider, TranscribeProvider, LipSyncProvider, ScriptProvider, QaCheckProvider, SunoModel, SunoAddTrackModel, VoiceDesignModel, VoiceChangerModel, CaptionStyle, ImageCriticMode, ReduceStrategyId, ReduceMeta, SelectorConfig, ScraperActorId, CharacterAspectRatio, AudioFxPreset, LocationReferencePhotoKind as SharedLocationReferencePhotoKind, PipelineFormat, PipelineMode, PipelinePinnableImageModel, PipelinePinnableScriptLlm, PipelinePinnableVideoModel, VideoCriticFrameMode, SceneNodeData as SharedSceneNodeData, PipelineState, ReferenceSheet, SheetType, SheetSkin, SheetFlavour, EntityKind, VideoAnalysisResult, ExposableField, ExposableOutput, ComponentMetadata, IdentityMeta, LlmReasoningEffort, Scene3DReference, OverlayLayerKind, OverlayTextStyle, OverlayQrStyle, OverlayShapeStyle, OverlayImageEffects, OverlayAnchor, Transcript } from "@nodaro/shared"
+import type { ImageI2IProvider, ImageGenProvider, ImageEditProvider, ModifyImageProvider, UpscaleImageProvider, ImageToVideoProvider, TextToVideoProvider, VideoToVideoProvider, VideoGenProvider, VideoUpscaleProvider, ExtendVideoProvider, FaceSwapProvider, TtsProvider, TextToAudioProvider, MusicProvider, TranscribeProvider, LipSyncProvider, ScriptProvider, QaCheckProvider, SunoModel, SunoAddTrackModel, VoiceDesignModel, VoiceChangerModel, CaptionStyle, CaptionLookId, SupportedFontName, ImageCriticMode, ReduceStrategyId, ReduceMeta, SelectorConfig, ScraperActorId, CharacterAspectRatio, AudioFxPreset, LocationReferencePhotoKind as SharedLocationReferencePhotoKind, PipelineFormat, PipelineMode, PipelinePinnableImageModel, PipelinePinnableScriptLlm, PipelinePinnableVideoModel, VideoCriticFrameMode, SceneNodeData as SharedSceneNodeData, PipelineState, ReferenceSheet, SheetType, SheetSkin, SheetFlavour, EntityKind, VideoAnalysisResult, ExposableField, ExposableOutput, ComponentMetadata, IdentityMeta, LlmReasoningEffort, Scene3DReference, OverlayLayerKind, OverlayTextStyle, OverlayQrStyle, OverlayShapeStyle, OverlayImageEffects, OverlayAnchor, Transcript } from "@nodaro/shared"
 import type { WardrobeValue, TransitionPosition, TransitionDuration, TransitionIntensity, CharacterFxPosition, CharacterFxDuration, CharacterFxIntensity, CharacterMotionPosition, CharacterMotionPace, PersonValue, PickerApplyMode, PickerGaps, DirectionFields, StructuredPromptFields } from "@nodaro/prompts"
 import type { ReferencePhotoKind } from "@/lib/reference-photo-routing"
 import { IMAGE_STYLE_PRESETS, GVP_PROVIDERS, getAspectRatiosForVideoModel, getVideoResolutionOptions } from "@/components/editor/config-panels/model-options"
@@ -3751,6 +3751,18 @@ export type AddCaptionsData = {
   // captions (one per word — karaoke/word-highlight) vs grouped lines; only
   // meaningful with a kinetic style + a wired transcript.
   wordLevel?: boolean
+  // Kinetic-style look levers (kinetic styles only; ignored by the static
+  // subtitle path). `look` selects a preset (outline/clean); an unset look
+  // resolves to the default preset at render. The explicit levers below (kept in
+  // [key: string]: unknown) override individual fields of it.
+  look?: CaptionLookId
+  fontWeight?: number
+  fontFamily?: SupportedFontName
+  strokeColor?: string
+  strokeWidth?: number
+  highlightColor?: string
+  uppercase?: boolean
+  positionY?: number
 }
 
 export type ResizeVideoData = {
@@ -8154,7 +8166,7 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     creditCost: 2,
     inputs: ["in", "transcript"],
     outputs: ["video"],
-    defaultData: { label: "Add Captions", style: "subtitle", position: "bottom", fontSize: 24, color: "#ffffff", fieldMappings: {} },
+    defaultData: { label: "Add Captions", style: "subtitle", position: "bottom", fontSize: 32, color: "#ffffff", fieldMappings: {} },
   },
   {
     type: "resize-video",

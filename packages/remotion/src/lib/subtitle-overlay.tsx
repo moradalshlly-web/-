@@ -2,7 +2,7 @@ import React from "react"
 import { useCurrentFrame, useVideoConfig } from "remotion"
 import type { Caption } from "@remotion/captions"
 import { type OverlayPosition } from "./overlay-position"
-import { captionTop, captionLookStyle, type CaptionLook } from "./caption-look"
+import { captionAnchorStyle, captionLookStyle, type CaptionLook } from "./caption-look"
 import { directionStyle } from "./text-direction"
 
 export interface OverlayCommonProps extends CaptionLook {
@@ -16,7 +16,7 @@ export interface OverlayCommonProps extends CaptionLook {
 /** Sentence-level subtitle: shows one Caption at a time, centered. */
 export const SubtitleOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, strokeColor, strokeWidth, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY,
 }) => {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
@@ -25,11 +25,12 @@ export const SubtitleOverlay: React.FC<OverlayCommonProps> = ({
   if (!active) return null
   return (
     <div style={{
-      position: "absolute", left: "5%", right: "5%", top: captionTop(position, positionY),
-      transform: "translateY(-50%)", textAlign: "center",
-      fontSize, color, fontWeight: 700, lineHeight: 1.2,
+      position: "absolute", left: "5%", right: "5%",
+      ...captionAnchorStyle(position, positionY), textAlign: "center",
+      // pre-line: a caller's "\n" (subtitle phrase blocks) is a forced break.
+      fontSize, color, fontWeight: 700, lineHeight: uppercase ? 1.1 : 1.2, whiteSpace: "pre-line",
       textShadow: "0 2px 4px rgba(0,0,0,0.6)",
-      ...captionLookStyle({ fontFamily, strokeColor, strokeWidth, uppercase }),
+      ...captionLookStyle({ fontFamily, fontWeight, strokeColor, strokeWidth, uppercase }),
       ...(backgroundColor ? { background: backgroundColor, padding: "0.3em 0.6em", borderRadius: "0.4em", display: "inline-block" } : {}),
       ...directionStyle(active.text),
     }}>

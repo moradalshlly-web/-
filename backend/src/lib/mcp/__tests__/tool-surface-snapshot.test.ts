@@ -261,6 +261,18 @@ const PLAN_EDIT_TOOL_BYTES = 2_162
 // 2_108 + apply_edl 2_720); both are well under the 8_192 B per-tool budget.
 const SILENCE_DETECT_TOOL_BYTES = 2_108
 const APPLY_EDL_TOOL_BYTES = 2_720
+//
+// RAISED 2026-09-18 by the add-captions LOOK PRESET (`look`) + `font_weight` and
+// nothing else. `add_captions` gained a `look` enum (outline/clean) and a
+// `font_weight` number — on BOTH the top-level tool AND each `segments[]` item —
+// plus two extra description paragraphs leading with the preset (the original
+// complaint was an MCP caller who couldn't reach the TikTok look). It is two
+// optional args on one existing tool; no tool was added, so the membership
+// fixture does NOT move, and add_captions is 7_904 B, still under the 8_192 B
+// per-tool budget. Re-measured against current dev (which already carries the
+// podcast-editing tools + transcript caption work above): 362_590 total −
+// 360_886 dev = 1_704 B.
+const CAPTION_LOOK_PRESETS_BYTES = 1_704
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -280,7 +292,8 @@ export const TOOL_WIRE_BUDGET = {
     CAPTION_SEGMENTS_BYTES +
     PLAN_EDIT_TOOL_BYTES +
     SILENCE_DETECT_TOOL_BYTES +
-    APPLY_EDL_TOOL_BYTES,
+    APPLY_EDL_TOOL_BYTES +
+    CAPTION_LOOK_PRESETS_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

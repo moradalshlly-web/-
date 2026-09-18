@@ -472,6 +472,11 @@ const captionSchema = z.object({
   confidence: z.number().min(0).max(1).nullable(),
 })
 
+// CSS numeric font weight (100–900 in 100 steps). Exported so the add-captions
+// route Zod imports the SAME constraint — the wire body and the render plan
+// can't drift on what a valid weight is.
+export const captionFontWeightSchema = z.number().int().min(100).max(900).multipleOf(100)
+
 // One resolved caption segment on the render plan. `style` is ALL styles (not
 // just kinetic): a segmented render is entirely Remotion, so `subtitle` renders
 // via the Remotion SubtitleOverlay. The backend resolver fills every field.
@@ -484,6 +489,7 @@ const burnCaptionsSegmentSchema = z.object({
   color: z.string(),
   backgroundColor: z.string().optional(),
   fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+  fontWeight: captionFontWeightSchema.optional(),
   strokeColor: z.string().optional(),
   strokeWidth: z.number().min(0).max(40).optional(),
   highlightColor: z.string().optional(),
@@ -508,6 +514,7 @@ export const burnCaptionsPlanSchema = z
     backgroundColor: z.string().optional(),
     // Optional look levers — every one defaults to the prior render when unset.
     fontFamily: z.enum(SUPPORTED_FONT_NAMES).optional(),
+    fontWeight: captionFontWeightSchema.optional(),
     strokeColor: z.string().optional(),
     strokeWidth: z.number().min(0).max(40).optional(),
     highlightColor: z.string().optional(),

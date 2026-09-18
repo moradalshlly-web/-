@@ -31,6 +31,7 @@ const SegmentOverlay: React.FC<{ segment: BurnCaptionsSegment }> = ({ segment })
       color={segment.color}
       backgroundColor={segment.backgroundColor}
       fontFamily={segment.fontFamily}
+      fontWeight={segment.fontWeight}
       strokeColor={segment.strokeColor}
       strokeWidth={segment.strokeWidth}
       highlightColor={segment.highlightColor}
@@ -64,6 +65,7 @@ export const BurnCaptions: React.FC<BurnCaptionsInputProps> = ({ plan }) => {
           color={plan.color}
           backgroundColor={plan.backgroundColor}
           fontFamily={plan.fontFamily}
+          fontWeight={plan.fontWeight}
           strokeColor={plan.strokeColor}
           strokeWidth={plan.strokeWidth}
           highlightColor={plan.highlightColor}

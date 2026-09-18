@@ -37,7 +37,7 @@ import { transcribe, type TranscribeProvider } from "../../providers/audio/trans
 import { detectSilence } from "../../providers/audio/silence-detect.js"
 import { config } from "../../lib/config.js"
 import { syntheticCaptionsFromText, transcriptToCaptions } from "../../providers/audio/captions-mappers.js"
-import { resolveCaptionSegments, type CaptionSegmentInput } from "../../providers/video/caption-segments.js"
+import { resolveCaptionSegments, explicitLevers, type CaptionSegmentInput } from "../../providers/video/caption-segments.js"
 import {
   commitJobCredits,
   shouldSaveJobResult,
@@ -49,7 +49,7 @@ import {
   type HandlerFn,
   type JobContext,
 } from "../shared.js"
-import { isKineticCaptionStyle, normalizeTranscript, remapTranscriptThroughEdl, type Edl, type SupportedFontName, type Transcript } from "@nodaro/shared"
+import { isKineticCaptionStyle, normalizeTranscript, remapTranscriptThroughEdl, resolveCaptionLook, type Edl, type SupportedFontName, type Transcript, type CaptionLookId } from "@nodaro/shared"
 import { attachAssetToCharacter, resolveAssetColumn } from "../../lib/character-auto-attach.js"
 import { DrainAbortError } from "../../lib/worker-drain.js"
 
@@ -562,6 +562,14 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
     fontSize?: number
     color?: string
     backgroundColor?: string
+    look?: CaptionLookId
+    fontWeight?: number
+    fontFamily?: SupportedFontName
+    strokeColor?: string
+    strokeWidth?: number
+    highlightColor?: string
+    uppercase?: boolean
+    positionY?: number
     segments?: CaptionSegmentInput[]
   }
   const style = data.style ?? "subtitle"
@@ -617,11 +625,13 @@ async function dispatchKineticCaptions(
     color?: string
     backgroundColor?: string
     fontFamily?: SupportedFontName
+    fontWeight?: number
     strokeColor?: string
     strokeWidth?: number
     highlightColor?: string
     uppercase?: boolean
     positionY?: number
+    look?: CaptionLookId
     segments?: CaptionSegmentInput[]
   },
 ): Promise<void> {
@@ -752,21 +762,32 @@ async function dispatchKineticCaptions(
     throw new Error("Kinetic style requires captions, text, or auto_transcribe")
   }
 
-  // Per-segment captions: resolve each segment to its own words + merged style.
+  // Resolve the top-level look → concrete levers (font/weight/colour/outline/
+  // spoken-word/casing). The caller's EXPLICIT levers win over the look; the
+  // outline auto-sizes to the font when the look supplies it.
+  const topFontSize = data.fontSize ?? 32
+  const topExplicit = explicitLevers({
+    fontFamily: data.fontFamily,
+    fontWeight: data.fontWeight,
+    color: data.color,
+    backgroundColor: data.backgroundColor,
+    strokeColor: data.strokeColor,
+    strokeWidth: data.strokeWidth,
+    highlightColor: data.highlightColor,
+    uppercase: data.uppercase,
+  })
+  const topLevers = resolveCaptionLook(data.look, topExplicit, topFontSize)
+
+  // Per-segment captions: resolve each segment to its own words + merged levers.
   // The composition renders these instead of the top-level captions/style.
   const resolvedSegments = hasSegments
     ? resolveCaptionSegments(captions, data.segments!, {
         style: data.style ?? "subtitle",
         position: (data.position as "top" | "center" | "bottom" | undefined) ?? "bottom",
-        fontSize: data.fontSize ?? 32,
-        color: data.color ?? "#ffffff",
-        backgroundColor: data.backgroundColor,
-        fontFamily: data.fontFamily,
-        strokeColor: data.strokeColor,
-        strokeWidth: data.strokeWidth,
-        highlightColor: data.highlightColor,
-        uppercase: data.uppercase,
         positionY: data.positionY,
+        fontSize: topFontSize,
+        look: data.look,
+        explicit: topExplicit,
       })
     : undefined
 
@@ -818,14 +839,16 @@ async function dispatchKineticCaptions(
         // valid placeholder rather than fail plan validation.
         style: isKineticCaptionStyle(data.style) ? data.style : "word-pop",
         position: data.position ?? "bottom",
-        fontSize: data.fontSize ?? 32,
-        color: data.color ?? "#ffffff",
-        backgroundColor: data.backgroundColor,
-        fontFamily: data.fontFamily,
-        strokeColor: data.strokeColor,
-        strokeWidth: data.strokeWidth,
-        highlightColor: data.highlightColor,
-        uppercase: data.uppercase,
+        fontSize: topFontSize,
+        // Resolved look levers (default look = outline unless the caller set one).
+        color: topLevers.color ?? "#ffffff",
+        backgroundColor: topLevers.backgroundColor,
+        fontFamily: topLevers.fontFamily,
+        fontWeight: topLevers.fontWeight,
+        strokeColor: topLevers.strokeColor,
+        strokeWidth: topLevers.strokeWidth,
+        highlightColor: topLevers.highlightColor,
+        uppercase: topLevers.uppercase,
         positionY: data.positionY,
         ...(resolvedSegments ? { segments: resolvedSegments } : {}),
         fps,
