@@ -1,7 +1,7 @@
 import { supabase } from "../../lib/supabase.js"
 import { getAppSettings } from "../../lib/app-settings.js"
 import { usdToCredits } from "@nodaro/shared"
-import { effectiveMarkupPercent } from "./service-margin.js"
+import { applyMarkupPercent, effectiveMarkupPercent } from "./service-margin.js"
 
 /**
  * Reserve-vs-actual mismatches below this DOLLAR value are noise, not anomalies.
@@ -40,10 +40,9 @@ export async function computeActualCredits(providerCostUsd: number, modelIdentif
   const markupPercent = modelIdentifier !== undefined
     ? effectiveMarkupPercent(settings, modelIdentifier)
     : settings.cost_markup_percent
-  if (markupPercent > 0) {
-    return Math.ceil(baseCredits * (1 + markupPercent / 100))
-  }
-  return baseCredits
+  // Same integer-domain rounding the reserve applied (applyMarkupPercent), so
+  // actual can never round a credit above the reservation it trues up.
+  return applyMarkupPercent(baseCredits, markupPercent)
 }
 
 interface AnomalyCheckParams {

@@ -236,12 +236,13 @@ export async function generateObjectRoutes(app: FastifyInstance) {
       if (hasCredits() && req.creditReservation) {
         const { getModelCreditBaseCost } = await import("../ee/billing/credits.js")
         const pricing = await getModelCreditBaseCost(modelIdentifier)
+        const { applyServiceMarkup } = await import("../ee/billing/service-margin.js")
         const { getAppSettings } = await import("../lib/app-settings.js")
         const settings = await getAppSettings()
-        perJobCreditOverride =
-          settings.cost_markup_percent > 0 && pricing.creditCost > 0
-            ? Math.ceil(pricing.creditCost * (1 + settings.cost_markup_percent / 100))
-            : pricing.creditCost
+        // Same helper (integer-domain rounding + per-service margin) that
+        // creditGuardImpl and the anomaly detector's actual use, so the reserve
+        // can never round a credit apart from them (no phantom credit_anomalies).
+        perJobCreditOverride = applyServiceMarkup(pricing.creditCost, settings, modelIdentifier)
       }
 
       // ──────────────────────────────────────────────────────────────────────

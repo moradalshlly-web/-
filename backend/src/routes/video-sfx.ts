@@ -174,12 +174,13 @@ export default async function videoSfxRoutes(app: FastifyInstance): Promise<void
     let perJobCreditOverride: number | undefined
     if (hasCredits() && req.creditReservation) {
       const baseCredits = bucketBaseCreditsFor(duration)
+      const { applyServiceMarkup } = await import("../ee/billing/service-margin.js")
       const { getAppSettings } = await import("../lib/app-settings.js")
       const settings = await getAppSettings()
-      perJobCreditOverride =
-        settings.cost_markup_percent > 0 && baseCredits > 0
-          ? Math.ceil(baseCredits * (1 + settings.cost_markup_percent / 100))
-          : baseCredits
+      // Same helper (integer-domain rounding + per-service margin) creditGuardImpl
+      // and the anomaly detector's actual use for "replicate-mmaudio", so the
+      // reserve can never round a credit apart from them (no phantom anomaly).
+      perJobCreditOverride = applyServiceMarkup(baseCredits, settings, "replicate-mmaudio")
     }
 
     // ──────────────────────────────────────────────────────────────────────

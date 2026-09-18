@@ -297,9 +297,15 @@ export async function adminCreditAuditRoutes(app: FastifyInstance) {
 
     const round2 = (n: number) => Math.round(n * 100) / 100
 
-    // Read markup from DB (admin settings) so audit matches pricing formula
+    // Read markup from DB (admin settings) so audit matches the pricing formula,
+    // INCLUDING its integer-domain rounding: expected = ceil(x * (100 + pct) / 100),
+    // not ceil(x * (1 + pct/100)). The float form lands a hair above an integer
+    // for whole-credit trap bases (720 @ 10% = 792.0000000000001 → 793), which
+    // would sit one credit ABOVE what we now actually charge (792) and flag every
+    // such KIE model as a phantom UNDERCHARGED (the aggregate/static threshold is
+    // diff < -0.5). Same value as before for every non-trap base; pct=0 → ceil(x).
     const settings = await getAppSettings()
-    const markupMultiplier = 1 + settings.cost_markup_percent / 100
+    const markupPercent = settings.cost_markup_percent
 
     // ---------- Per-task mode: match each KIE task to our jobs row by provider_task_id ----------
     // Uses the `provider_task_id` column added in migration 138 (Phase 1 of reconciliation).
@@ -367,7 +373,7 @@ export async function adminCreditAuditRoutes(app: FastifyInstance) {
       const taskDiffs: TaskDiff[] = []
       for (const record of successfulRecords) {
         const providerCostInCredits = record.consumeCredits / KIE_CREDITS_PER_NODARO
-        const expectedCredits = Math.ceil(providerCostInCredits * markupMultiplier)
+        const expectedCredits = Math.ceil((providerCostInCredits * (100 + markupPercent)) / 100)
         const job = jobsByTaskId.get(record.taskId)
         if (!job) {
           taskDiffs.push({
@@ -482,7 +488,7 @@ export async function adminCreditAuditRoutes(app: FastifyInstance) {
         const mappings = modelMap.get(kieModel)
         const avgKieCredits = round2(stats.totalCredits / stats.tasks)
         const providerCostInCredits = round2(avgKieCredits / KIE_CREDITS_PER_NODARO)
-        const expectedCredits = Math.ceil(providerCostInCredits * markupMultiplier)
+        const expectedCredits = Math.ceil((providerCostInCredits * (100 + markupPercent)) / 100)
 
         if (!mappings?.length) {
           actualResults.push({
@@ -580,7 +586,7 @@ export async function adminCreditAuditRoutes(app: FastifyInstance) {
       // What the provider actually costs us in Nodaro credit units
       const providerCostInCredits = round2(avgKieCredits / KIE_CREDITS_PER_NODARO)
       // What we SHOULD charge given the markup setting
-      const expectedCredits = Math.ceil(providerCostInCredits * markupMultiplier)
+      const expectedCredits = Math.ceil((providerCostInCredits * (100 + markupPercent)) / 100)
 
       if (!mappings?.length) {
         results.push({
@@ -634,7 +640,7 @@ export async function adminCreditAuditRoutes(app: FastifyInstance) {
         tierBreakdown = []
         let worstDiff = 0
         for (const [kieCost, count] of stats.costBuckets) {
-          const required = Math.ceil((kieCost / KIE_CREDITS_PER_NODARO) * markupMultiplier)
+          const required = Math.ceil(((kieCost / KIE_CREDITS_PER_NODARO) * (100 + markupPercent)) / 100)
           // Find the smallest tier that covers this cost
           const coveringTiers = allTiers.filter(t => t >= required).sort((a, b) => a - b)
           const bestTier = coveringTiers.length > 0 ? coveringTiers[0] : Math.max(...allTiers)
