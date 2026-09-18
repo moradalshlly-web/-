@@ -254,3 +254,144 @@ describe("addCaptionsBody — per-segment captions", () => {
     expect(r.success).toBe(false)
   })
 })
+
+// ---------------------------------------------------------------------------
+// transcribe_provider × word timings
+//
+// Auto-transcription feeds WORD timings to the kinetic / segmented render.
+// openai/whisper cannot produce them (Replicate has no such input), and the
+// worker SKIPS the vendor call for such a lane rather than earning
+// `transcribe()`'s refusal — so the request is only impossible when
+// transcription is the ONLY caption source the render could have. That exact
+// case is rejected at ingress; anything the worker can still render passes.
+// ---------------------------------------------------------------------------
+
+describe("addCaptionsBody — transcribe_provider must be able to do word timings", () => {
+  it("rejects whisper for a kinetic style that will auto-transcribe", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "word-highlight",
+      transcribe_provider: "whisper",
+    })
+    expect(r.success).toBe(false)
+    expect(issuePaths(r)).toContain("transcribe_provider")
+  })
+
+  it("rejects whisper for a segmented render that needs the shared transcript", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      transcribe_provider: "whisper",
+      // Second segment carries no own words → needs the shared transcript.
+      segments: [
+        { startMs: 0, endMs: 3000, text: "own words" },
+        { startMs: 3000, endMs: 6000 },
+      ],
+    })
+    expect(r.success).toBe(false)
+    expect(issuePaths(r)).toContain("transcribe_provider")
+  })
+
+  it("names the capable providers in the message", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "karaoke",
+      transcribe_provider: "whisper",
+    })
+    expect(r.success).toBe(false)
+    const msg = r.success ? "" : r.error.issues.map((i) => i.message).join(" ")
+    expect(msg).toContain("incredibly-fast-whisper")
+    expect(msg).toContain("elevenlabs-stt")
+  })
+
+  it.each(["incredibly-fast-whisper", "elevenlabs-stt"])(
+    "accepts %s for a kinetic auto-transcribe render",
+    (provider) => {
+      const r = addCaptionsBody.safeParse({
+        videoUrl: VIDEO,
+        style: "word-highlight",
+        transcribe_provider: provider,
+      })
+      expect(r.success).toBe(true)
+    },
+  )
+
+  it("accepts whisper when no transcription runs (auto_transcribe: false)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "word-highlight",
+      text: "hello world",
+      auto_transcribe: false,
+      transcribe_provider: "whisper",
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("accepts whisper when captions[] already supply the words", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "karaoke",
+      transcribe_provider: "whisper",
+      captions: [{ text: "hi", startMs: 0, endMs: 500 }],
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("accepts whisper when a transcript is wired (kinetic style, no vendor call)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "karaoke",
+      transcribe_provider: "whisper",
+      transcript: { version: 1, words: [{ text: "hi", startMs: 0, endMs: 500 }] },
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("accepts whisper when every segment is self-sourced (no shared transcript needed)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      transcribe_provider: "whisper",
+      segments: [
+        { startMs: 0, endMs: 3000, text: "a" },
+        { startMs: 3000, endMs: 6000, text: "b" },
+      ],
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("accepts whisper on the static subtitle path (no word timings needed there)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      // style defaults to "subtitle" — one fixed FFmpeg overlay, not word-timed.
+      transcribe_provider: "whisper",
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("ACCEPTS whisper for a kinetic render that carries `text` — that text is the fallback source", () => {
+    // `text` does not suppress the worker's `needTranscribe`, but it IS a
+    // caption source: the worker skips the incapable lane and renders the text
+    // as evenly-spaced synthetic captions (what this node did before word
+    // timings existed). Rejecting it would break a previously-working call, so
+    // the rejection is reserved for renders with no other source at all.
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "word-pop",
+      text: "hello world",
+      transcribe_provider: "whisper",
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it("ACCEPTS whisper for a segmented render whose shared-transcript gap `text` can fill", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      transcribe_provider: "whisper",
+      text: "hello world",
+      segments: [
+        { startMs: 0, endMs: 3000, text: "own words" },
+        { startMs: 3000, endMs: 6000 },
+      ],
+    })
+    expect(r.success).toBe(true)
+  })
+})

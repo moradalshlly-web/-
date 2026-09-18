@@ -1,15 +1,32 @@
 import type { Caption } from "@remotion/captions"
-import type { Transcript } from "@nodaro/shared"
+import type { Transcript, TranscribeLane } from "@nodaro/shared"
+import {
+  transcribeLaneSupportsWordTimestamps,
+  transcribeProvidersWithWordTimestamps,
+  DEFAULT_TRANSCRIBE_PROVIDER,
+} from "@nodaro/shared"
 import { replicate, extractCost } from "../replicate/client.js"
 import { directSpeechToText } from "../elevenlabs/direct-stt.js"
 import {
   mapWhisperOutput,
   mapFastWhisperOutput,
+  wordTimestampContractBreak,
   type WhisperOutput,
   type FastWhisperOutput,
 } from "./transcribe-output.js"
 import { scribeWordsToCaptions } from "./captions-mappers.js"
 import { buildTranscriptFromOutput } from "./transcript-normalize.js"
+
+/**
+ * A transcript with its non-speech annotations removed — `[music]`,
+ * `[laughter]`, `(applause)`. Scribe emits those in `text` when
+ * `tagAudioEvents` is on but files them as `type: "audio_event"` entries, which
+ * `directSpeechToText` filters out of `words`. So "text is non-empty" is NOT
+ * "there was speech", and only the stripped form can answer that question.
+ */
+function stripAudioEventTags(text: string): string {
+  return text.replace(/\[[^\]]*\]|\([^)]*\)/g, "").trim()
+}
 
 function extractVersion(modelString: string): string {
   const parts = modelString.split(":")
@@ -19,7 +36,8 @@ function extractVersion(modelString: string): string {
   return parts[1]
 }
 
-export type TranscribeProvider = "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
+/** Alias of the shared lane union — the capability table is keyed by it. */
+export type TranscribeProvider = TranscribeLane
 
 interface TranscribeResult {
   text: string
@@ -54,7 +72,27 @@ export async function transcribe(
     onTaskCreated?: (taskId: string) => void | Promise<void>
   },
 ): Promise<TranscribeResult> {
-  const resolvedProvider = provider ?? "whisper"
+  const resolvedProvider = provider ?? DEFAULT_TRANSCRIBE_PROVIDER
+
+  // Word timings are a per-lane CAPABILITY, and the incapable lane fails
+  // silently: Replicate drops an unknown input key, so openai/whisper returns
+  // segments with no `words`, the mapper yields [], and the job "succeeds" with
+  // an empty word list after the credits are spent. Fail here — before any
+  // provider call — so the caller learns the request is impossible instead of
+  // paying for an answer that cannot contain what was asked for. This is the
+  // gate for every caller that bypasses the route's Zod (the orchestrator/DAG
+  // path builds its payload straight from node data).
+  // (Asked through the shared helper, not by indexing the capability table: a
+  // provider string from node data / an imported workflow can be anything at
+  // all, and a bare index would answer that with a TypeError instead of this
+  // message.)
+  if (options?.wordTimestamps && !transcribeLaneSupportsWordTimestamps(resolvedProvider)) {
+    throw new Error(
+      `Transcription provider "${resolvedProvider}" does not return word timestamps. ` +
+        `Use ${transcribeProvidersWithWordTimestamps().join(" or ")}.`,
+    )
+  }
+
   console.log(`[transcribe] Provider: ${resolvedProvider}`)
   console.log(`[transcribe] Audio URL: "${audioUrl}", Language: ${language ?? "auto"}`)
 
@@ -73,6 +111,18 @@ export async function transcribe(
     // contract shared with the add-captions consumers; the mapper adds the
     // leading-space word delimiter the kinetic overlays rely on.
     const words = scribeWordsToCaptions(result.words)
+    // Scribe is declared ALWAYS word-level (the flag changes nothing), so the
+    // same contract applies here as on the incredibly-fast-whisper lane: speech
+    // in, word timings out, or the job fails and refunds rather than handing
+    // back a transcript whose `json.words` is empty — which every caption
+    // consumer downstream reads as "this clip has no words".
+    // "Speech" is measured with the audio-event tags REMOVED: with
+    // `tagAudioEvents` on, a music-only clip legitimately comes back as
+    // `text: "[music]"` with zero word entries, and failing that would break a
+    // run that works today.
+    if (words.length === 0 && stripAudioEventTags(result.text).length > 0) {
+      throw wordTimestampContractBreak("the response carried speech but no word entries")
+    }
     return {
       text: result.text,
       language: result.language,
@@ -114,18 +164,25 @@ export async function transcribe(
 
     console.log(`[transcribe] Output text length: ${output.text?.length ?? 0}`)
     return {
-      ...mapFastWhisperOutput(output, { language, wordTimestamps: options?.wordTimestamps }),
+      // enforceWordTimestamps: this is the live lane, so an empty word list on
+      // audio that has speech is a provider contract break — fail (and refund)
+      // rather than hand back a silently word-less transcript.
+      ...mapFastWhisperOutput(output, {
+        language,
+        wordTimestamps: options?.wordTimestamps,
+        enforceWordTimestamps: options?.wordTimestamps,
+      }),
       cost: cost ?? undefined,
     }
   }
 
-  // Default: openai/whisper
+  // Default: openai/whisper. No `word_timestamps` key is sent — the model has
+  // no such input in any published version, so Replicate silently dropped it
+  // and the flag never did anything. `wordTimestamps` is rejected above for
+  // this lane, so nothing reaches here asking for them.
   const input: Record<string, unknown> = {
     audio: audioUrl,
     transcription: "plain text",
-  }
-  if (options?.wordTimestamps) {
-    input.word_timestamps = true
   }
   if (language && language !== "auto") {
     input.language = language

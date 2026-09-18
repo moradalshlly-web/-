@@ -14,7 +14,13 @@ import {
   uiMeta,
 } from "./_verb-helpers.js"
 import { WIDGET_URI } from "../widgets/registrar.js"
-import { SUNO_MODELS, SUNO_LEGACY_MODELS, SUNO_ADD_TRACK_MODELS, DEFAULT_SUNO_MODEL, SUNO_TITLE_MAX, SUNO_TEXT_MAX, AUDIO_FX_PRESETS, readPromptAffixes, MODEL_CATALOG } from "@nodaro/shared"
+import { SUNO_MODELS, SUNO_LEGACY_MODELS, SUNO_ADD_TRACK_MODELS, DEFAULT_SUNO_MODEL, SUNO_TITLE_MAX, SUNO_TEXT_MAX, AUDIO_FX_PRESETS, readPromptAffixes, MODEL_CATALOG, type TranscribeProvider } from "@nodaro/shared"
+
+/** The engine the MCP `transcribe` tool runs on. Typed against the ENABLED
+ *  provider enum, so disabling this lane in @nodaro/shared fails the build here
+ *  instead of 400ing every MCP transcribe call at the route. It is word-level,
+ *  which is what makes `output_data.json.words` dependable for MCP callers. */
+const MCP_TRANSCRIBE_PROVIDER: TranscribeProvider = "elevenlabs-stt"
 
 /**
  * Suno versions as the MCP verbs describe them — one string, reused by every
@@ -2094,14 +2100,15 @@ export function registerAudioVerbs({ server, session, fastify }: RegisterOpts): 
       title: "Transcribe Audio",
       description:
         "Transcribe speech from an audio or video file to text using ElevenLabs STT. " +
-        "Returns a job_id; the transcript text is in the job output.",
+        "Returns a job_id; the transcript text is in the job output, and per-word timings " +
+        "(ms) are ALWAYS in `output_data.json.words` — the input for add_captions `captions[]`.",
       inputSchema: {
         audio_url: z.string().url().optional(),
         audio_asset_id: z.string().optional().describe("Nodaro audio or video job id."),
         language: z.string().max(10).optional().describe("BCP-47 language code (e.g. 'en', 'es', 'fr'). Auto-detected when omitted."),
         diarize: z.boolean().optional().describe("Label each speaker (speaker 1, speaker 2, …). Default false."),
         tag_audio_events: z.boolean().optional().describe("Annotate non-speech events like [laughter], [music]. Default false."),
-        word_timestamps: z.boolean().optional().describe("Include per-word start/end timestamps. Default false."),
+        word_timestamps: z.boolean().optional().describe("Kept for compatibility — this engine is word-level, so word timings are returned either way."),
       },
       outputSchema: JOB_OUTPUT_SCHEMA,
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
@@ -2116,6 +2123,13 @@ export function registerAudioVerbs({ server, session, fastify }: RegisterOpts): 
       if (!audioUrl) return { content: [{ type: "text" as const, text: "Pass audio_url or audio_asset_id." }], isError: true }
       const payload: Record<string, unknown> = {
         audioUrl,
+        // Send the engine EXPLICITLY. This tool always described itself as
+        // ElevenLabs STT (and exposes its diarize / audio-event options), but it
+        // used to send no `provider`, so the route's fallback lane served every
+        // call instead: no word timings (`json.words: []`), diarize/tag options
+        // ignored. Explicit here ⇒ the credit guard reserves on the same id that
+        // runs.
+        provider: MCP_TRANSCRIBE_PROVIDER,
         ...(args.language ? { language: args.language } : {}),
         ...(args.diarize !== undefined ? { diarize: args.diarize } : {}),
         ...(args.tag_audio_events !== undefined ? { tagAudioEvents: args.tag_audio_events } : {}),
@@ -2123,7 +2137,7 @@ export function registerAudioVerbs({ server, session, fastify }: RegisterOpts): 
         mcp_client: session.clientName,
         userId: session.userId,
       }
-      return dispatchJob(fastify, session, { url: "/v1/transcribe", payload, label: "transcribe", widgetKind: "generic", widgetData: { prompt: "(transcribe)", model: "elevenlabs-stt" } })
+      return dispatchJob(fastify, session, { url: "/v1/transcribe", payload, label: "transcribe", widgetKind: "generic", widgetData: { prompt: "(transcribe)", model: MCP_TRANSCRIBE_PROVIDER } })
     },
   )
 

@@ -1217,6 +1217,82 @@ export const TRANSCRIBE_PROVIDERS = [
 ] as const
 export type TranscribeProvider = typeof TRANSCRIBE_PROVIDERS[number]
 
+/**
+ * Every transcription LANE the platform implements — a superset of
+ * `TRANSCRIBE_PROVIDERS` (the user-facing enum above, which currently hides the
+ * two Replicate lanes). Both hidden lanes are still reached at runtime: the
+ * `/v1/transcribe` route defaults an absent provider to `DEFAULT_TRANSCRIBE_PROVIDER`,
+ * and add-captions' internal auto-transcribe runs `incredibly-fast-whisper`.
+ * Capability questions must be asked over THIS union, not the enum.
+ */
+export const TRANSCRIBE_LANES = [
+  "whisper",
+  "incredibly-fast-whisper",
+  "elevenlabs-stt",
+] as const
+export type TranscribeLane = typeof TRANSCRIBE_LANES[number]
+
+// Compile-time pin: the user-facing enum is a subset of the lanes, so every
+// provider a caller can name has a capability row below.
+const _TRANSCRIBE_PROVIDERS_ARE_LANES: readonly TranscribeLane[] = TRANSCRIBE_PROVIDERS
+void _TRANSCRIBE_PROVIDERS_ARE_LANES
+
+/**
+ * What each transcription lane can actually DO. Single source of truth — never
+ * re-derive a capability from a provider-name check.
+ *
+ * `wordTimestamps`: does the lane return per-word start/end times?
+ *  - `whisper` (Replicate `openai/whisper`) — NO. Its input schema has no
+ *    `word_timestamps` field in ANY published version, so Replicate silently
+ *    drops the key and the segments come back without `words`. Asking this lane
+ *    for word timings yields an empty array, never an error.
+ *  - `incredibly-fast-whisper` — yes, via `timestamp: "word"`.
+ *  - `elevenlabs-stt` (direct Scribe) — always word-level, flag or not.
+ */
+export const TRANSCRIBE_PROVIDER_CAPABILITIES: Record<TranscribeLane, { wordTimestamps: boolean }> = {
+  "whisper": { wordTimestamps: false },
+  "incredibly-fast-whisper": { wordTimestamps: true },
+  "elevenlabs-stt": { wordTimestamps: true },
+}
+
+/** The lanes that can honour a word-timestamps request, in declaration order. */
+export function transcribeProvidersWithWordTimestamps(): TranscribeLane[] {
+  return TRANSCRIBE_LANES.filter((p) => TRANSCRIBE_PROVIDER_CAPABILITIES[p].wordTimestamps)
+}
+
+/**
+ * Capability question for a lane id that came from UNTRUSTED data — node data,
+ * an imported workflow, a wire body — where the string may be anything at all.
+ * An unknown lane answers `false`: we cannot promise word timings from a lane
+ * we know nothing about, and "false" is always the safe answer (it suppresses
+ * an INFERRED request, and turns an EXPLICIT one into the honest refusal in
+ * `transcribe()` instead of a `Cannot read properties of undefined` TypeError).
+ */
+export function transcribeLaneSupportsWordTimestamps(lane: string | null | undefined): boolean {
+  if (!lane) return false
+  return TRANSCRIBE_PROVIDER_CAPABILITIES[lane as TranscribeLane]?.wordTimestamps === true
+}
+
+/**
+ * The lane an absent `provider` resolves to — the historical `/v1/transcribe`
+ * default, kept as-is because the credit guard reserves on the provider id
+ * (changing it would silently change what bills).
+ */
+export const DEFAULT_TRANSCRIBE_PROVIDER: TranscribeLane = "whisper"
+
+/**
+ * The lane a transcribe NODE with no `provider` in its data resolves to —
+ * deliberately NOT `DEFAULT_TRANSCRIBE_PROVIDER`. The route's default is the
+ * legacy whisper lane and exists only so a pre-existing REST caller keeps
+ * billing the same id; a node authored/imported without a provider is a fresh
+ * request, and the canvas picker's own default is this one. Single-sourced so
+ * the backend DAG (`payload-builder.ts`) and the frontend run
+ * (`execute-node.ts`) cannot drift into sending different engines for the same
+ * node — they did, and the frontend's silent whisper fallback started 400ing
+ * once the Replicate lanes left `TRANSCRIBE_PROVIDERS`.
+ */
+export const DEFAULT_TRANSCRIBE_NODE_PROVIDER: TranscribeLane = "elevenlabs-stt"
+
 /** Script generation providers */
 export const SCRIPT_PROVIDERS = [
   "gemini",

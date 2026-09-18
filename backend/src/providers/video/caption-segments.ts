@@ -83,9 +83,9 @@ export function explicitLevers(o: {
  * Resolve each segment's words and merged levers.
  *
  * Words, in priority order:
- *   1. the segment's own `captions[]` — verbatim (ABSOLUTE video-timeline ms,
- *      like the top-level captions; a word outside the segment's own range is
- *      gated out at render);
+ *   1. the segment's own `captions[]` — ABSOLUTE video-timeline ms, like the
+ *      top-level captions; only the words whose START falls inside the segment's
+ *      range are kept (the same membership rule as the shared transcript);
  *   2. else its own `text` — for a `subtitle` segment ONE phrase block spanning
  *      the segment's range (use `\n` to force line breaks); for a kinetic style,
  *      synthesised one word at a time;
@@ -116,15 +116,22 @@ export function resolveCaptionSegments(
       timestampMs: seg.startMs,
       confidence: null,
     })
+    // ONE membership rule for every word source: a word belongs to the segment
+    // whose range contains its START. The render used to enforce "a word outside
+    // the segment's range is not shown" per word, because each word was visible
+    // only inside its own window; the line-based overlays HOLD a line through
+    // gaps, so an out-of-range word left in the list would be shown as part of a
+    // held/straddling line. Enforce the contract here, where the words are chosen.
+    const startsInRange = (c: Caption): boolean => c.startMs >= seg.startMs && c.startMs < seg.endMs
     let captions: Caption[]
     if (seg.captions && seg.captions.length > 0) {
-      captions = seg.captions
+      captions = seg.captions.filter(startsInRange)
     } else if (seg.text) {
       captions = style === "subtitle"
         ? [block(seg.text)]
         : syntheticCaptionsFromText(seg.text, { startMs: seg.startMs, endMs: seg.endMs })
     } else {
-      const shared = sharedCaptions.filter((c) => c.startMs >= seg.startMs && c.startMs < seg.endMs)
+      const shared = sharedCaptions.filter(startsInRange)
       captions = style === "subtitle" && shared.length > 0
         ? [block(shared.map((c) => c.text.trim()).join(" "))]
         : shared

@@ -17,7 +17,7 @@ import {
   uiMeta,
 } from "./_verb-helpers.js"
 import { WIDGET_URI } from "../widgets/registrar.js"
-import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, CAPTION_LOOK_IDS, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
+import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, CAPTION_LOOK_IDS, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_PROVIDERS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, TRANSCRIBE_LANES } from "@nodaro/shared"
 import { applyPromptAffixes } from "@nodaro/prompts"
 
 // Map list_models catalog/display ids → /v1/motion-transfer route providers.
@@ -977,11 +977,14 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
           confidence: z.number().min(0).max(1).nullable().default(null),
         })).optional().describe(
           "Word-timed captions for the kinetic styles: ONE entry per WORD (a bare word is fine — words are auto-spaced). " +
-          "`startMs`/`endMs` are the word's visibility window and drive the highlight; `timestampMs` (optional) is the word " +
+          "`startMs`/`endMs` are the word's SPOKEN window — they time its highlight/animation, not always its visibility " +
+          "(word-highlight holds each LINE until the next line starts); `timestampMs` (optional) is the word " +
           "timestamp used by tiktok-words token timing; `confidence` (optional) is metadata, ignored by rendering.",
         ),
         auto_transcribe: z.boolean().optional(),
-        transcribe_provider: z.enum(["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]).optional(),
+        transcribe_provider: z.enum(TRANSCRIBE_LANES).optional().describe(
+          "Auto-transcribe engine. `whisper` returns NO word timings, so it is refused when transcription is the render's only caption source.",
+        ),
         video_url: z.string().url().optional(),
         video_asset_id: z.string().optional(),
         style: z.enum(ALL_CAPTION_STYLES).optional(),

@@ -3936,6 +3936,7 @@ addCaptions(input: {
   captions?: Array<{ text: string; startMs: number; endMs: number; timestampMs?: number | null; confidence?: number | null }>
   autoTranscribe?: boolean            // transcribe the audio when no text/captions given (default true)
   transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
+                                      // "whisper" has no word timestamps — rejected only when transcription is the render's only caption source
   style?: CaptionStyle                // "subtitle" (static) | "word-highlight" | "karaoke" | "tiktok-words" | "word-pop" | "bouncy"
   position?: "bottom" | "top" | "center"
   fontSize?: number
@@ -3964,6 +3965,17 @@ override individual fields of it. `segments[]` applies different treatments to
 non-overlapping time ranges; a segment that names its own `look` starts fresh
 from that preset and does not inherit the top-level explicit levers. Poll
 `jobs.get(jobId)`.
+
+A kinetic style (and any `segments[]` render) is word-timed, so when the call
+auto-transcribes, `transcribeProvider` must be an engine that returns word
+timestamps — `incredibly-fast-whisper` (the default here) or `elevenlabs-stt`.
+Naming `"whisper"` is rejected with `400 validation_error` on
+`transcribeProvider` only when transcription is the render's ONLY possible
+caption source; with `text`, `captions[]`, a `transcript`, `autoTranscribe:
+false`, or self-sourced `segments[]`, the call is accepted and the
+word-timing-less engine is simply never called — the render falls back to that
+other source (with only `text`, evenly-spaced synthetic captions). It also stays
+valid for the static `subtitle` style, which never transcribes.
 
 #### `trimAudio(input)`
 

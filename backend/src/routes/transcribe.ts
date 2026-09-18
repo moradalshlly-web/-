@@ -8,9 +8,20 @@ import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
-import { TRANSCRIBE_PROVIDERS } from "@nodaro/shared"
+import {
+  TRANSCRIBE_PROVIDERS,
+  TRANSCRIBE_PROVIDER_CAPABILITIES,
+  DEFAULT_TRANSCRIBE_PROVIDER,
+} from "@nodaro/shared"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
+
+// The providers this route ACCEPTS that can also honour word timestamps —
+// derived from the capability table, intersected with the route's own enum so
+// the rejection message never names a provider this same route would reject.
+const WORD_TIMESTAMP_PROVIDERS = TRANSCRIBE_PROVIDERS.filter(
+  (p) => TRANSCRIBE_PROVIDER_CAPABILITIES[p].wordTimestamps,
+)
 
 const transcribeBody = z.object({
   audioUrl: safeUrlSchema,
@@ -20,13 +31,30 @@ const transcribeBody = z.object({
   tagAudioEvents: z.boolean().optional(),
   wordTimestamps: z.boolean().optional(),
   userId: z.string().uuid().optional(),
+}).superRefine((v, ctx) => {
+  // Word timings are a per-provider capability, and the incapable lane fails
+  // SILENTLY (Replicate drops the unknown input key, openai/whisper returns no
+  // `words`, the job "succeeds" with an empty array after credits are spent).
+  // Reject at ingress — before the job insert and the credit reservation —
+  // rather than auto-swapping the provider: the credit guard reserves on the
+  // provider id, so a swap would silently change what bills.
+  if (!v.wordTimestamps) return
+  const resolved = v.provider ?? DEFAULT_TRANSCRIBE_PROVIDER
+  if (TRANSCRIBE_PROVIDER_CAPABILITIES[resolved].wordTimestamps) return
+  ctx.addIssue({
+    code: "custom",
+    path: ["wordTimestamps"],
+    message:
+      `provider "${resolved}"${v.provider ? "" : " (the default)"} does not return word timestamps — ` +
+      `set provider to ${WORD_TIMESTAMP_PROVIDERS.join(" or ")}`,
+  })
 })
 
 export async function transcribeRoutes(app: FastifyInstance) {
   app.post("/v1/transcribe", {
     preHandler: creditGuard((req) => {
       const body = req.body as Record<string, unknown>
-      return (body?.provider as string) ?? "whisper"
+      return (body?.provider as string) ?? DEFAULT_TRANSCRIBE_PROVIDER
     }),
   }, async (req, reply) => {
     const parsed = transcribeBody.safeParse(req.body)
@@ -46,7 +74,7 @@ export async function transcribeRoutes(app: FastifyInstance) {
     }
 
     // Determine model identifier for credit reservation
-    const modelIdentifier = provider ?? "whisper"
+    const modelIdentifier = provider ?? DEFAULT_TRANSCRIBE_PROVIDER
     const mcpClient = extractMcpClient(req.body)
 
     const { data: job, error } = await insertJob(req, {

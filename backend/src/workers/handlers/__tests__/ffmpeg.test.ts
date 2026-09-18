@@ -297,11 +297,66 @@ describe("add-captions handler — the kinetic transcribe ladder", () => {
     expect(payload).toMatchObject({
       jobId: "job-1",
       audioUrl: "https://v.mp4",
-      provider: "incredibly-fast-whisper",
+      // NOT the local default (`incredibly-fast-whisper`): the cloud's
+      // /v1/transcribe enum is the ENABLED subset, which has held no Replicate
+      // lane since they were disabled — relaying one verbatim was a guaranteed
+      // 400. The relay lane is derived from TRANSCRIBE_PROVIDERS ∩ "can do word
+      // timestamps".
+      provider: "elevenlabs-stt",
       wordTimestamps: true,
     })
     expect(mocks.mockTranscribe).not.toHaveBeenCalled()
     expect(mocks.mockRenderQueueAdd).toHaveBeenCalledTimes(1)
+  })
+
+  it("relays a lane the cloud's enum ACCEPTS verbatim — the substitution is only for rejected ones", async () => {
+    mocks.mockShouldRunOnCloud.mockResolvedValue(true)
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "karaoke",
+      transcribe_provider: "elevenlabs-stt",
+    })
+
+    await handler(job as never, makeCtx())
+
+    expect(mocks.mockRunJobOnCloud.mock.calls[0][1]).toMatchObject({ provider: "elevenlabs-stt" })
+  })
+
+  it("SKIPS transcription entirely on a lane that cannot return word timings, and renders the text", async () => {
+    // `transcribe()` refuses this pair before the provider call, so calling it
+    // would fail the job — including this case, where `text` was always the
+    // documented fallback. Skip the vendor call and let the text/no-source
+    // ladder decide: the render goes ahead with synthetic captions.
+    mocks.mockShouldRunOnCloud.mockResolvedValue(false)
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "karaoke",
+      transcribe_provider: "whisper",
+      text: "hello world",
+    })
+
+    await handler(job as never, makeCtx())
+
+    expect(mocks.mockTranscribe).not.toHaveBeenCalled()
+    expect(mocks.mockRunJobOnCloud).not.toHaveBeenCalled()
+    // The lane is decided before the cloud ladder, so the connection is never
+    // consulted for a render it could not help with.
+    expect(mocks.mockShouldRunOnCloud).not.toHaveBeenCalled()
+    expect(mocks.mockRenderQueueAdd).toHaveBeenCalledTimes(1)
+  })
+
+  it("still fails honestly when the incapable lane is the ONLY caption source", async () => {
+    // Nothing to fall back to — the existing "no words and no text" error is the
+    // right outcome, and the route rejects this combination at ingress anyway.
+    mocks.mockShouldRunOnCloud.mockResolvedValue(false)
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "karaoke",
+      transcribe_provider: "whisper",
+    })
+
+    await expect(handler(job as never, makeCtx())).rejects.toThrow(/no words and no text fallback/)
+    expect(mocks.mockTranscribe).not.toHaveBeenCalled()
   })
 
   it("is byte-identical on a keyed install — the local provider, no cloud call", async () => {

@@ -273,6 +273,27 @@ const APPLY_EDL_TOOL_BYTES = 2_720
 // podcast-editing tools + transcript caption work above): 362_590 total −
 // 360_886 dev = 1_704 B.
 const CAPTION_LOOK_PRESETS_BYTES = 1_704
+// RAISED 2026-09-18 by the `transcribe` description and nothing else: the tool
+// now really runs the word-level engine it always advertised (it sends
+// `provider` explicitly instead of inheriting the route's fallback lane), so its
+// description states where the word timings land (`output_data.json.words` — the
+// input for add_captions `captions[]`) and the word_timestamps describe says the
+// flag changes nothing. No tool added, no arg added — the membership fixture
+// does not move. Measured: 362_737 total − 362_590 dev = 147 B.
+const TRANSCRIBE_WORD_TIMESTAMPS_BYTES = 147
+// RAISED 2026-09-18 by two `add_captions` describes and nothing else. (1) The
+// `captions[]` describe said `startMs`/`endMs` are "the word's visibility
+// window", which stopped being true for word-highlight when it began HOLDING a
+// balanced line until the next one starts — a word's window now drives the
+// HIGHLIGHT, not always its visibility, and a caller timing entries by the old
+// sentence produced a render nobody asked for. (2) `transcribe_provider` gained
+// a describe saying `whisper` returns no word timings (it is in the enum, and
+// the route refuses it only when transcription is the render's ONLY caption
+// source — worth one line so a caller doesn't discover that by 400). No tool
+// added, no arg added — the membership fixture does not move; `add_captions` is
+// 8_147 B, still under the 8_192 B per-tool budget. Measured: 362_980 total −
+// 362_737 dev = 243 B.
+const CAPTION_WORD_WINDOW_WORDING_BYTES = 243
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -293,7 +314,9 @@ export const TOOL_WIRE_BUDGET = {
     PLAN_EDIT_TOOL_BYTES +
     SILENCE_DETECT_TOOL_BYTES +
     APPLY_EDL_TOOL_BYTES +
-    CAPTION_LOOK_PRESETS_BYTES,
+    CAPTION_LOOK_PRESETS_BYTES +
+    TRANSCRIBE_WORD_TIMESTAMPS_BYTES +
+    CAPTION_WORD_WINDOW_WORDING_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

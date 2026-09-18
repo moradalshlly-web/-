@@ -110,7 +110,7 @@ import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, spli
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
-  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN } from "@nodaro/shared"
+  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
 import { applyPromptAffixes, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
@@ -4714,14 +4714,25 @@ function executeNodeCore(
           const jsonWired = useWorkflowStore
             .getState()
             .edges.some((e) => e.source === node.id && e.sourceHandle === "json");
+          // Resolve the provider the SAME way the backend DAG does. A node
+          // authored/imported without a `provider` used to send none, and the
+          // route then fell back to its legacy whisper lane — which is no longer
+          // in the accepted enum, so the run 400s while the identical node runs
+          // fine through the orchestrator. One shared constant, both paths.
+          const transcribeProvider = d.provider || DEFAULT_TRANSCRIBE_NODE_PROVIDER;
           return transcribeApi(
             audioUrl,
-            d.provider || undefined,
+            transcribeProvider,
             d.language || undefined,
             ctx.userId,
             d.diarize,
             d.tagAudioEvents,
-            jsonWired || d.wordTimestamps,
+            // INFERRED, not asked for: gate it on what the lane can actually do.
+            // On an incapable lane the run degrades to a segments-only
+            // transcript (what this node did before word timings existed) rather
+            // than being refused by transcribe() after credits reserve.
+            (jsonWired || d.wordTimestamps) &&
+              transcribeLaneSupportsWordTimestamps(transcribeProvider),
           );
         })
         .then(({ jobId }) => {

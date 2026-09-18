@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { buildPayload, buildNodeRefMap, expandWiredLocationRefs, expandWiredObjectCreatureRefs } from "../payload-builder.js"
 import type { SimpleNode, SimpleEdge, ResolvedInputs, NodeExecutionState } from "../types.js"
+import { DEFAULT_TRANSCRIBE_NODE_PROVIDER } from "@nodaro/shared"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1639,5 +1640,82 @@ describe("Suno consumer id precedence (#819 review)", () => {
     const wired = buildPayload(n, jobId, { sunoTaskId: "wired-task", sunoTrackId: "wired-track" }).payload
     expect(wired.taskId).toBe("wired-task")
     expect(wired.audioId).toBe("wired-track")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// transcribe — the INFERRED wordTimestamps flag is capability-gated
+//
+// A wired `json` handle makes the DAG ask for word timings on the user's
+// behalf. `transcribe()` now REFUSES that request on a lane that cannot deliver
+// it — which, unguarded, turns a graph that used to complete with a
+// segments-only Transcript into a job that throws after the credits reserve.
+// The platform's own inference must therefore ask the capability table first;
+// only an EXPLICIT user request for word timings on an incapable lane is
+// refused (at `/v1/transcribe`, and inside `transcribe()`).
+// ---------------------------------------------------------------------------
+
+describe("buildPayload — transcribe word timestamps", () => {
+  const jobId = "job-1"
+  const transcribeNode = (data: Record<string, unknown> = {}) =>
+    node("t", "transcribe", { label: "Transcribe", audioUrl: "https://a.mp3", ...data })
+
+  /** A graph whose `json` handle feeds a consumer — the inference trigger. */
+  const jsonWiredCtx = (n: SimpleNode) => ({
+    nodes: [n, node("c", "add-captions", {})],
+    edges: [edge("t", "c", "json", "transcript")],
+    nodeStates: {},
+  })
+
+  it("asks for word timings when the json handle is wired on a CAPABLE lane", () => {
+    const n = transcribeNode({ provider: "elevenlabs-stt" })
+    const payload = buildPayload(n, jobId, {}, undefined, jsonWiredCtx(n)).payload
+    expect(payload.provider).toBe("elevenlabs-stt")
+    expect(payload.wordTimestamps).toBe(true)
+  })
+
+  it("does NOT ask on an INCAPABLE lane, even with the json handle wired", () => {
+    // whisper has no word-timestamps input at all. Asking anyway would make
+    // transcribe() throw mid-run; the honest degrade is the segments-only
+    // transcript this node produced before word timings existed.
+    const n = transcribeNode({ provider: "whisper" })
+    const payload = buildPayload(n, jobId, {}, undefined, jsonWiredCtx(n)).payload
+    expect(payload.provider).toBe("whisper")
+    expect(payload.wordTimestamps).toBe(false)
+  })
+
+  it("does NOT ask on an UNKNOWN lane (imported/authored node data is untrusted)", () => {
+    const n = transcribeNode({ provider: "deepgram" })
+    const payload = buildPayload(n, jobId, {}, undefined, jsonWiredCtx(n)).payload
+    expect(payload.wordTimestamps).toBe(false)
+  })
+
+  it("gates the carried data.wordTimestamps flag the same way (it is inferred too)", () => {
+    // `data.wordTimestamps` is stamped by the graph-aware request builders, not
+    // by a user toggle — there is no such control in the UI — so it gets the
+    // same capability gate as the live jsonWired check.
+    expect(
+      buildPayload(transcribeNode({ provider: "whisper", wordTimestamps: true }), jobId, {}).payload
+        .wordTimestamps,
+    ).toBe(false)
+    expect(
+      buildPayload(transcribeNode({ provider: "incredibly-fast-whisper", wordTimestamps: true }), jobId, {})
+        .payload.wordTimestamps,
+    ).toBe(true)
+  })
+
+  it("stays off for a text-only run on a capable lane (byte-identical to before)", () => {
+    const payload = buildPayload(transcribeNode({ provider: "elevenlabs-stt" }), jobId, {}).payload
+    expect(payload.wordTimestamps).toBe(false)
+  })
+
+  it("defaults an absent provider to the shared transcribe-NODE default", () => {
+    // The node picker's default, NOT the route's legacy whisper fallback — and
+    // the frontend run resolves the same constant, so both paths send the same
+    // engine for a provider-less (authored / imported) node.
+    const n = transcribeNode()
+    const payload = buildPayload(n, jobId, {}, undefined, jsonWiredCtx(n)).payload
+    expect(payload.provider).toBe(DEFAULT_TRANSCRIBE_NODE_PROVIDER)
+    expect(payload.wordTimestamps).toBe(true)
   })
 })

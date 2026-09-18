@@ -245,6 +245,7 @@ vi.mock("../types", () => ({
 // ---------------------------------------------------------------------------
 
 import { executeNode } from "../execute-node"
+import { DEFAULT_TRANSCRIBE_NODE_PROVIDER } from "@nodaro/shared"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1239,7 +1240,7 @@ describe("transcribe", () => {
     })
     vi.useFakeTimers()
 
-    const transcribeNode = makeNode("transcribe", { provider: "whisper", language: "en" })
+    const transcribeNode = makeNode("transcribe", { provider: "elevenlabs-stt", language: "en" })
     mockNodes = [transcribeNode]
     // A consumer wired off the node's json handle.
     mockEdges = [{ id: "je", source: "n1", sourceHandle: "json", target: "consumer", targetHandle: "in" }]
@@ -1247,9 +1248,10 @@ describe("transcribe", () => {
     const promise = executeNode(transcribeNode, makeCtx())
     await vi.advanceTimersByTimeAsync(0)
 
-    // 7th arg (wordTimestamps) is true because the json handle is consumed.
+    // 7th arg (wordTimestamps) is true because the json handle is consumed AND
+    // this lane can deliver word timings.
     expect(mockTranscribeApi).toHaveBeenCalledWith(
-      "http://speech.mp3", "whisper", "en", "u1", undefined, undefined, true,
+      "http://speech.mp3", "elevenlabs-stt", "en", "u1", undefined, undefined, true,
     )
 
     await vi.advanceTimersByTimeAsync(2000)
@@ -1261,6 +1263,73 @@ describe("transcribe", () => {
     )
 
     mockEdges = []
+    vi.useRealTimers()
+  })
+
+  it("does NOT ask for word timings on a lane that cannot produce them, json handle or not", async () => {
+    // The flag is INFERRED from the graph, not requested by the user. Asking an
+    // incapable lane makes transcribe() refuse AFTER the credits reserve, so a
+    // graph that used to complete with a segments-only transcript would start
+    // failing. Degrade instead.
+    mockResolveNodeInputs.mockReturnValue({ audioUrl: "http://speech.mp3" })
+    mockTranscribeApi.mockResolvedValue({ jobId: "tr-j3" })
+    mockGetJobStatus.mockResolvedValue({
+      status: "completed",
+      output_data: { text: "Hello world", language: "en" },
+    })
+    vi.useFakeTimers()
+
+    const transcribeNode = makeNode("transcribe", { provider: "whisper", language: "en" })
+    mockNodes = [transcribeNode]
+    mockEdges = [{ id: "je", source: "n1", sourceHandle: "json", target: "consumer", targetHandle: "in" }]
+
+    const promise = executeNode(transcribeNode, makeCtx())
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(mockTranscribeApi).toHaveBeenCalledWith(
+      "http://speech.mp3", "whisper", "en", "u1", undefined, undefined, false,
+    )
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await promise
+
+    mockEdges = []
+    vi.useRealTimers()
+  })
+
+  it("sends the shared transcribe-NODE default when the node carries no provider", async () => {
+    // An authored / imported node with no `provider` used to send none, and the
+    // route fell back to its legacy whisper lane — which is no longer in the
+    // accepted enum, so the editor run 400'd while the SAME node ran fine
+    // through the orchestrator (which defaults it server-side).
+    mockResolveNodeInputs.mockReturnValue({ audioUrl: "http://speech.mp3" })
+    mockTranscribeApi.mockResolvedValue({ jobId: "tr-j4" })
+    mockGetJobStatus.mockResolvedValue({
+      status: "completed",
+      output_data: { text: "Hello world", language: "en" },
+    })
+    vi.useFakeTimers()
+
+    const transcribeNode = makeNode("transcribe", { language: "en" })
+    mockNodes = [transcribeNode]
+
+    const promise = executeNode(transcribeNode, makeCtx())
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(mockTranscribeApi).toHaveBeenCalledWith(
+      "http://speech.mp3",
+      DEFAULT_TRANSCRIBE_NODE_PROVIDER,
+      "en",
+      "u1",
+      undefined,
+      undefined,
+      // json handle not wired → still no word-timings request.
+      undefined,
+    )
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await promise
+
     vi.useRealTimers()
   })
 

@@ -498,15 +498,33 @@ describe("transcribe — provider: whisper (default)", () => {
     expect(input.language).toBeUndefined()
   })
 
-  it("sends word_timestamps=true and populates words when option set", async () => {
-    mocks.whisperToCaptions.mockReturnValueOnce([{ text: "hello", startMs: 0, endMs: 1000 } as never])
+  it("THROWS before calling Replicate when wordTimestamps is requested", async () => {
+    // openai/whisper has no `word_timestamps` input in any published version —
+    // Replicate silently drops the key, the segments come back without `words`,
+    // and the job used to "succeed" with an empty word list after the credits
+    // were spent. The capability check runs before any provider call, so the
+    // caller gets a refusal instead of a paid-for, word-less answer.
+    await expect(transcribe("u", "whisper", undefined, { wordTimestamps: true })).rejects.toThrow(
+      /does not return word timestamps/,
+    )
 
-    const result = await transcribe("u", "whisper", undefined, { wordTimestamps: true })
+    expect(mocks.predictionsCreate).not.toHaveBeenCalled()
+    expect(mocks.replicateWait).not.toHaveBeenCalled()
+  })
+
+  it("THROWS for the DEFAULT provider too (absent provider resolves to whisper)", async () => {
+    await expect(transcribe("u", undefined, undefined, { wordTimestamps: true })).rejects.toThrow(
+      /incredibly-fast-whisper or elevenlabs-stt/,
+    )
+
+    expect(mocks.predictionsCreate).not.toHaveBeenCalled()
+  })
+
+  it("never sends the dead word_timestamps key on a normal run", async () => {
+    await transcribe("u", "whisper")
 
     const input = mocks.predictionsCreate.mock.calls[0][0].input
-    expect(input.word_timestamps).toBe(true)
-    expect(result.words).toEqual([{ text: "hello", startMs: 0, endMs: 1000 }])
-    expect(mocks.whisperToCaptions).toHaveBeenCalledOnce()
+    expect(input.word_timestamps).toBeUndefined()
   })
 
   it("does NOT call whisperWordsToCaptions when wordTimestamps is false/undefined", async () => {
@@ -559,6 +577,8 @@ describe("transcribe — provider: incredibly-fast-whisper", () => {
   })
 
   it("sets timestamp=word when wordTimestamps=true", async () => {
+    // A word must come back, or the contract check below rejects the run.
+    mocks.fastWhisperToCaptions.mockReturnValueOnce([{ text: "fast" } as never])
     await transcribe("u", "incredibly-fast-whisper", undefined, { wordTimestamps: true })
 
     const input = mocks.predictionsCreate.mock.calls[0][0].input
@@ -610,11 +630,25 @@ describe("transcribe — provider: incredibly-fast-whisper", () => {
     expect(result.words).toEqual([{ text: "x" }])
     expect(mocks.fastWhisperToCaptions).toHaveBeenCalledOnce()
   })
+
+  it("THROWS when word timings were asked for and the provider returned none", async () => {
+    // The lane CAN do word timings, so an empty word list on audio that has
+    // speech is a provider contract break — the job fails (and refunds) rather
+    // than returning a silently word-less transcript. `fastWhisperToCaptions`
+    // defaults to [] in this suite's mocks, so this is the no-words case.
+    await expect(
+      transcribe("u", "incredibly-fast-whisper", undefined, { wordTimestamps: true }),
+    ).rejects.toThrow(/no word timestamps/)
+  })
 })
 
 describe("transcribe — provider: elevenlabs-stt", () => {
   it("calls Scribe DIRECTLY and never KIE (KIE's queue stalled on this model)", async () => {
-    mocks.directStt.mockResolvedValueOnce({ text: "scribe says hello", language: "en", words: [] })
+    mocks.directStt.mockResolvedValueOnce({
+      text: "scribe says hello",
+      language: "en",
+      words: [{ text: "scribe", start: 0, end: 0.4 }],
+    })
 
     const result = await transcribe("https://audio.mp3", "elevenlabs-stt", "en", {
       diarize: true,
@@ -622,12 +656,16 @@ describe("transcribe — provider: elevenlabs-stt", () => {
     })
 
     // No metered provider cost on the direct path — the reserved tier commits.
-    // The `json` (Transcript) handle is always populated — Scribe is word-level,
-    // so with no words this run it is an empty-word transcript.
+    // The `json` (Transcript) handle is always populated — Scribe is word-level.
     expect(result).toEqual({
       text: "scribe says hello",
       language: "en",
-      json: { version: 1, language: "en", words: [] },
+      words: [{ text: "scribe", startMs: 0, endMs: 400, timestampMs: null, confidence: null }],
+      json: {
+        version: 1,
+        language: "en",
+        words: [{ text: "scribe", startMs: 0, endMs: 400 }],
+      },
     })
     expect(mocks.directStt).toHaveBeenCalledWith("https://audio.mp3", {
       languageCode: "en",
@@ -661,7 +699,11 @@ describe("transcribe — provider: elevenlabs-stt", () => {
   })
 
   it("does not call replicate.predictions for elevenlabs-stt", async () => {
-    mocks.directStt.mockResolvedValueOnce({ text: "x", language: "en", words: [] })
+    mocks.directStt.mockResolvedValueOnce({
+      text: "x",
+      language: "en",
+      words: [{ text: "x", start: 0, end: 0.2 }],
+    })
 
     await transcribe("u", "elevenlabs-stt")
 
@@ -686,11 +728,41 @@ describe("transcribe — provider: elevenlabs-stt", () => {
     ])
   })
 
-  it("omits words when the provider returns none", async () => {
+  it("THROWS when speech came back with no word entries — Scribe is declared word-level", async () => {
+    // Scribe is always word-level, flag or not, so a word-less answer for audio
+    // that has speech is the same provider contract break the
+    // incredibly-fast-whisper lane fails on: the job fails (and refunds) rather
+    // than handing back a transcript whose `json.words` is empty, which every
+    // caption consumer downstream reads as "this clip has no words".
     mocks.directStt.mockResolvedValueOnce({ text: "hi", language: "en", words: [] })
+
+    await expect(transcribe("https://r2.example/a.mp3", "elevenlabs-stt")).rejects.toThrow(
+      /no word timestamps/,
+    )
+  })
+
+  it("succeeds with no words on silence — nothing was spoken", async () => {
+    mocks.directStt.mockResolvedValueOnce({ text: "", language: "en", words: [] })
 
     const result = await transcribe("https://r2.example/a.mp3", "elevenlabs-stt")
 
+    expect(result.words).toBeUndefined()
+    expect(result.json).toEqual({ version: 1, language: "en", words: [] })
+  })
+
+  it("succeeds with no words on an AUDIO-EVENT-only clip (tagAudioEvents)", async () => {
+    // With `tagAudioEvents` on, a music-only clip legitimately comes back as
+    // `text: "[music]"` with zero word entries — Scribe files events as
+    // `type: "audio_event"`, which direct-stt filters out of `words`. Failing
+    // that would break a run that works today, so "has speech" is measured with
+    // the tags stripped.
+    mocks.directStt.mockResolvedValueOnce({ text: "[music]", language: "en", words: [] })
+
+    const result = await transcribe("https://r2.example/a.mp3", "elevenlabs-stt", undefined, {
+      tagAudioEvents: true,
+    })
+
+    expect(result.text).toBe("[music]")
     expect(result.words).toBeUndefined()
   })
 })
