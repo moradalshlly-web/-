@@ -617,6 +617,7 @@ function describeApiError(err: unknown): string {
 /** Turn the persistence layer's error codes into something a person can act on. */
 const SAVE_FAILED_NOTICE = new Map<string, string>([
   ["remote_conflict", "This workflow changed somewhere else — reload, then ask again."],
+  ["not_writable", "Changes to this workflow can't be saved from your account — use Clone & Remix, then ask again on your copy."],
   ["Empty workflow", "Add a node first, or describe what to build and it will be created."],
   ["No project ID", "Open the workflow from its project, then try again."],
 ])

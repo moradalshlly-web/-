@@ -273,6 +273,8 @@ export const he: ChromeDict = {
   "editor.retry": "ניסיון חוזר",
   "editor.unsaved": "לא נשמר",
   "editor.saveFailed": "השמירה נכשלה",
+  "editor.notWritableTitle": "אי אפשר לשמור שינויים בתהליך הזה",
+  "editor.notWritableReason": "אין לכם הרשאה לשמור שינויים בתהליך הזה, ולכן שום דבר שנעשה כאן לא נשמר. כדי להמשיך על עותק משלכם, השתמשו ב״שכפול ורימיקס״.",
   "editor.pauseAutoplay": "השהיית ניגון אוטומטי של וידאו",
   "editor.enableAutoplay": "הפעלת ניגון אוטומטי של וידאו",
   "editor.autoPlayingVideos": "ניגון וידאו אוטומטי פעיל",

@@ -101,6 +101,7 @@ import { extractNodeOutput } from "./execution-graph";
 import { orderNodesParentFirst } from "./group-coords";
 import { FreeCutImportPicker } from "../freecut-import-picker";
 import { studioWorkflowUrl } from "@/lib/studio";
+import { hasSavableChanges, isSaveRefused } from "@/hooks/workflow-save-refusal";
 import { RemixProjectDialog } from "@/components/editor/remix-project-dialog";
 import type { ManualEditData, GeneratedResult } from "@/types/nodes";
 import { runtimeSupabaseAnonKey, runtimeSupabaseUrl } from "@/lib/runtime-config";
@@ -156,6 +157,9 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
   const isMobile = useIsMobile();
   const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId);
   const isReadOnly = useWorkflowStore((s) => s.isReadOnly);
+  // The server refused this caller's write to the open workflow: the canvas
+  // stays live, nothing is kept, and a copy is the only way to keep working.
+  const saveRefused = useWorkflowStore(isSaveRefused);
   const selectedPipelineId = useWorkflowStore((s) => {
     if (!s.selectedNodeId) return undefined;
     const node = s.nodes.find((n) => n.id === s.selectedNodeId);
@@ -643,6 +647,8 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
       // isDirty even for read-only workflows, so the isDirty check below is
       // not enough on its own — bail before building/PATCHing the payload.
       if (state.isReadOnly) return;
+      // A write this workflow already refused would be refused again.
+      if (isSaveRefused(state)) return;
       if (!state.isDirty || state.nodes.length === 0) return;
 
       const supabaseUrl = runtimeSupabaseUrl() || undefined;
@@ -1109,6 +1115,9 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
 
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
+      // Plain `isDirty`, refused saves included: the browser's own prompt
+      // offers nothing it cannot honour, and an accidental close is the one
+      // way to lose results that Clone & Remix could still have kept.
       const isDirty = useWorkflowStore.getState().isDirty;
       if (!isDirty) return;
       e.preventDefault();
@@ -1119,8 +1128,9 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
 
   const navigateWithGuard = useCallback(
     (href: string) => {
-      const isDirty = useWorkflowStore.getState().isDirty;
-      if (!isDirty) {
+      // The dialog offers to Save before leaving; when saves are refused that
+      // is an offer it cannot honour, so it does not make it.
+      if (!hasSavableChanges(useWorkflowStore.getState())) {
         navigate(href);
         return;
       }
@@ -1422,6 +1432,19 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
                   </Button>
                 </>
               ) : (
+                <>
+                {saveRefused && (
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="rounded-full px-5 bg-background"
+                    title={t("editor.notWritableReason")}
+                    onClick={() => setRemixOpen(true)}
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    {t("run.cloneRemix")}
+                  </Button>
+                )}
                 <Button
                   size="lg"
                   disabled={(hasCredits() && estimateLoading) || isConfirming}
@@ -1440,6 +1463,7 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
                     </span>
                   )}
                 </Button>
+                </>
               )}
             </div>
             </div>

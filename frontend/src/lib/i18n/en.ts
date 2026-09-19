@@ -278,6 +278,8 @@ export const en = {
   "editor.retry": "Retry",
   "editor.unsaved": "Unsaved",
   "editor.saveFailed": "Save failed",
+  "editor.notWritableTitle": "Changes to this workflow can't be saved",
+  "editor.notWritableReason": "You don't have permission to save changes to this workflow, so nothing you do here is kept. Use Clone & Remix to continue on your own copy.",
   "editor.pauseAutoplay": "Pause video autoplay",
   "editor.enableAutoplay": "Enable video autoplay",
   "editor.autoPlayingVideos": "Auto-playing videos",

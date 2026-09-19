@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase"
 import { useWorkflowStore, type PresentationSettings } from "@/hooks/use-workflow-store"
 import { getBatchJobStatus, listWorkflowExecutions, type BatchJobStatus } from "@/lib/api"
 import { applyWorkflowAccess } from "@/hooks/workflow-access-mode"
+import { classifyZeroRowSave, isSaveRefused } from "@/hooks/workflow-save-refusal"
+import { tx } from "@/lib/i18n"
 import { reconcileWorkflowNodeResults } from "@/lib/reconcile-node-results"
 import { reconcileCompletedSingleNodeJobs, buildScene3DRecoveryPatch, isScene3DNodeType } from "@/lib/reconcile-completed-jobs"
 import { prefetchModelCredits } from "@/ee/hooks/queries/use-credits-queries"
@@ -598,7 +600,7 @@ export function useWorkflowPersistence(projectId?: string) {
       // `epochAtStart` travels with the graph read here: applySaveSuccess
       // clears isDirty only if no edit advanced the epoch while the request
       // was out (an in-flight edit was never sent and must stay dirty).
-      const { workflowId, workflowName, nodes: allNodes, edges: allEdges, characterDefinitions, flowPromptTemplates, presentationSettings, dirtyEpoch: epochAtStart } =
+      const { workflowId, workflowName, nodes: allNodes, edges: allEdges, characterDefinitions, flowPromptTemplates, presentationSettings, dirtyEpoch: epochAtStart, loadGeneration: loadGenAtStart } =
         useWorkflowStore.getState()
 
       // Filter out temporary nodes: sub-workflow execution nodes and expanded loop clones
@@ -631,10 +633,36 @@ export function useWorkflowPersistence(projectId?: string) {
       // let those relaid-out positions through.
       if (useWorkflowStore.getState().isReadOnly) return { success: true }
 
+      // A write to this workflow was already refused (the zero-row branch
+      // below). Nothing about the caller changes between two autosave ticks,
+      // so asking again only re-sends the whole graph to be turned away
+      // again — and this is the ONE gate every caller passes: autosave, the
+      // pre-Run save, the poll-start and job-finished saves, Retry.
+      if (isSaveRefused(useWorkflowStore.getState())) return { success: false, error: "not_writable" }
+
       setSaving(true)
       setSaveStatus("saving")
       try {
         const supabase = createClient()
+
+        // A save's answer belongs to the load it was sent from. A large graph
+        // takes seconds to upload, and the editor can be on another workflow
+        // by the time the answer lands: written into the store then, a
+        // success hands THAT workflow this one's CAS token (its next save
+        // false-conflicts), a miss paints "updated on another device" over it
+        // and pauses its autosave, and a delta rebase writes this workflow's
+        // GRAPH onto its canvas — which its next autosave would persist
+        // there. A reload of the SAME workflow counts too: the cursor,
+        // snapshot and dirty flag now belong to that load. Only `load()`
+        // advances `loadGeneration` while a save is out — a realtime
+        // reconcile needs a clean canvas, and a canvas with a save in flight
+        // is dirty. So past this check the caller still hears the truth
+        // about its write and the store hears nothing; `loadWorkflow`
+        // already reset the status, so nothing is left stuck.
+        const editorMovedOn = () => {
+          const live = useWorkflowStore.getState()
+          return live.workflowId !== workflowId || live.loadGeneration !== loadGenAtStart
+        }
 
         const scheduleSavedFade = () => {
           if (savedFadeTimerRef.current) clearTimeout(savedFadeTimerRef.current)
@@ -699,6 +727,14 @@ export function useWorkflowPersistence(projectId?: string) {
               p_set: (Object.keys(setPatch).length > 0 ? setPatch : null) as never,
             })
             .abortSignal(AbortSignal.timeout(SAVE_TIMEOUT_MS))
+          // The editor has moved on (`editorMovedOn` above). Never "fallback"
+          // from here: a second, full write for a workflow nobody is looking
+          // at helps no one.
+          if (editorMovedOn()) {
+            if (error) return { success: false, error: error.message }
+            const landed = (Array.isArray(data) ? data[0] : data) as { ok?: boolean } | undefined
+            return landed?.ok ? { success: true } : { success: false, error: "workflow_changed" }
+          }
           if (error) {
             const code = (error as { code?: string }).code
             if (code === "PGRST202" || /apply_workflow_delta/i.test(error.message)) {
@@ -753,6 +789,9 @@ export function useWorkflowPersistence(projectId?: string) {
             .eq("id", workflowId)
             .abortSignal(AbortSignal.timeout(SAVE_TIMEOUT_MS))
             .maybeSingle()
+          // The rebase below writes a merged GRAPH into the store. After a
+          // move that is this workflow's nodes on another one's canvas.
+          if (editorMovedOn()) return { success: false, error: "workflow_changed" }
           if (!fresh) return "fallback"
           const freshRow = fresh as unknown as {
             nodes?: WorkflowNode[]; edges?: WorkflowEdge[]
@@ -849,28 +888,23 @@ export function useWorkflowPersistence(projectId?: string) {
             .select("updated_at, version")
             .maybeSingle()
 
+          // The editor has moved on — see `editorMovedOn` above.
+          if (editorMovedOn()) {
+            if (error) return { success: false, error: error.message }
+            return data ? { success: true } : { success: false, error: "workflow_changed" }
+          }
+
           if (error) {
             setSaveStatus("error", error.message)
             return { success: false, error: error.message }
           }
 
           if (!data) {
-            // 0 rows matched: either the row was deleted, or its
-            // `updated_at` changed between load and save (another tab /
-            // device wrote first). Surface the conflict with a one-tap
-            // Reload action; dedupe on a stable toast id so a retry
-            // loop in the autosave gate can't spam the screen.
-            setSaveStatus("error", "Workflow was updated on another device")
-            // Fetch the current updated_at so the realtime banner's
-            // divergence check (`remoteUpdatedAt !== loadedUpdatedAt`)
-            // shows even if the matching Realtime UPDATE event hasn't
-            // arrived yet (or was missed because Realtime was offline).
-            // If the fallback fetch fails or returns no `updated_at`,
-            // still mark `remoteUpdatedAt` non-null with a sentinel so
-            // the autosave gate (`remoteUpdatedAt !== loadedUpdatedAt`)
-            // pauses retries — otherwise the loop hot-retries every
-            // 3 s and spams the conflict toast on the same id.
-            let captured = false
+            // 0 rows matched. That is NOT yet "another device wrote first":
+            // the row policies turn a write away the same silent way, and a
+            // deleted row looks identical too. Re-read the row and let what
+            // it says decide — see `classifyZeroRowSave`.
+            let current: { updated_at?: unknown; version?: unknown } | null = null
             try {
               const { data: cur } = await supabase
                 .from("workflows")
@@ -881,12 +915,51 @@ export function useWorkflowPersistence(projectId?: string) {
                 // the save queue.
                 .abortSignal(AbortSignal.timeout(SAVE_TIMEOUT_MS))
                 .maybeSingle()
-              if (cur?.updated_at) {
-                setRemoteUpdatedAt(cur.updated_at as string)
-                captured = true
-              }
+              current = (cur as { updated_at?: unknown; version?: unknown } | null) ?? null
             } catch {
-              // best-effort; fall through to the sentinel below
+              // best-effort; an unread row is handled as `unknown` below
+            }
+            // The re-read was a second wait — ask again before writing.
+            if (editorMovedOn()) return { success: false, error: "workflow_changed" }
+
+            if (classifyZeroRowSave({ version: loadedVersion, updatedAt: loadedUpdatedAt || null }, current) === "refused") {
+              // The token this tab sent is still the row's token, so nobody
+              // else wrote: the write itself was refused. Say that, and stop
+              // asking. `saveRefusedFor` is what ends the retries — `saveOnce`
+              // bails on it before any request, where the divergence marker
+              // could not: the row never moved, so nothing would ever look
+              // "ahead" and autosave would re-send the whole graph every few
+              // seconds. NOT `isReadOnly`: a refusal usually lands mid-run (the
+              // run's own first patch is what dirtied the canvas), and
+              // read-only turns `updateNodeData` into a no-op — the result of
+              // a job already paid for would never reach its node.
+              const reason = tx("editor.notWritableReason")
+              useWorkflowStore.setState({ saveRefusedFor: workflowId })
+              setSaveStatus("error", reason)
+              toast.error(tx("editor.notWritableTitle"), {
+                id: "workflow-not-writable",
+                description: reason,
+                duration: 10_000,
+              })
+              return { success: false, error: "not_writable" }
+            }
+
+            // A real conflict (or a row that could not be re-read). Surface it
+            // with a one-tap Reload action; dedupe on a stable toast id so a
+            // retry loop in the autosave gate can't spam the screen.
+            setSaveStatus("error", "Workflow was updated on another device")
+            // Record the row's current updated_at so the divergence check
+            // (`remoteUpdatedAt !== loadedUpdatedAt`) holds even if the
+            // matching Realtime UPDATE event hasn't arrived yet (or was
+            // missed because Realtime was offline). If the re-read failed or
+            // returned no `updated_at`, still mark `remoteUpdatedAt` non-null
+            // with a sentinel so the autosave gate pauses retries — otherwise
+            // the loop hot-retries every 3 s and spams the conflict toast on
+            // the same id.
+            let captured = false
+            if (typeof current?.updated_at === "string" && current.updated_at) {
+              setRemoteUpdatedAt(current.updated_at)
+              captured = true
             }
             if (!captured) {
               // Sentinel: any string different from `loadedUpdatedAt`.
