@@ -48,6 +48,7 @@ import { getJobStatusLean } from "./api"
 import { COMPOSER_PLAN_MAP, unwrapEditPlanOutput } from "@nodaro/shared"
 import { findRevision, resolveSceneCompletion } from "@/lib/scene3d/revisions"
 import { planRevisionId } from "@/lib/scene3d/plan-view"
+import { isScrapeNodeType, scrapeJobNeedsApplying, scrapeResultPatch } from "@/components/nodes/scrape-result-recovery"
 import type { GeneratedResult, Scene3DRevisionEntry, WorkflowNode } from "@/types/nodes"
 
 /** The single-entry nodeState a completed single-node job carries (backend
@@ -62,6 +63,7 @@ interface ExecItemLike {
   readonly id: string
   readonly triggerType?: string
   readonly nodeStates?: Record<string, unknown>
+  readonly createdAt?: string
 }
 
 /** A terminal job a node may be recovered from. */
@@ -69,6 +71,9 @@ export interface TerminalJobRef {
   readonly nodeId: string
   readonly jobId: string
   readonly status: "completed" | "failed"
+  /** When the server created the job. The scrape lane ties a job to the node's
+   *  last run with it (`scrapeJobNeedsApplying`). */
+  readonly createdAt?: string
 }
 
 export interface NodeResultUpdate {
@@ -108,7 +113,7 @@ export function pickLatestTerminalJobPerNode(
     const status = st?.status
     if (status !== "completed" && status !== "failed") continue
     if (status === "failed" && !opts.acceptsFailed?.(nodeId)) continue
-    byNode.set(nodeId, { nodeId, jobId: st?.jobId ?? item.id, status })
+    byNode.set(nodeId, { nodeId, jobId: st?.jobId ?? item.id, status, createdAt: item.createdAt })
   }
   return [...byNode.values()]
 }
@@ -163,8 +168,19 @@ function nodeHasResult(data: Record<string, unknown>): boolean {
  * background. Blocking on the previous MP4 there loses the paid revision as
  * well as the new video — billed, in My Library, nothing on canvas.
  */
-function blocksRecovery(nodeType: string | undefined, data: Record<string, unknown>): boolean {
+function blocksRecovery(
+  nodeType: string | undefined,
+  data: Record<string, unknown>,
+  ref: Pick<TerminalJobRef, "jobId" | "createdAt">,
+): boolean {
   if (isScene3DNodeType(nodeType)) return false
+  // Scrapers, for the same reason as Scene3D and with their own guard: a scrape
+  // node KEEPS its last good payload through a failed or empty rerun (#765), so
+  // "holds a result" is the normal state of one that has run before. Blocking
+  // on it loses exactly the run this module exists for — rerun, cut off at the
+  // edge or the tab closed mid-crawl, job finishes anyway. Their guard is by
+  // JOB, not by emptiness.
+  if (isScrapeNodeType(nodeType)) return !scrapeJobNeedsApplying(data, { id: ref.jobId, createdAt: ref.createdAt })
   return nodeHasResult(data)
 }
 
@@ -349,6 +365,10 @@ export function buildCompletedResultPatch(
     }
     return patch
   }
+  // Scrapers: the result is `output_data.json` too, written through the live
+  // run's own patch so the card, the counts and the kept-last-good contract are
+  // identical however the result arrived.
+  if (nodeType && isScrapeNodeType(nodeType)) return scrapeResultPatch(nodeType, output.json, jobId)
   // edit-plan: the EDL plan is the top-level output_data (an Edl for tighten, an
   // EdlClipSet for clips, a { version, chapters } for chapters) + viaNodaroCloud.
   // Unwrap it onto generatedJson (clips → bare Edl[], which fans out) — the ONE
@@ -416,11 +436,12 @@ export async function computeCompletedJobPatches(
 ): Promise<NodeResultUpdate[]> {
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
   const out: NodeResultUpdate[] = []
-  for (const { nodeId, jobId, status } of refs) {
+  for (const ref of refs) {
+    const { nodeId, jobId, status } = ref
     const node = nodeById.get(nodeId)
     if (!node) continue // deleted / sub-workflow node
     const data = (node.data ?? {}) as Record<string, unknown>
-    if (blocksRecovery(node.type, data)) continue // respect existing result / user edits
+    if (blocksRecovery(node.type, data, ref)) continue // respect existing result / user edits
 
     let job: Awaited<ReturnType<typeof fetchOutput>>
     try {
@@ -438,7 +459,7 @@ export async function computeCompletedJobPatches(
     // while the job lookup is in flight. Deciding against the stale snapshot
     // would overwrite exactly the edit that was made during recovery.
     const live = readLiveData?.(nodeId) ?? data
-    if (readLiveData && blocksRecovery(node.type, live)) continue
+    if (readLiveData && blocksRecovery(node.type, live, ref)) continue
 
     if (status === "failed") {
       // A refused run that RETAINED its draft. Scene3D only (the picker's
@@ -493,7 +514,11 @@ export async function reconcileCompletedSingleNodeJobs(
     // node id (deleted, sub-workflow) simply says no.
     const typeById = new Map(nodes.map((n) => [n.id, n.type]))
     const refs = pickLatestTerminalJobPerNode(items, {
-      acceptsFailed: (nodeId) => isScene3DNodeType(typeById.get(nodeId)),
+      // Scene3D: a refusal can retain a result. Scrapers: a failed job carries
+      // nothing to paint (the loop below skips it) but it must still SHADOW an
+      // older completed one — otherwise a genuinely failed rerun is "recovered"
+      // from the run before it, and the failure disappears behind stale data.
+      acceptsFailed: (nodeId) => isScene3DNodeType(typeById.get(nodeId)) || isScrapeNodeType(typeById.get(nodeId)),
     })
     if (refs.length === 0) return
     const fetchOutput =

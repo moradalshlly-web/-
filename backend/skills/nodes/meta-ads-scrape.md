@@ -103,6 +103,14 @@ hooks, USPs, CTA, summary.
 - **Format filter returns FEWER.** `formats` (`vertical` / `square` /
   `horizontal`, classified from real pixels) filters the ADS, so a run may return
   fewer than `count`.
+- **Long runs.** Copying every video and analysing every ad runs past the ~100 s
+  HTTP edge timeout. The workflow runner and the editor handle this on their own.
+  A direct API caller should send `respondAsync: true`: the route then answers
+  `{ jobId, status: "pending" }` at once and finishes server-side, and the ads are
+  read from the completed job's `output_data` (poll `GET /v1/jobs/:id`). Without
+  the flag the request is held open and the result comes back in the body — fine
+  for a small search, cut off at the edge for a long run even though the job
+  completes and is charged.
 - **Providers / keys.** Needs `APIFY_API_TOKEN`, or a connected nodaro.ai account
   (the run — scrape, advertiser resolution and analysis — is relayed and billed
   there); AI analysis additionally needs an LLM key (KIE / Anthropic / Gemini) on

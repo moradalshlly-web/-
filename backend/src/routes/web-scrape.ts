@@ -1,13 +1,16 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
-import { supabase } from "../lib/supabase.js"
 import { insertJob } from "../lib/insert-job.js"
 import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js"
-import { CreditsService } from "../ee/billing/credits.js"
+// Core-safe commit/refund (keyed by job id, `ee/` reached via dynamic import) —
+// this route no longer imports `ee/` at all.
+import { commitReservedCreditsForJob, refundReservedCreditsForJob } from "../lib/credits-job-lifecycle.js"
+import { markJobCompleted } from "../workers/shared.js"
+import { markJobFailed } from "../lib/job-failure.js"
 import { runScraper } from "../providers/apify/scraper.js"
 import { fetchRssItems } from "../providers/rss/parser.js"
 import { resolveScraperCreditId } from "@nodaro/shared"
-import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
+import { extractWorkflowId, extractNodeId, extractForcePrivate, wantsJobIdFirst } from "../lib/request-helpers.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
 import { safeUrlSchema } from "../lib/url-validator.js"
 import { normalizeWebUrlInput } from "../lib/web-url-input.js"
@@ -15,18 +18,30 @@ import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { config } from "../lib/config.js"
 import { shouldRunOnCloud } from "../providers/nodaro/run-on-cloud.js"
-import { callCloudRoute } from "../providers/nodaro/client.js"
+import { createCloudJob, waitForCloudJob } from "../providers/nodaro/client.js"
+
+const ROUTE_PATH = "/v1/web-scrape"
 
 /**
  * No Apify token of its own + a live nodaro.ai connection: the connection
  * runs the scrape (billed to the connected account) and this route relays
- * the result — the same shape the local scraper returns, minus the cloud
- * job id (this install has its own job row). RSS never needs Apify and is
- * always fetched locally.
+ * the result. RSS never needs Apify and is always fetched locally.
+ *
+ * The relay asks the cloud for the job id first and polls it, because the
+ * cloud sits behind the same ~100 s edge timeout a browser does: held open, a
+ * site crawl was cut off there while the cloud finished and billed the
+ * connected account. A cloud that predates `respondAsync` ignores the flag and
+ * answers when the work is done — that answer carries a `jobId` too, and the
+ * poll finds the job already terminal, so a scrape UNDER the edge timeout reads
+ * the same way against both generations. A longer one against such a cloud is
+ * cut off exactly as it always was (this install fails and refunds its own job;
+ * the connected account is still billed there) — no better, no worse.
+ * The cloud job's `output_data` is the shape this route builds locally.
  */
 async function scrapeViaConnection(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const { jobId: _cloudJobId, ...result } = await callCloudRoute("/v1/web-scrape", body)
-  return result
+  const cloudJobId = await createCloudJob(ROUTE_PATH, { ...body, respondAsync: true })
+  const cloudJob = await waitForCloudJob(cloudJobId)
+  return (cloudJob.output_data as Record<string, unknown> | null) ?? {}
 }
 
 // People type addresses the way the address bar shows them ("pletor.ai",
@@ -66,7 +81,12 @@ const webScrapeBody = z.discriminatedUnion("actor", [
   contentCrawlerBody, googleSearchBody, instagramBody, tiktokBody, rssBody,
 ])
 
+type ScrapeOutcome =
+  | { readonly ok: true; readonly result: Record<string, unknown> }
+  | { readonly ok: false; readonly status: number; readonly code: string; readonly message: string }
+
 export async function webScrapeRoutes(app: FastifyInstance) {
+  // Literal path on purpose: sync-http-route-parity.test.ts greps for it.
   app.post("/v1/web-scrape", {
     preHandler: creditGuard((req) => resolveScraperCreditId(req.body)),
     config: { requestTimeout: 600_000 } as Record<string, unknown>,
@@ -105,30 +125,75 @@ export async function webScrapeRoutes(app: FastifyInstance) {
     if (reply.sent) return
     const usageLogId = reservation?.usageLogId
 
-    try {
-      // RSS bypasses Apify entirely — a plain HTTP GET + XML parse. Keeps
-      // this path off the Apify bill and cuts per-run latency ~orders
-      // of magnitude.
-      const result = parsed.data.actor === "rss"
-        ? { json: await fetchRssItems({ url: parsed.data.url, resultsLimit: parsed.data.resultsLimit }) }
-        : (await shouldRunOnCloud(config.APIFY_API_TOKEN))
-          ? await scrapeViaConnection(parsed.data as Record<string, unknown>)
-          : await runScraper(parsed.data)
+    /**
+     * Run the scrape and settle the job — the ONE body both reply modes share,
+     * so what is charged and what is stored cannot differ between them.
+     *
+     * Never throws: in the job-id-first mode nothing awaits it, and an escaping
+     * rejection there is an unhandled one. Mark-failed and the refund are
+     * themselves wrapped, so a failure inside them is logged, not thrown.
+     */
+    const runAndSettle = async (): Promise<ScrapeOutcome> => {
+      try {
+        // RSS bypasses Apify entirely — a plain HTTP GET + XML parse. Keeps
+        // this path off the Apify bill and cuts per-run latency ~orders
+        // of magnitude.
+        const result: Record<string, unknown> = parsed.data.actor === "rss"
+          ? { json: await fetchRssItems({ url: parsed.data.url, resultsLimit: parsed.data.resultsLimit }) }
+          : (await shouldRunOnCloud(config.APIFY_API_TOKEN))
+            ? await scrapeViaConnection(parsed.data as Record<string, unknown>)
+            : { ...(await runScraper(parsed.data)) }
 
-      await supabase.from("jobs").update({
-        status: "completed",
-        output_data: result,
-      }).eq("id", job.id)
+        // false = the job left `pending` under us — cancelled mid-scrape, where
+        // the cancel path already refunded. Settling it would charge for a run
+        // the user stopped; returning the data would be a free scrape.
+        const completed = await markJobCompleted(job.id, { output_data: result })
+        if (!completed) {
+          req.log.info({ jobId: job.id }, "[web-scrape] job left pending before completion; skipping settlement")
+          return { ok: false, status: 409, code: "job_cancelled", message: "The job was cancelled before it completed." }
+        }
 
-      if (usageLogId) await CreditsService.commitCredits(usageLogId)
-
-      return reply.send({ jobId: job.id, ...result })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Scrape failed"
-      // tenant-scope-ignore: job.id is server-generated in this request
-      await supabase.from("jobs").update({ status: "failed", output_data: { error: message } }).eq("id", job.id)
-      if (usageLogId) await CreditsService.refundCredits(usageLogId)
-      return reply.status(502).send({ error: { code: "scrape_error", message } })
+        // The job IS completed and its result stored from here on, so a commit
+        // that fails must not fall into the catch below: `markJobFailed` would
+        // miss its CAS on a completed row, nothing would be refunded, and a held
+        // caller would get a 502 for a scrape that is sitting on the job. The
+        // reservation stays `reserved` and this line is what ops finds it by.
+        if (usageLogId) {
+          await commitReservedCreditsForJob(job.id).catch((commitErr: unknown) => {
+            req.log.error({ err: commitErr, jobId: job.id }, "[web-scrape] job completed but its reservation did not commit")
+          })
+        }
+        return { ok: true, result }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Scrape failed"
+        try {
+          // Refund only when WE flipped the row — a cancelled job was refunded by cancel.
+          const flipped = await markJobFailed(job.id, { error_message: message, extra: { output_data: { error: message } } })
+          if (flipped && usageLogId) await refundReservedCreditsForJob(job.id)
+        } catch (failErr) {
+          req.log.error({ err: failErr, jobId: job.id }, "[web-scrape] failed to mark job failed / refund")
+        }
+        req.log.error({ err, jobId: job.id }, "[web-scrape] scrape failed")
+        return { ok: false, status: 502, code: "scrape_error", message }
+      }
     }
+
+    // Job id first: the scrape runs as detached work and the caller polls
+    // GET /v1/jobs/:id. A site crawl of 20 pages measured 252 s against an
+    // edge timeout of ~100 s — held open, the browser was cut off with a 524
+    // while the job finished server-side and was charged, so the editor showed
+    // "failed" for a run that succeeded and was paid for. Durability is
+    // unchanged: the work was always in-process here; there is no worker.
+    if (wantsJobIdFirst(req.body)) {
+      reply.send({ jobId: job.id, status: "pending" })
+      void runAndSettle()
+      return
+    }
+
+    const outcome = await runAndSettle()
+    if (!outcome.ok) {
+      return reply.status(outcome.status).send({ error: { code: outcome.code, message: outcome.message } })
+    }
+    return reply.send({ jobId: job.id, ...outcome.result })
   })
 }

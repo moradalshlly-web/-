@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
-import { SCRAPER_ACTOR_LABELS, type ScraperActorId } from "@nodaro/shared"
+import { SCRAPER_ACTOR_LABELS, SCRAPER_CREDIT_COSTS, buildScraperCreditId, type ScraperActorId } from "@nodaro/shared"
 import { useT, tx } from "@/lib/i18n"
 import type { WebScrapeNodeData } from "@/types/nodes"
 import {
@@ -26,6 +26,7 @@ import {
 } from "@/components/nodes/web-scrape-run-state"
 import { MappableField } from "./mappable-field"
 import { formatCreditUnits } from "@/lib/credit-units"
+import { useModelCredits } from "@/ee/hooks/use-model-credits"
 import type { ConfigProps } from "./types"
 
 // Ordered so google-search sits first as the default, followed by the others.
@@ -36,6 +37,18 @@ const ACTOR_OPTIONS: ReadonlyArray<ScraperActorId> = [
   "instagram",
   "tiktok",
 ]
+
+/**
+ * What a crawl mode costs — the figure that is CHARGED, asked of the server by
+ * the same price row the Run buttons and the Execute total use. These two
+ * labels used to carry their own literals (3 and 10) and were never touched
+ * when the prices moved: the site crawl read "10 CR" beside a panel button that
+ * said 55. The shared table is only the fallback while the price loads.
+ */
+function useCrawlModeCredits(mode: "page" | "site"): number {
+  const creditId = buildScraperCreditId({ actor: "content-crawler", mode })
+  return useModelCredits(creditId, SCRAPER_CREDIT_COSTS[creditId] ?? 0)
+}
 
 // Cleared on actor switch so old values don't resurface when switching back.
 const ACTOR_FIELD_KEYS = ["query", "maxResults", "countryCode", "url", "mode", "target", "resultsLimit"] as const
@@ -172,6 +185,9 @@ export function WebScrapeResultsTab({ data }: { readonly data: WebScrapeNodeData
 function WebScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapField }: ConfigProps<WebScrapeNodeData>) {
   const t = useT()
   const actor: ScraperActorId = data.actor ?? "google-search"
+  // Hooks, so asked unconditionally — the labels only render for the crawler.
+  const pageCredits = useCrawlModeCredits("page")
+  const siteCredits = useCrawlModeCredits("site")
 
   // SCRAPER_ACTOR_LABELS lives in @nodaro/shared (wire contract, shared with
   // the node card), so the two non-brand entries are localized here at the
@@ -275,8 +291,8 @@ function WebScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapField
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="page">{t("cfgext.scrapeSinglePage", { units: formatCreditUnits(3) })}</SelectItem>
-                <SelectItem value="site">{t("cfgext.scrapeSiteCrawl", { units: formatCreditUnits(10) })}</SelectItem>
+                <SelectItem value="page">{t("cfgext.scrapeSinglePage", { units: formatCreditUnits(pageCredits) })}</SelectItem>
+                <SelectItem value="site">{t("cfgext.scrapeSiteCrawl", { units: formatCreditUnits(siteCredits) })}</SelectItem>
               </SelectContent>
             </Select>
           </div>

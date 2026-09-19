@@ -1,6 +1,6 @@
 import type { WorkflowNode, WorkflowEdge, FieldMappings } from "@/types/nodes"
 import type { SourceNodeInfo } from "./types"
-import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, editPlanSourceDurationSec, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
+import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, instagramScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, editPlanSourceDurationSec, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
 import { videoAuditAnalysisWired } from "@/components/editor/workflow-editor/types"
 import { renderVideoCreditIdForNode } from "@/lib/render-video-plan"
 import type { LlmFeature } from "@nodaro/shared"
@@ -366,6 +366,15 @@ export function getModelIdentifier(
     // ONE identifier (packages/shared) from count × sources × analysis — the
     // same builder the backend guard + reservation use.
     return metaAdsScrapeCreditIdFromNode(data)
+  }
+
+  // Instagram: tiered on count × sources (+ analysis), like Meta Ads. It had no
+  // branch here, so it fell through to the bare node type — and the panel's Run
+  // button, the Execute total and the >100 cr confirm all quoted the flat
+  // "instagram-scrape" row while the route reserved the tiered one. Same builder
+  // as the backend estimator (ee/billing/credits.ts) and the guard.
+  if (nodeType === "instagram-scrape") {
+    return instagramScrapeCreditIdFromNode(data)
   }
 
   if (nodeType === "add-captions") {

@@ -9,7 +9,7 @@ import { RunNodeButton } from "./run-node-button"
 import { EditableNodeLabel } from "./editable-node-label"
 import { HandleWithPopover } from "./handle-with-popover"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
-import { estimateNodeCredits } from "@/components/editor/workflow-editor/types"
+import { useScrapeNodeCredits } from "./use-scrape-node-credits"
 import { SCRAPER_ACTOR_LABELS, type ScraperActorId } from "@nodaro/shared"
 import type { WebScrapeNodeData } from "@/types/nodes"
 import { isValidWebScrapeConnection, DATA_HANDLE_COLORS } from "@/lib/data-handles"
@@ -118,7 +118,7 @@ function WebScrapeNodeComponent({ id, data, selected }: NodeProps) {
   const actor: ScraperActorId = nodeData.actor ?? "google-search"
   const actorLabel = SCRAPER_ACTOR_LABELS[actor]
   const summary = getActorSummary(nodeData)
-  const credits = estimateNodeCredits({ type: "web-scrape", data: nodeData })
+  const credits = useScrapeNodeCredits(id, "web-scrape", nodeData)
   const peek = WEB_SCRAPE_PEEK[actor]
 
   const state = deriveWebScrapeCardState(nodeData)

@@ -45,10 +45,18 @@ vi.mock("../../workers/shared.js", () => ({ markJobCompleted: jobMocks.markJobCo
 vi.mock("../../lib/job-failure.js", () => ({ markJobFailed: jobMocks.markJobFailed }))
 const cloudMocks = vi.hoisted(() => ({
   shouldRunOnCloud: vi.fn(async () => false),
+  // The advertiser lookup is a short, held call; the scrape itself asks the
+  // cloud for a job id and polls it.
   callCloudRoute: vi.fn(),
+  createCloudJob: vi.fn(),
+  waitForCloudJob: vi.fn(),
 }))
 vi.mock("../../providers/nodaro/run-on-cloud.js", () => ({ shouldRunOnCloud: cloudMocks.shouldRunOnCloud }))
-vi.mock("../../providers/nodaro/client.js", () => ({ callCloudRoute: cloudMocks.callCloudRoute }))
+vi.mock("../../providers/nodaro/client.js", () => ({
+  callCloudRoute: cloudMocks.callCloudRoute,
+  createCloudJob: cloudMocks.createCloudJob,
+  waitForCloudJob: cloudMocks.waitForCloudJob,
+}))
 vi.mock("../../lib/supabase.js", () => ({
   supabase: {
     from: () => ({
@@ -143,7 +151,8 @@ describe("POST /v1/meta-ads-scrape", () => {
 
   it("a cloud relay classifies but does not store again (the connected account already did)", async () => {
     cloudMocks.shouldRunOnCloud.mockResolvedValue(true)
-    cloudMocks.callCloudRoute.mockResolvedValue({ jobId: "cloud-job-9", json: [AD] })
+    cloudMocks.createCloudJob.mockResolvedValue("cloud-job-9")
+    cloudMocks.waitForCloudJob.mockResolvedValue({ id: "cloud-job-9", status: "completed", output_data: { json: [AD] } })
     const app = await buildTestApp()
     await app.inject({ method: "POST", url: "/v1/meta-ads-scrape", payload: { mode: "search", query: "nike", ingestVideo: true } })
     expect(mediaMocks.classifyAndStoreMetaAdsMedia).toHaveBeenCalledWith([AD], expect.objectContaining({ storeImages: false, storeFeaturedVideoIndex: undefined }))
@@ -328,7 +337,8 @@ describe("POST /v1/meta-ads-scrape", () => {
 
   it("relays to the nodaro.ai connection when the install has no Apify token — same shape, local job id", async () => {
     cloudMocks.shouldRunOnCloud.mockResolvedValue(true)
-    cloudMocks.callCloudRoute.mockResolvedValue({ jobId: "cloud-job-9", json: [AD] })
+    cloudMocks.createCloudJob.mockResolvedValue("cloud-job-9")
+    cloudMocks.waitForCloudJob.mockResolvedValue({ id: "cloud-job-9", status: "completed", output_data: { json: [AD] } })
     const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
     const app = await buildTestApp()
     const res = await app.inject({
@@ -336,7 +346,13 @@ describe("POST /v1/meta-ads-scrape", () => {
       payload: { mode: "search", query: "nike" },
     })
     expect(res.statusCode).toBe(200)
-    expect(cloudMocks.callCloudRoute).toHaveBeenCalledWith("/v1/meta-ads-scrape", expect.objectContaining({ mode: "search", query: "nike" }))
+    // Job id first, then poll: the cloud sits behind the same ~100 s edge
+    // timeout a browser does.
+    expect(cloudMocks.createCloudJob).toHaveBeenCalledWith(
+      "/v1/meta-ads-scrape",
+      expect.objectContaining({ mode: "search", query: "nike", respondAsync: true }),
+    )
+    expect(cloudMocks.waitForCloudJob).toHaveBeenCalledWith("cloud-job-9")
     expect(runMetaAdsScrape).not.toHaveBeenCalled()
     expect(res.json().jobId).toBe("job-1")
     expect(res.json().json).toEqual([AD_OUT])
@@ -491,5 +507,101 @@ describe("POST /v1/meta-ads-scrape", () => {
     const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape", payload: { mode: "search", query: "nike" } })
     expect(res.statusCode).toBe(200)
     expect(commitReservedCreditsForJob).not.toHaveBeenCalled()
+  })
+
+  // A run that copies every video and analyses every ad outlasts the ~100 s edge
+  // timeout: held open, the browser is cut off with a 524 while the job finishes
+  // server-side and is charged. Same two reply modes as web-scrape.
+  describe("job id first (respondAsync)", () => {
+    async function heldProvider() {
+      const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
+      let release: (v: { json: unknown }) => void = () => {}
+      let fail: (e: Error) => void = () => {}
+      vi.mocked(runMetaAdsScrape).mockImplementation(
+        () => new Promise((resolve, reject) => { release = resolve as never; fail = reject }) as never,
+      )
+      return { release: (v: { json: unknown }) => release(v), fail: (e: Error) => fail(e) }
+    }
+
+    it("answers with the job id while the scrape is still running, then settles when it lands", async () => {
+      const { commitReservedCreditsForJob } = await import("../../lib/credits-job-lifecycle.js")
+      const provider = await heldProvider()
+      const app = await buildTestApp()
+      const res = await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "search", query: "nike", respondAsync: true },
+      })
+
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({ jobId: "job-1", status: "pending" })
+      expect(jobMocks.markJobCompleted).not.toHaveBeenCalled()
+      expect(commitReservedCreditsForJob).not.toHaveBeenCalled()
+
+      provider.release({ json: [AD] })
+      await vi.waitFor(() => expect(commitReservedCreditsForJob).toHaveBeenCalledWith("job-1"))
+      expect(jobMocks.markJobCompleted).toHaveBeenCalledWith("job-1", expect.objectContaining({
+        output_data: expect.objectContaining({ json: [AD_OUT] }),
+      }))
+    })
+
+    it("a scrape that fails after the response marks the job failed and refunds", async () => {
+      const { refundReservedCreditsForJob } = await import("../../lib/credits-job-lifecycle.js")
+      const provider = await heldProvider()
+      const app = await buildTestApp()
+      await app.inject({
+        method: "POST", url: "/v1/meta-ads-scrape",
+        payload: { mode: "search", query: "nike", respondAsync: true },
+      })
+
+      provider.fail(new Error("Actor run timed out"))
+      await vi.waitFor(() => expect(refundReservedCreditsForJob).toHaveBeenCalledWith("job-1"))
+      expect(jobMocks.markJobFailed).toHaveBeenCalledWith("job-1", {
+        error_message: "Actor run timed out",
+        extra: { output_data: { error: "Actor run timed out" } },
+      })
+    })
+
+    it("never lets a rejection escape the detached run — not even from the failure write", async () => {
+      jobMocks.markJobFailed.mockRejectedValue(new Error("connection reset"))
+      const provider = await heldProvider()
+      const escaped: unknown[] = []
+      const onEscape = (reason: unknown) => escaped.push(reason)
+      process.on("unhandledRejection", onEscape)
+      try {
+        const app = await buildTestApp()
+        await app.inject({
+          method: "POST", url: "/v1/meta-ads-scrape",
+          payload: { mode: "search", query: "nike", respondAsync: true },
+        })
+        provider.fail(new Error("Actor run timed out"))
+        await vi.waitFor(() => expect(jobMocks.markJobFailed).toHaveBeenCalled())
+        await new Promise((resolve) => setImmediate(resolve))
+      } finally {
+        process.off("unhandledRejection", onEscape)
+      }
+      expect(escaped).toEqual([])
+    })
+
+    it("still holds the request and answers with the ads when the flag is absent", async () => {
+      const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
+      vi.mocked(runMetaAdsScrape).mockResolvedValue({ json: [AD] } as never)
+      const app = await buildTestApp()
+      const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape", payload: { mode: "search", query: "nike" } })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toMatchObject({ jobId: "job-1", json: [AD_OUT] })
+    })
+
+    it("a commit that fails AFTER completion still answers with the stored ads — never a 502, never a failed job", async () => {
+      const { runMetaAdsScrape } = await import("../../providers/apify/meta-ads.js")
+      const { commitReservedCreditsForJob, refundReservedCreditsForJob } = await import("../../lib/credits-job-lifecycle.js")
+      vi.mocked(runMetaAdsScrape).mockResolvedValue({ json: [AD] } as never)
+      vi.mocked(commitReservedCreditsForJob).mockRejectedValueOnce(new Error("statement timeout"))
+      const app = await buildTestApp()
+      const res = await app.inject({ method: "POST", url: "/v1/meta-ads-scrape", payload: { mode: "search", query: "nike" } })
+      expect(res.statusCode).toBe(200)
+      expect(res.json().json).toEqual([AD_OUT])
+      expect(jobMocks.markJobFailed).not.toHaveBeenCalled()
+      expect(refundReservedCreditsForJob).not.toHaveBeenCalled()
+    })
   })
 })

@@ -4361,9 +4361,13 @@ export async function webScrape(params: {
   target?: string
   resultsLimit?: number
   workflowId?: string
-}): Promise<{ jobId: string; json: unknown }> {
+}): Promise<{ jobId: string }> {
+  // `respondAsync`: answer with the job id and finish server-side. Held open, a
+  // site crawl outlasts the ~100 s edge timeout — the request died with a 524
+  // ("Web scrape failed", this label) while the job completed and was charged.
+  // The caller polls the job (pollScrapeJobOutput).
   return apiJson("/v1/web-scrape", {
-    body: params,
+    body: { ...params, respondAsync: true },
     workflowId: true,
     label: "Web scrape failed",
   })
@@ -4396,9 +4400,14 @@ export async function metaAdsScrape(params: {
   analysisModel?: string
   analysisFocus?: string
   workflowId?: string
-}): Promise<{ jobId: string; json: unknown; text?: string; imageUrl?: string; videoUrl?: string; mediaStorage?: unknown; analysis?: unknown }> {
+}): Promise<{ jobId: string }> {
+  // `respondAsync`: answer with the job id and finish server-side. A run that
+  // copies every video and analyses every ad outlasts the ~100 s edge timeout;
+  // held open, the request died with a 524 ("Meta Ads scrape failed", this
+  // label) while the job completed and was charged. The caller polls the job
+  // (pollScrapeJobOutput) — same contract as web-scrape and instagram-scrape.
   return apiJson("/v1/meta-ads-scrape", {
-    body: params,
+    body: { ...params, respondAsync: true },
     workflowId: true,
     label: "Meta Ads scrape failed",
   })

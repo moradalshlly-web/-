@@ -104,6 +104,7 @@ import {
   executeReduce,
 } from "@/lib/api";
 import { applyWebScrapeFailure, applyWebScrapeResult, webScrapeRunStartPatch } from "@/components/nodes/web-scrape-run-state";
+import { scrapeResultPatch } from "@/components/nodes/scrape-result-recovery";
 import { applyMetaAdsScrapeFailure, applyMetaAdsScrapeResult, metaAdsScrapeRunStartPatch } from "@/components/nodes/meta-ads-scrape-run-state";
 import { applyInstagramScrapeFailure, applyInstagramScrapeResult, instagramScrapeRunStartPatch } from "@/components/nodes/instagram-scrape-run-state";
 import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, splitMetaAdsAdvertiserNames, splitInstagramTargets } from "@nodaro/shared";
@@ -5204,6 +5205,7 @@ function executeNodeCore(
     const videoWired = liveEdges.some((e) => e.source === node.id && e.sourceHandle === "video");
     updateNodeData(node.id, instagramScrapeRunStartPatch(d));
     setUserPromptTemplate(undefined);
+    let instagramJobId = "";
     return instagramScrape({
       mode: d.mode === "hashtag" ? "hashtag" : "profile",
       targets,
@@ -5219,10 +5221,16 @@ function executeNodeCore(
     })
       // The scrape runs past the ~100s edge timeout, so the route answers with a
       // job id and finishes server-side; poll it to completion here.
-      .then(({ jobId }) => pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal }))
+      .then(({ jobId }) => {
+        instagramJobId = jobId;
+        return pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal });
+      })
       .then((output) => {
         const json = output.json;
-        const patch = applyInstagramScrapeResult(json);
+        // scrapeResultPatch = applyInstagramScrapeResult + the job the payload
+        // came from; without that stamp a later reload cannot tell this result
+        // is already on the node, and re-applying it resets the featured post.
+        const patch = scrapeResultPatch("instagram-scrape", json, instagramJobId) ?? applyInstagramScrapeResult(json);
         updateNodeData(node.id, patch);
         guardedToast.success(patch.lastRunOutcome === "empty" ? "Instagram completed — 0 posts" : "Instagram completed");
         return json === undefined ? "" : JSON.stringify(json);
@@ -5260,18 +5268,30 @@ function executeNodeCore(
     updateNodeData(node.id, metaAdsScrapeRunStartPatch(d));
 
     setUserPromptTemplate(undefined);
+    let metaAdsJobId = "";
     return metaAdsScrape(params)
-      .then((res) => {
+      // The scrape, the media copy and the analysis run past the ~100 s edge
+      // timeout, so the route answers with a job id and finishes server-side;
+      // poll it here (same contract as web-scrape and instagram-scrape).
+      .then(({ jobId }) => {
+        metaAdsJobId = jobId;
+        return pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal });
+      })
+      .then((output) => {
+        const json = output.json;
         // Same #765 contract as Web Scrape: an empty run records the outcome
         // and KEEPS the previous good payload; the chain gets THIS run's output.
-        const patch = applyMetaAdsScrapeResult(res.json);
+        const patch = scrapeResultPatch("meta-ads-scrape", json, metaAdsJobId) ?? applyMetaAdsScrapeResult(json);
         updateNodeData(node.id, patch);
         guardedToast.success(
           patch.lastRunOutcome === "empty" ? "Meta Ads completed — 0 ads" : "Meta Ads completed",
         );
-        return res.json === undefined ? "" : JSON.stringify(res.json);
+        return json === undefined ? "" : JSON.stringify(json);
       })
       .catch((err: Error) => {
+        // Stop → the poll was aborted; the central Stop handler already restored
+        // the node, so don't overwrite it with a failure (mirrors instagram-scrape).
+        if (err?.name === "AbortError" || ctx.signal?.aborted) return "";
         updateNodeData(node.id, applyMetaAdsScrapeFailure(err.message || "Scrape failed"));
         guardedToast.error(`Meta Ads failed: ${err.message}`);
         throw err;
@@ -5287,23 +5307,34 @@ function executeNodeCore(
     updateNodeData(node.id, webScrapeRunStartPatch(d));
 
     setUserPromptTemplate(undefined);
+    let scrapeJobId = "";
     return webScrape(params)
-      .then((res) => {
+      // A site crawl runs for minutes — past the ~100 s edge timeout — so the
+      // route answers with a job id and finishes server-side; poll it here.
+      .then(({ jobId }) => {
+        scrapeJobId = jobId;
+        return pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal });
+      })
+      .then((output) => {
+        const json = output.json;
         // #765: the patch records success/empty and KEEPS the previous good
         // payload on an empty run — the incident was an empty rerun silently
         // destroying 20 real results. The chain still receives THIS run's
         // actual output below (honest for the executing graph); only the
         // stored node payload is protected.
-        const patch = applyWebScrapeResult(res.json);
+        const patch = scrapeResultPatch("web-scrape", json, scrapeJobId) ?? applyWebScrapeResult(json);
         updateNodeData(node.id, patch);
         guardedToast.success(
           patch.lastRunOutcome === "empty" ? "Web Scrape completed — 0 results" : "Web Scrape completed",
         );
         // Return stringified JSON for callers that expect a string — same coercion
         // getPrimaryOutput uses on the backend.
-        return res.json === undefined ? "" : JSON.stringify(res.json);
+        return json === undefined ? "" : JSON.stringify(json);
       })
       .catch((err: Error) => {
+        // Stop → the poll was aborted; the central Stop handler already restored
+        // the node, so don't overwrite it with a failure (mirrors instagram-scrape).
+        if (err?.name === "AbortError" || ctx.signal?.aborted) return "";
         // Failed runs record the outcome but never touch generatedJson.
         updateNodeData(node.id, applyWebScrapeFailure(err.message || "Scrape failed"));
         guardedToast.error(`Web Scrape failed: ${err.message}`);

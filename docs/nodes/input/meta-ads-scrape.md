@@ -139,6 +139,15 @@ Turning on **AI analysis** adds a per-ad cost on top of the scrape, by the analy
 
 The analysis rides inside each ad in the `json` output (an `analysis` object) and shows on each row in the **Results** tab.
 
+## Long runs and the API
+
+A run that copies every video into the library and analyses every ad routinely takes longer than the ~100-second limit on a single HTTP request. In the editor and in a workflow there is nothing to do: both ask for a job and wait for it, and the ads appear on the node when the run lands. Reopening a workflow after a run finished in the background shows its result too.
+
+A direct API caller chooses how the answer comes back:
+
+- **Job id first (use this for anything beyond a small search).** Send `"respondAsync": true` in the body. The route answers `{ "jobId": "…", "status": "pending" }` at once and finishes on the server; read the ads from the completed job's `output_data` (`GET /v1/jobs/:id`, or `client.jobs.get(jobId)` in the SDK). The `json` array, the featured `text` / `imageUrl` / `videoUrl`, `mediaStorage`, `resolvedAdvertisers` and any `analysis` all live there.
+- **Held response (the default).** Without the flag the request stays open until the run is done and the same fields come back in the response body beside `jobId`. A run that outlasts the request limit is cut off on the way back even though the job completes and is charged — its result is still on the job.
+
 ## Common Use Cases
 
 - Search a product keyword, extract each ad's `text`, and feed them to Generate Text for a positioning summary

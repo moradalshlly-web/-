@@ -55,7 +55,15 @@ generated_from: 0301f807a
 
 ## Common gotchas
 
-(Add prose here.)
+- **A site crawl runs for minutes.** `mode: "site"` follows up to 20 pages and
+  a real run measured ~250 s — past the ~100 s HTTP edge timeout. The workflow
+  runner and the editor handle this on their own. A direct API caller should
+  send `respondAsync: true`: the route then answers `{ jobId, status: "pending" }`
+  at once and finishes server-side, and the pages are read from the completed
+  job's `output_data.json` (poll `GET /v1/jobs/:id`). Without the flag the
+  request is held open until the scrape is done and the result comes back in
+  the response body — fine for a single page, a search or a feed, and cut off
+  at the edge for a long crawl even though the job completes and is charged.
 
 <!-- AUTO-GEN:START examples -->
 ## Worked example

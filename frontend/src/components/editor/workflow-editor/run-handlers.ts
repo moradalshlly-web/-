@@ -36,6 +36,8 @@ import { buildVariantResults } from "./variant-results";
 import { getJobStatusLeanForNode } from "./poll-job";
 import { sunoVariantFields } from "@/lib/suno-ids";
 import { tx } from "@/lib/i18n";
+import { isScrapeNodeType, scrapeResultPatch } from "@/components/nodes/scrape-result-recovery";
+import { applyWebScrapeFailure } from "@/components/nodes/web-scrape-run-state";
 import { resolveSceneCompletion } from "@/lib/scene3d/revisions";
 import { planRevisionId } from "@/lib/scene3d/plan-view";
 
@@ -854,8 +856,12 @@ export function restorePollingForRunningJobs(
             ctx.untrackInterval(poll);
             const errMsg = job.error_message ?? tx("run.unknownError");
             updateNodeData(nodeId, {
-              executionStatus: "failed",
-              errorMessage: errMsg,
+              // A scrape card reads its state off `lastRunOutcome`, not the
+              // transient status — without the run-state patch a restored
+              // failure is a toast and then a card still showing the last success.
+              ...(isScrapeNodeType(nodeType)
+                ? applyWebScrapeFailure(errMsg)
+                : { executionStatus: "failed", errorMessage: errMsg }),
               currentJobId: undefined,
               currentJobProgress: undefined,
               jobAwaitingReview: undefined,
@@ -948,6 +954,21 @@ function applyRestoredJobCompletion(
       executionStatus: "completed",
       ...(json && typeof json === "object" ? { generatedJson: json } : {}),
       ...(report && typeof report === "object" ? { lastAuditReport: report } : {}),
+      currentJobId: undefined,
+      currentJobProgress: undefined,
+      jobAwaitingReview: undefined,
+    });
+    toast.success(tx("run.backgroundJobCompleted"));
+    return;
+  }
+
+  // Scrapers: same JSON-result gap, and the likeliest node to hit it — a scrape
+  // runs for minutes, so a reload mid-run is ordinary. The patch is the live
+  // run's own (scrapeResultPatch), so a restored result is indistinguishable
+  // from one that arrived with the tab open.
+  if (isScrapeNodeType(nodeType)) {
+    updateNodeData(nodeId, {
+      ...scrapeResultPatch(nodeType, job.output_data?.json, jobId),
       currentJobId: undefined,
       currentJobProgress: undefined,
       jobAwaitingReview: undefined,
