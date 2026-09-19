@@ -1,7 +1,9 @@
 -- A journal/outbox bridges local reservations to a deployment's external wallet.
 -- No network calls or configuration credentials live in the database.
 CREATE TABLE IF NOT EXISTS public.external_wallet_operations (
-  usage_log_id uuid PRIMARY KEY REFERENCES public.usage_logs(id) ON DELETE RESTRICT,
+  -- Keep the receipt after settled usage is purged. The trigger prevents
+  -- deletion while a hold is open; a cascading FK would discard the outbox.
+  usage_log_id uuid PRIMARY KEY,
   requester_id uuid NOT NULL,
   job_id uuid,
   provider text NOT NULL CHECK (length(provider) BETWEEN 1 AND 128),
@@ -79,6 +81,12 @@ CREATE OR REPLACE FUNCTION public.capture_external_wallet_settlement() RETURNS t
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
 DECLARE w public.external_wallet_operations%ROWTYPE; amount integer;
 BEGIN
+  IF TG_OP='DELETE' THEN
+    IF EXISTS(SELECT 1 FROM public.external_wallet_operations WHERE usage_log_id=OLD.id AND actual_credits IS NULL) THEN
+      RAISE EXCEPTION 'EXTERNAL_WALLET_CONFLICT: settle active hold before deleting usage';
+    END IF;
+    RETURN OLD;
+  END IF;
   SELECT * INTO w FROM public.external_wallet_operations WHERE usage_log_id=NEW.id FOR UPDATE;
   IF NOT FOUND THEN RETURN NEW; END IF;
   IF NEW.credits_used IS DISTINCT FROM w.reserved_credits
@@ -102,7 +110,7 @@ BEGIN
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS external_wallet_settlement ON public.usage_logs;
-CREATE TRIGGER external_wallet_settlement AFTER UPDATE ON public.usage_logs
+CREATE TRIGGER external_wallet_settlement AFTER UPDATE OR DELETE ON public.usage_logs
   FOR EACH ROW EXECUTE FUNCTION public.capture_external_wallet_settlement();
 
 REVOKE ALL ON FUNCTION public.prepare_external_wallet(uuid,uuid,uuid,text), public.authorize_external_wallet(uuid),

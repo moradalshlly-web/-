@@ -1284,6 +1284,7 @@ the administrative credentials; each runner receives only a single-use job
 identity and exits after one job. Deploying the pool does not enable CI routing.
 Railway test runners restore npm downloads from the hosted preparation cache
 without saving a second copy. Cache misses still use a clean `npm ci`.
-# External customer wallets
+
+## External customer wallets
 
 Cloud deployments with a designated billing payer can use an [external shared wallet](external-wallet.md) for customer authorization, settlement and balance display.

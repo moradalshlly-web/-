@@ -44,6 +44,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { z } from "zod"
 import { MODEL_CATALOG } from "@nodaro/shared"
 import { resolveDeploymentPrices } from "../billing/deployment-pricing.js"
+import { usageAmount } from "../billing/usage-amount.js"
 import { LOAD_RATE_ANCHORS } from "../billing/load-rate.js"
 import { supabase } from "../../lib/supabase.js"
 import { config } from "../../lib/config.js"
@@ -569,20 +570,20 @@ async function readPool(payerId: string) {
     }),
     supabase
       .from("usage_logs")
-      .select("credits_used, status")
+      .select("credits_used, credits_charged, status")
       .eq("user_id", payerId)
       .in("status", ["reserved", "committed"])
       .gte("created_at", since.toISOString())
       .limit(BURN_CAP),
   ])
 
-  const rows = burnRows.error ? [] : ((burnRows.data ?? []) as ReadonlyArray<{ credits_used: number | null }>)
+  const rows = burnRows.error ? [] : ((burnRows.data ?? []) as ReadonlyArray<{ credits_used: number | null; credits_charged?: number | null; status?: string | null }>)
   if (burnRows.error) console.error("[deployment-billing] burn read failed:", burnRows.error.message)
   return {
     balance,
     burn: {
       periodStart: since.toISOString(),
-      credits: burnRows.error ? null : rows.reduce((sum, r) => sum + (r.credits_used ?? 0), 0),
+      credits: burnRows.error ? null : rows.reduce((sum, r) => sum + (usageAmount(r) ?? 0), 0),
       generations: burnRows.error ? null : rows.length,
       capped: rows.length === BURN_CAP,
     },
@@ -1470,7 +1471,7 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
 
     let q = supabase
       .from("usage_logs")
-      .select("id, created_at, job_id, action, provider, status, credits_used, on_behalf_of")
+      .select("id, created_at, job_id, action, provider, status, credits_used, credits_charged, on_behalf_of")
       // THE POOL. Every generation on this deployment is charged to the
       // billing account, so this predicate is what makes the page "the pool's
       // usage" rather than "one person's".
@@ -1510,6 +1511,7 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
       provider: string | null
       status: string | null
       credits_used: number | null
+      credits_charged?: number | null
       on_behalf_of: string | null
     }>
 
@@ -1579,8 +1581,10 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
         // and commits or refunds when it finishes, so a window that still
         // holds one has to be re-read before it is closed.
         status: r.status ?? null,
-        credits: r.credits_used ?? null,
-        units: inUnits(r.credits_used ?? null, u),
+        credits: usageAmount(r),
+        units: inUnits(usageAmount(r), u),
+        reservedCredits: r.credits_used ?? null,
+        chargedCredits: r.status === "committed" || r.status === "refunded" ? usageAmount(r) : null,
         requester: {
           id: requesterId,
           email: profile?.email ?? null,

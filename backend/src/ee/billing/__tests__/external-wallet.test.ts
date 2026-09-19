@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), getUserById: vi.fn(), active: vi.fn(() => true), enforced: vi.fn(() => false) }))
 vi.mock("../../../lib/supabase.js", () => ({ supabase: { rpc: mocks.rpc, from: mocks.from, auth: { admin: { getUserById: mocks.getUserById } } } }))
 vi.mock("../../../lib/deployment-payer.js", () => ({ deploymentPayerActive: mocks.active, allowanceEnforcementActive: mocks.enforced, deploymentPayerId: () => "00000000-0000-4000-8000-000000000003" }))
-import { authorizeExternalReservation, externalWalletBalance, validateExternalWallet } from "../external-wallet.js"
+import { authorizeExternalReservation, deliverExternalWalletSettlements, externalWalletBalance, validateExternalWallet } from "../external-wallet.js"
 const id = "00000000-0000-4000-8000-000000000001"
 const user = "00000000-0000-4000-8000-000000000002"
 const row = { usage_log_id: id, requester_id: user, job_id: null, provider: "sai", sso_subject: "trusted",
@@ -58,5 +58,28 @@ describe("durable wallet authorization", () => {
     mocks.getUserById.mockResolvedValue({ data: { user: { app_metadata: {}, user_metadata: { sso: "sai", sso_subject: "forged" } } }, error: null })
     expect(await externalWalletBalance(user)).toBeNull()
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it("keeps settlement pending after a lost response and reuses the terminal key on retry", async () => {
+    const writes: Record<string, unknown>[] = []
+    const terminal = { ...row, actual_credits: 7, authorized_at: new Date().toISOString() }
+    mocks.from.mockImplementation(() => {
+      let writing = false
+      const chain: Record<string, unknown> = {}
+      for (const name of ["select", "is", "not", "eq", "lte", "order", "limit"]) chain[name] = () => chain
+      chain.update = (value: Record<string, unknown>) => { writing = true; writes.push(value); return chain }
+      chain.then = (resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) =>
+        Promise.resolve({ data: writing ? null : [terminal], error: null }).then(resolve, reject)
+      return chain
+    })
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("response lost"))
+    await deliverExternalWalletSettlements(id)
+    expect(writes).toContainEqual(expect.objectContaining({ attempts: 1 }))
+    expect(writes.some(w => "delivered_at" in w)).toBe(false)
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ contract: 1, unit: "nodaro_credit", operation_id: id, settled: true, actual_credits: 7 })))
+    await deliverExternalWalletSettlements(id)
+    expect(writes.some(w => "delivered_at" in w)).toBe(true)
+    expect(vi.mocked(fetch).mock.calls.map(call => (call[1]?.headers as Record<string, string>)["Idempotency-Key"]))
+      .toEqual([`${id}:settle`, `${id}:settle`])
   })
 })

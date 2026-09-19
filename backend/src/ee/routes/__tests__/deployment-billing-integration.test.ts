@@ -1213,6 +1213,8 @@ describe("GET /usage", () => {
       status: "committed",
       credits: 4,
       units: 8_000,
+      reservedCredits: 4,
+      chargedCredits: 4,
       requester: { id: U1, email: "dana@example.com", name: "Dana", ssoSubject: "usr_dana" },
     })
     // The pool's own runs are attributed to the account that made them, so a
@@ -1221,6 +1223,14 @@ describe("GET /usage", () => {
     // NEVER an aggregate: the caller sums.
     expect(body.total).toBeUndefined()
     expect(body.credits).toBeUndefined()
+  })
+
+  it("reports settled charges and refunds instead of reservation ceilings", async () => {
+    const rows = usageRows().map(row => row.status === "committed" ? { ...row, credits_charged: 1 } : row)
+    tableResults.set("usage_logs:list", { data: rows, error: null })
+    const res = await app.inject({ method: "GET", url: "/v1/deployment-billing/usage", headers: AS_KEY })
+    expect(res.json().data[0]).toMatchObject({ credits: 1, units: 2000, reservedCredits: 4, chargedCredits: 1 })
+    expect(res.json().data[2]).toMatchObject({ status: "refunded", credits: 0, units: 0, reservedCredits: 1, chargedCredits: 0 })
   })
 
   it("scopes to the pool, orders newest-first on a stable tiebreak, and windows on created_at", async () => {

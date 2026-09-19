@@ -21,6 +21,9 @@ export interface UserBalance {
   periodEnd: string | null
   /** Credits earned for app usage (free tier only — earned by running flows). */
   appCreditsAllowance: number
+  /** Present when a deployment uses an external shared wallet. Raw credits;
+   * null means unavailable. Do not substitute the personal `total` balance. */
+  externalWallet?: { available: number | null }
 }
 
 /**

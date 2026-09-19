@@ -1,5 +1,6 @@
 import { createRenderWorker } from "./workers/render-worker.js"
 import { loadOverlay } from "./lib/overlay/load.js"
+import { initializeExternalWallet } from "./lib/external-wallet.js"
 import { registerMainlinePromptPolicies } from "./lib/prompt-policies/index.js"
 import { beginWorkerDrain, SHUTDOWN_DRAIN_MS } from "./lib/worker-drain.js"
 
@@ -14,6 +15,7 @@ process.on("uncaughtException", (err) => {
 // Load any deployment-supplied overlay (e.g. egress decorator) before the
 // render worker starts consuming jobs. No-op when NODARO_OVERLAY_PACKAGE unset.
 await loadOverlay()
+await initializeExternalWallet(true)
 
 // Mainline prompt policies run AFTER the overlay's (registration order):
 // the minor-age floor is a platform safety invariant, not deployment content.
