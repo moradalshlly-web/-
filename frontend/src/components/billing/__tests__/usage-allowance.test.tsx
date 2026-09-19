@@ -35,6 +35,13 @@ function allowanceCard(container: HTMLElement): HTMLElement {
 }
 
 describe("the /usage allowance card", () => {
+  it("shows a shared balance without suggesting a separate studio allocation", () => {
+    const { container } = render(<BillingAccountSummary account={{ ...consumption, allocated: undefined, balanceSource: "external_wallet", balance: 123 }} consumptionOnly />)
+    const card = allowanceCard(container)
+    expect(card.textContent).toContain("123")
+    expect(card.textContent).not.toContain("200,000")
+    expect(card.textContent).not.toContain("unavailable")
+  })
   it("renders remaining as the headline and granted in a labelled second line", () => {
     const { container } = render(<BillingAccountSummary account={consumption} consumptionOnly />)
     const card = allowanceCard(container)

@@ -43,6 +43,8 @@ import { createHash } from "node:crypto"
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { z } from "zod"
 import { MODEL_CATALOG } from "@nodaro/shared"
+import { resolveDeploymentPrices } from "../billing/deployment-pricing.js"
+import { LOAD_RATE_ANCHORS } from "../billing/load-rate.js"
 import { supabase } from "../../lib/supabase.js"
 import { config } from "../../lib/config.js"
 import { CreditsService, PriceNotConfiguredError } from "../billing/credits.js"
@@ -1635,6 +1637,7 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
     const ids = [...new Set(allow.length > 0 ? allow : Object.keys(MODEL_CATALOG))]
       .filter((id) => !isModelDenied(id))
       .sort()
+    const resolved = await resolveDeploymentPrices(ids, id => CreditsService.getModelCreditCost(id))
 
     // ONE read for the whole list. `display_name` is not created by any
     // migration — production has drifted — so a database without it answers
@@ -1650,13 +1653,13 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
     const withName = await supabase
       .from("model_pricing")
       .select("model_identifier, display_name, category, is_enabled, updated_at")
-      .in("model_identifier", ids)
+      .in("model_identifier", resolved.identifiers)
     const pricingRows =
       withName.error?.code === "42703"
         ? await supabase
             .from("model_pricing")
             .select("model_identifier, category, is_enabled, updated_at")
-            .in("model_identifier", ids)
+            .in("model_identifier", resolved.identifiers)
         : withName
     if (pricingRows.error) {
       console.error("[deployment-billing] pricing read failed:", pricingRows.error.message)
@@ -1669,16 +1672,16 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
     // Per-model fault isolation: one unpriced identifier must not take the
     // whole list down, because the list is what tells the caller which one is
     // unpriced.
-    const settled = await Promise.allSettled(ids.map((id) => CreditsService.getModelCreditCost(id)))
 
     const missing: string[] = []
     const errors: string[] = []
     let updatedAt: string | null = null
 
-    const rows = ids.map((id, i) => {
+    const rows = ids.map((id) => {
       const entry = MODEL_CATALOG[id]
-      const row = byId.get(id)
-      const settledOne = settled[i]!
+      const definition = resolved.definitions.get(id)!
+      const row = byId.get(definition.baseIdentifier)
+      const settledOne = resolved.prices.get(definition.baseIdentifier)!
       let creditCost: number | null = null
       if (settledOne.status === "fulfilled") {
         creditCost = settledOne.value
@@ -1691,7 +1694,9 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
         errors.push(id)
         console.error(`[deployment-billing] pricing lookup failed for "${id}":`, settledOne.reason)
       }
-      const rowUpdatedAt = row?.updated_at ?? null
+      const timestamps = [definition.baseIdentifier, ...definition.variants.map(v => v.identifier)]
+        .map(key => byId.get(key)?.updated_at).filter((value): value is string => Boolean(value)).sort()
+      const rowUpdatedAt = timestamps.at(-1) ?? null
       if (rowUpdatedAt !== null && (updatedAt === null || rowUpdatedAt > updatedAt)) updatedAt = rowUpdatedAt
       return {
         modelIdentifier: id,
@@ -1702,10 +1707,17 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
         // The EFFECTIVE cost, through the same call a reservation makes, so
         // the deployment's markup is included and a quoted price is the price.
         creditCost,
+        creditIdentifier: definition.baseIdentifier,
+        pricingBasis: definition.basis,
         units: inUnits(creditCost, u),
         // The catalog's own shape, so a metered model's per-second or
         // per-token rate is readable without a second call.
-        pricing: entry?.pricing ?? null,
+        pricing: definition.variants.map(variant => {
+          const price = resolved.prices.get(variant.identifier)!
+          const credits = price.status === "fulfilled" ? price.value : null
+          return { ...variant, credits, units: inUnits(credits, u),
+            ...(price.status === "rejected" ? { error: price.reason instanceof PriceNotConfiguredError ? "price_not_configured" : "price_unavailable" } : {}) }
+        }),
         isEnabled: row?.is_enabled ?? true,
         updatedAt: rowUpdatedAt,
       }
@@ -1721,7 +1733,11 @@ export async function deploymentBillingRoutes(app: FastifyInstance): Promise<voi
         ? rows
         : rows.filter((r) => r.updatedAt !== null && Date.parse(r.updatedAt) > sinceMs)
 
-    const body = { data, missing, errors, updatedAt }
+    const body = { data, missing, errors, updatedAt,
+      denomination: { credit: "nodaro_credit", displayUnit: u?.label ?? null, displayUnitsPerCredit: u?.rate ?? null },
+      purchaseOptions: LOAD_RATE_ANCHORS.map(pack => ({ credits: pack.credits, amount: pack.usd, currency: "USD", usdPerCredit: pack.usd / pack.credits })),
+      pricingNote: "Base tariffs, not per-job quotes. Operation, settings, quantity and actual usage can change the final charge. Purchase options are standard top-ups; separate commercial terms may apply.",
+    }
     // The tag is over the body WITHOUT itself — a hash cannot cover the field
     // that carries it — and the same value goes in the header and the body so
     // a caller that keeps only the JSON can still send `If-None-Match`.

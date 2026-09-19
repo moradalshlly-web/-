@@ -1,4 +1,5 @@
 import cron from "node-cron"
+import { reconcileExternalWallet } from "./external-wallet.js"
 import {
   cleanupFreeUserMedia,
   cleanupCanceledUserMedia,
@@ -44,6 +45,7 @@ export function startCleanupCron(): void {
   }
 
   // Expire subscriptions -- every hour
+  cron.schedule("* * * * *", () => { void reconcileExternalWallet() })
   // Stale dynamic-client registrations (MCP clients + community instances
   // that started a connection and never consented) — every hour at :15. See
   // lib/oauth-dcr-sweep.ts (#708).

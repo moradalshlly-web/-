@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { authorizeExternalReservation } from "../billing/external-wallet.js"
 import { mapReserveError, type MappedReserveError } from "../../lib/reserve-errors.js"
 // Track A: the step-8 enforcement flip. False on any deployment with no
 // `billing.payerAccount`, and false until the overlay sets
@@ -271,6 +272,13 @@ export async function reservePipelineCredits(
   }
   if (!usageLogId) {
     return { ok: false, reason: "insufficient_credits" }
+  }
+  if (args.credits > 0) {
+    try { await authorizeExternalReservation(usageLogId, args.userId) }
+    catch (error) {
+      const mapped = mapReserveError(error)
+      return { ok: false, reason: mapped?.code ?? "rpc_error", detail: mapped?.message ?? "Shared wallet authorization failed" }
+    }
   }
   // Reserve succeeded — balance dropped; auto-recharge check (fire-and-
   // forget, never blocks the pipeline). Covers the direct-RPC reserve lane

@@ -49,18 +49,18 @@ export function BillingAccountSummary({ account, className = "", consumptionOnly
             The remaining/granted pair is deliberately NOT a `X / Y` string —
             under RTL the operands swap sides and the sentence lies. One
             interpolated key, whose word order the translator owns. */}
-        {"allocated" in account && (
+        {("allocated" in account || account.balanceSource === "external_wallet") && (
           <div data-testid="allowance-card" className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-card p-5">
-            <div className="text-sm text-muted-foreground">{t("usage.allowanceRemaining")}</div>
+            <div className="text-sm text-muted-foreground">{account.balanceSource === "external_wallet" ? t("nav.totalCredits") : t("usage.allowanceRemaining")}</div>
             <div className="mt-1 text-3xl font-bold" style={{ color: ACCENT }}>
               {amountOrDash(account.balance)}
               <span className="ms-2 text-base font-medium text-muted-foreground">{unit}</span>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            {account.balanceSource !== "external_wallet" && <div className="mt-1 text-xs text-muted-foreground">
               {account.allocated == null
                 ? t("usage.allowanceGrantedUnavailable")
                 : t("usage.allowanceOfGranted", { granted: account.allocated.toLocaleString(), unit })}
-            </div>
+            </div>}
           </div>
         )}
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-card p-5">

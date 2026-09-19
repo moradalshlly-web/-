@@ -67,6 +67,7 @@ export interface CreditAllowance {
 
 /** The part of the balance body this decision needs. */
 export interface BalanceWithAllowance {
+  readonly externalWallet?: { available: number | null }
   readonly total: number
   /** ABSENT on mainline (the key never travels). PRESENT and `null` under a
    *  payer when no allowance applies to this caller — they ARE the payer (D13,
@@ -131,6 +132,11 @@ export function spendableCredits(
   balance: BalanceWithAllowance,
   deploymentPayer: boolean,
 ): SpendableCredits {
+  if (balance.externalWallet) {
+    const available = balance.externalWallet.available
+    return { allowance: null, enforced: true, gateApplies: available !== null,
+      figure: available ?? 0, displayFigure: available ?? 0 }
+  }
   const allowance = balance.allowance ?? null
   // Read the enforcement bit HERE and nowhere else: it is the one field whose
   // wire shape may still move, and every caller then moves with it.

@@ -91,6 +91,7 @@ export interface UsageCategory {
 }
 
 export interface AccountSummary {
+  balanceSource?: "external_wallet"
   /** "unknown" is a real answer and survives to the screen — never re-derived. */
   plan: string
   balance: number | null
@@ -217,6 +218,8 @@ export function billingSurface(): BillingSurface {
  */
 export async function registerNodaroCloudBillingProvider(): Promise<void> {
   if (!hasCredits()) return
+  const wallet = await import("../ee/billing/external-wallet.js")
+  wallet.validateExternalWallet()
   const impl = await import("../ee/billing/nodaro-cloud-provider.js")
   setBillingProvider(impl.nodaroCloudBillingProvider)
 }

@@ -1482,6 +1482,22 @@ describe("GET /pricing", () => {
     expect(second.headers.etag).toBe(etag)
   })
 
+  it("includes LLM operation prices and explicit denomination without a bare-model lookup", async () => {
+    payerDeployment({}, { allow: ["claude-haiku-4.5"] })
+    h.getModelCreditCost.mockImplementation(async (id: string) => {
+      if (id === "claude-haiku-4.5") throw new h.PriceNotConfiguredError(id)
+      return 7
+    })
+    const res = await app.inject({ method: "GET", url: "/v1/deployment-billing/pricing", headers: AS_KEY })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.missing).toEqual([])
+    expect(body.data[0]).toMatchObject({ creditCost: 7, units: 14000, pricingBasis: "llm-chat-default-settings" })
+    expect(body.data[0].pricing).toContainEqual(expect.objectContaining({ operation: "ai-writer", credits: 7, units: 14000 }))
+    expect(body.denomination).toMatchObject({ credit: "nodaro_credit", displayUnitsPerCredit: 2000 })
+    expect(body.purchaseOptions[0]).toMatchObject({ amount: 10, currency: "USD", credits: 3300 })
+  })
+
   it("?since= returns only the rows changed after it — an empty list means nothing changed", async () => {
     const since = "2026-08-15T00:00:00Z"
     const res = await app.inject({
