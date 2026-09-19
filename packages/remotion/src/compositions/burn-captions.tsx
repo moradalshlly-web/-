@@ -37,6 +37,7 @@ const SegmentOverlay: React.FC<{ segment: BurnCaptionsSegment }> = ({ segment })
       highlightColor={segment.highlightColor}
       uppercase={segment.uppercase}
       positionY={segment.positionY}
+      animate={segment.animate}
     />
   )
 }
@@ -71,6 +72,7 @@ export const BurnCaptions: React.FC<BurnCaptionsInputProps> = ({ plan }) => {
           highlightColor={plan.highlightColor}
           uppercase={plan.uppercase}
           positionY={plan.positionY}
+          animate={plan.animate}
         />
       )}
     </AbsoluteFill>

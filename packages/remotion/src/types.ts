@@ -51,7 +51,7 @@ export interface RenderVideoInputProps {
 }
 
 import type { Caption } from "@remotion/captions"
-import type { KineticCaptionStyle, CaptionStyle } from "@nodaro/shared"
+import type { CaptionStyle } from "@nodaro/shared"
 
 /**
  * One resolved caption segment: a self-contained time range with its own words
@@ -74,6 +74,9 @@ export interface BurnCaptionsSegment {
   highlightColor?: string
   uppercase?: boolean
   positionY?: number
+  /** Per-word motion switch (default true); false freezes the geometric
+   *  animation. Inert on `subtitle`. */
+  animate?: boolean
   captions: Caption[]
 }
 
@@ -81,7 +84,10 @@ export interface BurnCaptionsPlan {
   planType: "burn-captions"
   sourceVideo: string
   captions: Caption[]
-  style: KineticCaptionStyle
+  // ANY caption style (not just kinetic): a top-level `subtitle` carrying
+  // styling levers / a transcript / captions[] renders via the Remotion
+  // SubtitleOverlay, so the plan's top-level style can be `subtitle` too.
+  style: CaptionStyle
   position: "top" | "center" | "bottom"
   fontSize: number
   color: string
@@ -96,6 +102,10 @@ export interface BurnCaptionsPlan {
   highlightColor?: string
   uppercase?: boolean
   positionY?: number
+  /** Per-word motion switch (default true); false freezes the geometric
+   *  animation (word-highlight size hop, karaoke sweep, spring enters) while
+   *  keeping grouping/holding/highlight. Inert on `subtitle`. */
+  animate?: boolean
   /** Optional per-segment captions: when present the top-level `captions`/style
    *  above are ignored and each segment renders its own words + style, gated to
    *  its time range. */

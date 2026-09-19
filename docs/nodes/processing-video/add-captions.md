@@ -4,7 +4,7 @@
 
 ## Overview
 
-The Add Captions node automatically generates captions from video audio (or takes word-timed captions you supply) and overlays them on the video. Choose a static subtitle or one of five animated "kinetic" styles, with customizable position, font size, and color. The kinetic styles also take a **look** — a one-field preset that bundles font, outline, casing and spoken-word colour into the TikTok/Reels read.
+The Add Captions node automatically generates captions from video audio (or takes word-timed captions you supply) and overlays them on the video. Choose a static subtitle or one of five animated "kinetic" styles, with customizable position, font size, and color. The kinetic styles take a **look** — a one-field preset that bundles font, outline, casing and spoken-word colour into the TikTok/Reels read — and the same styling levers (font, weight, outline, casing, vertical position, and `look` itself) now apply to `subtitle` too. The kinetic styles also carry an **`animate`** switch that can freeze their per-word motion.
 
 ## Configuration
 
@@ -53,24 +53,39 @@ The kinetic styles carry a **look** — a named preset that bundles the visual l
 
 The **spoken-word colour** (`highlight_color`, yellow under `outline`) only shows on the styles that mark one word at a time — `tiktok-words`, `karaoke`, `word-highlight`. `subtitle` (a whole phrase) and `word-pop` (a single word on screen) have no separate "spoken" word to recolour, so the look's outline/font/casing apply but the caption stays one colour.
 
-**An unset `look` renders as `outline`** — that is the default kinetic look. Pass `look: "clean"` to turn the preset off and keep only your own explicit levers.
+**On the kinetic styles an unset `look` renders as `outline`** — that is the default kinetic look; pass `look: "clean"` to turn the preset off and keep only your own explicit levers. **`subtitle` has no default look:** a bare subtitle (no `look`, no styling levers) renders plain, and the outline house-style is opt-in — set `look`, or any styling lever, to bring it in.
 
 **`font_size` is measured against the LOOK's face.** The same number renders wider or narrower depending on which face the look pins: the default `outline` look is **Montserrat 900 UPPERCASE**, roughly **30 % wider per character** than `clean` (Inter, mixed case). So the same `font_size` fits noticeably **fewer words per line** under `outline` — on `word-highlight`, where words are grouped to fit the frame, that shows up directly as shorter lines. Pass `look: "clean"` for the narrower face, pick a condensed face with `font_family` (`Bebas Neue`, `Anton`, `Oswald` are all narrower still), or lower `font_size`.
 
-The explicit levers below **override individual fields of the chosen look** (they are added to it, not a replacement — e.g. with the default `outline`, setting only `highlight_color` keeps Montserrat / caps / outline and just recolours the spoken word). They add **no credits**, and are **rejected on the static `subtitle` style** (which the FFmpeg path can't honour) rather than being silently ignored:
+The explicit levers below **override individual fields of the chosen look** (they are added to it, not a replacement — e.g. with the default `outline`, setting only `highlight_color` keeps Montserrat / caps / outline and just recolours the spoken word). **Most of them — `font_family`, `font_weight`, `stroke_color`/`stroke_width`, `uppercase`, `position_y`, and `look` — now also apply to the static `subtitle` style.** Only `highlight_color` and `animate` stay **kinetic-only** and are rejected (`400`) on `subtitle` — a subtitle has no per-word spoken cursor to recolour and no motion to switch off. On the kinetic styles the levers add **no credits**; on `subtitle`, adding any styling lever switches the render from the cheap FFmpeg path to Remotion, so a styled `subtitle` **bills at the kinetic price** (`color` and `background_color` alone don't — FFmpeg honours those):
 
 | Lever | Applies to | Description |
 |-------|-----------|-------------|
-| `font_family` | all kinetic | A font face (e.g. `Montserrat`, `Anton`, `Bebas Neue`, `Oswald`, `Poppins`; `Rubik`/`Heebo`/`Cairo`/`Tajawal` cover Hebrew & Arabic) |
-| `font_weight` | all kinetic | CSS numeric weight 100–900 (in 100s). The chosen face must ship that weight or it renders at the nearest loaded one |
-| `stroke_color` + `stroke_width` | all kinetic | The black (or any colour) outline TikTok/Reels captions use; `stroke_width` in px |
-| `highlight_color` | `tiktok-words` (also recolours the active word in `word-highlight` / `karaoke`) | Colour of the word being spoken |
-| `uppercase` | all kinetic | Render captions in UPPERCASE |
-| `position_y` | all kinetic | Vertical position of the caption block's **center** as % of height; overrides `position` (see [Position Options](#position-options)). ~65 sits below the face, above the app's own bottom UI |
+| `font_family` | all styles | A font face (e.g. `Montserrat`, `Anton`, `Bebas Neue`, `Oswald`, `Poppins`; `Rubik`/`Heebo`/`Cairo`/`Tajawal` cover Hebrew & Arabic) |
+| `font_weight` | all styles | CSS numeric weight 100–900 (in 100s). The chosen face must ship that weight or it renders at the nearest loaded one |
+| `stroke_color` + `stroke_width` | all styles | The black (or any colour) outline TikTok/Reels captions use; `stroke_width` in px |
+| `highlight_color` | **kinetic only** — `tiktok-words` (also recolours the active word in `word-highlight` / `karaoke`) | Colour of the word being spoken |
+| `uppercase` | all styles | Render captions in UPPERCASE |
+| `position_y` | all styles | Vertical position of the caption block's **center** as % of height; overrides `position` (see [Position Options](#position-options)). ~65 sits below the face, above the app's own bottom UI |
+| `animate` | **kinetic only** | Per-word **motion** switch, default `true`. `false` freezes the motion while keeping grouping, line-holding and the highlight colour (see [The `animate` lever](#the-animate-lever-kinetic-styles)) |
 
 **Outline width.** When the `outline` look supplies the stroke, its width auto-sizes to the text: `max(2, round(fontSize × 0.1))` px, painted half outside the glyph (`paint-order: stroke fill`) so the visible rim is ~5% of the font size. At `font_size: 64` that is a 6 px stroke; at `font_size: 32` it is a 3 px stroke. Set `stroke_width` explicitly to override it (`stroke_width: 0` = no outline).
 
-> The canvas config panel exposes Style, Look, Position, Font Size, Color, and — for the kinetic styles — Font, Uppercase, spoken-word colour and outline colour. The full lever set (including `font_weight` and `position_y`) is available via the API, MCP, and the [SDK](../../sdk-reference.md) (`client.media.addCaptions(...)`).
+#### The `animate` lever (kinetic styles)
+
+`animate` (default `true`) is the per-word **motion** switch for the kinetic styles. Setting `animate: false` freezes the movement while keeping everything else — the line grouping, the line-holding, and the spoken-word highlight **colour** all stay; only the motion stops:
+
+| Style | What `animate: false` freezes |
+|-------|-------------------------------|
+| `word-highlight` | the active word's size hop |
+| `karaoke` | the progressive sweep |
+| `tiktok-words` | the page's spring-in |
+| `word-pop` | the single word's spring in and out |
+| `bouncy` | each word's bounce as it's spoken |
+
+The words still appear on cue and the active word is still recoloured — you get a still, styled caption whose text changes rather than animating. For a **fully static** line with no per-word colour change either, also set `highlight_color` to the same value as `color`. `animate` is **kinetic-only** — it is rejected (`400`) on `subtitle`, which has no motion to switch off.
+
+> The canvas config panel exposes Style, Look, Position, Font Size, Color, and — for the kinetic styles — Font, Uppercase, spoken-word colour and outline colour. The full lever set (including `font_weight`, `position_y` and `animate`) is available via the API, MCP, and the [SDK](../../sdk-reference.md) (`client.media.addCaptions(...)`) — and over those surfaces the styling levers apply to `subtitle` too (the canvas surfaces them for the kinetic styles only).
 
 ### Supplying your own captions (API / MCP)
 
@@ -107,7 +122,7 @@ A **kinetic** style — and any `segments[]` render — is word-timed, so the en
 
 Instead of transcribing in-place, you can **wire an upstream Transcript into the node's `transcript` input** (the JSON handle) — the word-timed output of a [Transcribe](../ai-text/transcribe.md) node, or the remapped transcript from an [Apply EDL](apply-edl.md) render. The node reshapes that transcript's words into the caption list and burns them in, so **captions stay aligned to a re-cut timeline**: an Apply EDL render remaps every word through the cut, and the captions follow (aligned to within ~80 ms across a crossfade boundary).
 
-A wired transcript is a **timed** caption source, so it needs one of the **kinetic** styles — it is **rejected on the static `subtitle` style** (the FFmpeg path burns one fixed overlay and can't honour per-word timing), the same way the kinetic look levers are. A transcript that has no words is rejected up front, before any credits are reserved.
+A wired transcript is a **timed** caption source. It works with any style: on a **kinetic** style the words drive the per-word animation, and on `subtitle` a wired transcript now routes the render to Remotion and burns the words as **timed phrase lines** (so a timed `subtitle` bills at the kinetic price). A transcript that has no words is rejected up front, before any credits are reserved.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -125,7 +140,7 @@ Each segment:
 | Field | Required | Meaning |
 |-------|----------|---------|
 | `start_ms` / `end_ms` | yes | The time range the segment covers. Segments must **not overlap**. |
-| `style`, `position`, `font_size`, `color`, `background_color`, `look`, `font_family`, `font_weight`, `stroke_color`, `stroke_width`, `highlight_color`, `uppercase`, `position_y` | no | Style/look overrides; each **inherits the top-level value** when omitted (see the cascade note below) |
+| `style`, `position`, `font_size`, `color`, `background_color`, `look`, `font_family`, `font_weight`, `stroke_color`, `stroke_width`, `highlight_color`, `uppercase`, `position_y`, `animate` | no | Style/look overrides; each **inherits the top-level value** when omitted (see the cascade note below) |
 | `text` or `captions[]` | no | The segment's own words. If omitted, it uses the shared `captions[]`/`auto_transcribe` **filtered to its range**. `captions[]` timings are **absolute video-timeline ms** (not relative to the segment) — a word outside the segment's own range is not shown. A `subtitle` segment built from `text` or the shared transcript renders as **one phrase block** spanning its range (not one word at a time; use `\n` in `text` to force line breaks); a subtitle segment given its own `captions[]` renders those entries verbatim. |
 
 **Look cascade (important).** `color`, `background_color`, `position`, and `position_y` are base fields — a segment inherits the top-level value for these when it doesn't set its own. One nuance: `position_y` overrides `position`, so a segment that sets its **own** `position` does **not** inherit the top-level `position_y` (an inherited value never beats a placement the segment asked for). The **look-specific** levers (`font_family`, `font_weight`, `stroke_color`/`stroke_width`, `highlight_color`, `uppercase`) behave differently: a segment **without** its own `look` inherits the top-level ones, but a segment that names its **own** `look` starts fresh from that preset and does **not** inherit the top-level look levers — so a top-level `highlight_color` will **not** carry onto a segment that sets `look`. Set that lever on the segment too if you want it there.
@@ -149,7 +164,7 @@ Per-segment captions render through the animated engine, so they bill at the kin
 
 ### Position Options
 
-`position` anchors the caption **block**, and a named slot anchors the edge nearest the frame edge — so a block that wraps to more than one line grows *inward* and never clips off-screen:
+`position` anchors the caption **block**, and a named slot anchors the edge nearest the frame edge — so a block that wraps to more than one line grows *inward* and never clips off-screen. This is the authoritative mapping for the **Remotion render** — every kinetic style, any styled/timed `subtitle`, per-segment captions, and **any `position_y`**:
 
 | Value | Where the block sits |
 |-------|----------------------|
@@ -157,6 +172,10 @@ Per-segment captions render through the animated engine, so they bill at the kin
 | `bottom` (default) | The block's **bottom edge** **18 % above the bottom** — i.e. at **82 %** of the height, clear of the TikTok/Reels bottom UI; extra lines grow **upward** |
 | `center` | The block is **centred** at **50 %** of the height |
 | `position_y: N` | The block's **CENTRE** at **N %** of the height, overriding `position`. It is the centre, not an edge — `position_y: 85` puts the **centre** at 85 %, so the block's bottom hangs below that |
+
+**Worked example.** On a 1920-tall frame, `position_y: 83.5` puts the block **centre** at ~1603 px (0.835 × 1920); a single line at the default `font_size` then has its bottom edge near ~1620 px — well below centre but still clear of the very bottom.
+
+> **Plain-text `subtitle` fast-path exception.** A bare `subtitle` with only `text` (no styling lever and no `position_y`) renders through the cheaper FFmpeg `drawtext` burn, whose named slots use a **legacy** anchor: `bottom` sits ~40 px off the very bottom edge (≈ 98 %) and `top` ~40 px from the top. To get the mapping above (or any exact placement) on a subtitle, set `position_y` — that routes it through Remotion. Unifying the two anchors is a planned follow-up.
 
 ## Inputs & Outputs
 

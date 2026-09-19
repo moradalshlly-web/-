@@ -4,12 +4,11 @@ import { AbsoluteFill } from "remotion"
 import { CaptionOverlay, type CaptionStyle } from "@remotion-pkg/lib/caption-overlay"
 import type { Caption } from "@remotion/captions"
 import {
-  isKineticCaptionStyle,
-  resolveCaptionLook,
   type CaptionLookId,
   type CaptionLookLevers,
   type SupportedFontName,
 } from "@nodaro/shared"
+import { resolveCaptionPanelLevers } from "./caption-panel-levers"
 
 const PREVIEW_TEXT = "Lorem ipsum dolor sit amet consectetur adipiscing elit"
 
@@ -31,7 +30,7 @@ interface PreviewProps extends Record<string, unknown> {
   fontSize: number
   color: string
   backgroundColor?: string
-  levers: CaptionLookLevers & { positionY?: number }
+  levers: CaptionLookLevers & { positionY?: number; animate?: boolean }
   captions: Caption[]
 }
 
@@ -51,6 +50,8 @@ const PreviewComp: React.FC<PreviewProps> = ({ style, position, fontSize, color,
       highlightColor={levers.highlightColor}
       uppercase={levers.uppercase}
       positionY={levers.positionY}
+      // Per-word motion switch — freezes the kinetic animation; inert on subtitle.
+      animate={levers.animate}
     />
   </AbsoluteFill>
 )
@@ -61,8 +62,10 @@ interface Props {
   fontSize: number
   color: string
   backgroundColor?: string
-  // Look preset + explicit lever overrides (kinetic styles only — ignored for
-  // subtitle, which the static FFmpeg path can't outline/case/highlight).
+  // Look preset + explicit lever overrides. The styling levers apply to every
+  // style — a `subtitle` carrying one renders through the same SubtitleOverlay;
+  // a bare subtitle (no look) stays plain. `highlightColor` + `animate` are inert
+  // on subtitle. `animate: false` freezes the per-word motion on kinetic styles.
   look?: CaptionLookId
   fontFamily?: SupportedFontName
   fontWeight?: number
@@ -71,17 +74,19 @@ interface Props {
   highlightColor?: string
   uppercase?: boolean
   positionY?: number
+  animate?: boolean
 }
 
 export function CaptionsStylePreview({
   style, position, fontSize, color, backgroundColor,
-  look, fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY,
+  look, fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, animate,
 }: Props) {
   const captions = useMemo(buildSyntheticCaptions, [])
-  // Resolve the look → concrete levers exactly as the worker does, so the preview
-  // is faithful. Subtitle ignores the look entirely (only its own color/bg apply).
-  const levers = useMemo<CaptionLookLevers & { positionY?: number }>(() => {
-    if (!isKineticCaptionStyle(style)) return {}
+  // Resolve the look → concrete levers exactly as the worker does (via the shared
+  // render-mirror), so the preview is faithful for both kinetic AND subtitle: a
+  // bare subtitle shows plain, a subtitle with a look/levers shows them, and
+  // `animate` freezes kinetic motion.
+  const levers = useMemo<CaptionLookLevers & { positionY?: number; animate?: boolean }>(() => {
     const explicit: CaptionLookLevers = {}
     if (fontFamily !== undefined) explicit.fontFamily = fontFamily
     if (fontWeight !== undefined) explicit.fontWeight = fontWeight
@@ -89,8 +94,8 @@ export function CaptionsStylePreview({
     if (strokeWidth !== undefined) explicit.strokeWidth = strokeWidth
     if (highlightColor !== undefined) explicit.highlightColor = highlightColor
     if (uppercase !== undefined) explicit.uppercase = uppercase
-    return { ...resolveCaptionLook(look, explicit, fontSize), positionY }
-  }, [style, look, fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, fontSize])
+    return { ...resolveCaptionPanelLevers(style, look, explicit, fontSize), positionY, animate }
+  }, [style, look, fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, fontSize, animate])
   const inputProps = useMemo<PreviewProps>(
     () => ({ style, position, fontSize, color, backgroundColor, levers, captions }),
     [style, position, fontSize, color, backgroundColor, levers, captions],

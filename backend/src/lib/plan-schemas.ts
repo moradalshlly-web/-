@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { safeUrlSchema } from "./url-validator.js"
-import { KINETIC_CAPTION_STYLES, ALL_CAPTION_STYLES, SUPPORTED_FONT_NAMES, scene3DAnyPlanSchema } from "@nodaro/shared"
+import { ALL_CAPTION_STYLES, SUPPORTED_FONT_NAMES, scene3DAnyPlanSchema } from "@nodaro/shared"
 import type { BrandTokens } from "@nodaro/prompts"
 import type { ShotElement } from "@nodaro/shared"
 import { cdnMediaUrlSchema } from "./cdn-media-url.js"
@@ -495,6 +495,7 @@ const burnCaptionsSegmentSchema = z.object({
   highlightColor: z.string().optional(),
   uppercase: z.boolean().optional(),
   positionY: z.number().min(0).max(100).optional(),
+  animate: z.boolean().optional(),
   captions: z.array(captionSchema),
 })
 
@@ -507,7 +508,11 @@ export const burnCaptionsPlanSchema = z
     // refine below. This keeps a degenerate all-self-sourced segmented render
     // from failing plan validation AFTER credits reserve.
     captions: z.array(captionSchema),
-    style: z.enum(KINETIC_CAPTION_STYLES),
+    // ALL styles, not just kinetic: a top-level `subtitle` carrying styling
+    // levers / a transcript / captions[] routes to the Remotion SubtitleOverlay,
+    // so the plan's top-level style can be `subtitle` too (segments already
+    // allow any style). The composition renders it via CaptionOverlay.
+    style: z.enum(ALL_CAPTION_STYLES),
     position: z.enum(["top", "center", "bottom"]),
     fontSize: z.number().min(12).max(200),
     color: z.string(),
@@ -520,6 +525,7 @@ export const burnCaptionsPlanSchema = z
     highlightColor: z.string().optional(),
     uppercase: z.boolean().optional(),
     positionY: z.number().min(0).max(100).optional(),
+    animate: z.boolean().optional(),
     // Optional per-segment captions (resolved): when present the composition
     // renders these instead of the top-level captions/style above.
     segments: z.array(burnCaptionsSegmentSchema).optional(),

@@ -7,7 +7,7 @@ import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
 /** Sentence visible; each word springs vertically when it becomes active. */
 export const BouncyOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY, animate,
 }) => {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
@@ -33,9 +33,12 @@ export const BouncyOverlay: React.FC<OverlayCommonProps> = ({
     }}>
       {captions.map((c, i) => {
         const localFrame = frame - (c.startMs / 1000) * fps
-        const bounce = localFrame >= 0 && localFrame < fps
-          ? spring({ frame: localFrame, fps, config: { damping: 6, stiffness: 200 } })
-          : 1
+        // animate:false drops the per-word vertical bounce (dy stays 0).
+        const bounce = animate === false
+          ? 1
+          : localFrame >= 0 && localFrame < fps
+            ? spring({ frame: localFrame, fps, config: { damping: 6, stiffness: 200 } })
+            : 1
         const dy = (1 - bounce) * -20
         return (
           <span key={i} style={{

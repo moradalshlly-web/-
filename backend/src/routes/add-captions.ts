@@ -11,6 +11,7 @@ import { buildJobInputData } from "../lib/job-input-data.js"
 import {
   ALL_CAPTION_STYLES,
   isKineticCaptionStyle,
+  captionRoutesToRemotion,
   SUPPORTED_FONT_NAMES,
   CAPTION_LOOK_IDS,
   KINETIC_ONLY_CAPTION_LEVER_KEYS,
@@ -76,6 +77,7 @@ const captionSegmentInputSchema = z.object({
   highlightColor: z.string().optional(),
   uppercase: z.boolean().optional(),
   positionY: z.number().min(0).max(100).optional(),
+  animate: z.boolean().optional(),
   text: nonBlankText.optional(),
   captions: z.array(captionInputSchema).optional(),
 }).refine((s) => s.endMs > s.startMs, { message: "segment endMs must be greater than startMs" })
@@ -83,11 +85,27 @@ const captionSegmentInputSchema = z.object({
 function buildAddCaptionsCreditId(body: unknown): string {
   if (!body || typeof body !== "object") return "add-captions"
   const b = body as Record<string, unknown>
-  // Per-segment captions always render via Remotion, same as a kinetic style.
-  if (Array.isArray(b.segments) && b.segments.length > 0) return "add-captions:kinetic"
-  const style = b.style
-  if (typeof style === "string" && isKineticCaptionStyle(style)) return "add-captions:kinetic"
-  return "add-captions"
+  // Price follows the RENDERER: anything that routes to Remotion (segments, a
+  // kinetic style, or a styled/timed/transcribed subtitle) bills as :kinetic; a
+  // plain-text subtitle on the cheap FFmpeg drawtext path bills as add-captions.
+  // Same predicate the worker dispatches on (captionRoutesToRemotion) so the
+  // price and the renderer can never drift.
+  return captionRoutesToRemotion({
+    style: typeof b.style === "string" ? b.style : undefined,
+    text: typeof b.text === "string" ? b.text : undefined,
+    segments: Array.isArray(b.segments) ? b.segments : undefined,
+    transcript: b.transcript,
+    captions: Array.isArray(b.captions) ? b.captions : undefined,
+    look: b.look,
+    fontFamily: b.fontFamily,
+    fontWeight: b.fontWeight,
+    strokeColor: b.strokeColor,
+    strokeWidth: b.strokeWidth,
+    uppercase: b.uppercase,
+    positionY: b.positionY,
+  })
+    ? "add-captions:kinetic"
+    : "add-captions"
 }
 
 // Optional "look" levers. They shape ONLY the Remotion-rendered kinetic styles;
@@ -125,6 +143,9 @@ export const addCaptionsBody = z.object({
   highlightColor: z.string().optional(),
   uppercase: z.boolean().optional(),
   positionY: z.number().min(0).max(100).optional(),
+  // Per-word motion switch for the kinetic styles (default true); rejected on
+  // `subtitle` (nothing to animate) by the KINETIC_ONLY guard below.
+  animate: z.boolean().optional(),
   // Optional per-segment captions: apply DIFFERENT treatments to time ranges of
   // the same video in one call (e.g. a large top intro, then a bottom body).
   segments: z.array(captionSegmentInputSchema).min(1).optional(),
@@ -193,33 +214,23 @@ export const addCaptionsBody = z.object({
     const overlap = findSegmentOverlap(v.segments!)
     if (overlap) ctx.addIssue({ code: "custom", path: ["segments"], message: overlap })
   }
-  // Top-level look levers only apply to the Remotion kinetic path. With segments
-  // the whole render is Remotion (so any style + look is fine); without them the
-  // static `subtitle` (FFmpeg) path can't honour a look lever, so reject it. The
-  // key list is shared (KINETIC_ONLY_CAPTION_LEVER_KEYS) so a new lever is
-  // covered here and in the frontend strip by adding it once; iterating `v[k]`
-  // also makes tsc fail if a key isn't a field of this body (totality guard).
+  // `highlightColor` and `animate` are meaningless on `subtitle` (no spoken-word
+  // cursor to colour, no motion to switch off), so reject them on it. The STYLING
+  // levers are NO LONGER rejected — a subtitle carrying one routes to the Remotion
+  // SubtitleOverlay (captionRoutesToRemotion), which applies it. The key list is
+  // shared (KINETIC_ONLY_CAPTION_LEVER_KEYS) so it stays in step with the frontend
+  // strip; iterating `v[k]` also makes tsc fail if a key isn't a field of this
+  // body (totality guard). A wired transcript on `subtitle` is now VALID (it
+  // routes to Remotion and renders as timed phrase lines) — no rejection.
   if (!hasSegments && !isKineticCaptionStyle(v.style)) {
     for (const k of KINETIC_ONLY_CAPTION_LEVER_KEYS) {
       if (v[k] !== undefined) {
         ctx.addIssue({
           code: "custom",
           path: [k],
-          message: `${k} only applies to kinetic caption styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy); the "${v.style}" style ignores it`,
+          message: `${k} only applies to the kinetic caption styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy); the "${v.style}" style ignores it`,
         })
       }
-    }
-    // A wired Transcript produces TIMED captions — only the Remotion kinetic
-    // path honours per-caption timing. The static `subtitle` (FFmpeg drawtext)
-    // path burns one fixed overlay, so it would silently drop the transcript.
-    // Reject with a clean 400 rather than coerce the style (a silent look
-    // change), mirroring the look-lever rule above.
-    if (hasTranscript) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["transcript"],
-        message: `a wired transcript renders as timed captions and needs a kinetic caption style (word-highlight, karaoke, tiktok-words, word-pop, bouncy); the "${v.style}" style ignores it`,
-      })
     }
   }
 })

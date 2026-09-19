@@ -11,9 +11,13 @@ export interface CaptionEntry {
   confidence?: number | null
 }
 
-/** Kinetic-style look levers — see {@link MediaResource.addCaptions}. Rejected
- *  on the static `subtitle` style. `look` is a named preset the explicit levers
- *  override; an unset look renders as `outline` (the default). */
+/** Look + motion levers — see {@link MediaResource.addCaptions}. `look` is a
+ *  named preset the explicit levers override; an unset look renders as `outline`
+ *  (the default). The STYLING levers (`look`, `fontFamily`, `fontWeight`,
+ *  `strokeColor`/`strokeWidth`, `uppercase`, `positionY`) now apply to the static
+ *  `subtitle` style too — a subtitle carrying any of them renders via Remotion.
+ *  Only `highlightColor` (no spoken-word cursor to colour) and `animate` (no
+ *  motion to freeze) stay kinetic-only and are rejected (400) on `subtitle`. */
 export interface CaptionLookInput {
   look?: CaptionLookId
   fontFamily?: SupportedFontName
@@ -23,6 +27,10 @@ export interface CaptionLookInput {
   highlightColor?: string
   uppercase?: boolean
   positionY?: number
+  /** Kinetic styles only. `false` freezes the per-word MOTION — the grouping,
+   *  line-holding and spoken-word highlight stay, only the movement stops;
+   *  default `true`. Rejected (400) on the static `subtitle` style. */
+  animate?: boolean
 }
 
 /** One caption SEGMENT: a time range with optional style/look overrides and its
@@ -277,14 +285,20 @@ export class MediaResource {
    * `text`, word-timed `captions[]`, or let it transcribe (`autoTranscribe`,
    * the default when neither is set).
    *
-   * `style: "subtitle"` renders statically (FFmpeg); the KINETIC styles
-   * (`word-highlight` / `karaoke` / `tiktok-words` / `word-pop` / `bouncy`)
-   * render via Remotion and accept the look levers. `look` picks a preset —
-   * `outline` (Montserrat 900, UPPERCASE, black outline, yellow spoken word — the
-   * TikTok/Reels read) or `clean`; an UNSET look renders as `outline`. The
-   * explicit levers (`fontFamily`, `fontWeight`, `strokeColor`/`strokeWidth`,
-   * `highlightColor`, `uppercase`, `positionY`) override individual fields of it.
-   * Look levers are REJECTED on the static `subtitle` style.
+   * `style: "subtitle"` renders statically (FFmpeg) UNLESS it carries a styling
+   * lever, in which case it — like the KINETIC styles (`word-highlight` /
+   * `karaoke` / `tiktok-words` / `word-pop` / `bouncy`) — renders via Remotion.
+   * `look` picks a preset — `outline` (Montserrat 900, UPPERCASE, black outline,
+   * yellow spoken word — the TikTok/Reels read) or `clean`; an UNSET look renders
+   * as `outline`. The explicit STYLING levers (`fontFamily`, `fontWeight`,
+   * `strokeColor`/`strokeWidth`, `uppercase`, `positionY`) override individual
+   * fields of it and now apply to `subtitle` too. Only `highlightColor` (the
+   * spoken-word cursor) and `animate` stay kinetic-only and are REJECTED on
+   * `subtitle`.
+   *
+   * `animate` (default true) freezes the per-word MOTION on the kinetic styles
+   * when set to false — the grouping, line-holding and spoken-word highlight
+   * stay; only the movement stops.
    *
    * `segments[]` applies DIFFERENT treatments to non-overlapping time ranges in
    * one call (e.g. a large top intro, then a small bottom body); a segment that

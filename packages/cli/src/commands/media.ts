@@ -392,15 +392,20 @@ Example:
     .option("--position <pos>", "bottom (default) | top | center")
     .option("--position-y <pct>", "the caption block's CENTRE as % of height (0-100) — overrides --position", parseFloat)
     .option("--font-size <px>", "font size in px (12-200)", parseFloat)
-    .option("--font-family <name>", "font face (kinetic styles only) — see the list below")
-    .option("--font-weight <n>", "CSS font weight, 100-900 in 100s (kinetic styles only)", (v) => parseInt(v, 10))
+    .option("--font-family <name>", "font face — see the list below")
+    .option("--font-weight <n>", "CSS font weight, 100-900 in 100s", (v) => parseInt(v, 10))
     .option("--color <color>", "caption text colour")
     .option("--background-color <color>", "caption background colour")
-    .option("--stroke-color <color>", "outline colour (kinetic styles only)")
-    .option("--stroke-width <px>", "outline width in px, 0-40 (kinetic styles only)", parseFloat)
+    .option("--stroke-color <color>", "outline colour")
+    .option("--stroke-width <px>", "outline width in px, 0-40", parseFloat)
     .option("--highlight-color <color>", "colour of the word being spoken (kinetic styles only)")
-    .option("--uppercase", "force UPPERCASE captions (kinetic styles only)")
-    .option("--no-uppercase", "keep mixed case (the default outline look is UPPERCASE; kinetic styles only)")
+    .option("--uppercase", "force UPPERCASE captions")
+    .option("--no-uppercase", "keep mixed case (the default outline look is UPPERCASE)")
+    .option("--animate", "animate per-word motion on the kinetic styles (the default)")
+    .option(
+      "--no-animate",
+      "freeze per-word motion on the kinetic styles — keeps grouping, line-holding and the spoken-word highlight (kinetic styles only)",
+    )
     .option("--no-auto-transcribe", "do NOT transcribe the video's audio when no --text / --captions-file is given")
     .option("--transcribe-provider <name>", `engine for the auto-transcription: ${TRANSCRIBE_LANES.join(" | ")}`)
     .option(
@@ -414,9 +419,13 @@ Example:
     .addHelpText("after", `
 Fonts: ${SUPPORTED_FONT_NAMES.join(", ")}
 
-The look levers (--look, --font-family, --font-weight, --stroke-*, --highlight-color,
---uppercase, --position-y) shape the KINETIC styles only; the static subtitle style
-rejects them with a 400.
+The styling levers (--look, --font-family, --font-weight, --stroke-*, --uppercase,
+--position-y) now apply to the static subtitle style too — a subtitle carrying any
+of them renders via Remotion. Only --highlight-color and --animate are kinetic-only;
+the subtitle style rejects them with a 400.
+
+--animate is on by default; --no-animate freezes the per-word motion on the kinetic
+styles (the grouping, line-holding and spoken-word highlight stay).
 
 Examples:
   $ nodaro media add-captions https://.../clip.mp4 --style word-highlight --look outline --watch
@@ -441,6 +450,7 @@ Examples:
           strokeWidth?: number
           highlightColor?: string
           uppercase?: boolean
+          animate?: boolean
           autoTranscribe?: boolean
           transcribeProvider?: string
           segmentsFile?: string
@@ -501,6 +511,9 @@ Examples:
             // Tri-state: commander leaves it undefined unless --uppercase / --no-uppercase
             // was passed, so an untouched flag keeps the look's own casing.
             ...(opts.uppercase !== undefined ? { uppercase: opts.uppercase } : {}),
+            // Same tri-state as --uppercase: undefined unless --animate / --no-animate
+            // was passed, so an untouched flag keeps the server default (animate: true).
+            ...(opts.animate !== undefined ? { animate: opts.animate } : {}),
             // Commander defaults a lone `--no-x` flag to TRUE, so only an
             // explicit `--no-auto-transcribe` may reach the wire — otherwise
             // every call would pin auto_transcribe and the route could never

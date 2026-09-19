@@ -897,8 +897,10 @@ export {
   CAPTION_LOOKS,
   DEFAULT_CAPTION_LOOK,
   KINETIC_ONLY_CAPTION_LEVER_KEYS,
+  captionRoutesToRemotion,
   autoStrokeWidth,
   resolveCaptionLook,
+  resolveCaptionLevers,
 } from "./caption-styles.js"
 export type { StaticCaptionStyle, KineticCaptionStyle, CaptionStyle, CaptionLookId, CaptionLookLevers, KineticOnlyCaptionLeverKey } from "./caption-styles.js"
 

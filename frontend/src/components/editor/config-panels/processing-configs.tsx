@@ -19,7 +19,8 @@ import {
 import { AspectRatioSelector } from "./aspect-ratio-selector"
 import { COMPOSITION_RATIOS, COLLAGE_ASPECT_RATIOS } from "./model-options"
 import { CombineTransitionPicker } from "@/lib/picker-ui"
-import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT, CAPTION_LOOK_IDS, DEFAULT_CAPTION_LOOK, SUPPORTED_FONT_NAMES, resolveCaptionLook, type CaptionLookId, type CaptionLookLevers, type SupportedFontName } from "@nodaro/shared"
+import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT, CAPTION_LOOK_IDS, DEFAULT_CAPTION_LOOK, SUPPORTED_FONT_NAMES, type CaptionLookId, type CaptionLookLevers, type SupportedFontName } from "@nodaro/shared"
+import { resolveCaptionPanelLevers } from "../caption-panel-levers"
 import { isCloud } from "@/lib/edition"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { WaveformAudioPlayer } from "@/components/audio-player"
@@ -339,8 +340,10 @@ export function CombineVideosConfig({ data, onUpdate, sources }: ConfigProps<Com
   )
 }
 
-// Which explicit lever fields the config panel exposes as overrides (kinetic
-// only). `look`/`fontSize`/`color`/`position` have their own controls above.
+// The explicit lever overrides the config panel reads off node data. The pure
+// styling levers apply to EVERY style (subtitle included); `highlightColor` is
+// kinetic-only, harmless in the resolved set (subtitle never shows/sets it).
+// `look`/`fontSize`/`color`/`position` have their own controls above.
 function explicitFromData(data: AddCaptionsData): CaptionLookLevers {
   const e: CaptionLookLevers = {}
   if (data.fontFamily !== undefined) e.fontFamily = data.fontFamily
@@ -353,11 +356,21 @@ function explicitFromData(data: AddCaptionsData): CaptionLookLevers {
 }
 
 const FONT_FAMILY_AUTO = "__auto"
+// Sentinel for "no look" on a subtitle. A bare subtitle (look === undefined)
+// renders PLAIN, not the outline preset — so unlike a kinetic style it needs an
+// explicit, re-selectable "none" entry (re-picking the value already shown fires
+// no onValueChange, so without this the user couldn't switch back to plain).
+const LOOK_NONE = "__none"
 
 export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsData>) {
   const t = useT()
   const localizeHandle = useLocalizeHandleLabel()
   const isKinetic = data.style !== "subtitle"
+  // Every current style honours the pure styling levers (look / font / uppercase
+  // / stroke): kinetic via Remotion, and a `subtitle` now routes to the Remotion
+  // SubtitleOverlay when it carries one. Only `highlightColor` + `animate` stay
+  // kinetic-only (subtitle has no per-word spoken cursor or motion).
+  const takesStylingLevers = isKinetic || data.style === "subtitle"
   function handleStyleChange(next: AddCaptionsData["style"]) {
     const isKineticNext = next !== "subtitle"
     const update: Partial<AddCaptionsData> = { style: next }
@@ -373,7 +386,10 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
   // the RESOLVED look (a control left untouched shows the preset's value; a
   // change becomes an explicit override). Editing here only writes on user
   // interaction, so switching to `clean` still drops the preset's levers.
-  const resolved = resolveCaptionLook(data.look, explicitFromData(data), data.fontSize ?? KINETIC_STYLE_FONT_DEFAULT)
+  // Uses the render's rule (mirror of ffmpeg.ts): a bare `subtitle` seeds from
+  // its explicit levers only, never the outline preset — so an untouched
+  // subtitle's controls match its plain render.
+  const resolved = resolveCaptionPanelLevers(data.style, data.look, explicitFromData(data), data.fontSize ?? KINETIC_STYLE_FONT_DEFAULT)
 
   return (
     <div className="flex flex-col gap-3">
@@ -395,15 +411,18 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
         </Select>
       </div>
 
-      {isKinetic && (
+      {takesStylingLevers && (
         <div>
           <Label>{t("proccfg.look")}</Label>
           <Select
-            value={data.look ?? DEFAULT_CAPTION_LOOK}
-            onValueChange={(v) => onUpdate({ look: v as CaptionLookId })}
+            // Kinetic: unset look ≡ the default (outline) preset. Subtitle: unset
+            // look ≡ plain (no preset), so it shows/offers the "none" sentinel.
+            value={data.look ?? (isKinetic ? DEFAULT_CAPTION_LOOK : LOOK_NONE)}
+            onValueChange={(v) => onUpdate({ look: v === LOOK_NONE ? undefined : (v as CaptionLookId) })}
           >
             <SelectTrigger aria-label={t("proccfg.look")}><SelectValue /></SelectTrigger>
             <SelectContent>
+              {!isKinetic && <SelectItem value={LOOK_NONE}>{t("proccfg.lookPlain")}</SelectItem>}
               {CAPTION_LOOK_IDS.map((id) => (
                 <SelectItem key={id} value={id}>{t(`proccfg.look_${id}` as MessageKey)}</SelectItem>
               ))}
@@ -428,6 +447,7 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
           highlightColor={data.highlightColor}
           uppercase={data.uppercase}
           positionY={data.positionY}
+          animate={data.animate}
         />
       </Suspense>
 
@@ -453,7 +473,7 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
         <Label htmlFor="caption-color">{t("proccfg.color")}</Label>
         <Input id="caption-color" type="color" value={data.color} onChange={(e) => onUpdate({ color: e.target.value })} />
       </div>
-      {isKinetic && (
+      {takesStylingLevers && (
         <>
           <div>
             <Label>{t("proccfg.font")}</Label>
@@ -479,18 +499,41 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
             />
           </div>
           <div>
+            <Label htmlFor="caption-stroke">{t("proccfg.strokeColor")}</Label>
+            <Input id="caption-stroke" type="color"
+              value={resolved.strokeColor ?? "#000000"}
+              onChange={(e) => onUpdate({ strokeColor: e.target.value })}
+            />
+          </div>
+        </>
+      )}
+      {/* Kinetic-only: spoken-word colour + the per-word motion switch have no
+          effect on the static subtitle path (KINETIC_ONLY_CAPTION_LEVER_KEYS). */}
+      {isKinetic && (
+        <>
+          <div>
             <Label htmlFor="caption-highlight">{t("proccfg.highlightColor")}</Label>
             <Input id="caption-highlight" type="color"
               value={resolved.highlightColor ?? "#FFE600"}
               onChange={(e) => onUpdate({ highlightColor: e.target.value })}
             />
           </div>
-          <div>
-            <Label htmlFor="caption-stroke">{t("proccfg.strokeColor")}</Label>
-            <Input id="caption-stroke" type="color"
-              value={resolved.strokeColor ?? "#000000"}
-              onChange={(e) => onUpdate({ strokeColor: e.target.value })}
-            />
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="captions-animate" className="text-xs font-medium">
+                {t("proccfg.animate")}
+              </Label>
+              <Switch
+                id="captions-animate"
+                // Default ON (animated). Store `false` only when turned off, so an
+                // untouched node stays byte-identical to a pre-feature workflow.
+                checked={data.animate !== false}
+                onCheckedChange={(v) => onUpdate({ animate: v ? undefined : false })}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {t("proccfg.animateHint")}
+            </p>
           </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between">

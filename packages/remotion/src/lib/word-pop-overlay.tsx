@@ -7,7 +7,7 @@ import { directionStyle } from "./text-direction"
 /** Render exactly one word at a time, springing in then out. */
 export const WordPopOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY, animate,
 }) => {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
@@ -15,7 +15,8 @@ export const WordPopOverlay: React.FC<OverlayCommonProps> = ({
   const active = captions.find((c) => ms >= c.startMs && ms <= c.endMs)
   if (!active) return null
   const localFrame = frame - (active.startMs / 1000) * fps
-  const enter = spring({ frame: localFrame, fps, config: { damping: 8, stiffness: 250 } })
+  // animate:false drops the per-word pop spring — the word just appears.
+  const enter = animate === false ? 1 : spring({ frame: localFrame, fps, config: { damping: 8, stiffness: 250 } })
   const anchor = captionAnchor(position, positionY)
   return (
     <div style={{

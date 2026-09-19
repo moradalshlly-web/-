@@ -13,7 +13,7 @@ import { normalizeCollageLabels } from "../../providers/image/collage-badges.js"
 
 // Shared logic from packages/shared — single source of truth
 import { resolveVideoRequestNorm } from "../../lib/video-request-norm.js"
-import { resolveSlideshowTransition, collectAncestorRefs as sharedCollectAncestorRefs, applyDefaultVideoSelection, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionableAssetArrays, buildCreditModelIdentifier, sunoCreditType, resolveImageGenCreditIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, applyVideoNegativePrompt, resolveVideoProviderForMode, resolveVideoModeForInputs, videoProviderRequiresImage, isVeoProvider, buildLipSyncCreditId, isPerSecondLipSyncProvider, resolveAiAvatarCreditId, resolveSwitchXCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, buildVideoAuditCreditId, resolveVideoAnalysisModel, extractReferencedLabels, combineSameLabelRefs, refHandleCategory, canonicalVarName, validateAiAvatarPayload, validateCinematicAvatarPayload, resolveNodeRefs, resolveEffectiveSourceType, PARAMETER_NODE_TYPES, characterMentionSlug, expandExtraRefsToConnectedReferences, PLATFORM_SPECS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, seedanceVideoEditCreditId, isMinimaxH3Provider, isWan3Provider, isGeminiOmniProvider, PRICING_DEFAULT_RESOLUTION, supportsExtendRender, MODEL_CATALOG, hasFeature, referenceModalityForHandle, countRefModalityEdges as countRefModalityEdgesCore, type ReferenceModality, COMPOSER_PLAN_MAP, ASPECT_RATIO_DIMENSIONS, buildLlmCreditIdentifier, motionGraphicsFeature, FLUX_LORA_CHARACTER_MODEL_ID, extractCharacterLoraFields, clampSmartCutWindow, resolveGvpAnchorWire, normalizeModelInput, readPromptAffixes, findImageMentionTokens, knownImageSlugsFromRefs, findEntityMentionTokens, knownEntitySlugsFromRefs, uiAspectRatioFill, uiResolutionFill, resolveTopazUpscale, unresolvedRefTokens, classifyRefToken, parseNodeRef, NODE_REF_PATTERN, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, newScene3DRevisionId, resolveScene3DAuthoringEngine, scene3DPlanSchema, PRO3D_RENDER_CREDIT_ID, PRO3D_RENDER_DEFAULT_ENGINE, buildPro3DRenderSource, pro3DRenderTimingOverrides, renderVideoCreditId, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, normalizeTranscript, isKineticCaptionStyle, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, transcriptDurationSec, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps, type Scene3DPlan } from "@nodaro/shared"
+import { resolveSlideshowTransition, collectAncestorRefs as sharedCollectAncestorRefs, applyDefaultVideoSelection, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionableAssetArrays, buildCreditModelIdentifier, sunoCreditType, resolveImageGenCreditIdentifier, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, applyVideoNegativePrompt, resolveVideoProviderForMode, resolveVideoModeForInputs, videoProviderRequiresImage, isVeoProvider, buildLipSyncCreditId, isPerSecondLipSyncProvider, resolveAiAvatarCreditId, resolveSwitchXCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, buildVideoAuditCreditId, resolveVideoAnalysisModel, extractReferencedLabels, combineSameLabelRefs, refHandleCategory, canonicalVarName, validateAiAvatarPayload, validateCinematicAvatarPayload, resolveNodeRefs, resolveEffectiveSourceType, PARAMETER_NODE_TYPES, characterMentionSlug, expandExtraRefsToConnectedReferences, PLATFORM_SPECS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, seedanceVideoEditCreditId, isMinimaxH3Provider, isWan3Provider, isGeminiOmniProvider, PRICING_DEFAULT_RESOLUTION, supportsExtendRender, MODEL_CATALOG, hasFeature, referenceModalityForHandle, countRefModalityEdges as countRefModalityEdgesCore, type ReferenceModality, COMPOSER_PLAN_MAP, ASPECT_RATIO_DIMENSIONS, buildLlmCreditIdentifier, motionGraphicsFeature, FLUX_LORA_CHARACTER_MODEL_ID, extractCharacterLoraFields, clampSmartCutWindow, resolveGvpAnchorWire, normalizeModelInput, readPromptAffixes, findImageMentionTokens, knownImageSlugsFromRefs, findEntityMentionTokens, knownEntitySlugsFromRefs, uiAspectRatioFill, uiResolutionFill, resolveTopazUpscale, unresolvedRefTokens, classifyRefToken, parseNodeRef, NODE_REF_PATTERN, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, newScene3DRevisionId, resolveScene3DAuthoringEngine, scene3DPlanSchema, PRO3D_RENDER_CREDIT_ID, PRO3D_RENDER_DEFAULT_ENGINE, buildPro3DRenderSource, pro3DRenderTimingOverrides, renderVideoCreditId, VIDEO_ONLY_PARAMETER_NODE_TYPES, EXECUTION_GRAPH_COMPOSED_PARAMETER_TYPES, normalizeTranscript, captionRoutesToRemotion, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, transcriptDurationSec, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps, type Scene3DPlan } from "@nodaro/shared"
 import { composeNegative, resolveTemplate, applyTemplate, computeNodePrompt, assembleImageInput, readDirectionFields, readStructuredFields, readSubjectFields, buildImagePrompt, buildScenePrompt, collectIdentityLockClause as sharedCollectIdentityLockClause, getParameterPromptHint, characterLockToRefLock, buildCharacterPrompt, buildObjectPrompt, buildCreaturePrompt, buildLocationPrompt, buildFaceTemplateInputs, appendMusicMeta, composeSoundHintFromConnections, truncateForField, appendField, assembleSunoInput, type SoundConsumerType, type SoundComposition, resolveVideoReferenceCore, buildSeedanceVideoEditPrompt, applyPromptAffixes, composeVideoPromptText, isMinorAge, containsMinorAgeHint, type DirectionFields, type StructuredPromptFields, type SubjectFields, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import { labelRefHintContext } from "./label-ref-hint-context.js"
 import type { CharacterDef, ConnectedReference, SceneData, ExtraRefInput, ExtraRefCharacterContext } from "@nodaro/shared"
@@ -6144,15 +6144,10 @@ export function buildPayload(
       // Validate the wired Transcript HERE — before the credit reservation in
       // node-executor — so a DAG run fails at ingress exactly like the route's
       // 400 (parity with apply-edl's throw above), never after reserving credits
-      // and dying in the worker. The worker keeps the same throws as defence in
-      // depth. `style` mirrors the payload's `data.captionStyle ?? data.style`
-      // (worker defaults undefined → "subtitle").
+      // and dying in the worker. A transcript on a `subtitle` style is now VALID
+      // (it routes to the Remotion SubtitleOverlay as timed phrase lines), so the
+      // only checks left are shape: parseable JSON with at least one word.
       if (addCaptionsTranscript !== undefined && addCaptionsTranscript !== null) {
-        const acStyle = (data.captionStyle ?? data.style ?? "subtitle") as string
-        const acHasSegments = Array.isArray(data.segments) && data.segments.length > 0
-        if (!acHasSegments && !isKineticCaptionStyle(acStyle)) {
-          throw new Error(`add-captions: a wired transcript needs a kinetic caption style; the "${acStyle}" style ignores it`)
-        }
         const acRaw = typeof addCaptionsTranscript === "string" ? parseJsonOrUndefined(addCaptionsTranscript) : addCaptionsTranscript
         if (typeof addCaptionsTranscript === "string" && acRaw === undefined) {
           throw new Error("add-captions: transcript input is not JSON — wire the Transcript (json) output")
@@ -6161,11 +6156,34 @@ export function buildPayload(
           throw new Error("add-captions: transcript has no words to caption")
         }
       }
+      const acText = !isCaptionArray ? (resolvedInputs.prompt || resolveRefs(data.text as string | undefined, refMap)) : undefined
+      const acCaptions = isCaptionArray ? captionsValue : (resolvedInputs.captions ?? undefined)
+      // Price follows the renderer (same predicate as the route's credit id and
+      // the worker's dispatch): a styled / timed / transcribed / segmented render
+      // is Remotion → add-captions:kinetic; a plain-text subtitle is the cheap
+      // FFmpeg burn → add-captions. Without this a DAG-run styled subtitle would
+      // reserve the static price for a Remotion render.
+      const acModelId = captionRoutesToRemotion({
+        style: (data.captionStyle ?? data.style) as string | undefined,
+        text: acText,
+        segments: Array.isArray(data.segments) ? (data.segments as unknown[]) : undefined,
+        transcript: addCaptionsTranscript,
+        captions: Array.isArray(acCaptions) ? (acCaptions as unknown[]) : undefined,
+        look: data.look,
+        fontFamily: data.fontFamily,
+        fontWeight: data.fontWeight,
+        strokeColor: data.strokeColor,
+        strokeWidth: data.strokeWidth,
+        uppercase: data.uppercase,
+        positionY: data.positionY,
+      })
+        ? "add-captions:kinetic"
+        : "add-captions"
       return ffmpegResult("add-captions", {
         jobId,
         videoUrl: resolvedInputs.videoUrl || data.videoUrl,
-        text: !isCaptionArray ? (resolvedInputs.prompt || resolveRefs(data.text as string | undefined, refMap)) : undefined,
-        captions: isCaptionArray ? captionsValue : (resolvedInputs.captions ?? undefined),
+        text: acText,
+        captions: acCaptions,
         // A Transcript wired into the `transcript` json handle (from transcribe
         // or apply-edl's remapped json) — the worker reshapes it into the
         // caption list via captions-mappers.transcriptToCaptions. Stringified on
@@ -6184,12 +6202,12 @@ export function buildPayload(
         fontSize: data.fontSize,
         color: data.color,
         backgroundColor: data.backgroundColor,
-        // Kinetic look levers + per-segment captions — pass through so an
+        // Look levers + animate + per-segment captions — pass through so an
         // orchestrated (DAG) run matches a single-node run (audit-dag parity).
         // Undefined for canvas nodes that don't carry them; honoured for
-        // authored/imported node data. This path bypasses the route Zod, so a
-        // stale look lever on a `subtitle` node just flows to the worker and is
-        // ignored on the FFmpeg branch — harmless, no rejection here.
+        // authored/imported node data. A styling lever on a `subtitle` node now
+        // routes that render to Remotion (captionRoutesToRemotion), which applies
+        // it — same as the route; only highlightColor/animate stay inert there.
         look: data.look,
         fontFamily: data.fontFamily,
         fontWeight: data.fontWeight,
@@ -6198,9 +6216,10 @@ export function buildPayload(
         highlightColor: data.highlightColor,
         uppercase: data.uppercase,
         positionY: data.positionY,
+        animate: data.animate,
         segments: data.segments,
         usageLogId,
-      })
+      }, acModelId)
     }
 
     case "mix-audio": {

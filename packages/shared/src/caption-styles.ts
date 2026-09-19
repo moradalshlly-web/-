@@ -45,24 +45,74 @@ export type CaptionLookId = (typeof CAPTION_LOOK_IDS)[number]
 export const DEFAULT_CAPTION_LOOK: CaptionLookId = "outline"
 
 /**
- * The look-lever field names that ONLY the Remotion (kinetic) render honours —
- * the static `subtitle` path is FFmpeg drawtext and cannot apply any of them.
- * Single source of truth for the route's reject-on-subtitle guard and the
- * frontend's "don't send a stale lever" strip, so a new kinetic-only lever is
- * covered in both places by adding it here once. Note `color`/`backgroundColor`
- * are deliberately absent — FFmpeg subtitle DOES honour those two.
+ * The lever field names that are MEANINGLESS on a `subtitle` render and so are
+ * rejected on it: `highlightColor` (subtitle has no per-word spoken cursor to
+ * colour) and `animate` (subtitle has no motion to switch off). The STYLING
+ * levers (look/fontFamily/fontWeight/strokeColor/strokeWidth/uppercase/positionY)
+ * are NOT here any more — a `subtitle` carrying any of them now routes to the
+ * Remotion renderer (see `captionRoutesToRemotion`), which applies them exactly
+ * as it does for the kinetic styles. Single source of truth for the route's
+ * reject-on-subtitle guard and the frontend's "don't send a stale lever" strip.
+ * `color`/`backgroundColor` are deliberately absent — FFmpeg subtitle honours
+ * those too.
  */
 export const KINETIC_ONLY_CAPTION_LEVER_KEYS = [
-  "look",
-  "fontFamily",
-  "fontWeight",
-  "strokeColor",
-  "strokeWidth",
   "highlightColor",
-  "uppercase",
-  "positionY",
+  "animate",
 ] as const
 export type KineticOnlyCaptionLeverKey = (typeof KINETIC_ONLY_CAPTION_LEVER_KEYS)[number]
+
+/**
+ * Does an add-captions request need the Remotion renderer, vs the cheap static
+ * FFmpeg drawtext path? A caption routes to Remotion when it needs anything the
+ * one-fixed-string drawtext pass cannot do:
+ *   - per-segment treatments (`segments`),
+ *   - a kinetic style,
+ *   - any STYLING lever (look/font/weight/stroke/uppercase/position_y) — FFmpeg
+ *     drawtext can't apply a webfont face, weight, outline, casing, or a free
+ *     vertical position,
+ *   - TIMED captions (a wired `transcript` or an explicit `captions[]` array),
+ *   - auto-transcription, i.e. no `text` to burn as one static block.
+ * Plain-`text` `subtitle` with no lever stays on FFmpeg (unchanged, cheap).
+ *
+ * SINGLE SOURCE for BOTH the worker dispatch (handleAddCaptions) AND the credit
+ * id (buildAddCaptionsCreditId) so the renderer and the price never drift: a
+ * Remotion render bills as `add-captions:kinetic`, a plain drawtext burn as
+ * `add-captions`.
+ */
+export function captionRoutesToRemotion(input: {
+  style?: string | null
+  text?: string | null
+  segments?: readonly unknown[] | null
+  transcript?: unknown
+  captions?: readonly unknown[] | null
+  look?: unknown
+  fontFamily?: unknown
+  fontWeight?: unknown
+  strokeColor?: unknown
+  strokeWidth?: unknown
+  uppercase?: unknown
+  positionY?: unknown
+}): boolean {
+  if (input.segments && input.segments.length > 0) return true
+  if (isKineticCaptionStyle(input.style)) return true
+  // From here the style is `subtitle` (or unset → the subtitle default).
+  const hasStylingLever =
+    input.look !== undefined ||
+    input.fontFamily !== undefined ||
+    input.fontWeight !== undefined ||
+    input.strokeColor !== undefined ||
+    input.strokeWidth !== undefined ||
+    input.uppercase !== undefined ||
+    input.positionY !== undefined
+  if (hasStylingLever) return true
+  if (input.transcript !== undefined && input.transcript !== null) return true
+  if (input.captions && input.captions.length > 0) return true
+  // No `text` to burn as one static block → the only caption source is
+  // transcription, which produces TIMED captions the drawtext pass can't show.
+  if (!input.text) return true
+  return false
+}
 
 /** The concrete levers a look (and any explicit override) resolves to. */
 export interface CaptionLookLevers {
@@ -121,4 +171,24 @@ export function resolveCaptionLook(
     if (explicit[k] !== undefined) (out[k] as CaptionLookLevers[typeof k]) = explicit[k]
   }
   return out
+}
+
+/**
+ * Resolve the concrete render levers for a caption, applying the default look the
+ * way each STYLE expects. A kinetic style — or a `subtitle` that NAMES a look —
+ * resolves `look ?? outline` under the explicit overrides. A bare `subtitle` (no
+ * look) stays PLAIN: only its explicit levers, NO preset — so a subtitle that
+ * routes to Remotion never inherits the outline house-style unless asked (the old
+ * FFmpeg drawtext path applied no look either). SINGLE SOURCE for the worker
+ * top-level levers, the per-segment resolver, and the frontend config/preview
+ * mirror, so "bare subtitle = plain" can't drift between them.
+ */
+export function resolveCaptionLevers(
+  style: string | undefined | null,
+  look: CaptionLookId | undefined,
+  explicit: CaptionLookLevers,
+  fontSize: number,
+): CaptionLookLevers {
+  if (!isKineticCaptionStyle(style) && look === undefined) return { ...explicit }
+  return resolveCaptionLook(look, explicit, fontSize)
 }

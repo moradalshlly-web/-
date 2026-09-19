@@ -738,10 +738,19 @@ describe("buildPayload", () => {
       expect(result.payload.style).toBe("karaoke")
     })
 
-    it("add-captions throws at build (before reservation) for a transcript on a non-kinetic style", () => {
+    it("add-captions threads a transcript on the SUBTITLE style (now valid — routes to the Remotion SubtitleOverlay, billed :kinetic)", () => {
+      // A transcript on `subtitle` is no longer a build-time throw: a timed/
+      // transcript-driven subtitle renders via Remotion as phrase lines. The
+      // build still validates transcript SHAPE (see the empty-words case below),
+      // but the style no longer gates it, and the credit id follows the renderer.
       const n = node("n1", "add-captions", { style: "subtitle" })
       const inputs: ResolvedInputs = { videoUrl: "https://v.mp4", transcript: TRANSCRIPT_JSON }
-      expect(() => buildPayload(n, jobId, inputs)).toThrow(/kinetic caption style/)
+      const result = buildPayload(n, jobId, inputs)
+      expect(result.jobName).toBe("add-captions")
+      expect(result.payload.transcript).toBe(TRANSCRIPT_JSON)
+      expect(result.payload.style).toBe("subtitle")
+      // A transcript-driven render is Remotion, so it prices as :kinetic even on subtitle.
+      expect(result.modelIdentifier).toBe("add-captions:kinetic")
     })
 
     it("add-captions throws at build for an empty-words transcript", () => {

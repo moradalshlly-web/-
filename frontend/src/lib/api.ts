@@ -3827,8 +3827,9 @@ export async function audioFxApi(params: {
 
 export async function addCaptionsApi(videoUrl: string, text: string, style?: string, position?: string, fontSize?: number, color?: string, backgroundColor?: string, userId?: string, opts?: {
   autoTranscribe?: boolean; transcribeProvider?: string; transcript?: unknown; wordLevel?: boolean;
-  // Kinetic-style look levers (see AddCaptionsData). Sent only for a kinetic style.
-  look?: string; fontFamily?: string; fontWeight?: number; strokeColor?: string; strokeWidth?: number; highlightColor?: string; uppercase?: boolean; positionY?: number;
+  // Caption look levers (see AddCaptionsData). The styling levers apply to EVERY
+  // style; only highlightColor + animate are kinetic-only (see the strip below).
+  look?: string; fontFamily?: string; fontWeight?: number; strokeColor?: string; strokeWidth?: number; highlightColor?: string; uppercase?: boolean; positionY?: number; animate?: boolean;
 }): Promise<{ jobId: string }> {
   // text is OMITTED when empty — the route's schema is `min(1).optional()`,
   // so sending `text: ""` fails validation even though absent-text is the
@@ -3856,13 +3857,17 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
   if (opts?.wordLevel !== undefined) {
     body.wordLevel = opts.wordLevel
   }
-  // Kinetic-only look levers: send ONLY for a kinetic style. A subtitle node may
-  // still carry stale look levers in its data (the config panel hides them but
-  // doesn't clear them), and the route Zod REJECTS a look lever on the static
-  // style — so a stale value would 400 the run. The strip list is the same
-  // shared constant the route rejects on (KINETIC_ONLY_CAPTION_LEVER_KEYS).
-  if (opts && isKineticCaptionStyle(style)) {
-    const leverVals: Record<(typeof KINETIC_ONLY_CAPTION_LEVER_KEYS)[number], unknown> = {
+  // Caption look levers. The STYLING levers (look/font/weight/stroke/uppercase/
+  // positionY) apply to every style — a static `subtitle` carrying one now routes
+  // to the Remotion renderer — so they're sent for every style. Only the members
+  // of KINETIC_ONLY_CAPTION_LEVER_KEYS (highlightColor + animate) are dropped for
+  // a static subtitle: it has no per-word cursor to colour and no motion to switch
+  // off, and the route Zod REJECTS those two on the static style (a stale value —
+  // e.g. left over from a node that was once kinetic — would otherwise 400 the run).
+  if (opts) {
+    const kinetic = isKineticCaptionStyle(style)
+    const kineticOnly = new Set<string>(KINETIC_ONLY_CAPTION_LEVER_KEYS)
+    const leverVals: Record<string, unknown> = {
       look: opts.look,
       fontFamily: opts.fontFamily,
       fontWeight: opts.fontWeight,
@@ -3871,9 +3876,12 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
       highlightColor: opts.highlightColor,
       uppercase: opts.uppercase,
       positionY: opts.positionY,
+      animate: opts.animate,
     }
-    for (const k of KINETIC_ONLY_CAPTION_LEVER_KEYS) {
-      if (leverVals[k] !== undefined) body[k] = leverVals[k]
+    for (const k of Object.keys(leverVals)) {
+      if (leverVals[k] !== undefined && (kinetic || !kineticOnly.has(k))) {
+        body[k] = leverVals[k]
+      }
     }
   }
   return apiJson("/v1/add-captions", {

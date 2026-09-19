@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { KINETIC_ONLY_CAPTION_LEVER_KEYS } from "@nodaro/shared"
 import { addCaptionsBody } from "../add-captions.js"
 
 const VIDEO = "https://example.com/clip.mp4"
@@ -26,18 +29,20 @@ describe("addCaptionsBody — look levers gate on kinetic style", () => {
     expect(r.success).toBe(true)
   })
 
-  it("rejects a look lever on the static subtitle style (the FFmpeg path ignores it)", () => {
+  it("ACCEPTS a styling lever on the static subtitle style (a styled subtitle routes to the Remotion SubtitleOverlay, which applies it)", () => {
     const r = addCaptionsBody.safeParse({
       videoUrl: VIDEO,
       text: "hello",
-      // style omitted → defaults to "subtitle" (non-kinetic)
+      // style omitted → defaults to "subtitle"
       fontFamily: "Montserrat",
     })
-    expect(r.success).toBe(false)
-    expect(issuePaths(r)).toContain("fontFamily")
+    expect(r.success).toBe(true)
   })
 
-  it("rejects every look lever at once on subtitle, each with its own path", () => {
+  it("ACCEPTS every STYLING lever at once on subtitle (look/font/weight/stroke/uppercase/positionY route to Remotion)", () => {
+    // The styling levers are honoured by the Remotion SubtitleOverlay, so a
+    // subtitle carrying them is valid — they are NO LONGER rejected. Only the
+    // kinetic-only levers (highlightColor/animate) stay rejected on subtitle.
     const r = addCaptionsBody.safeParse({
       videoUrl: VIDEO,
       text: "hi",
@@ -47,21 +52,27 @@ describe("addCaptionsBody — look levers gate on kinetic style", () => {
       fontWeight: 700,
       strokeColor: "#000000",
       strokeWidth: 4,
-      highlightColor: "#fff",
       uppercase: true,
       positionY: 50,
     })
-    expect(r.success).toBe(false)
-    const paths = issuePaths(r)
-    for (const k of ["look", "fontFamily", "fontWeight", "strokeColor", "strokeWidth", "highlightColor", "uppercase", "positionY"]) {
-      expect(paths).toContain(k)
+    expect(r.success).toBe(true)
+  })
+
+  it("rejects EACH kinetic-only lever on subtitle, by its own path (data-driven from the shared constant)", () => {
+    // KINETIC_ONLY_CAPTION_LEVER_KEYS is the single source the route iterates to
+    // reject; the test derives from it too, so narrowing/growing the set can't
+    // leave this guard asserting a stale hardcoded list.
+    for (const k of KINETIC_ONLY_CAPTION_LEVER_KEYS) {
+      const value: unknown = k === "animate" ? true : "#22ff88"
+      const r = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hi", style: "subtitle", [k]: value })
+      expect(r.success, `${k} should be rejected on subtitle`).toBe(false)
+      expect(issuePaths(r)).toContain(k)
     }
   })
 
-  it("rejects the look preset on subtitle (it selects levers the FFmpeg path can't apply)", () => {
+  it("ACCEPTS the look preset on subtitle (a styled subtitle routes to the Remotion SubtitleOverlay)", () => {
     const r = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hi", style: "subtitle", look: "outline" })
-    expect(r.success).toBe(false)
-    expect(issuePaths(r)).toContain("look")
+    expect(r.success).toBe(true)
   })
 
   it("rejects a fontWeight that is not a 100-step (100–900) even on a kinetic style", () => {
@@ -142,14 +153,13 @@ describe("addCaptionsBody — Transcript input + wordLevel", () => {
     expect(r.success).toBe(true)
   })
 
-  it("rejects a transcript on the static subtitle style (timed captions need Remotion)", () => {
+  it("ACCEPTS a transcript on the static subtitle style (it routes to Remotion and renders as timed phrase lines)", () => {
     const r = addCaptionsBody.safeParse({
       videoUrl: VIDEO,
-      // style omitted → defaults to "subtitle" (non-kinetic)
+      // style omitted → defaults to "subtitle"
       transcript: TRANSCRIPT,
     })
-    expect(r.success).toBe(false)
-    expect(issuePaths(r)).toContain("transcript")
+    expect(r.success).toBe(true)
   })
 
   it("accepts a transcript alongside segments regardless of top-level style (all-Remotion render)", () => {
@@ -393,5 +403,69 @@ describe("addCaptionsBody — transcribe_provider must be able to do word timing
       ],
     })
     expect(r.success).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Static styled subtitle — the new accept/reject boundary on `subtitle`.
+// A styling lever (position/casing/stroke/font/look) now routes a subtitle to
+// the Remotion SubtitleOverlay, so it PARSES; only highlightColor/animate stay
+// rejected on subtitle (no per-word cursor, no motion to switch off).
+// ---------------------------------------------------------------------------
+describe("addCaptionsBody — subtitle styling levers", () => {
+  it("ACCEPTS positionY / uppercase / stroke on a plain-text subtitle (valid parse)", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      text: "hello world",
+      style: "subtitle",
+      positionY: 80,
+      uppercase: true,
+      strokeColor: "#000000",
+      strokeWidth: 6,
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.positionY).toBe(80)
+      expect(r.data.uppercase).toBe(true)
+      expect(r.data.strokeColor).toBe("#000000")
+      expect(r.data.strokeWidth).toBe(6)
+    }
+  })
+
+  it("REJECTS highlightColor on subtitle (no per-word spoken cursor to colour)", () => {
+    const r = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hi", style: "subtitle", highlightColor: "#FFE600" })
+    expect(r.success).toBe(false)
+    expect(issuePaths(r)).toContain("highlightColor")
+  })
+
+  it("REJECTS animate on subtitle (no motion to switch off)", () => {
+    const r = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hi", style: "subtitle", animate: false })
+    expect(r.success).toBe(false)
+    expect(issuePaths(r)).toContain("animate")
+  })
+
+  it("still ACCEPTS a plain-text subtitle with no lever at all (the cheap FFmpeg path)", () => {
+    const r = addCaptionsBody.safeParse({ videoUrl: VIDEO, text: "hello world", style: "subtitle" })
+    expect(r.success).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// buildAddCaptionsCreditId is module-PRIVATE (not exported), so — as the CLAUDE.md
+// note directs — it is exercised here by a source guard rather than imported. The
+// full kinetic-vs-plain truth table lives on captionRoutesToRemotion (the predicate
+// this fn maps 1:1 from) in packages/shared/src/__tests__/caption-styles.test.ts.
+// This pins the wiring: the credit id is derived from that predicate, never a
+// separate hand-rolled style check that could drift from the renderer.
+// ---------------------------------------------------------------------------
+describe("buildAddCaptionsCreditId follows the renderer (source guard)", () => {
+  const src = readFileSync(join(__dirname, "..", "add-captions.ts"), "utf8")
+  it("derives the credit id from captionRoutesToRemotion, not a bespoke style check", () => {
+    expect(src).toContain("function buildAddCaptionsCreditId")
+    expect(src).toContain("captionRoutesToRemotion({")
+  })
+  it("bills a Remotion render as add-captions:kinetic and a plain-text burn as add-captions", () => {
+    expect(src).toContain('"add-captions:kinetic"')
+    expect(src).toContain('"add-captions"')
   })
 })

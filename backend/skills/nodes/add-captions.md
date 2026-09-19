@@ -1,7 +1,7 @@
 ---
 node_type: add-captions
-generated_at: 2026-09-18T07:26:59.160Z
-generated_from: 8d392afb1
+generated_at: 2026-09-19T21:03:45.711Z
+generated_from: ece713e39
 ---
 
 # Add Captions
@@ -37,6 +37,7 @@ generated_from: 8d392afb1
 - `strokeColor?: string`
 - `strokeWidth?: number`
 - `highlightColor?: string`
+- `animate?: boolean`
 - `uppercase?: boolean`
 - `positionY?: number`
 
@@ -136,6 +137,7 @@ The intro carries its own words. The body names none, so it takes the shared `ca
 - `highlight_color`
 - `uppercase`
 - `position_y`
+- `animate`
 - `segments`
 <!-- AUTO-GEN:END mcp-call -->
 

@@ -3758,16 +3758,26 @@ export type AddCaptionsData = {
   // captions (one per word — karaoke/word-highlight) vs grouped lines; only
   // meaningful with a kinetic style + a wired transcript.
   wordLevel?: boolean
-  // Kinetic-style look levers (kinetic styles only; ignored by the static
-  // subtitle path). `look` selects a preset (outline/clean); an unset look
-  // resolves to the default preset at render. The explicit levers below (kept in
-  // [key: string]: unknown) override individual fields of it.
+  // Caption look levers. The STYLING levers (look/fontFamily/fontWeight/
+  // strokeColor/strokeWidth/uppercase/positionY) apply to EVERY style — the
+  // static `subtitle` now routes to the Remotion renderer when it carries any of
+  // them. `look` selects a preset (outline/clean); for a kinetic style an unset
+  // look resolves to the default preset at render, while a bare `subtitle` with
+  // no look stays plain (explicit levers only). The explicit levers (kept in
+  // [key: string]: unknown) override individual fields of the resolved look.
   look?: CaptionLookId
   fontWeight?: number
   fontFamily?: SupportedFontName
   strokeColor?: string
   strokeWidth?: number
+  // Kinetic-only: subtitle has no per-word spoken cursor to colour and no motion
+  // to switch off (both members of KINETIC_ONLY_CAPTION_LEVER_KEYS).
   highlightColor?: string
+  // Per-word MOTION switch (default true). false freezes the geometric animation
+  // on the kinetic styles (word-highlight hop, karaoke sweep, tiktok/word-pop/
+  // bouncy springs) while keeping line grouping + the spoken-word highlight
+  // colour. Inert on the static `subtitle` style.
+  animate?: boolean
   uppercase?: boolean
   positionY?: number
 }
