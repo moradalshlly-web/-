@@ -1,0 +1,1094 @@
+{
+  "slug": "street-interviews",
+  "name": "Street Interviews",
+  "description": "Turn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about — the workflow finds the human angle, writes three different exchanges, filters the weak ones, and films each approved concept as its own real-looking interview with a distinct person, a controlled voice, lip-sync and captions.",
+  "markdownDescription": "## Street Interviews\n\nTurn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about. Describe what you are promoting (a website is optional), and the workflow finds the human conversation, develops three different angles, writes believable exchanges, filters the weak ones, then films each one as a real-looking street interview with its own person and voice.\n\n**Business use:** any brand that wants authentic-feeling social proof for Reels, TikTok, Shorts, X or LinkedIn without a film crew — the vox-pop format that spreads because it starts from a conversation people recognise, not an ad. The product is the context, never the question: the workflow asks what people would actually talk about, then connects it back to you.\n\n1. **What to promote (+ optional Website)** — the subject in a sentence, and brand context scraped from your page.\n2. **Audience Reader** — the tensions, behaviours and conversation territories around the subject.\n3. **Interview Angles** — three genuinely different concepts (curiosity, recognition, expectation shift), shown in the Interview Ideas table.\n4. **Three lanes, three interviews** — each concept becomes a short spoken exchange with a fixed person; a Quality Check scores weak or promotional ones before any video is made.\n5. **Direct, Still, Voice, Lip Sync, Captions** — each approved concept is filmed: a real-looking interviewee, the exact approved answer spoken in a natural voice, lips synced, word-highlight captions. Interview Set collects the three clips, each usable on its own.",
+  "category": "video-ads",
+  "outputTypes": [
+    "video"
+  ],
+  "tags": [
+    "video-ads",
+    "street-interview",
+    "vox-pop",
+    "ugc",
+    "social-proof",
+    "web-research",
+    "lip-sync",
+    "captions"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 1092,
+  "nodeTypesUsed": [
+    "text-prompt",
+    "web-scrape",
+    "llm-chat",
+    "split-text",
+    "list",
+    "qa-check",
+    "generate-image",
+    "text-to-speech",
+    "lip-sync",
+    "add-captions",
+    "collect",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "elevenlabs-turbo",
+    "kling-avatar",
+    "elevenlabs-stt"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/templates/0f8c3bb2-f954-48c8-b2a2-8d922a60d5c7/preview-b82a968b4538.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 42,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "Turn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about. Describe what you are promoting (a website is optional), and the workflow finds the human conversation, develops three different angles, writes believable exchanges, filters the weak ones, then films each one as a real-looking street interview with its own person and voice.\n\n1. What to promote (+ optional Website) — the subject, and brand context scraped from your page.\n2. Audience Reader — the tensions, behaviours and conversation territories around the subject.\n3. Interview Angles — three genuinely different concepts (curiosity, recognition, expectation shift), shown in the Interview Ideas table.\n4. Three lanes — each concept becomes a short spoken exchange; a Quality Check stops weak or promotional ones before any video is made.\n5. Per lane: Direct + Still + Voice + Lip Sync + Captions — a real-looking interviewee, the exact approved answer spoken in a controlled voice, lips synced, captions burned in. Interview Set collects the three clips for Reels, TikTok, Shorts.",
+        "color": "#1d2430",
+        "label": "How it works",
+        "title": "Street interviews — how it works",
+        "width": 1240,
+        "height": 810,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-subject",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "Describe your product, app, service, brand or idea in a sentence or two — who it is for and what it does. The workflow uses this to find a conversation people care about; it does NOT just ask strangers about your product.",
+        "color": "#1d2430",
+        "label": "Step 1",
+        "title": "1 · What to promote",
+        "width": 600,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-website",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1820
+      },
+      "data": {
+        "bold": false,
+        "text": "A page for extra brand context, scraped by Web Scrape (paste the address — https:// optional). A valid URL is required to run this node, so a demo page is set by default; replace it with yours. The interview never names the brand unless the concept truly needs it.",
+        "color": "#1d2430",
+        "label": "Step 1",
+        "title": "1 · Website (optional)",
+        "width": 600,
+        "height": 390,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-think",
+      "type": "sticky-note",
+      "position": {
+        "x": 820,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "Audience Reader finds the human conversation around the subject. Interview Angles writes three different concepts, one per line; Split + Interview Ideas show them as a table. Each concept then runs down its own lane on the right.",
+        "color": "#1d2430",
+        "label": "Steps 2–3",
+        "title": "2–3 · Find the conversation",
+        "width": 700,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-lanes",
+      "type": "sticky-note",
+      "position": {
+        "x": 1740,
+        "y": 970
+      },
+      "data": {
+        "bold": false,
+        "text": "Each lane takes one concept: Write Interview drafts the exchange with a fixed person (a woman ~30s, a man ~40s, a woman ~60s), the Quality Check stops weak or salesy ones, Direct Interview writes the shot, Interview Still renders the person mid-answer at the mic, Voice speaks the exact approved answer in that lane's voice, Lip Sync brings the still to life, and Add Captions burns word-highlight captions. Interview Set collects the three finished clips.",
+        "color": "#1d2430",
+        "label": "Steps 4–5",
+        "title": "4–5 · Three interviews, Three lanes",
+        "width": 1180,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "promo",
+      "type": "text-prompt",
+      "position": {
+        "x": 0,
+        "y": 1440
+      },
+      "data": {
+        "text": "A calm-tech sleep app that plays adaptive soundscapes and gently fades your phone to greyscale at bedtime, for people who scroll too late and wake up tired.",
+        "label": "What to promote",
+        "width": 600,
+        "height": 260,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "website",
+      "type": "web-scrape",
+      "position": {
+        "x": 0,
+        "y": 2330
+      },
+      "data": {
+        "url": "https://studio.nodaro.ai",
+        "mode": "page",
+        "actor": "content-crawler",
+        "label": "Website",
+        "fieldMappings": {},
+        "presentationInput": true
+      },
+      "width": 600,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "audience",
+      "type": "llm-chat",
+      "position": {
+        "x": 820,
+        "y": 1400
+      },
+      "data": {
+        "label": "Audience Reader",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 1100,
+        "userInput": "SUBJECT: {What to promote || a product people have real feelings about.}\nWEBSITE CONTEXT: {Website || no website provided.}\n\nReturn, in plain text with these headings:\nPLAIN-LANGUAGE SUBJECT — what this really is, without marketing.\nLIKELY AUDIENCE — who relates to it.\nCORE MOTIVATION — what they ultimately want, avoid, improve or feel.\nAUDIENCE TENSIONS — five real frustrations, fears, desires, awkward situations or unresolved questions around the subject.\nREAL-WORLD BEHAVIORS — three situations that create stories or opinions about it.\nCONVERSATION TERRITORIES — five areas that could become street-interview conversations WITHOUT promoting the product.\nCONTENT RISKS — anything that would make the content feel fake, insensitive, misleading or obviously promotional.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are an audience and cultural-insight strategist. Your job is to find the human conversations around a product, service, app, brand, or idea — not to write advertising. Do not write interview questions, do not write video prompts, do not repeat the brand's marketing language. Instead surface the real experiences, habits, tensions, fears, desires, awkward moments, disagreements and misconceptions connected to the subject — the kind of thing ordinary people could talk about in a short street interview, interesting even to someone who has never heard of the product. No invented statistics, no unsupported claims, no corporate language, and never force the brand into the conversation.",
+        "fieldMappings": {}
+      },
+      "width": 520,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "angles",
+      "type": "llm-chat",
+      "position": {
+        "x": 820,
+        "y": 1820
+      },
+      "data": {
+        "label": "Interview Angles",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "AUDIENCE ANALYSIS:\n{Audience Reader || people have strong, specific feelings about this subject.}\n\nWrite the three concepts now, one per line, in the strict format.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You develop short-form street-interview concepts — conversations people would watch even if the brand were invisible. Each concept is rooted in a recognizable human experience and uses a different attention mechanism: CURIOSITY (you immediately want to hear the answer), RECOGNITION (a feeling, habit or opinion many people see in themselves), and EXPECTATION SHIFT (a question that sounds like it points one way but lets the answer reveal something more specific, funny or thoughtful). The three must be genuinely different — not three rewrites of one idea. Write questions that sound natural spoken aloud by a real person holding a microphone. Avoid marketing or survey language, generic 'what do you think about' openers, product placement, fake outrage and motivational-speaker lines.\n\nOUTPUT FORMAT — strict and machine-read: output EXACTLY three lines, nothing before or after, no blank lines, no numbering. Line 1 is the CURIOSITY concept, line 2 RECOGNITION, line 3 EXPECTATION SHIFT. Each line is ONE concept, fields joined by ' || ':\nTYPE || QUESTION || CORE INSIGHT || ANSWER TERRITORY || WHY IT PULLS\nwhere QUESTION is the exact spoken question and ANSWER TERRITORY describes the kind of response that would land (do NOT write the answer). Keep each concept on a single physical line.",
+        "fieldMappings": {}
+      },
+      "width": 520,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "split",
+      "type": "split-text",
+      "position": {
+        "x": 820,
+        "y": 2240
+      },
+      "data": {
+        "label": "Split Angles",
+        "separator": "newline",
+        "removeEmpty": true,
+        "trimWhitespace": true,
+        "customSeparator": ""
+      },
+      "width": 340,
+      "height": 200,
+      "className": "rf-resized"
+    },
+    {
+      "id": "ideas",
+      "type": "list",
+      "position": {
+        "x": 820,
+        "y": 2560
+      },
+      "data": {
+        "rows": [
+          [
+            ""
+          ]
+        ],
+        "label": "Interview Ideas",
+        "columns": [
+          {
+            "id": "default",
+            "name": "Concepts",
+            "type": "text",
+            "handleId": "col_default"
+          }
+        ],
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "write1",
+      "type": "llm-chat",
+      "position": {
+        "x": 1740,
+        "y": 1440
+      },
+      "data": {
+        "label": "Write Interview 1",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "CONCEPTS (one concept per line):\n{Interview Angles || three different street-interview concepts, one per line.}\n\nWrite the full interview for concept LINE 1 ONLY (line 1 of the three). Use the fixed person for this interview.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write one short, believable street-interview exchange from a single concept. It must sound like a real interaction with someone stopped on the street — natural speech over perfect grammar: short spoken sentences, conversational words, mild hesitation when believable, one clear idea in the answer, understated reactions. No advertising language, no slogans, no speeches, no inspirational monologues, no answers engineered to sound profound. The person answers in the moment. The product or brand is NOT mentioned unless the concept truly requires it.\n\nApprove-worthy work only: the question creates immediate interest and sounds natural aloud; the answer sounds like a real person and carries one memorable idea; question and answer are clearly connected; it does not read like an ad; it does not lean on invented statistics; it is concise enough for a short social clip and visually practical as a street interview.\n\nSUBJECT (context only, do not name it in the words unless the concept demands): {What to promote || the subject.}\nAUDIENCE: {Audience Reader || the audience described above.}\n\nReturn, in plain text:\nINTERVIEWEE PROFILE — restate the fixed person for this interview (below) in one line, adding demeanor and attitude. Do not change their gender or age.\nLOCATION TYPE — a plausible public place that fits.\nINTERVIEWER QUESTION — the exact spoken question.\nINTERVIEWEE ANSWER — the exact spoken answer, at most 26 words, sayable in about 7 seconds, natural and specific.\nPERFORMANCE BEAT — one small reaction, pause, glance or gesture that makes it feel spontaneous.\nKeep it tight; no commentary after the interview.\n\nFIXED PERSON for this interview: a woman in her early thirties. Write the interviewee as exactly this person.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 280,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qa1",
+      "type": "qa-check",
+      "position": {
+        "x": 2260,
+        "y": 1440
+      },
+      "data": {
+        "label": "Quality Check 1",
+        "llmModel": "claude-sonnet-4.6",
+        "provider": "claude",
+        "checkType": "content",
+        "threshold": 0.6,
+        "userInput": "Judge this street-interview exchange as a whole. It passes only if the question creates immediate interest and sounds natural spoken aloud, the answer sounds like a real person with one clear memorable idea, question and answer connect, it does not read like an advertisement, it does not depend on invented statistics, and it is concise and visually practical as a street interview. Reject anything generic, over-polished, or that merely asks about the product.",
+        "fieldMappings": {}
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "direct1",
+      "type": "llm-chat",
+      "position": {
+        "x": 2680,
+        "y": 1440
+      },
+      "data": {
+        "label": "Direct Interview 1",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 1 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, caught MID-SENTENCE with the mouth open and clearly visible (not a closed-mouth smile), looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee, mid-answer, that a lip-sync model will bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Output ONLY the image-generation prompt, one paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 280,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still1",
+      "type": "generate-image",
+      "position": {
+        "x": 2680,
+        "y": 1760
+      },
+      "data": {
+        "label": "Interview Still 1",
+        "style": "",
+        "prompt": "{Direct Interview 1 || a real person mid-answer at a hand-held microphone on a city street, chest-up, mouth open, vertical.}",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "answer1",
+      "type": "llm-chat",
+      "position": {
+        "x": 3200,
+        "y": 1440
+      },
+      "data": {
+        "label": "Interview Answer 1",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 200,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 1 || Honestly? Probably saying what you actually want before you're already annoyed.}\n\nOutput only the interviewee's spoken answer.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "voice1",
+      "type": "text-to-speech",
+      "position": {
+        "x": 3200,
+        "y": 1720
+      },
+      "data": {
+        "label": "Voice 1",
+        "speed": 1.12,
+        "style": 0.1,
+        "voiceId": "yK2Ny0mq8WplixhD1td3",
+        "language": "en",
+        "provider": "elevenlabs-turbo",
+        "stability": 0.35,
+        "voiceType": "library",
+        "directText": "",
+        "textSource": "connected",
+        "languageCode": "",
+        "fieldMappings": {},
+        "similarityBoost": 0.8,
+        "voiceDisplayName": "Caroline Braden"
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "lipsync1",
+      "type": "lip-sync",
+      "position": {
+        "x": 3720,
+        "y": 1440
+      },
+      "data": {
+        "label": "Lip Sync 1",
+        "prompt": "",
+        "provider": "kling-avatar",
+        "resolution": "480p",
+        "fieldMappings": {},
+        "enableDynamicDuration": true
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "captions1",
+      "type": "add-captions",
+      "position": {
+        "x": 4080,
+        "y": 1440
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Street Interview 1",
+        "style": "word-highlight",
+        "fontSize": 46,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#111111",
+        "presentationOutput": true,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "write2",
+      "type": "llm-chat",
+      "position": {
+        "x": 1740,
+        "y": 2180
+      },
+      "data": {
+        "label": "Write Interview 2",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "CONCEPTS (one concept per line):\n{Interview Angles || three different street-interview concepts, one per line.}\n\nWrite the full interview for concept LINE 2 ONLY (line 2 of the three). Use the fixed person for this interview.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write one short, believable street-interview exchange from a single concept. It must sound like a real interaction with someone stopped on the street — natural speech over perfect grammar: short spoken sentences, conversational words, mild hesitation when believable, one clear idea in the answer, understated reactions. No advertising language, no slogans, no speeches, no inspirational monologues, no answers engineered to sound profound. The person answers in the moment. The product or brand is NOT mentioned unless the concept truly requires it.\n\nApprove-worthy work only: the question creates immediate interest and sounds natural aloud; the answer sounds like a real person and carries one memorable idea; question and answer are clearly connected; it does not read like an ad; it does not lean on invented statistics; it is concise enough for a short social clip and visually practical as a street interview.\n\nSUBJECT (context only, do not name it in the words unless the concept demands): {What to promote || the subject.}\nAUDIENCE: {Audience Reader || the audience described above.}\n\nReturn, in plain text:\nINTERVIEWEE PROFILE — restate the fixed person for this interview (below) in one line, adding demeanor and attitude. Do not change their gender or age.\nLOCATION TYPE — a plausible public place that fits.\nINTERVIEWER QUESTION — the exact spoken question.\nINTERVIEWEE ANSWER — the exact spoken answer, at most 26 words, sayable in about 7 seconds, natural and specific.\nPERFORMANCE BEAT — one small reaction, pause, glance or gesture that makes it feel spontaneous.\nKeep it tight; no commentary after the interview.\n\nFIXED PERSON for this interview: a man in his forties. Write the interviewee as exactly this person.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 280,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qa2",
+      "type": "qa-check",
+      "position": {
+        "x": 2260,
+        "y": 2180
+      },
+      "data": {
+        "label": "Quality Check 2",
+        "llmModel": "claude-sonnet-4.6",
+        "provider": "claude",
+        "checkType": "content",
+        "threshold": 0.6,
+        "userInput": "Judge this street-interview exchange as a whole. It passes only if the question creates immediate interest and sounds natural spoken aloud, the answer sounds like a real person with one clear memorable idea, question and answer connect, it does not read like an advertisement, it does not depend on invented statistics, and it is concise and visually practical as a street interview. Reject anything generic, over-polished, or that merely asks about the product.",
+        "fieldMappings": {}
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "direct2",
+      "type": "llm-chat",
+      "position": {
+        "x": 2680,
+        "y": 2180
+      },
+      "data": {
+        "label": "Direct Interview 2",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 2 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, caught MID-SENTENCE with the mouth open and clearly visible (not a closed-mouth smile), looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee, mid-answer, that a lip-sync model will bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Output ONLY the image-generation prompt, one paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 280,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still2",
+      "type": "generate-image",
+      "position": {
+        "x": 2680,
+        "y": 2500
+      },
+      "data": {
+        "label": "Interview Still 2",
+        "style": "",
+        "prompt": "{Direct Interview 2 || a real person mid-answer at a hand-held microphone on a city street, chest-up, mouth open, vertical.}",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "answer2",
+      "type": "llm-chat",
+      "position": {
+        "x": 3200,
+        "y": 2180
+      },
+      "data": {
+        "label": "Interview Answer 2",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 200,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 2 || Honestly? Probably saying what you actually want before you're already annoyed.}\n\nOutput only the interviewee's spoken answer.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "voice2",
+      "type": "text-to-speech",
+      "position": {
+        "x": 3200,
+        "y": 2460
+      },
+      "data": {
+        "label": "Voice 2",
+        "speed": 1.12,
+        "style": 0.1,
+        "voiceId": "iP95p4xoKVk53GoZ742B",
+        "language": "en",
+        "provider": "elevenlabs-turbo",
+        "stability": 0.35,
+        "voiceType": "premade",
+        "directText": "",
+        "textSource": "connected",
+        "languageCode": "",
+        "fieldMappings": {},
+        "similarityBoost": 0.8,
+        "voiceDisplayName": "Chris"
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "lipsync2",
+      "type": "lip-sync",
+      "position": {
+        "x": 3720,
+        "y": 2180
+      },
+      "data": {
+        "label": "Lip Sync 2",
+        "prompt": "",
+        "provider": "kling-avatar",
+        "resolution": "480p",
+        "fieldMappings": {},
+        "enableDynamicDuration": true
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "captions2",
+      "type": "add-captions",
+      "position": {
+        "x": 4080,
+        "y": 2180
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Street Interview 2",
+        "style": "word-highlight",
+        "fontSize": 46,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#111111",
+        "presentationOutput": true,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "write3",
+      "type": "llm-chat",
+      "position": {
+        "x": 1740,
+        "y": 2920
+      },
+      "data": {
+        "label": "Write Interview 3",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "CONCEPTS (one concept per line):\n{Interview Angles || three different street-interview concepts, one per line.}\n\nWrite the full interview for concept LINE 3 ONLY (line 3 of the three). Use the fixed person for this interview.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write one short, believable street-interview exchange from a single concept. It must sound like a real interaction with someone stopped on the street — natural speech over perfect grammar: short spoken sentences, conversational words, mild hesitation when believable, one clear idea in the answer, understated reactions. No advertising language, no slogans, no speeches, no inspirational monologues, no answers engineered to sound profound. The person answers in the moment. The product or brand is NOT mentioned unless the concept truly requires it.\n\nApprove-worthy work only: the question creates immediate interest and sounds natural aloud; the answer sounds like a real person and carries one memorable idea; question and answer are clearly connected; it does not read like an ad; it does not lean on invented statistics; it is concise enough for a short social clip and visually practical as a street interview.\n\nSUBJECT (context only, do not name it in the words unless the concept demands): {What to promote || the subject.}\nAUDIENCE: {Audience Reader || the audience described above.}\n\nReturn, in plain text:\nINTERVIEWEE PROFILE — restate the fixed person for this interview (below) in one line, adding demeanor and attitude. Do not change their gender or age.\nLOCATION TYPE — a plausible public place that fits.\nINTERVIEWER QUESTION — the exact spoken question.\nINTERVIEWEE ANSWER — the exact spoken answer, at most 26 words, sayable in about 7 seconds, natural and specific.\nPERFORMANCE BEAT — one small reaction, pause, glance or gesture that makes it feel spontaneous.\nKeep it tight; no commentary after the interview.\n\nFIXED PERSON for this interview: a woman in her sixties. Write the interviewee as exactly this person.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 280,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qa3",
+      "type": "qa-check",
+      "position": {
+        "x": 2260,
+        "y": 2920
+      },
+      "data": {
+        "label": "Quality Check 3",
+        "llmModel": "claude-sonnet-4.6",
+        "provider": "claude",
+        "checkType": "content",
+        "threshold": 0.6,
+        "userInput": "Judge this street-interview exchange as a whole. It passes only if the question creates immediate interest and sounds natural spoken aloud, the answer sounds like a real person with one clear memorable idea, question and answer connect, it does not read like an advertisement, it does not depend on invented statistics, and it is concise and visually practical as a street interview. Reject anything generic, over-polished, or that merely asks about the product.",
+        "fieldMappings": {}
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "direct3",
+      "type": "llm-chat",
+      "position": {
+        "x": 2680,
+        "y": 2920
+      },
+      "data": {
+        "label": "Direct Interview 3",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 500,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 3 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, caught MID-SENTENCE with the mouth open and clearly visible (not a closed-mouth smile), looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee, mid-answer, that a lip-sync model will bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Output ONLY the image-generation prompt, one paragraph.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 280,
+      "className": "rf-resized"
+    },
+    {
+      "id": "still3",
+      "type": "generate-image",
+      "position": {
+        "x": 2680,
+        "y": 3240
+      },
+      "data": {
+        "label": "Interview Still 3",
+        "style": "",
+        "prompt": "{Direct Interview 3 || a real person mid-answer at a hand-held microphone on a city street, chest-up, mouth open, vertical.}",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "answer3",
+      "type": "llm-chat",
+      "position": {
+        "x": 3200,
+        "y": 2920
+      },
+      "data": {
+        "label": "Interview Answer 3",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 200,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 3 || Honestly? Probably saying what you actually want before you're already annoyed.}\n\nOutput only the interviewee's spoken answer.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "voice3",
+      "type": "text-to-speech",
+      "position": {
+        "x": 3200,
+        "y": 3200
+      },
+      "data": {
+        "label": "Voice 3",
+        "speed": 1.12,
+        "style": 0.1,
+        "voiceId": "g6xIsTj2HwM6VR4iXFCw",
+        "language": "en",
+        "provider": "elevenlabs-turbo",
+        "stability": 0.35,
+        "voiceType": "library",
+        "directText": "",
+        "textSource": "connected",
+        "languageCode": "",
+        "fieldMappings": {},
+        "similarityBoost": 0.8,
+        "voiceDisplayName": "Jessica Anne Bogart"
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "lipsync3",
+      "type": "lip-sync",
+      "position": {
+        "x": 3720,
+        "y": 2920
+      },
+      "data": {
+        "label": "Lip Sync 3",
+        "prompt": "",
+        "provider": "kling-avatar",
+        "resolution": "480p",
+        "fieldMappings": {},
+        "enableDynamicDuration": true
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "captions3",
+      "type": "add-captions",
+      "position": {
+        "x": 4080,
+        "y": 2920
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Street Interview 3",
+        "style": "word-highlight",
+        "fontSize": 46,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#111111",
+        "presentationOutput": true,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "finals",
+      "type": "collect",
+      "position": {
+        "x": 1740,
+        "y": 3660
+      },
+      "data": {
+        "label": "Interview Set",
+        "order": []
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-promo-aud",
+      "source": "promo",
+      "target": "audience",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-web-aud",
+      "source": "website",
+      "target": "audience",
+      "sourceHandle": "json",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-aud-ang",
+      "source": "audience",
+      "target": "angles",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-ang-split",
+      "source": "angles",
+      "target": "split",
+      "sourceHandle": "text",
+      "targetHandle": "text"
+    },
+    {
+      "id": "e-split-ideas",
+      "source": "split",
+      "target": "ideas",
+      "sourceHandle": "out",
+      "targetHandle": "col_default_in"
+    },
+    {
+      "id": "e-ang-write1",
+      "source": "angles",
+      "target": "write1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-write1-qa1",
+      "source": "write1",
+      "target": "qa1",
+      "sourceHandle": "text",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qa1-direct1",
+      "source": "qa1",
+      "target": "direct1",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-qa1-answer1",
+      "source": "qa1",
+      "target": "answer1",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-direct1-still1",
+      "source": "direct1",
+      "target": "still1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-answer1-voice1",
+      "source": "answer1",
+      "target": "voice1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-still1-lipsync1",
+      "source": "still1",
+      "target": "lipsync1",
+      "sourceHandle": "image",
+      "targetHandle": "image"
+    },
+    {
+      "id": "e-voice1-lipsync1",
+      "source": "voice1",
+      "target": "lipsync1",
+      "sourceHandle": "audio",
+      "targetHandle": "audio"
+    },
+    {
+      "id": "e-lipsync1-captions1",
+      "source": "lipsync1",
+      "target": "captions1",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-ang-write2",
+      "source": "angles",
+      "target": "write2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-write2-qa2",
+      "source": "write2",
+      "target": "qa2",
+      "sourceHandle": "text",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qa2-direct2",
+      "source": "qa2",
+      "target": "direct2",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-qa2-answer2",
+      "source": "qa2",
+      "target": "answer2",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-direct2-still2",
+      "source": "direct2",
+      "target": "still2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-answer2-voice2",
+      "source": "answer2",
+      "target": "voice2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-still2-lipsync2",
+      "source": "still2",
+      "target": "lipsync2",
+      "sourceHandle": "image",
+      "targetHandle": "image"
+    },
+    {
+      "id": "e-voice2-lipsync2",
+      "source": "voice2",
+      "target": "lipsync2",
+      "sourceHandle": "audio",
+      "targetHandle": "audio"
+    },
+    {
+      "id": "e-lipsync2-captions2",
+      "source": "lipsync2",
+      "target": "captions2",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-ang-write3",
+      "source": "angles",
+      "target": "write3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-write3-qa3",
+      "source": "write3",
+      "target": "qa3",
+      "sourceHandle": "text",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qa3-direct3",
+      "source": "qa3",
+      "target": "direct3",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-qa3-answer3",
+      "source": "qa3",
+      "target": "answer3",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-direct3-still3",
+      "source": "direct3",
+      "target": "still3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-answer3-voice3",
+      "source": "answer3",
+      "target": "voice3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-still3-lipsync3",
+      "source": "still3",
+      "target": "lipsync3",
+      "sourceHandle": "image",
+      "targetHandle": "image"
+    },
+    {
+      "id": "e-voice3-lipsync3",
+      "source": "voice3",
+      "target": "lipsync3",
+      "sourceHandle": "audio",
+      "targetHandle": "audio"
+    },
+    {
+      "id": "e-lipsync3-captions3",
+      "source": "lipsync3",
+      "target": "captions3",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-c1-finals",
+      "source": "captions1",
+      "target": "finals",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-c2-finals",
+      "source": "captions2",
+      "target": "finals",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-c3-finals",
+      "source": "captions3",
+      "target": "finals",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.202
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "promo": {
+          "title": "What to promote",
+          "description": "Your product, app, brand or idea — the workflow finds the conversation around it."
+        },
+        "finals": {
+          "title": "Interview set",
+          "description": "The three finished street-interview clips, each ready to post on its own."
+        },
+        "website": {
+          "title": "Website (optional)",
+          "description": "A page for extra brand context. Replace the demo URL with yours."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "promo",
+        "website"
+      ],
+      "outputOrder": [
+        "finals"
+      ]
+    }
+  }
+}
