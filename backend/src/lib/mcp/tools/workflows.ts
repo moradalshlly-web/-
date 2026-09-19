@@ -1,7 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { hasCredits } from "../../config.js"
 import { findCloudOnlyNodeTypes, cloudOnlyRejectionMessage } from "../../cloud-only-nodes.js"
-import { findDeniedNodeTypes, deniedNodeRejectionMessage } from "../../surface-deny.js"
+import { deniedNodeRejectionMessage } from "../../surface-deny.js"
+import { findDeniedNodeTypesForUser } from "../../availability-viewer.js"
 import { z } from "zod"
 import { isDeepStrictEqual } from "node:util"
 import { clientRequestIdSchema, idempotencyHeaders } from "./_verb-helpers.js"
@@ -36,9 +37,11 @@ import { findUnroutableMedia, rehostForeignMedia } from "../../media-portability
 /** Refuse Cloud-only node types on editions that can't run them, plus any node
  *  the deployment surface profile denies (B1, business+) — an agent-authored
  *  workflow never passes through the node pickers. The deny check runs on every
- *  edition the gate is open for, so it is not behind the hasCredits() early-out. */
-function cloudOnlyGuard(nodes: unknown): string | null {
-  const denied = findDeniedNodeTypes(nodes as ReadonlyArray<{ type?: unknown }> | undefined)
+ *  edition the gate is open for, so it is not behind the hasCredits() early-out.
+ *  Asked per USER (the session's resource owner): a node the admin switch hides
+ *  from users is still authorable by an admin, whatever client they drive. */
+async function cloudOnlyGuard(nodes: unknown, userId: string): Promise<string | null> {
+  const denied = await findDeniedNodeTypesForUser(nodes as ReadonlyArray<{ type?: unknown }> | undefined, userId)
   if (denied.length > 0) return deniedNodeRejectionMessage(denied)
   if (hasCredits()) return null
   const found = findCloudOnlyNodeTypes(nodes as ReadonlyArray<{ type?: unknown }> | undefined)
@@ -313,7 +316,7 @@ export function registerWorkflows({
       },
       async (args) => {
         const mcpProjectId = await ensureMcpProject(session)
-        const cloudOnlyErr = cloudOnlyGuard(args.nodes)
+        const cloudOnlyErr = await cloudOnlyGuard(args.nodes, session.userId)
         if (cloudOnlyErr) return err(cloudOnlyErr)
 
         const { data, error } = await supabase
@@ -538,7 +541,7 @@ export function registerWorkflows({
         if (hasNodes !== hasEdges) {
           return err("Provide both `nodes` and `edges` together, or neither.")
         }
-        const cloudOnlyUpdateErr = cloudOnlyGuard(args.nodes)
+        const cloudOnlyUpdateErr = await cloudOnlyGuard(args.nodes, session.userId)
         if (cloudOnlyUpdateErr) return err(cloudOnlyUpdateErr)
         if (!hasNodes && args.settings === undefined && args.thumbnail_url === undefined) {
           return err(

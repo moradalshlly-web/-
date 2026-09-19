@@ -553,6 +553,40 @@ optional; each array empty = "keep the default"):
   only by an explicit `deny` entry. An admin can further adjust availability at
   runtime from **Admin → Availability** (full list with per-item toggles); a
   stored runtime override replaces this factory set until "Reset to factory".
+  The two layers differ in who they apply to. A **node type left off in Admin →
+  Availability** is hidden from the deployment's users only: admins still see
+  it in the picker (marked `ADMIN`), can save workflows that use it and can run
+  it — so an admin can keep using a node they have not released. A removal made
+  by this **profile** carries no such exception: being an admin never hands back
+  a node the profile removed. The profile is not a hard floor, though — the
+  runtime override *replaces* it, so an admin who ticks a profile-removed node
+  **on** in Admin → Availability releases it to everyone; a hoster who must
+  prevent that should not grant the admin role. Models have no admin exception
+  at all: a model turned off is off for admins too.
+
+  What follows from "hidden from users, kept for admins":
+  - A run is judged as the user it executes as. An app or presentation run
+    executes as the person running it, so a user can never reach a hidden node
+    through something an admin built — the node fails with `node_not_available`
+    before it creates a job or reserves credits. A **scheduled or webhook-
+    triggered** run executes as the workflow's owner, and an API token or
+    connected app acts as its owner too: if that owner is an admin, the run may
+    use a hidden node. Treat a webhook URL on such a workflow accordingly.
+  - Publishing is judged as the users' view, whoever publishes: an app, a
+    component or a template that contains a hidden node is refused with
+    `node_not_available` until the node is removed or released.
+  - Public discovery (`GET /v1/nodes`, the MCP tool list) always shows the
+    users' view.
+  - A capability that lives *inside* another node follows the dedicated node it
+    duplicates. Web Scrape's **Instagram source** is the Instagram node's scraper
+    behind another door, so turning the Instagram node off also withdraws that
+    source — from the dropdown, from runs (`node_not_available`, named
+    `web-scrape:instagram`) and from publishing — with the same admin exception.
+    Web Scrape's other sources are unaffected, and saving a workflow that still
+    points at the source is not refused (its owner has to be able to move off
+    it); running it is.
+  - An admin role change reaches this check within about five minutes (the
+    admin lookup is cached per process).
 - `auth.methods`: `["email","google","sso"]` (plus `auth.ssoLabel` — `sso` is
   dropped from the list unless `ssoLabel` is set). A list that names **only**
   `sso` also turns on a server-side gate: every signed-in account must have been

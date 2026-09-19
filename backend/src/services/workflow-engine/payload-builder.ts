@@ -22,7 +22,7 @@ import { resolveEntityImageCreditIdentifier } from "../../lib/entity-credit-iden
 import { backendHybridRoles } from "../../lib/reference-format.js"
 import { selectLoraRoutingForMentions } from "../../lib/character-lora.js"
 import { config } from "../../lib/config.js"
-import { isNodeDenied, deniedNodeRejectionMessage, isModelDenied, deniedModelRejectionMessage } from "../../lib/surface-deny.js"
+import { isNodeDenied, nodeNotAvailableError, isModelDenied, deniedModelRejectionMessage, USER_VIEWER, type AvailabilityViewer } from "../../lib/surface-deny.js"
 import { safeUrlSchema } from "../../lib/url-validator.js"
 import { scene3DFrameFromNode, scene3DNodePreflightError, scene3DReferencesFromNode } from "../../lib/scene3d-node.js"
 import { scene3DAnyPlanSchema, scene3DPlanSchemaVersion, type Scene3DPlanV2 } from "@nodaro/shared"
@@ -79,6 +79,12 @@ export interface PayloadBuildContext {
    *  `settleAuthoredPromptFields`). Absent for direct callers (single-node
    *  parity, tests), where every field is authored by definition. */
   authoredData?: Record<string, unknown>
+  /** Who the run belongs to, for the node-availability backstop below — the
+   *  EXECUTION's user (an app run executes as its runner, a scheduled run as
+   *  the workflow's owner), resolved by the caller through
+   *  `viewerForNode` because this builder is synchronous. ABSENT = a user:
+   *  a caller that does not say who is asking never gets the admin's view. */
+  viewer?: AvailabilityViewer
 }
 
 // ---------------------------------------------------------------------------
@@ -2312,11 +2318,11 @@ export function buildPayload(
   // buildPayload with a denied node WITHOUT passing a write guard (write guards
   // reject new saves; discovery hides it). Reject at run time with the friendly,
   // coded error so ANY denied type fails honestly — not just the fall-through
-  // cases the switch default catches.
-  if (isNodeDenied(type)) {
-    const err = new Error(deniedNodeRejectionMessage([type])) as Error & { code?: string }
-    err.code = "node_not_available"
-    throw err
+  // cases the switch default catches. Asked as the run's own user: an admin
+  // keeps a node the admin switch hides, a user running that admin's app or
+  // template does not.
+  if (isNodeDenied(type, buildCtx?.viewer ?? USER_VIEWER)) {
+    throw nodeNotAvailableError([type])
   }
 
   // Deployment surface MODEL deny (B1): node deny has a run-time backstop above,

@@ -18,6 +18,7 @@ import { safeUrlSchema } from "../../url-validator.js"
 import { passesGate } from "../tool-schemas.js"
 import { WIDGET_URI } from "../widgets/registrar.js"
 import { scene3DProAvailable } from "../../../services/scene3d/scene3d-engine.js"
+import { USER_VIEWER } from "../../surface-deny.js"
 import { clientRequestIdSchema, dispatchJob, errorResult, JOB_OUTPUT_SCHEMA, parseFailure, uiMeta } from "./_verb-helpers.js"
 import { mcpInject } from "../internal-request.js"
 import type { RegisterOpts } from "./verbs-image.js"
@@ -136,7 +137,9 @@ export function registerScene3DVerbs({ server, session, fastify }: RegisterOpts)
   // operation — the same predicate `GET /v1/nodes`, the capabilities document
   // and the route read. An agent is never shown a tool whose only possible
   // answer today is 503.
-  if (scene3DProAvailable()) {
+  // The USER view, like `GET /v1/nodes`: a tool list is a discovery surface, and
+  // discovery never advertises a node the admin switch withholds from users.
+  if (scene3DProAvailable(USER_VIEWER)) {
     server.registerTool("pro_3d_render", {
       title: "3D Render Pro",
       description: "ONE operation that produces a finished 3D shot: a source goes in, and the settled job carries BOTH " +

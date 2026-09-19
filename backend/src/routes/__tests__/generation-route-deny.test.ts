@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest"
 import Fastify, { type FastifyInstance } from "fastify"
 
 /**
@@ -22,15 +22,38 @@ vi.mock("@/lib/config.js", () => ({
   isCloud: () => false,
   isCommunity: () => false,
   hasCredits: () => false,
-  hasAdmin: () => false,
+  // Business has an admin panel — the admin-switch cases below depend on it.
+  hasAdmin: () => true,
 }))
 
 // The dedup fast-path only calls supabase when an idempotency-key header is
 // present; these requests send none, so a bare stub is never reached.
 vi.mock("@/lib/supabase.js", () => ({ supabase: { from: vi.fn() } }))
 
+// The admin switch (last block): who is an admin is the shared admin check —
+// stubbed, because the real one reads `profiles`. `fail` is an outage.
+const admins = vi.hoisted(() => ({ ids: new Set<string>(), fail: false }))
+vi.mock("@/lib/admin-check.js", () => ({
+  checkIsAdmin: async (userId: string) => {
+    if (admins.fail) throw new Error("Admin check failed: db down")
+    return admins.ids.has(userId)
+  },
+}))
+// The gateable universe comes from the node registry, whose real module drags
+// the whole credits graph in behind this file's config stub. Two rows are all
+// an override needs to invert over.
+vi.mock("@/lib/node-registry.js", () => ({
+  NODE_REGISTRY: [
+    { type: "generate-image", category: "ai-image" },
+    { type: "generate-video", category: "ai-video" },
+    { type: "web-scrape", category: "input" },
+    { type: "instagram-scrape", category: "input" },
+  ],
+}))
+
 import { creditGuard } from "../../middleware/credit-guard.js"
 import { __resetSurfaceProfileCacheForTests } from "../../lib/surface-profile.js"
+import { __resetAvailabilityOverridesForTests, __availabilityUniverseReadyForTests } from "../../lib/availability-override.js"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 
@@ -41,12 +64,16 @@ const ROUTE_PATHS = [
   "/v1/text-to-video",
   "/v1/image-to-image",
   "/v1/text-to-speech",
+  "/v1/web-scrape",
 ] as const
 
 async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false })
+  // Only a user id — no `userRole`, no `authKind`: exactly what the
+  // orchestrator's internal call carries, so nothing below can pass by reading
+  // a role the JWT path stamped.
   app.addHook("preHandler", async (req) => {
-    ;(req as { userId?: string }).userId = USER
+    ;(req as { userId?: string }).userId = (req.headers["x-test-user"] as string | undefined) ?? USER
   })
   for (const url of ROUTE_PATHS) {
     app.post(
@@ -117,5 +144,99 @@ describe("inert when nothing is denied (byte-inert on mainline)", () => {
     setProfile(JSON.stringify({ models: { deny: ["veo3"] } }))
     const res = await app.inject({ method: "POST", url: "/v1/generate-image", payload: { provider: "gpt-image" } })
     expect(res.statusCode).not.toBe(403)
+  })
+})
+
+describe("the admin switch on direct generation routes — hidden from users, kept for admins", () => {
+  const ADMIN = "00000000-0000-4000-8000-0000000000ad"
+  beforeAll(() => __availabilityUniverseReadyForTests())
+  beforeEach(() => {
+    admins.ids = new Set([ADMIN])
+    admins.fail = false
+  })
+  afterEach(() => __resetAvailabilityOverridesForTests())
+
+  /** The stored override: generate-image stays on, generate-video is withheld. */
+  const hideVideoFromUsers = () => __resetAvailabilityOverridesForTests({ nodes: new Set(["generate-image"]) })
+  const postVideoAs = (user: string) =>
+    app.inject({ method: "POST", url: "/v1/generate-video", headers: { "x-test-user": user }, payload: { provider: "veo3" } })
+
+  it("refuses a user", async () => {
+    hideVideoFromUsers()
+    const res = await postVideoAs(USER)
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error.code).toBe("node_not_available")
+  })
+
+  it("lets an admin through — keyed on the user id alone", async () => {
+    hideVideoFromUsers()
+    const res = await postVideoAs(ADMIN)
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ ok: true })
+  })
+
+  it("does not hand an admin back a node the deployment PROFILE removed", async () => {
+    setProfile(JSON.stringify({ nodes: { deny: ["generate-video"] } }))
+    const res = await postVideoAs(ADMIN)
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error.code).toBe("node_not_available")
+  })
+
+  it("refuses an admin while the admin check is down — an outage never widens availability", async () => {
+    hideVideoFromUsers()
+    admins.fail = true
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {})
+    const res = await postVideoAs(ADMIN)
+    expect(res.statusCode).toBe(403)
+    errors.mockRestore()
+  })
+
+  it("asks nobody's role for a node that is not hidden", async () => {
+    hideVideoFromUsers()
+    admins.fail = true // a lookup here would throw and be logged
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {})
+    const res = await app.inject({ method: "POST", url: "/v1/generate-image", payload: { provider: "gpt-image" } })
+    expect(res.statusCode).toBe(200)
+    expect(errors).not.toHaveBeenCalled()
+    errors.mockRestore()
+  })
+})
+
+// Web Scrape's Instagram source is the Instagram node's capability behind another
+// door, so it follows that node's availability. The guard reads it from the BODY.
+describe("a capability hosted by another route follows the node that governs it", () => {
+  const ADMIN = "00000000-0000-4000-8000-0000000000ad"
+  beforeAll(() => __availabilityUniverseReadyForTests())
+  beforeEach(() => {
+    admins.ids = new Set([ADMIN])
+    admins.fail = false
+    // The Instagram NODE is withheld; Web Scrape itself stays released.
+    __resetAvailabilityOverridesForTests({ nodes: new Set(["generate-image", "generate-video", "web-scrape"]) })
+  })
+  afterEach(() => __resetAvailabilityOverridesForTests())
+
+  const scrapeAs = (user: string, actor: string) =>
+    app.inject({ method: "POST", url: "/v1/web-scrape", headers: { "x-test-user": user }, payload: { actor, target: "nasa" } })
+
+  it("refuses a user the Instagram source, naming it", async () => {
+    const res = await scrapeAs(USER, "instagram")
+    expect(res.statusCode).toBe(403)
+    expect(res.json().error.code).toBe("node_not_available")
+    expect(res.json().error.message).toContain("web-scrape:instagram")
+  })
+
+  it("lets an admin use it", async () => {
+    expect((await scrapeAs(ADMIN, "instagram")).statusCode).toBe(200)
+  })
+
+  it("leaves Web Scrape's other sources alone", async () => {
+    for (const actor of ["google-search", "content-crawler", "tiktok", "rss"]) {
+      expect((await scrapeAs(USER, actor)).statusCode).toBe(200)
+    }
+  })
+
+  it("the source is back for everyone once the Instagram node is released", async () => {
+    __resetAvailabilityOverridesForTests()
+    expect((await scrapeAs(USER, "instagram")).statusCode).toBe(200)
   })
 })

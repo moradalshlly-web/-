@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Copy, Download } from "lucide-react"
+import { WebScrapeSourceItems, WebScrapeSourceNotice } from "./web-scrape-source-options"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -218,13 +219,10 @@ function WebScrapeConfigTab({ data, onUpdate, sources, fieldMappings, onMapField
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {ACTOR_OPTIONS.map((id) => (
-              <SelectItem key={id} value={id}>
-                {actorLabel(id)}
-              </SelectItem>
-            ))}
+            <WebScrapeSourceItems options={ACTOR_OPTIONS} current={actor} label={actorLabel} />
           </SelectContent>
         </Select>
+        <WebScrapeSourceNotice actor={actor} />
       </div>
 
       {/* Google Search */}

@@ -9,6 +9,7 @@ import { bareOriginSchema } from "../lib/url-validator.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { accessAtLeast, workflowAccessFromRow } from "../lib/workflow-access.js"
 import { toAccessRow } from "../lib/workflow-route-access.js"
+import { findUnpublishableNodeTypes, unpublishableNodesMessage } from "../lib/surface-deny.js"
 
 const VALID_CATEGORIES = [
   "image-generation", "video-production", "audio-music", "content-writing",
@@ -470,6 +471,15 @@ export async function publishedAppsRoutes(app: FastifyInstance) {
     // work is not the question — having made it is.
     if (workflow.user_id !== userId) {
       return reply.status(403).send({ error: { code: "forbidden", message: "Not your workflow" } })
+    }
+    // What is published is run by its USERS, so it must be runnable by them —
+    // asked as the users' view even when the publisher is an admin who can run
+    // the node themselves (lib/surface-deny.ts :: findUnpublishableNodeTypes).
+    const unpublishable = findUnpublishableNodeTypes(workflow.nodes as ReadonlyArray<{ type?: unknown }> | undefined)
+    if (unpublishable.length > 0) {
+      return reply.status(400).send({
+        error: { code: "node_not_available", message: unpublishableNodesMessage(unpublishable) },
+      })
     }
 
     // Validate component handles and exposed settings against snapshot nodes

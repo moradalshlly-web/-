@@ -54,6 +54,8 @@ The Web Scrape node retrieves data from external sources using configurable acto
 | Profile or post URL | text | — | Address of the profile or post, with or without `https://` (`instagram.com/nike` works). Use `{}` to inject upstream |
 | Results limit | number | 10 | Maximum posts to return (1–20) |
 
+**Availability of the Instagram source.** This source is the same capability as the dedicated [Instagram](instagram-scrape.md) node, so it follows that node's availability: on a deployment where an admin has turned the Instagram node off (Admin → Availability), the Instagram source is withdrawn as well — it disappears from the Source dropdown and a run that uses it is refused with `node_not_available` (`web-scrape:instagram`). A node that was already set to it keeps showing it, tagged *not available*, until you pick another source. Web Scrape's other sources are unaffected.
+
 ## Results
 
 After a run, the node card peeks at the first few items and the settings panel's **Results** tab lists them all (with a Raw JSON view, copy and download). Every item links to its source — the search result's page, the feed item, the crawled page, the Instagram post, the TikTok video — and opens in a new tab, so you can judge a result before building on it. Only `http`/`https` addresses become links; anything else a feed returns is shown as text.

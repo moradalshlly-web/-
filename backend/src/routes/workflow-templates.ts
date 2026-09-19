@@ -19,6 +19,7 @@ import { normalizeLegacyNodeTypes } from "../services/workflow-engine/normalize-
 import { sendInternalError } from "../lib/http-errors.js"
 import { accessAtLeast, workflowAccessFromRow } from "../lib/workflow-access.js"
 import { toAccessRow } from "../lib/workflow-route-access.js"
+import { findUnpublishableNodeTypes, unpublishableNodesMessage } from "../lib/surface-deny.js"
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -443,6 +444,15 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
 
     const nodes = (workflow.nodes || []) as Array<Record<string, unknown>>
     const edges = (workflow.edges || []) as Array<Record<string, unknown>>
+    // What is published is run by its USERS, so it must be runnable by them —
+    // asked as the users' view even when the publisher is an admin who can run
+    // the node themselves (lib/surface-deny.ts :: findUnpublishableNodeTypes).
+    const unpublishable = findUnpublishableNodeTypes(nodes)
+    if (unpublishable.length > 0) {
+      return reply.status(400).send({
+        error: { code: "node_not_available", message: unpublishableNodesMessage(unpublishable) },
+      })
+    }
 
     // Auto-derive metadata
     const nodeTypesUsed = extractNodeTypes(nodes)

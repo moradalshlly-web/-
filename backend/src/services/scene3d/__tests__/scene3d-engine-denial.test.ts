@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { FastifyReply, FastifyRequest } from "fastify"
 
-const state = vi.hoisted(() => ({ denied: new Set<string>(), capabilities: vi.fn(), generate: vi.fn(), edit: vi.fn(), proRender: vi.fn(), quoteProRender: vi.fn() }))
+const state = vi.hoisted(() => ({ denied: new Set<string>(), admins: new Set<string>(), capabilities: vi.fn(), generate: vi.fn(), edit: vi.fn(), proRender: vi.fn(), quoteProRender: vi.fn() }))
 vi.mock("@/lib/config.js", () => ({ config: { SCENE3D_ADVANCED_ENABLED: true, SCENE3D_LOCAL_ENABLED: false }, hasCredits: () => true }))
 vi.mock("@/lib/private-plugins/engine-registry.js", () => ({ getPluginEngines: () => ({ scene3d: state }) }))
-vi.mock("@/lib/surface-deny.js", () => ({ isNodeDenied: (type: string) => state.denied.has(type), deniedNodeRejectionMessage: (types: string[]) => `Unavailable: ${types.join(", ")}` }))
+// `denied` = hidden from USERS by the admin switch; an admin keeps those.
+vi.mock("@/lib/surface-deny.js", () => ({
+  isNodeDenied: (type: string, viewer: { admin: boolean }) => state.denied.has(type) && !viewer.admin,
+  deniedNodeRejectionMessage: (types: string[]) => `Unavailable: ${types.join(", ")}`,
+}))
+vi.mock("@/lib/availability-viewer.js", () => ({
+  isNodeDeniedForUser: async (type: string, userId?: string) => state.denied.has(type) && !state.admins.has(userId ?? ""),
+}))
 vi.mock("@/lib/http-errors.js", () => ({
   sendInternalError: vi.fn(),
   __flushHttpErrorTelemetry: vi.fn(),
@@ -16,6 +23,7 @@ import { dispatchAdvancedScene3D, dispatchPro3DRender, dispatchPro3DRenderQuote,
 beforeEach(() => {
   vi.clearAllMocks()
   state.denied.clear()
+  state.admins.clear()
   state.capabilities.mockResolvedValue({ engines: ["blender-cloud"] })
 })
 
@@ -46,9 +54,9 @@ describe("Advanced scene deployment policy", () => {
   })
 
   it("hides denied Pro and refuses both direct dispatch methods", async () => {
-    expect(scene3DProAvailable()).toBe(true)
+    expect(scene3DProAvailable({ admin: false })).toBe(true)
     state.denied.add("pro-3d-render")
-    expect(scene3DProAvailable()).toBe(false)
+    expect(scene3DProAvailable({ admin: false })).toBe(false)
     for (const dispatch of [dispatchPro3DRender, dispatchPro3DRenderQuote]) {
       const response = reply()
       await dispatch(request, response as unknown as FastifyReply)
@@ -56,5 +64,30 @@ describe("Advanced scene deployment policy", () => {
     }
     expect(state.proRender).not.toHaveBeenCalled()
     expect(state.quoteProRender).not.toHaveBeenCalled()
+  })
+
+  it("an admin keeps what the admin switch hides from users — Advanced and Pro alike", async () => {
+    state.denied.add("generate-3d-scene")
+    state.denied.add("pro-3d-render")
+    state.admins.add("admin")
+    const asAdmin = { userId: "admin", body: { engine: "blender-cloud" } } as FastifyRequest
+
+    expect(scene3DProAvailable({ admin: true })).toBe(true)
+    expect(scene3DProAvailable({ admin: false })).toBe(false)
+
+    const advanced = reply()
+    await dispatchAdvancedScene3D("generate", asAdmin, advanced as unknown as FastifyReply)
+    expect(advanced.status).not.toHaveBeenCalledWith(403)
+    expect(state.generate).toHaveBeenCalledWith(asAdmin, advanced)
+
+    const pro = reply()
+    await dispatchPro3DRender(asAdmin, pro as unknown as FastifyReply)
+    expect(pro.status).not.toHaveBeenCalledWith(403)
+    expect(state.proRender).toHaveBeenCalledWith(asAdmin, pro)
+
+    // The same request from a user is still refused.
+    const refused = reply()
+    await dispatchPro3DRender(request, refused as unknown as FastifyReply)
+    expect(refused.status).toHaveBeenCalledWith(403)
   })
 })

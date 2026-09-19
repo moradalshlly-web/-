@@ -14,11 +14,14 @@ import { config, hasCredits } from "../../lib/config.js"
 import { getPluginEngines } from "../../lib/private-plugins/engine-registry.js"
 import type { PluginScene3DCapabilities, PluginScene3DEngine } from "../../lib/private-plugins/scene3d-contract.js"
 import { sendInternalError } from "../../lib/http-errors.js"
-import { isNodeDenied, deniedNodeRejectionMessage } from "../../lib/surface-deny.js"
+import { isNodeDenied, deniedNodeRejectionMessage, type AvailabilityViewer } from "../../lib/surface-deny.js"
+import { isNodeDeniedForUser } from "../../lib/availability-viewer.js"
 
-/** Advanced routes bypass Basic's credit guard, including its deployment gate. */
-export function refuseDeniedScene3DNode(type: string, reply: FastifyReply): boolean {
-  if (!isNodeDenied(type)) return false
+/** Advanced routes bypass Basic's credit guard, including its deployment gate.
+ *  Asked per USER like that guard: a node the admin switch hides from users is
+ *  still runnable by an admin. */
+export async function refuseDeniedScene3DNode(type: string, request: FastifyRequest, reply: FastifyReply): Promise<boolean> {
+  if (!(await isNodeDeniedForUser(type, request.userId))) return false
   reply.status(403).send({ error: { code: "node_not_available", message: deniedNodeRejectionMessage([type]) } })
   return true
 }
@@ -54,8 +57,17 @@ function advancedEngine(): PluginScene3DEngine | undefined {
  * `await engine.capabilities()` would be a per-request round trip to the
  * plugin for an answer that cannot change without a redeploy.
  */
-export function scene3DProAvailable(): boolean {
-  if (isNodeDenied("pro-3d-render")) return false
+export function scene3DProAvailable(viewer: AvailabilityViewer): boolean {
+  if (isNodeDenied("pro-3d-render", viewer)) return false
+  return scene3DProEngineReady()
+}
+
+/**
+ * The ENGINE half of Pro readiness, with no availability question in it — for
+ * a route that has already answered that one per user through
+ * `refuseDeniedScene3DNode` and must not ask it again as somebody else.
+ */
+export function scene3DProEngineReady(): boolean {
   const engine = advancedEngine()
   // BOTH halves, because the run route requires a `quoteId` that only
   // `quoteProRender` can mint. An engine with one and not the other would be
@@ -86,7 +98,9 @@ function declared<T extends string>(
   return kept.length > 0 ? kept : [...fallback]
 }
 
-export async function scene3DCapabilities() {
+/** `viewer` decides only `pro.available`: the browser reads it to put the Pro
+ *  node in the picker, and an admin keeps a node the admin switch hides. */
+export async function scene3DCapabilities(viewer: AvailabilityViewer) {
   const engine = advancedEngine()
   const advanced = engine ? await engine.capabilities() : undefined
   return {
@@ -99,7 +113,7 @@ export async function scene3DCapabilities() {
     // because a client asks a different question of it: not "which engines can
     // author" but "which controls may I offer, and can I put the node on a
     // canvas at all".
-    pro: proCapabilities(advanced),
+    pro: proCapabilities(advanced, viewer),
   }
 }
 
@@ -110,7 +124,7 @@ export async function scene3DCapabilities() {
  * with `blender-local` withheld unless the deployment enables it — so a menu
  * can never contain an option the route would refuse.
  */
-function proCapabilities(advanced: PluginScene3DCapabilities | undefined): Pro3DRenderCapabilities {
+function proCapabilities(advanced: PluginScene3DCapabilities | undefined, viewer: AvailabilityViewer): Pro3DRenderCapabilities {
   const pro = advanced?.pro
   const engines = declared<Pro3DRenderEngine>(
     pro?.engines ?? advanced?.engines,
@@ -118,7 +132,7 @@ function proCapabilities(advanced: PluginScene3DCapabilities | undefined): Pro3D
     ["blender-cloud"],
   ).filter((value) => value !== "blender-local" || config.SCENE3D_LOCAL_ENABLED)
   return {
-    available: scene3DProAvailable(),
+    available: scene3DProAvailable(viewer),
     engines,
     qualityProfiles: declared<Pro3DRenderQuality>(pro?.qualityProfiles, PRO3D_RENDER_QUALITY_PROFILES, PRO3D_RENDER_QUALITY_PROFILES),
     styles: declared<Pro3DRenderStyle>(pro?.styles, PRO3D_RENDER_STYLES, PRO3D_RENDER_STYLES),
@@ -138,7 +152,7 @@ export async function dispatchAdvancedScene3D(
     reply.status(401).send({ error: { code: "unauthorized", message: "Authentication required" } })
     return
   }
-  if (refuseDeniedScene3DNode(operation === "generate" ? "generate-3d-scene" : "edit-3d-scene", reply)) return
+  if (await refuseDeniedScene3DNode(operation === "generate" ? "generate-3d-scene" : "edit-3d-scene", request, reply)) return
   const selected = requestedScene3DEngine(request.body)
   if (selected !== "blender-cloud" && selected !== "blender-local") {
     reply.status(400).send({ error: { code: "validation_error", message: "Unknown 3D authoring engine" } })
@@ -200,11 +214,11 @@ async function dispatchPro(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  if (refuseDeniedScene3DNode("pro-3d-render", reply)) return
+  if (await refuseDeniedScene3DNode("pro-3d-render", request, reply)) return
   const engine = advancedEngine()
   // Readiness is checked as a PAIR, so a half-implemented engine cannot serve
   // one leg of the operation and strand the other.
-  if (!scene3DProAvailable() || !engine?.[method]) {
+  if (!scene3DProEngineReady() || !engine?.[method]) {
     unavailable(reply)
     return
   }

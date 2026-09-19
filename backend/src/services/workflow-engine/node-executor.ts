@@ -23,6 +23,7 @@ import { refundJobCredits } from "../../workers/shared.js"
 import { buildScene3DHttpBody, isScene3DAuthoringType } from "./scene3d-http.js"
 import { loopbackFetch } from "./loopback-fetch.js"
 import { buildPayload, buildNodeRefMap, type WorkflowSettings } from "./payload-builder.js"
+import { assertNodeAvailableForUser, viewerForNode } from "../../lib/availability-viewer.js"
 import { ensureWorkflowSheetPanels } from "./reference-sheet-stage-a.js"
 import { buildNodeOutputFromJobData } from "./output-extractor.js"
 import { retainedOutputOfFailedJob } from "./failed-node-output.js"
@@ -357,6 +358,18 @@ export async function executeNode(
     return { output: {} }
   }
 
+  // ONE availability door for every lane. Below this point the lanes used to
+  // decide for themselves, and most decided nothing: worker-queued nodes hit
+  // buildPayload's backstop, a sync-HTTP node relied on its route's creditGuard
+  // — which derives the node type from the route path, so it only ever matched
+  // when the path IS the type (llm-chat → /v1/llm-chat/generate, the social
+  // posts → /v1/social/publish and a dozen more slipped through) — and inline,
+  // sub-workflow and component nodes were checked by nobody. Asked here, once,
+  // as the EXECUTION's own user (an app run executes as its runner, a scheduled
+  // run as the workflow's owner) and before any job row or reservation exists.
+  // The per-lane checks stay as defence in depth.
+  await assertNodeAvailableForUser(node.type, ctx.userId, node.data)
+
   // Capture the UNRESOLVED user-typed prompt template BEFORE field mapping
   // resolution rewrites `node.data.<field>`. Plumbed down to worker / sync HTTP
   // executors so `jobs.input_data.userPrompt` mirrors the frontend's
@@ -585,6 +598,7 @@ async function executeSyncHttpNode(
     ? buildScene3DHttpBody(node, resolvedInputs, ctx, {
         settings: ctx.workflowSettings as WorkflowSettings | undefined,
         nodes: allNodes, edges, nodeStates, authoredData,
+        viewer: await viewerForNode(node.type, ctx.userId),
       }, userPromptTemplate)
     : buildSyncHttpBody(node, resolvedInputs, ctx, userPromptTemplate, refMap, downstreamPickerTypes)
 
@@ -1520,6 +1534,9 @@ async function executeWorkerNode(
   // reservation catch below so a validation failure never leaves an orphan
   // pending row for the reconciler to sweep.
   const settings = ctx.workflowSettings as WorkflowSettings | undefined
+  // No admin lookup unless this node type is hidden from users (the common
+  // path resolves synchronously to the user view).
+  const viewer = await viewerForNode(node.type, ctx.userId)
   let buildResult: ReturnType<typeof buildPayload>
   try {
     buildResult = buildPayload(
@@ -1533,6 +1550,7 @@ async function executeWorkerNode(
         edges,
         nodeStates,
         authoredData,
+        viewer,
       },
     )
   } catch (err) {
