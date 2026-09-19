@@ -1,0 +1,398 @@
+{
+  "slug": "podcast-testimonial-studio",
+  "name": "Podcast Testimonial Studio",
+  "description": "Your brand page and a persona brief in; a 12-second vertical podcast-style testimonial out — a believable customer at a microphone talking to camera, the script written from your page's facts, rendered as one Seedance 2.5 take with lip-sync and native voice, plus word-highlight captions.",
+  "markdownDescription": "## Podcast Testimonial Studio\n\nA believable customer at a microphone tells your story to camera — the podcast-style testimonial that runs as UGC on paid social. Paste your brand page and describe the persona; a 12-second vertical ad comes out, the person talking with lip-sync and captions.\n\n**Business use:** a product with a story — a SaaS, an app, a service, a shop — that wants social-proof video ads for Reels, TikTok and Shorts without a shoot, a studio or an actor. The demo: a filmmaker who stopped juggling AI tools, talking about Nodaro Studio.\n\n1. **Brand page + Persona brief** — Web Scrape reads your page for the facts; you say who is speaking and the angle (an authority flip, a confrontation, a pain point).\n2. **Concept** — the persona, the studio scene and the spoken script, written from the page's facts so the testimonial is true.\n3. **Scene still** — one vertical podcast frame: the person at the mic, front view to camera.\n4. **Timeline script → the take** — one prompt over the still; one Seedance 2.5 node renders the 12 seconds, the person speaking with the model's own voice and their lips in sync.\n5. **Captions** — Add Captions transcribes the speech into word-highlight captions for muted feeds.",
+  "category": "video-ads",
+  "outputTypes": [
+    "video"
+  ],
+  "tags": [
+    "video-ads",
+    "testimonial",
+    "podcast",
+    "ugc",
+    "social-proof",
+    "web-research",
+    "captions"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 909,
+  "nodeTypesUsed": [
+    "web-scrape",
+    "text-prompt",
+    "llm-chat",
+    "generate-image",
+    "generate-video",
+    "add-captions",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "seedance-2-5",
+    "elevenlabs-stt"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/templates/42c913b0-948a-436b-9494-2c2aca5b77e4/preview-783d74d8b97f.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 41,
+  "nodes": [
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "bold": false,
+        "text": "A believable customer at a microphone tells your story to camera — the podcast-style testimonial that runs as UGC on paid social. Paste your brand page and describe the persona; a 12-second vertical ad comes out, the person talking with lip-sync and captions.\n\n1. Brand page + Persona brief — Web Scrape reads your page for the facts; you say who is speaking and the angle.\n2. Concept — the persona, the studio scene, and the spoken script written from the page's facts.\n3. Scene still — one vertical podcast frame: the person at the mic, front view to camera.\n4. Timeline script → the take — one prompt over the still; one Seedance 2.5 node renders the 12 seconds, the person speaking with their lips in sync.\n5. Captions — word-highlight captions transcribed from the speech.",
+        "color": "#26221a",
+        "label": "How it works",
+        "title": "Podcast testimonial studio — how it works",
+        "width": 1180,
+        "height": 690,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-research",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Your product page, scraped by Web Scrape (paste the address — https:// optional). The concept takes its claims only from what the page says, so the testimonial is true.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Brand page",
+        "width": 640,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-persona",
+      "type": "sticky-note",
+      "position": {
+        "x": 0,
+        "y": 1270
+      },
+      "data": {
+        "bold": false,
+        "text": "Who tells the story and the angle: \"a small-studio filmmaker who used to juggle ten AI tools\", plus a hook — an authority flip, a confrontation, a pain point. The more specific, the more believable.",
+        "color": "#26221a",
+        "label": "Step 1",
+        "title": "1 · Persona brief",
+        "width": 640,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-scene",
+      "type": "sticky-note",
+      "position": {
+        "x": 1580,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "The concept writes the persona, the studio scene and the spoken script from the page. One image node renders the still: the person at the mic, front view. Rerun for another take.",
+        "color": "#26221a",
+        "label": "Step 2–3",
+        "title": "2–3 · Concept + Scene still",
+        "width": 480,
+        "height": 350,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-take",
+      "type": "sticky-note",
+      "position": {
+        "x": 2300,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "A director turns the concept into one prompt — the person's delivery and the exact line in quotes — and one Seedance 2.5 node animates the still into a 12-second take: the person talks straight to camera, the model generates the voice and the lip movement from the quoted line. One person, one shot, no cuts.",
+        "color": "#26221a",
+        "label": "Step 4",
+        "title": "4 · Timeline script → The take",
+        "width": 1200,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-finish",
+      "type": "sticky-note",
+      "position": {
+        "x": 3740,
+        "y": 850
+      },
+      "data": {
+        "bold": false,
+        "text": "Add Captions transcribes the speech and burns word-highlight captions at the bottom — the format that lifts watch-through on muted feeds. Ready to post to Reels, TikTok and Shorts.",
+        "color": "#26221a",
+        "label": "Step 5",
+        "title": "5 · Captions",
+        "width": 1200,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "research",
+      "type": "web-scrape",
+      "position": {
+        "x": 700,
+        "y": 850
+      },
+      "data": {
+        "url": "https://studio.nodaro.ai",
+        "mode": "page",
+        "actor": "content-crawler",
+        "label": "Brand page",
+        "fieldMappings": {},
+        "presentationInput": true
+      },
+      "width": 640,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "persona",
+      "type": "text-prompt",
+      "position": {
+        "x": 700,
+        "y": 1270
+      },
+      "data": {
+        "text": "A small-studio filmmaker in her early thirties who used to juggle ten different AI tools for one video and could never keep a character looking the same across shots. Hook: an authority-flip — she tells her team there was no way one tool could do it all, and was wrong. Warm, honest, a little wry; dressed in a relaxed black tee in a cosy home studio.",
+        "label": "Persona brief",
+        "width": 640,
+        "height": 320,
+        "variables": {},
+        "presentationInput": true
+      }
+    },
+    {
+      "id": "concept",
+      "type": "llm-chat",
+      "position": {
+        "x": 1580,
+        "y": 1320
+      },
+      "data": {
+        "label": "Concept",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 700,
+        "userInput": "Research: {Brand page || a modern software product.} Persona brief: {Persona brief || a happy customer explaining how the product changed their work.} Write the concept.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You are a creative director making a podcast-style testimonial ad — a real-seeming person at a microphone talking to camera about a product, the UGC format that performs on paid social. From the research (a web search of the brand's page) and the persona brief, write in exactly this shape, plain English, nothing else:\nPersona: <40 to 60 words: who is speaking — role, age, look, how they dress, their manner; a believable USER of the brand telling their own experience, never a paid spokesperson>\nScene: <40 to 60 words: the vertical 9:16 podcast still — the person seated at a large podcast microphone, front view, chest-up, looking to camera; the background of the studio, the light, the palette; warm, real, shot on a cinema camera with shallow depth of field>\nScript: <the spoken testimonial, first person, 20 to 26 words in all and at least 100 characters — it MUST be sayable, unhurried, inside 12 seconds; count the words: a hook opening (for example \"I told my team there was no way this would work\"), then the ONE specific thing the brand does for them taken from the research, in natural spoken language with contractions — no marketing cliche>\nLook: <one sentence: a real, warm, filmic grade>\nRules: every claim comes from the research; the person is the only speaker; the brand name is said once, naturally; no on-screen text is needed.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "scene",
+      "type": "generate-image",
+      "position": {
+        "x": 1580,
+        "y": 1740
+      },
+      "data": {
+        "label": "Scene still",
+        "style": "",
+        "prompt": "Vertical 9:16 photorealistic still of a podcast-style ad, exactly as described under Scene in this concept: {Concept || a person at a podcast microphone.} A real person seated at a large podcast microphone, front view, chest-up framing, looking straight to camera, warm cinematic studio light, shallow depth of field, filmic colour. Exactly one person; nothing staged or stocky; no on-screen text, no logo, no watermark, no subtitles.",
+        "provider": "gpt-image-2",
+        "resolution": "1K",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 338,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "timeline",
+      "type": "llm-chat",
+      "position": {
+        "x": 2300,
+        "y": 1320
+      },
+      "data": {
+        "label": "Timeline script",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 600,
+        "userInput": "Concept: {Concept || a podcast testimonial.} Write the video prompt.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You write the single prompt for a video model that animates a 12-second podcast-style testimonial from ONE still image (attached). The person SPEAKS: the model generates the voice and the lip movement from the line you quote. You get the concept. Write ONE prompt of 90 to 140 words, plain prose, no headings: first the person and the podcast studio exactly as they appear in the still (one sentence), and the voice — take age and manner from the concept's Persona (for example \"a warm, easy, mid-thirties voice\"). Then the delivery across the twelve seconds — natural talking straight to camera, small head movements, a blink, one relaxed hand gesture, a slight lean toward the microphone — and the line it says in quotes, copied EXACTLY from the concept's Script, never reworded; she pronounces every word in it clearly and naturally, and any brand name exactly as it is spelled. Name one gentle camera move (a locked shot with a slow push is ideal). End with the sentence \"The person holds a natural, warm expression until the end.\" Then the constraints, as one sentence: the person keeps their exact likeness from the still; only one person; the lips stay in sync with the quoted line; no cuts, no on-screen text, no logo, quiet room tone. Output only the prompt.",
+        "fieldMappings": {}
+      },
+      "width": 480,
+      "height": 300,
+      "className": "rf-resized"
+    },
+    {
+      "id": "take",
+      "type": "generate-video",
+      "position": {
+        "x": 3020,
+        "y": 1320
+      },
+      "data": {
+        "label": "The take",
+        "prompt": "{Timeline script || A 12-second podcast testimonial: a person at a microphone talks straight to camera and says their line; photoreal, warm studio light, lips synced to the words, one locked shot with a slow push.}",
+        "duration": 12,
+        "provider": "seedance-2-5",
+        "resolution": "480p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": true,
+        "negativePrompt": "",
+        "presentationOutput": false
+      },
+      "width": 338,
+      "height": 600,
+      "className": "rf-resized"
+    },
+    {
+      "id": "captions",
+      "type": "add-captions",
+      "position": {
+        "x": 3740,
+        "y": 1320
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Podcast ad",
+        "style": "word-highlight",
+        "captions": [],
+        "fontSize": 52,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#111111",
+        "presentationOutput": true,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 338,
+      "height": 600,
+      "className": "rf-resized"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-research-concept",
+      "source": "research",
+      "target": "concept",
+      "sourceHandle": "json",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-persona-concept",
+      "source": "persona",
+      "target": "concept",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-scene",
+      "source": "concept",
+      "target": "scene",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-concept-timeline",
+      "source": "concept",
+      "target": "timeline",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-scene-take",
+      "source": "scene",
+      "target": "take",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-timeline-take",
+      "source": "timeline",
+      "target": "take",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-take-captions",
+      "source": "take",
+      "target": "captions",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 80,
+      "y": 60,
+      "zoom": 0.283
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "persona": {
+          "title": "Persona brief",
+          "description": "Who tells the story, and the angle."
+        },
+        "captions": {
+          "title": "Podcast ad",
+          "description": "The finished 12-second testimonial with speech and captions."
+        },
+        "research": {
+          "title": "Brand page",
+          "description": "Your product page — the claims come from here."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "research",
+        "persona"
+      ],
+      "outputOrder": [
+        "captions"
+      ]
+    }
+  }
+}
