@@ -31,7 +31,9 @@ const reservationReply = z.discriminatedUnion("decision", [
   z.object({ ...receiptBase, operation_id: z.string().uuid(), decision: z.literal("deny") }),
 ])
 const settlementReply = z.object({ ...receiptBase, operation_id: z.string().uuid(), settled: z.literal(true), actual_credits: walletCredits })
-const balanceReply = z.object({ ...receiptBase, sso_subject: z.string().min(1), available_credits: walletCredits })
+// A partner's budget can contain less than one billable credit. Preserve that
+// remainder for display; reserve and settlement amounts remain whole credits.
+const balanceReply = z.object({ ...receiptBase, sso_subject: z.string().min(1), available_credits: z.number().nonnegative().max(Number.MAX_SAFE_INTEGER) })
 
 export class ExternalWalletError extends ReserveRpcError {
   constructor(readonly code: "external_wallet_denied" | "external_wallet_unavailable") {

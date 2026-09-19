@@ -30,10 +30,11 @@ DO $$ DECLARE v_id uuid; w jsonb; again jsonb; BEGIN
  PERFORM pg_temp.wallet_refused(format('SELECT public.prepare_external_wallet(%L,%L,%L,%L)',v_id,'00000000-0000-4000-8000-00000000e001','00000000-0000-4000-8000-00000000e001','sai'));
  PERFORM pg_temp.wallet_assert(public.authorize_external_wallet(v_id),'authorization persisted');
  PERFORM pg_temp.wallet_assert(public.abort_external_wallet(v_id),'late abort cannot cancel authorized work');
+ PERFORM pg_temp.wallet_refused(format('SELECT public.commit_credits(%L,101)',v_id));
  PERFORM public.commit_credits(v_id,40);
  PERFORM pg_temp.wallet_assert((SELECT actual_credits=40 AND delivered_at IS NULL FROM public.external_wallet_operations WHERE usage_log_id=v_id),'partial charge queued atomically');
  PERFORM pg_temp.wallet_assert((SELECT subscription_credits=960 FROM public.profiles WHERE id='00000000-0000-4000-8000-00000000e001'),'unused local credits restored');
- PERFORM public.commit_credits(v_id,40);
+ UPDATE public.usage_logs SET status='committed',credits_charged=40 WHERE id=v_id;
  PERFORM pg_temp.wallet_assert((SELECT count(*)=1 FROM public.external_wallet_operations WHERE usage_log_id=v_id),'settlement replay creates no duplicate');
  PERFORM pg_temp.wallet_refused(format('UPDATE public.usage_logs SET credits_charged=41 WHERE id=%L',v_id));
  PERFORM pg_temp.wallet_refused(format('UPDATE public.usage_logs SET status=%L WHERE id=%L','reserved',v_id));
@@ -51,6 +52,14 @@ DO $$ DECLARE v_id uuid; BEGIN
  PERFORM public.abort_external_wallet(v_id);
  PERFORM pg_temp.wallet_assert((SELECT subscription_credits=960 FROM public.profiles WHERE id='00000000-0000-4000-8000-00000000e001'),'abort replay no double refund');
  RAISE NOTICE 'ok cancellation before late authorization and exactly once local refund';
+END $$;
+DO $$ DECLARE v_id uuid; BEGIN
+ v_id:=public.reserve_credits('00000000-0000-4000-8000-00000000e001',30,NULL,'test-wallet',p_on_behalf_of=>'00000000-0000-4000-8000-00000000e002');
+ PERFORM public.prepare_external_wallet(v_id,'00000000-0000-4000-8000-00000000e002','00000000-0000-4000-8000-00000000e001','sai');
+ PERFORM public.authorize_external_wallet(v_id);
+ PERFORM public.refund_credits(v_id);
+ PERFORM pg_temp.wallet_assert((SELECT actual_credits=0 FROM public.external_wallet_operations WHERE usage_log_id=v_id),'authorized failure or moderation rejection releases all funds');
+ PERFORM pg_temp.wallet_assert((SELECT subscription_credits=960 FROM public.profiles WHERE id='00000000-0000-4000-8000-00000000e001'),'authorized refund restores prepaid pool');
 END $$;
 RESET ROLE;
 UPDATE auth.users SET raw_app_meta_data='{}',raw_user_meta_data='{"sso":"sai","sso_subject":"forged"}'

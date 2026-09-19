@@ -55,6 +55,10 @@ describe("external wallet protocol", () => {
     respond({ contract: 1, unit: "nodaro_credit", sso_subject: "someone-else", available_credits: 300 })
     await expect(readWalletBalance(config, operation.requester_id, operation.sso_subject)).rejects.toThrow()
   })
+  it("preserves a fractional shared balance while charges remain whole credits", async () => {
+    respond({ contract: 1, unit: "nodaro_credit", sso_subject: operation.sso_subject, available_credits: 0.0155 })
+    expect(await readWalletBalance(config, operation.requester_id, operation.sso_subject)).toBe(0.0155)
+  })
   it("bounds response size", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("x".repeat(16385))))
     await expect(reserveWallet(config, operation)).rejects.toThrow()

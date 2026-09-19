@@ -55,7 +55,7 @@ The local ledger records settlement and its outbox together. Normal settlement a
 {"contract":1,"unit":"nodaro_credit","sso_subject":"customer-123","available_credits":250}
 ```
 
-Available credits exclude all outstanding holds across products. The studio uses this balance, converted once into its configured display unit, and removes the separate local allowance display. An unavailable balance appears as unknown. The reserve operation remains authoritative when simultaneous requests race.
+Available credits exclude all outstanding holds across products. This balance may be fractional so a remainder smaller than one billable credit can still be displayed; reserve/settle amounts are whole credits. The studio converts the balance once into its configured display unit and removes the separate local allowance display. Before activation, agree the conversion and configure `billing.unitRate`/`unitLabel` to match the external product's budget, so both products show the same figure. An unavailable balance appears as unknown. The reserve operation remains authoritative when simultaneous requests race.
 
 ## Price discovery
 
