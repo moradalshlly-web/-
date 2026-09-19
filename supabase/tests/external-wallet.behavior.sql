@@ -1,6 +1,6 @@
 -- Full migration-chain behavioral test; all account data rolls back.
 BEGIN;
-INSERT INTO auth.users(v_id,email,raw_app_meta_data) VALUES
+INSERT INTO auth.users(id,email,raw_app_meta_data) VALUES
  ('00000000-0000-4000-8000-00000000e001','wallet-payer@example.test','{"sso":"sai","sso_subject":"payer"}'),
  ('00000000-0000-4000-8000-00000000e002','wallet-user@example.test','{"sso":"sai","sso_subject":"trusted-subject"}');
 UPDATE public.profiles SET tier='business',subscription_tier='business',subscription_credits=1000,topup_credits=0
