@@ -1142,7 +1142,7 @@ export function ConfigPanel() {
                 {!isReadOnly && GENERATE_BUTTON_TYPES.has(nodeType) && (
                   <GenerateButton
                     onClick={() => runSingleNode?.(selectedNode.id)}
-                    modelIdentifier={getModelIdentifier(selectedNode, edges)}
+                    modelIdentifier={getModelIdentifier(selectedNode, edges, nodes)}
                     userId={userId ?? ""}
                     label={t("configPanel.runThisNode")}
                     isRunning={nodeData.executionStatus === "running"}

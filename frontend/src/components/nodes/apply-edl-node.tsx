@@ -99,7 +99,12 @@ function ApplyEdlNodeComponent({ id, data, selected }: NodeProps) {
           {status !== "running" && !hasResult && status !== "failed" && (
             <div className="flex flex-col items-center justify-center gap-1 flex-1 rounded-md border-2 border-dashed border-muted-foreground/20 text-muted-foreground/40">
               <Scissors className="w-5 h-5" />
-              <span className="text-[10px]">Apply EDL → {output}</span>
+              {/* One key per medium, not an interpolated noun or a "→": an arrow
+                  points the wrong way in RTL and a spliced-in noun breaks
+                  agreement in every gendered locale. */}
+              <span className="text-[10px] text-center px-2">
+                {t(output === "audio" ? "node.applyEdlConnectAudio" : "node.applyEdlConnectVideo")}
+              </span>
             </div>
           )}
         </div>

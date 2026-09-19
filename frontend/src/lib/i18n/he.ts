@@ -5234,6 +5234,8 @@ export const he: ChromeDict = {
   "node.editPlanEdl": "תוכנית עריכה (EDL)",
   "node.editPlanClips": "{count} קטעים",
   "node.editPlanConnectTranscript": "חברו תמלול כדי לתכנן את העריכה",
+  "node.applyEdlConnectVideo": "חברו רשימת עריכה (EDL) כדי לרנדר את הווידאו",
+  "node.applyEdlConnectAudio": "חברו רשימת עריכה (EDL) כדי לרנדר את האודיו",
   "node.aiAudit": "ביקורת AI",
   "node.connectAVideoToAudit": "חברו וידאו לביקורת",
   "node.prohibited": "חסום",

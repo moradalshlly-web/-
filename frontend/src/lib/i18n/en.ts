@@ -5276,6 +5276,8 @@ export const en = {
   "node.editPlanEdl": "Edit plan (EDL)",
   "node.editPlanClips": "{count} clips",
   "node.editPlanConnectTranscript": "Connect a transcript to plan the edit",
+  "node.applyEdlConnectVideo": "Connect an EDL to render the video",
+  "node.applyEdlConnectAudio": "Connect an EDL to render the audio",
   "node.aiAudit": "AI Audit",
   "node.connectAVideoToAudit": "Connect a video to audit",
   "node.prohibited": "Prohibited",

@@ -12,7 +12,7 @@ import { HandleWithPopover, HANDLE_COLORS } from "./handle-with-popover"
 import { NodeJobProgress } from "./node-job-progress"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { useModelCredits } from "@/ee/hooks/use-model-credits"
-import { useUpstreamVideoDuration } from "@/hooks/use-upstream-video-duration"
+import { useEditPlanEstimateDurationSec } from "@/hooks/use-edit-plan-estimate-duration"
 import { ACCEPTS_MEDIA } from "@/lib/ffmpeg-handles"
 import { ACCEPTS_JSON, DATA_HANDLE_COLORS } from "@/lib/data-handles"
 import { buildEditPlanCreditId, asEditPlanMode, asEditPlanTier } from "@nodaro/shared"
@@ -73,13 +73,15 @@ function EditPlanNodeComponent({ id, data, selected }: NodeProps) {
 
   const mode = asEditPlanMode(nodeData.mode)
   const tier = asEditPlanTier(nodeData.planTier)
-  // Duration for the credit-bucket estimate: the wired source's duration when
-  // known, else undefined → buildEditPlanCreditId's ceiling bucket. Display
-  // only; the reserve is computed server-side from the actual master duration.
-  const upstreamDuration = useUpstreamVideoDuration(id, "sources")
+  // Duration for the credit-bucket estimate: the MASTER source's length, through
+  // the same resolver the run-level estimates use (so the pill can't disagree
+  // with them); unknown → buildEditPlanCreditId's ceiling bucket — never a length
+  // borrowed from the wired transcript (lib/edit-plan-estimate says why). The
+  // reserve itself is computed server-side.
+  const estimateDurationSec = useEditPlanEstimateDurationSec(id)
   const creditModelId = useMemo(
-    () => buildEditPlanCreditId(mode, tier, upstreamDuration ?? undefined),
-    [mode, tier, upstreamDuration],
+    () => buildEditPlanCreditId(mode, tier, estimateDurationSec),
+    [mode, tier, estimateDurationSec],
   )
   const credits = useModelCredits(creditModelId)
   const [treeOpen, setTreeOpen] = useState(false)
