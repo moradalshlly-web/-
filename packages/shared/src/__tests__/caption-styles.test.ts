@@ -117,12 +117,19 @@ describe("add-captions credit id maps 1:1 from captionRoutesToRemotion", () => {
   })
 })
 
-describe("resolveCaptionLevers — bare subtitle stays plain, else resolve the preset", () => {
-  it("a bare subtitle (no look) applies ONLY the explicit levers — no outline preset", () => {
+describe("resolveCaptionLevers — per-style default look (kinetic → outline, subtitle → clean)", () => {
+  it("a bare subtitle (no look) resolves the CLEAN preset — a pinned sans, no outline house-style", () => {
     const out = resolveCaptionLevers("subtitle", undefined, { color: "#fff", uppercase: true }, 32)
-    expect(out).toEqual({ color: "#fff", uppercase: true })
-    expect(out.fontFamily).toBeUndefined() // did NOT inherit Montserrat from outline
+    // A face is ALWAYS pinned: with none, the Remotion render falls back to
+    // headless Chrome's default serif (the plain FFmpeg subtitle draws sans).
+    expect(out.fontFamily).toBe("Inter")
+    expect(out).toEqual({ fontFamily: "Inter", color: "#fff", uppercase: true })
     expect(out.strokeWidth).toBeUndefined() // did NOT inherit the outline stroke
+    expect(out.highlightColor).toBeUndefined() // nor the outline spoken-word colour
+  })
+
+  it("an unset style is treated as subtitle (the route default) → clean", () => {
+    expect(resolveCaptionLevers(undefined, undefined, {}, 32).fontFamily).toBe("Inter")
   })
 
   it("a subtitle that NAMES a look resolves that preset", () => {

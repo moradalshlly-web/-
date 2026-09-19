@@ -40,9 +40,17 @@ export function isKineticCaptionStyle(style: string | undefined | null): style i
 export const CAPTION_LOOK_IDS = ["outline", "clean"] as const
 export type CaptionLookId = (typeof CAPTION_LOOK_IDS)[number]
 
-/** What an unset `look` means. ONE-LINE FLIP: set to "clean" to make an unset
- *  caption render as the pre-look-system lever set (face pinned) instead. */
+/** What an unset `look` means on a KINETIC style. ONE-LINE FLIP: set to "clean"
+ *  to make an unset caption render as the pre-look-system lever set (face pinned)
+ *  instead. */
 export const DEFAULT_CAPTION_LOOK: CaptionLookId = "outline"
+
+/** What an unset `look` means on the static `subtitle` style: the plain read —
+ *  a pinned neutral sans, no outline, no casing. A subtitle must never be left
+ *  with NO face: the Remotion render would fall back to headless Chrome's default
+ *  SERIF, so adding e.g. a stroke to a subtitle would silently flip its font away
+ *  from the sans the plain FFmpeg subtitle draws. */
+export const DEFAULT_SUBTITLE_LOOK: CaptionLookId = "clean"
 
 /**
  * The lever field names that are MEANINGLESS on a `subtitle` render and so are
@@ -174,14 +182,15 @@ export function resolveCaptionLook(
 }
 
 /**
- * Resolve the concrete render levers for a caption, applying the default look the
- * way each STYLE expects. A kinetic style — or a `subtitle` that NAMES a look —
- * resolves `look ?? outline` under the explicit overrides. A bare `subtitle` (no
- * look) stays PLAIN: only its explicit levers, NO preset — so a subtitle that
- * routes to Remotion never inherits the outline house-style unless asked (the old
- * FFmpeg drawtext path applied no look either). SINGLE SOURCE for the worker
+ * Resolve the concrete render levers for a caption, applying the DEFAULT look the
+ * way each STYLE expects: an unset `look` means `outline` on a kinetic style (the
+ * TikTok/CapCut read) and `clean` on the static `subtitle` (the plain read — a
+ * pinned neutral sans, no outline, no casing). So a subtitle that routes to
+ * Remotion never inherits the outline house-style unless asked, AND is never left
+ * with no face at all (which renders as headless Chrome's default serif). A named
+ * look always wins; explicit levers override either. SINGLE SOURCE for the worker
  * top-level levers, the per-segment resolver, and the frontend config/preview
- * mirror, so "bare subtitle = plain" can't drift between them.
+ * mirror, so the per-style default can't drift between them.
  */
 export function resolveCaptionLevers(
   style: string | undefined | null,
@@ -189,6 +198,6 @@ export function resolveCaptionLevers(
   explicit: CaptionLookLevers,
   fontSize: number,
 ): CaptionLookLevers {
-  if (!isKineticCaptionStyle(style) && look === undefined) return { ...explicit }
-  return resolveCaptionLook(look, explicit, fontSize)
+  const effective = look ?? (isKineticCaptionStyle(style) ? DEFAULT_CAPTION_LOOK : DEFAULT_SUBTITLE_LOOK)
+  return resolveCaptionLook(effective, explicit, fontSize)
 }
