@@ -280,6 +280,7 @@ export async function reservePipelineCredits(
     const saved = await args.supabase.from("pipelines").update({ reservation_usage_log_id: usageLogId as string })
       .eq("id", args.pipelineId).eq("user_id", args.userId).select("id").maybeSingle()
     if (saved.error || !saved.data) {
+      // billing-payer-ok: the reservation records the resolved payer; refund by usage ID restores that same pool.
       await args.supabase.rpc("refund_credits", { p_usage_log_id: usageLogId })
       return { ok: false, reason: "rpc_error", detail: "Pipeline reservation could not be persisted" }
     }
