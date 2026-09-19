@@ -35,6 +35,11 @@ vi.mock("@/components/ui/select", () => ({
   SelectValue: () => null,
 }))
 
+// The panel prices its crawl modes through the credits hook, which reads React
+// Query. Prices are not under test here — the hook answers its fallback.
+vi.mock("@/ee/hooks/use-model-credits", () => ({
+  useModelCredits: (_id: string | undefined, fallback = 0) => fallback,
+}))
 import { WebScrapeConfig } from "../scraper-configs"
 import { __resetSurfaceAvailabilityForTests } from "@/lib/surface-availability"
 
