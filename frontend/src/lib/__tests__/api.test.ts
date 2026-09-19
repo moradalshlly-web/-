@@ -37,7 +37,8 @@ import {
   getBatchJobStatus,
   getJobStatus,
   getJobStatusLean,
-  subscribeToDownloadProgress,
+  startVideoDownload,
+  fetchVideoMetadata,
   generateAIWriterStream,
   saveLocation,
   approveLocationMainImage,
@@ -417,86 +418,71 @@ describe("getJobStatusLean", () => {
   })
 })
 
-// ---- subscribeToDownloadProgress ------------------------------------------
+// ---- startVideoDownload / fetchVideoMetadata ------------------------------
 
-describe("subscribeToDownloadProgress", () => {
-  let instances: MockEventSource[]
+describe("startVideoDownload", () => {
+  beforeEach(() => sessionWith("tok"))
 
-  class MockEventSource {
-    url: string
-    onmessage: ((event: { data: string }) => void) | null = null
-    onerror: (() => void) | null = null
-    close = vi.fn()
-    constructor(url: string) {
-      this.url = url
-      instances.push(this)
-    }
+  function sentBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+    return JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)
   }
 
-  beforeEach(() => {
-    instances = []
-    vi.stubGlobal("EventSource", MockEventSource)
+  it("sends the bare link when no option is given — byte-identical to the old call", async () => {
+    const fetchMock = mockFetchJson({ downloadId: "dl-1" })
+    vi.stubGlobal("fetch", fetchMock)
+    expect(await startVideoDownload("https://youtu.be/aqz-KE-bpKQ")).toEqual({ downloadId: "dl-1" })
+    expect(fetchMock.mock.calls[0][0]).toBe("/v1/download-video")
+    expect(sentBody(fetchMock)).toEqual({ url: "https://youtu.be/aqz-KE-bpKQ" })
   })
 
-  it("creates EventSource with correct URL", () => {
-    subscribeToDownloadProgress("dl-42", vi.fn())
-    expect(instances[0].url).toBe("/v1/download-video/progress/dl-42")
-  })
-
-  it("calls onProgress with parsed event data", () => {
-    const onProgress = vi.fn()
-    subscribeToDownloadProgress("dl-1", onProgress)
-    const es = instances[0]
-
-    es.onmessage!({ data: '{"phase":"downloading","percent":50}' })
-
-    expect(onProgress).toHaveBeenCalledWith({ phase: "downloading", percent: 50 })
-  })
-
-  it("closes EventSource on completed phase", () => {
-    const onProgress = vi.fn()
-    subscribeToDownloadProgress("dl-1", onProgress)
-    const es = instances[0]
-
-    es.onmessage!({ data: '{"phase":"completed","percent":100,"videoUrl":"v.mp4"}' })
-
-    expect(es.close).toHaveBeenCalled()
-  })
-
-  it("closes EventSource on failed phase", () => {
-    const onProgress = vi.fn()
-    subscribeToDownloadProgress("dl-1", onProgress)
-    const es = instances[0]
-
-    es.onmessage!({ data: '{"phase":"failed","percent":0,"error":"timeout"}' })
-
-    expect(es.close).toHaveBeenCalled()
-  })
-
-  it("calls onProgress with Connection lost on EventSource error", () => {
-    const onProgress = vi.fn()
-    subscribeToDownloadProgress("dl-1", onProgress)
-    const es = instances[0]
-
-    es.onerror!()
-
-    expect(es.close).toHaveBeenCalled()
-    expect(onProgress).toHaveBeenCalledWith({
-      phase: "failed",
-      percent: 0,
-      error: "Connection lost",
+  it("sends the cap, the part and the silent-ok flag under the server's names", async () => {
+    const fetchMock = mockFetchJson({ downloadId: "dl-1" })
+    vi.stubGlobal("fetch", fetchMock)
+    await startVideoDownload("https://youtu.be/aqz-KE-bpKQ", {
+      maxHeight: 1080,
+      section: { startSec: 30, endSec: 95 },
+      requireAudio: false,
+    })
+    expect(sentBody(fetchMock)).toEqual({
+      url: "https://youtu.be/aqz-KE-bpKQ",
+      maxHeight: 1080,
+      sectionStartSec: 30,
+      sectionEndSec: 95,
+      requireAudio: false,
     })
   })
 
-  it("returns unsubscribe function that closes EventSource", () => {
-    const unsub = subscribeToDownloadProgress("dl-1", vi.fn())
-    const es = instances[0]
-
-    unsub()
-
-    expect(es.close).toHaveBeenCalled()
+  it("rejects with the server's message when the link is refused", async () => {
+    vi.stubGlobal("fetch", mockFetchError(400, { error: { code: "validation_error", message: "Must be a social video URL" } }))
+    await expect(startVideoDownload("https://example.com/x")).rejects.toThrow("Must be a social video URL")
   })
 })
+
+describe("fetchVideoMetadata", () => {
+  beforeEach(() => sessionWith("tok"))
+
+  it("returns what the probe read", async () => {
+    vi.stubGlobal("fetch", mockFetchJson({ durationSec: 5530.4, title: "A long talk", isLive: false }))
+    expect(await fetchVideoMetadata("https://youtu.be/aqz-KE-bpKQ")).toEqual({
+      durationSec: 5530.4,
+      title: "A long talk",
+      isLive: false,
+    })
+  })
+
+  it("NEVER throws — a refused, broken or malformed probe is just 'unknown'", async () => {
+    const unknown = { durationSec: null, title: null, isLive: false }
+    vi.stubGlobal("fetch", mockFetchError(500, { error: { code: "internal_error", message: "boom" } }))
+    expect(await fetchVideoMetadata("https://youtu.be/aqz-KE-bpKQ")).toEqual(unknown)
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("network")))
+    expect(await fetchVideoMetadata("https://youtu.be/aqz-KE-bpKQ")).toEqual(unknown)
+    vi.stubGlobal("fetch", mockFetchJson({ durationSec: "90", title: 7, isLive: "yes" }))
+    expect(await fetchVideoMetadata("https://youtu.be/aqz-KE-bpKQ")).toEqual(unknown)
+    vi.stubGlobal("fetch", mockFetchJson(null))
+    expect(await fetchVideoMetadata("https://youtu.be/aqz-KE-bpKQ")).toEqual(unknown)
+  })
+})
+
 
 // ---- generateAIWriterStream -----------------------------------------------
 

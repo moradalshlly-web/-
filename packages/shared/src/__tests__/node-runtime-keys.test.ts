@@ -32,6 +32,8 @@ describe("TRANSIENT_RUNTIME_KEYS", () => {
       "__listRunning",
       "_upstreamRefresh",
       "__upstreamCount",
+      "downloadPercent",
+      "downloadPhase",
     ]) {
       expect(TRANSIENT_RUNTIME_KEYS.has(key), `${key} should be transient`).toBe(true)
     }
@@ -52,6 +54,10 @@ describe("TRANSIENT_RUNTIME_KEYS", () => {
       "shots",
       "result",
       "zoom",
+      // A Video URL node's download OUTCOME persists — only its ticks are transient.
+      "downloadStatus",
+      "downloadedVideoUrl",
+      "downloadId",
     ]) {
       expect(TRANSIENT_RUNTIME_KEYS.has(key), `${key} must stay persisted`).toBe(false)
     }

@@ -48,7 +48,6 @@ vi.mock("@/lib/api", () => ({
   extractYouTubeAudioApi: vi.fn(),
   getJobStatusLean: vi.fn(),
   startVideoDownload: vi.fn(),
-  subscribeToDownloadProgress: vi.fn(),
 }))
 
 // Zustand store mock — LoopConfig subscribes to `edges` and `nodes` selectors.

@@ -1,0 +1,124 @@
+/**
+ * The gate every Run path passes through before it starts: a Video URL node
+ * that feeds the run and still holds only a LINK is downloaded first.
+ *
+ * It exists because of where runs execute. Execute-All, Run-from-here and
+ * Run-selected all run on the SERVER, from the saved workflow — and there a
+ * Video URL node is a source node that is read, never executed. Whatever sits
+ * in its data is what the downstream node receives; a YouTube / TikTok /
+ * Instagram page address is not a video file, and every video node fails on it
+ * (mid-run, after credits were reserved). So the file has to exist BEFORE the
+ * save-and-run, and this is the one place that guarantees it for all four
+ * handlers.
+ */
+import { toast } from "sonner"
+import { VIDEO_LINK_TOLERANT_CONSUMER_TYPES, videoLinkNeedsDownload } from "@nodaro/shared"
+import { useWorkflowStore } from "@/hooks/use-workflow-store"
+import { tx } from "@/lib/i18n"
+import { DOWNLOAD_ERROR_KEYS } from "@/lib/video-link"
+import { ensureVideoLinksDownloaded } from "@/lib/video-link-ingest"
+import type { WorkflowEdge, WorkflowNode } from "@/types/nodes"
+
+/**
+ * The Video URL nodes whose FILE this run needs:
+ *
+ *  - upstream of a node that is about to run, at any depth — a link that feeds
+ *    nothing in the run is left alone, so a long video parked on the canvas
+ *    never blocks an unrelated Run with "choose a part";
+ *  - read by at least one consumer IN the run that actually looks at the video.
+ *    Transcribe and Suno Cover take the node's separately-fetched audio track,
+ *    and Dubbing hands the page link to its provider — a "podcast → Transcribe"
+ *    run must not be made to download (or pick a part of) an hour of video;
+ *  - with no file for their current link.
+ *
+ * Skipped nodes are not part of the run and pull nothing in.
+ */
+export function videoLinkNodesFeeding(
+  scopeIds: readonly string[],
+  nodes: readonly WorkflowNode[],
+  edges: readonly WorkflowEdge[],
+): string[] {
+  const byId = new Map(nodes.map((n) => [n.id, n] as const))
+  const isSkipped = (id: string) => (byId.get(id)?.data as { skipped?: unknown } | undefined)?.skipped === true
+
+  const sourcesOf = new Map<string, string[]>()
+  for (const edge of edges) {
+    const list = sourcesOf.get(edge.target)
+    if (list) list.push(edge.source)
+    else sourcesOf.set(edge.target, [edge.source])
+  }
+
+  // Everything the run touches: the nodes about to run plus all they read from.
+  const inRun = new Set<string>()
+  const queue = scopeIds.filter((id) => !isSkipped(id))
+  for (const id of queue) inRun.add(id)
+  while (queue.length > 0) {
+    const current = queue.pop()!
+    for (const source of sourcesOf.get(current) ?? []) {
+      if (inRun.has(source)) continue
+      inRun.add(source)
+      queue.push(source)
+    }
+  }
+
+  const needsTheVideo = (linkId: string) =>
+    edges.some((edge) => {
+      if (edge.source !== linkId || !inRun.has(edge.target)) return false
+      const consumerType = byId.get(edge.target)?.type ?? ""
+      return !VIDEO_LINK_TOLERANT_CONSUMER_TYPES.has(consumerType)
+    })
+
+  return nodes
+    .filter(
+      (n) =>
+        n.type === "youtube-video" &&
+        videoLinkNeedsDownload(n.data as Record<string, unknown>) &&
+        needsTheVideo(n.id),
+    )
+    .map((n) => n.id)
+}
+
+/**
+ * Resolves true when the run may proceed. When a download is needed it holds
+ * the Run button (`setIsRunning`) for its length and hands it back before
+ * returning, so the caller's own optimistic flip stays the single owner of the
+ * running state. On false the reason has already been shown — except a Cancel,
+ * which needs no explaining.
+ *
+ * The wait can always be left: a download has no upper bound the editor
+ * controls, and a Run button held with no way out is worse than the wait.
+ * Cancel abandons the WAIT only; the download carries on and the node shows it.
+ */
+export async function ensureVideoLinksBeforeRun(
+  scopeIds: readonly string[],
+  setIsRunning: (running: boolean) => void,
+): Promise<boolean> {
+  const { nodes, edges } = useWorkflowStore.getState()
+  const needed = videoLinkNodesFeeding(scopeIds, nodes, edges)
+  if (needed.length === 0) return true
+
+  setIsRunning(true)
+  const waiting = new AbortController()
+  const toastId = toast.loading(tx("run.videoLinkDownloading"), {
+    action: { label: tx("common.cancel"), onClick: () => waiting.abort() },
+  })
+  try {
+    const result = await ensureVideoLinksDownloaded(needed, { signal: waiting.signal })
+    if (result.ok) return true
+    if (result.reason === "cancelled") return false
+    const headline =
+      result.reason === "choose"
+        ? tx("run.videoLinkChoose", { label: result.label })
+        : result.reason === "failed"
+          ? tx("run.videoLinkFailed", { label: result.label })
+          : tx("run.videoLinkChanged", { label: result.label })
+    toast.error(headline, result.code ? { description: tx(DOWNLOAD_ERROR_KEYS[result.code]) } : {})
+    return false
+  } catch {
+    toast.error(tx("run.failedToStartExecution"))
+    return false
+  } finally {
+    toast.dismiss(toastId)
+    setIsRunning(false)
+  }
+}

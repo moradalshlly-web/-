@@ -7,6 +7,7 @@ import {
   isAllowedVideoImportUrl,
   SOCIAL_VIDEO_HOSTS,
   YOUTUBE_HOSTS,
+  INSTAGRAM_HOSTS,
 } from "../url-validator.js"
 
 describe("safeUrlSchema", () => {
@@ -144,6 +145,56 @@ describe("hostnameMatchesAllowlist / isAllowedSocialVideoUrl (SSRF allowlist)", 
   })
 })
 
+describe("parser-differential links are refused before the host is read", () => {
+  // WHATWG (this process) reads the host as tiktok.com; a parser that ends the
+  // authority at "/" alone reads 169.254.169.254. yt-dlp gets the RAW string.
+  const BACKSLASH = "https://tiktok.com\\@169.254.169.254/latest/meta-data"
+
+  it("proves the differential exists — the WHATWG host really is the allowlisted one", () => {
+    expect(new URL(BACKSLASH).hostname).toBe("tiktok.com")
+  })
+
+  it("refuses a backslash on the social gate, for every host list", () => {
+    expect(isAllowedSocialVideoUrl(BACKSLASH)).toBe(false)
+    expect(isAllowedSocialVideoUrl("https://youtube.com\\@10.0.0.1/watch?v=aqz-KE-bpKQ", YOUTUBE_HOSTS)).toBe(false)
+    expect(isAllowedSocialVideoUrl("https://www.youtube.com/watch?v=aqz-KE-bpKQ\\")).toBe(false)
+  })
+
+  it("refuses a backslash on the direct-file gate — its DNS pre-resolve reads the WHATWG host too", () => {
+    expect(isDirectVideoFileUrl("https://good.example\\@169.254.169.254/x.mp4")).toBe(false)
+  })
+
+  it("refuses control characters (one parser drops a tab or a newline, another keeps it)", () => {
+    for (const ch of ["\t", "\n", "\r", "\u0000", "\u007f"]) {
+      expect(isAllowedSocialVideoUrl(`https://www.youtube.com/watch?v=aqz${ch}-KE-bpKQ`)).toBe(false)
+      expect(isDirectVideoFileUrl(`https://cdn.example/cl${ch}ip.mp4`)).toBe(false)
+    }
+  })
+
+  it("leaves every ordinary link alone — percent-escapes, userinfo-free hosts, query strings", () => {
+    expect(isAllowedSocialVideoUrl("https://www.youtube.com/watch?v=aqz-KE-bpKQ&t=30s")).toBe(true)
+    expect(isAllowedSocialVideoUrl("https://www.instagram.com/reel/DaK89TnRB5m/?igsh=MXg%3D")).toBe(true)
+    expect(isDirectVideoFileUrl("https://pub-x.r2.dev/avideo%20preview/98.mp4")).toBe(true)
+  })
+})
+
+describe("the social-video allowlist is pinned", () => {
+  // The lists live in @nodaro/shared, where the editor reads them too. They are
+  // this server's SSRF gate: a host added there for a UI reason is a host this
+  // server will fetch from. Changing a list must fail HERE, in a backend test,
+  // so the change is made on purpose and reviewed as the security decision it is.
+  it("admits exactly these hosts", () => {
+    expect([...SOCIAL_VIDEO_HOSTS]).toEqual([
+      "youtube.com", "youtu.be",
+      "tiktok.com",
+      "instagram.com",
+      "twitter.com", "x.com",
+      "facebook.com", "fb.watch", "fb.com",
+    ])
+    expect([...YOUTUBE_HOSTS]).toEqual(["youtube.com", "youtu.be"])
+    expect([...INSTAGRAM_HOSTS]).toEqual(["instagram.com"])
+  })
+})
 describe("isDirectVideoFileUrl (direct CDN-style video links)", () => {
   it("accepts http(s) URLs whose PATH ends in a video extension — any host", () => {
     expect(isDirectVideoFileUrl("https://cdn.nodaro.ai/uploads/videos/5b3f3a3b-c532-4b60-9815-c9525791389e.mp4")).toBe(true)

@@ -45,7 +45,6 @@ vi.mock("@/components/ui/cached-image", () => ({
 vi.mock("@/lib/api", () => ({
   fetchYouTubeOEmbed: vi.fn(),
   startVideoDownload: vi.fn(),
-  subscribeToDownloadProgress: vi.fn(),
   downloadYouTubeAudio: vi.fn(),
 }))
 

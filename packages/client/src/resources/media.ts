@@ -96,15 +96,20 @@ export class MediaResource {
    * Download a social video (YouTube / TikTok / Instagram / X / Facebook) into
    * your storage (`POST /v1/download-video`). `maxHeight` caps the resolution
    * (default "best"); `sectionStartSec` + `sectionEndSec` (both-or-neither) fetch
-   * ONLY that time range instead of the whole video. Returns a `downloadId`;
-   * progress streams from `GET /v1/download-video/progress/:downloadId`
-   * (server-sent events) and the finished file lands in your library.
+   * ONLY that time range instead of the whole video. A download that arrives
+   * with no audio stream FAILS by default (it is usually a degraded source
+   * response, and is retried through other routes first); pass
+   * `requireAudio: false` to accept a clip that really has no sound. Returns a
+   * `downloadId`; progress streams from
+   * `GET /v1/download-video/progress/:downloadId` (server-sent events) and the
+   * finished file lands in your library.
    */
   downloadVideo(input: {
     url: string
     maxHeight?: number
     sectionStartSec?: number
     sectionEndSec?: number
+    requireAudio?: boolean
   }): Promise<{ downloadId: string }> {
     return this.client.request<{ downloadId: string }>("POST", "/v1/download-video", { body: input })
   }

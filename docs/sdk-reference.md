@@ -3868,14 +3868,18 @@ downloadVideo(input: {
   maxHeight?: number
   sectionStartSec?: number
   sectionEndSec?: number
+  requireAudio?: boolean
 }): Promise<{ downloadId: string }>
 ```
 
 Download a social video (YouTube / TikTok / Instagram / X / Facebook) into your
 storage (`POST /v1/download-video`). `maxHeight` caps the resolution (omit for
 best available); `sectionStartSec` + `sectionEndSec` (both-or-neither) fetch
-only that time range. Returns a `downloadId` — not a job id — whose progress
-streams from `downloadVideoProgress()`. The finished file lands in your library.
+only that time range. A download that arrives with no audio stream fails by
+default — it is usually a degraded source response, and is retried through
+other routes first; pass `requireAudio: false` to accept a clip that really has
+no sound. Returns a `downloadId` — not a job id — whose progress streams from
+`downloadVideoProgress()`. The finished file lands in your library.
 
 #### `downloadVideoProgress(downloadId, opts?)`
 

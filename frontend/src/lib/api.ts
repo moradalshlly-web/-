@@ -4039,46 +4039,71 @@ export async function downloadYouTubeAudio(url: string): Promise<{ url: string; 
   })
 }
 
-export async function startVideoDownload(url: string): Promise<{ downloadId: string }> {
+/** A sub-span of the source, in seconds (both or neither, 0 <= start < end). The
+ *  server pads it ±3s and cuts on keyframes, so the file may run a little wider. */
+export interface VideoDownloadSection {
+  readonly startSec: number
+  readonly endSec: number
+}
+
+export interface StartVideoDownloadOptions {
+  /** Quality cap, "up to N rows". YouTube only — other hosts have no ladder. */
+  readonly maxHeight?: number
+  readonly section?: VideoDownloadSection
+  /** `false` = accept a download with no sound. Absent keeps the server's default
+   *  (a silent result fails, and is retried through the proxy pool first). */
+  readonly requireAudio?: boolean
+}
+
+/**
+ * Start a server-side download of a social video link (or a direct video file).
+ * Answers at once with a `downloadId`; follow it with `followVideoDownload`
+ * (`video-download-stream.ts`). Every option rides along only when present.
+ */
+export async function startVideoDownload(
+  url: string,
+  options: StartVideoDownloadOptions = {},
+): Promise<{ downloadId: string }> {
+  const { maxHeight, section, requireAudio } = options
   return apiJson("/v1/download-video", {
-    body: { url },
+    body: {
+      url,
+      ...(maxHeight !== undefined ? { maxHeight } : {}),
+      ...(section ? { sectionStartSec: section.startSec, sectionEndSec: section.endSec } : {}),
+      ...(requireAudio !== undefined ? { requireAudio } : {}),
+    },
     label: "Failed to start download. The video may be private or require login.",
   })
 }
 
-export interface DownloadProgressEvent {
-  phase: "downloading" | "processing" | "uploading" | "completed" | "failed"
-  percent: number
-  videoUrl?: string
-  thumbnailUrl?: string
-  error?: string
+/** What a pre-download probe knows about a link. Every field may be unknown. */
+export interface VideoLinkMetadata {
+  readonly durationSec: number | null
+  readonly title: string | null
+  readonly isLive: boolean
 }
 
-export function subscribeToDownloadProgress(
-  downloadId: string,
-  onProgress: (event: DownloadProgressEvent) => void,
-): () => void {
-  const url = `${API_BASE_URL}/v1/download-video/progress/${downloadId}`
-  const eventSource = new EventSource(url)
+const UNKNOWN_VIDEO_METADATA: VideoLinkMetadata = { durationSec: null, title: null, isLive: false }
 
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data) as DownloadProgressEvent
-      onProgress(data)
-      if (data.phase === "completed" || data.phase === "failed") {
-        eventSource.close()
-      }
-    } catch {
-      // Ignore parse errors
+/**
+ * Probe a link's length / title / live-ness BEFORE downloading it
+ * (`POST /v1/video-metadata`, YouTube only — other hosts answer all-unknown).
+ * NEVER throws: a failed, slow or malformed probe resolves to "unknown", so it
+ * can only ever DEGRADE what happens next, never block an import.
+ */
+export async function fetchVideoMetadata(url: string): Promise<VideoLinkMetadata> {
+  try {
+    const raw = await apiJson<unknown>("/v1/video-metadata", { body: { url }, label: "Failed to read video info" })
+    if (typeof raw !== "object" || raw === null) return UNKNOWN_VIDEO_METADATA
+    const obj = raw as Record<string, unknown>
+    return {
+      durationSec: typeof obj.durationSec === "number" && Number.isFinite(obj.durationSec) ? obj.durationSec : null,
+      title: typeof obj.title === "string" && obj.title.trim() !== "" ? obj.title : null,
+      isLive: obj.isLive === true,
     }
+  } catch {
+    return UNKNOWN_VIDEO_METADATA
   }
-
-  eventSource.onerror = () => {
-    eventSource.close()
-    onProgress({ phase: "failed", percent: 0, error: "Connection lost" })
-  }
-
-  return () => eventSource.close()
 }
 
 export async function textToAudioApi(prompt: string, provider?: string, duration?: number, userId?: string, options?: { loop?: boolean; promptInfluence?: number }): Promise<{ jobId: string }> {

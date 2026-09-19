@@ -39,9 +39,10 @@ import {
 import { CachedImage } from "@/components/ui/cached-image"
 import { toast } from "sonner"
 import { spliceDelimitedRows, NO_SPLIT_DELIMITER } from "@nodaro/shared"
-import { uploadAudio, fetchYouTubeOEmbed, startVideoDownload, subscribeToDownloadProgress } from "@/lib/api"
+import { uploadAudio, fetchYouTubeOEmbed } from "@/lib/api"
 import { runYouTubeAudioExtraction } from "@/lib/youtube-audio-extraction"
-import type { DownloadProgressEvent } from "@/lib/api"
+import { setVideoLinkUrl } from "@/lib/video-link-ingest"
+import { VideoLinkStatus } from "@/components/nodes/video-link-status"
 import {
   LOOP_COLUMN_TYPE_META,
   TEXT_CELL_DEFAULT_MAX_LINES,
@@ -1174,136 +1175,16 @@ export function RSSFeedConfig({ data, onUpdate }: ConfigProps<RSSFeedData>) {
   )
 }
 
-function detectVideoPlatform(url: string): string {
-  if (/youtube\.com|youtu\.be/.test(url)) return "youtube"
-  if (/facebook\.com|fb\.watch|fb\.com/.test(url)) return "facebook"
-  if (/tiktok\.com/.test(url)) return "tiktok"
-  if (/instagram\.com/.test(url)) return "instagram"
-  if (/(?:twitter\.com|x\.com)/.test(url)) return "twitter"
-  return "unknown"
-}
-
-function extractVideoUrlId(url: string): string | null {
-  const ytMatch = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
-  )
-  if (ytMatch) return ytMatch[1]
-  const tiktokMatch = url.match(/tiktok\.com\/@[\w.-]+\/video\/(\d+)/)
-  if (tiktokMatch) return tiktokMatch[1]
-  const igMatch = url.match(/instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)
-  if (igMatch) return igMatch[1]
-  const twMatch = url.match(/(?:twitter\.com|x\.com)\/[\w]+\/status\/(\d+)/)
-  if (twMatch) return twMatch[1]
-  const fbMatch = url.match(/facebook\.com\/.*\/videos\/(\d+)/)
-  if (fbMatch) return fbMatch[1]
-  const fbShareMatch = url.match(/facebook\.com\/share\/(?:v|r)\/([A-Za-z0-9_-]+)/)
-  if (fbShareMatch) return fbShareMatch[1]
-  const fbReelMatch = url.match(/facebook\.com\/reel\/([A-Za-z0-9_-]+)/)
-  if (fbReelMatch) return fbReelMatch[1]
-  if (/fb\.watch/.test(url)) return url
-  const platform = detectVideoPlatform(url)
-  if (platform !== "unknown" && platform !== "youtube") return url
-  return null
-}
-
-function VIDEO_PLATFORM_LABELS(): Record<string, string> {
-  return {
-  youtube: "YouTube",
-  facebook: "Facebook",
-  tiktok: "TikTok",
-  instagram: "Instagram",
-  twitter: "Twitter/X",
-  unknown: tx("common.video"),
-}
-}
-
-export function YouTubeVideoConfig({ data, onUpdate }: ConfigProps<YouTubeVideoData>) {
+/**
+ * The Video URL node's settings. It writes the link through the SAME
+ * controller the card uses (`lib/video-link-ingest`) and renders the SAME
+ * download block (`VideoLinkStatus`) — the two surfaces used to carry separate
+ * copies of the platform regexes and the download flow, and only one of them
+ * knew about the audio track.
+ */
+export function YouTubeVideoConfig({ data, nodeId }: ConfigProps<YouTubeVideoData> & { readonly nodeId?: string | null }) {
   const t = useT()
-  const [loading, setLoading] = useState(false)
-
-  const platform = detectVideoPlatform(data.youtubeUrl || "")
-  const isYouTube = platform === "youtube"
-  const downloadStatus = data.downloadStatus ?? "idle"
-  const isDownloading = downloadStatus === "downloading"
   const displayThumbnail = data.downloadedThumbnailUrl || data.thumbnailUrl
-
-  const handleUrlChange = useCallback(async (url: string) => {
-    onUpdate({
-      youtubeUrl: url,
-      downloadedVideoUrl: "",
-      downloadedThumbnailUrl: "",
-      downloadStatus: "idle",
-      downloadError: "",
-      downloadPercent: 0,
-    })
-
-    const videoId = extractVideoUrlId(url)
-    if (!videoId) {
-      onUpdate({ videoId: "", title: "", thumbnailUrl: "" })
-      return
-    }
-
-    const detectedPlatform = detectVideoPlatform(url)
-    onUpdate({ videoId })
-    setLoading(true)
-    try {
-      if (detectedPlatform === "youtube") {
-        const meta = await fetchYouTubeOEmbed(url)
-        onUpdate({ title: meta.title, thumbnailUrl: meta.thumbnail_url })
-      } else {
-        onUpdate({ title: tx("inputcfg.video", { platform: VIDEO_PLATFORM_LABELS()[detectedPlatform] }), thumbnailUrl: "" })
-      }
-    } catch {
-      if (detectedPlatform === "youtube") {
-        onUpdate({ title: "", thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` })
-      } else {
-        onUpdate({ title: tx("inputcfg.video", { platform: VIDEO_PLATFORM_LABELS()[detectedPlatform] }), thumbnailUrl: "" })
-      }
-    } finally {
-      setLoading(false)
-    }
-  }, [onUpdate])
-
-  const handleDownload = useCallback(async () => {
-    const url = data.youtubeUrl?.trim()
-    if (!url) return
-    onUpdate({
-      downloadStatus: "downloading",
-      downloadPercent: 0,
-      downloadError: "",
-      downloadedVideoUrl: "",
-      downloadedThumbnailUrl: "",
-    })
-    try {
-      const { downloadId } = await startVideoDownload(url)
-      subscribeToDownloadProgress(downloadId, (event: DownloadProgressEvent) => {
-        if (event.phase === "completed" && event.videoUrl) {
-          onUpdate({
-            downloadedVideoUrl: event.videoUrl,
-            downloadedThumbnailUrl: event.thumbnailUrl ?? "",
-            downloadStatus: "completed",
-            downloadPercent: 100,
-            thumbnailUrl: event.thumbnailUrl ?? data.thumbnailUrl,
-          })
-        } else if (event.phase === "failed") {
-          onUpdate({
-            downloadStatus: "failed",
-            downloadError: event.error ?? tx("inputcfg.downloadFailed"),
-            downloadPercent: 0,
-          })
-        } else {
-          onUpdate({ downloadPercent: event.percent, downloadPhase: event.phase })
-        }
-      })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : tx("inputcfg.downloadFailed")
-      onUpdate({
-        downloadStatus: "failed",
-        downloadError: message,
-        downloadPercent: 0,
-      })
-    }
-  }, [data.youtubeUrl, data.thumbnailUrl, onUpdate])
 
   return (
     <div className="flex flex-col gap-3">
@@ -1312,17 +1193,13 @@ export function YouTubeVideoConfig({ data, onUpdate }: ConfigProps<YouTubeVideoD
         <Input
           id="video-url"
           value={data.youtubeUrl}
-          onChange={(e) => handleUrlChange(e.target.value)}
+          onChange={(e) => {
+            if (nodeId) setVideoLinkUrl(nodeId, e.target.value)
+          }}
           placeholder={t("inputcfg.youtubeFacebookTiktokInstagramOrX")}
         />
       </div>
-      {loading && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="w-3 h-3 animate-spin" />
-          <span>{t("inputcfg.fetchingMetadata")}</span>
-        </div>
-      )}
-      {!loading && displayThumbnail && (
+      {displayThumbnail && (
         <div className="rounded-md overflow-hidden">
           <CachedImage
             src={displayThumbnail}
@@ -1338,62 +1215,11 @@ export function YouTubeVideoConfig({ data, onUpdate }: ConfigProps<YouTubeVideoD
           <span className="font-medium">{t("inputcfg.title")}</span> {data.title}
         </div>
       )}
-
-      {!loading && data.videoId && !isYouTube && (
-        <div className="flex flex-col gap-2">
-          {(downloadStatus === "idle" || downloadStatus === "failed") && (
-            <>
-              {downloadStatus === "failed" && data.downloadError && (
-                <div className="flex items-center gap-1.5 p-2 rounded-md bg-red-500/10 text-red-500 text-xs">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span className="line-clamp-2">{data.downloadError}</span>
-                </div>
-              )}
-              <Button
-                size="sm"
-                onClick={handleDownload}
-                className="w-full bg-[#ff0073] hover:bg-[#ff0073]/90 text-white"
-              >
-                <Download className="w-3.5 h-3.5 me-1.5" />
-                {downloadStatus === "failed" ? t("inputcfg.retryDownload") : t("inputcfg.downloadVideo")}
-              </Button>
-            </>
-          )}
-
-          {isDownloading && (
-            <div className="flex flex-col gap-1.5 p-2 bg-muted/30 rounded-md">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ff0073]" />
-                <span>{data.downloadPhase === "uploading" ? t("inputcfg.uploading") : data.downloadPhase === "processing" ? t("pricing.processing") : t("inputcfg.downloadingVideo")}</span>
-                <span className="ms-auto font-mono text-[#ff0073]">{data.downloadPercent ?? 0}%</span>
-              </div>
-              <div className="w-full h-1.5 rounded-full bg-muted-foreground/20 overflow-hidden">
-                <div
-                  className="h-full bg-[#ff0073] rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${data.downloadPercent ?? 0}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {downloadStatus === "completed" && (
-            <div className="flex items-center gap-2 text-xs text-green-500 p-2 bg-green-500/10 rounded-md">
-              <Check className="w-3.5 h-3.5" />
-              <span>{t("inputcfg.downloadedAndReady")}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {!loading && data.videoId && isYouTube && (
-        <div className="flex items-center gap-2 text-xs text-green-500 p-2 bg-green-500/10 rounded-md">
-          <Check className="w-3.5 h-3.5" />
-          <span>{t("inputcfg.directStreaming")}</span>
-        </div>
-      )}
+      {nodeId && <VideoLinkStatus nodeId={nodeId} data={data} variant="panel" />}
     </div>
   )
 }
+
 
 export function ReferenceAudioConfig({ data, onUpdate }: ConfigProps<ReferenceAudioData>) {
   const t = useT()

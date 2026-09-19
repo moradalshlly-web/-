@@ -124,7 +124,6 @@ vi.mock("@/lib/api", () => ({
   generateAIWriterStream: vi.fn(),
   fetchYouTubeOEmbed: vi.fn(),
   startVideoDownload: vi.fn(),
-  subscribeToDownloadProgress: vi.fn(),
   downloadYouTubeAudio: vi.fn(),
 }))
 

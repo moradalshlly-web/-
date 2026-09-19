@@ -1091,6 +1091,22 @@ export {
 
 export { SUNO_TRACK_SOURCE_TYPES } from "./suno-track-sources.js"
 
+// --- Video URL node + social-video import (host allowlist, node output rule) ---
+export {
+  SOCIAL_VIDEO_HOSTS,
+  YOUTUBE_HOSTS,
+  INSTAGRAM_HOSTS,
+  VIDEO_LINK_TOLERANT_CONSUMER_TYPES,
+  hostnameMatchesAllowlist,
+  hasUrlParserHazard,
+  isSocialVideoUrl,
+  detectVideoLinkPlatform,
+  videoLinkDownloadedFile,
+  resolveVideoLinkOutput,
+  videoLinkNeedsDownload,
+} from "./video-link.js"
+export type { VideoLinkPlatform, VideoLinkNodeFields } from "./video-link.js"
+
 export {
   VOICE_CHANGER_MODELS,
   VOICE_CHANGER_MODEL_IDS,

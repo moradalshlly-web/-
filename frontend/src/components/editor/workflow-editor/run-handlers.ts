@@ -30,6 +30,7 @@ import { getListInputForNode } from "./node-input-resolver";
 import { executeNode, rejectAllManualEdits } from "./execute-node";
 import { executeNodeForList } from "./list-execution";
 import { cascadeAutoExecute } from "./auto-execute";
+import { ensureVideoLinksBeforeRun } from "./video-link-run-gate";
 import { buildVariantResults } from "./variant-results";
 // The restore poller shares the canvas loops' one flag writer. No cycle:
 // poll-job.ts imports nothing from this file.
@@ -340,6 +341,10 @@ export async function handleRun(
     const st = useWorkflowStore.getState();
     const exec = liveExecutable(st.nodes);
     if (!(await confirmRunOrAbort(ctx, exec, st.nodes, st.edges, "all", true, opts?.skipConfirm))) return;
+    // After the confirm (Cancel stays a true no-op), before any mutation: this
+    // run executes on the server from the SAVED workflow, so a Video URL node
+    // must hold its file by the time the pre-run save below writes it.
+    if (!(await ensureVideoLinksBeforeRun(exec.map((n) => n.id), setIsRunning))) return;
   }
 
   rejectAllManualEdits();
@@ -498,17 +503,29 @@ export async function handleRunSingleNode(
   pollIntervalsRef: MutableRefObject<Set<ReturnType<typeof setInterval>>>,
   opts?: { skipConfirm?: boolean },
 ): Promise<void> {
-  const { nodes, edges } = useWorkflowStore.getState();
-  const node = nodes.find((n) => n.id === nodeId);
-  if (!node) return;
+  {
+    const st = useWorkflowStore.getState();
+    const asked = st.nodes.find((n) => n.id === nodeId);
+    if (!asked) return;
 
-  if (!isExecutableNode(node)) {
-    toast.error(tx("run.nodeTypeCannotRunIndividually"));
-    return;
+    if (!isExecutableNode(asked)) {
+      toast.error(tx("run.nodeTypeCannotRunIndividually"));
+      return;
+    }
+
+    // Confirm before any mutation when this single run is estimated >100 cr.
+    if (!(await confirmRunOrAbort(ctx, [asked], st.nodes, st.edges, "single", false, opts?.skipConfirm))) return;
+    // A linked video upstream that was never fetched is fetched now — the node
+    // would otherwise be handed a web page instead of a video file.
+    if (!(await ensureVideoLinksBeforeRun([nodeId], setIsRunning))) return;
   }
 
-  // Confirm before any mutation when this single run is estimated >100 cr.
-  if (!(await confirmRunOrAbort(ctx, [node], nodes, edges, "single", false, opts?.skipConfirm))) return;
+  // Read the graph only NOW. The confirm and the download above can each take
+  // minutes; the canvas may have been edited meanwhile, and running a snapshot
+  // taken before them would execute a node as it no longer is.
+  const { nodes } = useWorkflowStore.getState();
+  const node = nodes.find((n) => n.id === nodeId);
+  if (!node) return;
 
   // Capture dirtiness BEFORE the per-run resets / optimistic flip so a clean
   // editor skips the pre-Run save round-trip (see FIX 4).
@@ -619,6 +636,7 @@ export async function handleRunFromHere(
     const downstreamIds = getDownstreamNodeIds(nodeId, st.edges);
     const exec = liveExecutable(st.nodes).filter((n) => downstreamIds.has(n.id));
     if (!(await confirmRunOrAbort(ctx, exec, st.nodes, st.edges, "from-here", false))) return;
+    if (!(await ensureVideoLinksBeforeRun(exec.map((n) => n.id), setIsRunning))) return;
   }
   rejectAllManualEdits();
   const { nodes, edges } = collapseExpandedClones();
@@ -712,6 +730,7 @@ export async function handleRunSelected(
     const st = useWorkflowStore.getState();
     const exec = liveExecutable(st.nodes).filter((n) => n.selected);
     if (!(await confirmRunOrAbort(ctx, exec, st.nodes, st.edges, "selected", false))) return;
+    if (!(await ensureVideoLinksBeforeRun(exec.map((n) => n.id), setIsRunning))) return;
   }
   rejectAllManualEdits();
   const { nodes } = collapseExpandedClones();

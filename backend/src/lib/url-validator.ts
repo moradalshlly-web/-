@@ -1,4 +1,11 @@
 import { z } from "zod"
+import {
+  SOCIAL_VIDEO_HOSTS,
+  YOUTUBE_HOSTS,
+  INSTAGRAM_HOSTS,
+  hostnameMatchesAllowlist,
+  hasUrlParserHazard,
+} from "@nodaro/shared"
 import { isPrivateOrReservedIP } from "./safe-fetch.js"
 import { isConfiguredStorageUrl } from "./own-storage-url.js"
 
@@ -52,45 +59,38 @@ export const safeUrlSchema = z
 /**
  * Canonical allowlist of social-video hosts that the yt-dlp / ffmpeg download
  * paths accept (youtube-audio, extract-youtube-audio, download-video, the
- * worker `downloadAudioToR2`, and `trimAudio`). Single source of truth — every
- * callsite imports this rather than keeping its own copy.
+ * worker `downloadAudioToR2`, and `trimAudio`), its YouTube-only and
+ * Instagram-only subsets, and the exact-suffix matcher.
+ *
+ * They LIVE in `@nodaro/shared` (`video-link.ts`) and are re-exported here so
+ * every backend callsite keeps importing them from this module. One list for
+ * the server's SSRF gate AND the editor's "is this a link I should download"
+ * decision: the editor must never offer a host this gate refuses, nor sit on
+ * one it admits.
+ *
+ * **SSRF gate** — the matcher replaces the unanchored `hostname.includes(domain)`
+ * substring check that previously guarded every yt-dlp callsite. A substring
+ * check let an attacker-controlled host like `youtube.com.attacker.example`
+ * pass and then resolve to an internal/metadata IP (yt-dlp does its own
+ * DNS+HTTP, bypassing `safeFetch`). Exact-suffix matching admits only the
+ * domain itself or a true subdomain (`www.youtube.com`, `m.youtu.be`), which
+ * the attacker cannot DNS-control because the allowlist is fixed, reputable
+ * domains.
  */
-export const SOCIAL_VIDEO_HOSTS = [
-  "youtube.com", "youtu.be",
-  "tiktok.com",
-  "instagram.com",
-  "twitter.com", "x.com",
-  "facebook.com", "fb.watch", "fb.com",
-] as const
-
-/** YouTube-only subset (the extract-youtube-audio route accepts only YouTube). */
-export const YOUTUBE_HOSTS = ["youtube.com", "youtu.be"] as const
-
-/** Instagram-only subset (the download path's proxy-failover chain is
- *  Instagram-scoped — see yt-proxy's resolveAttemptChain). */
-export const INSTAGRAM_HOSTS = ["instagram.com"] as const
+export { SOCIAL_VIDEO_HOSTS, YOUTUBE_HOSTS, INSTAGRAM_HOSTS, hostnameMatchesAllowlist }
 
 /**
- * Exact registrable-domain match against an allowlist.
+ * True when `url`'s host is on the social-video allowlist (exact-suffix match).
  *
- * **SSRF gate** — replaces the unanchored `hostname.includes(domain)` substring
- * check that previously guarded every yt-dlp callsite. A substring check let an
- * attacker-controlled host like `youtube.com.attacker.example` pass and then
- * resolve to an internal/metadata IP (yt-dlp does its own DNS+HTTP, bypassing
- * `safeFetch`). Exact-suffix matching admits only the domain itself or a true
- * subdomain (`www.youtube.com`, `m.youtu.be`), which the attacker cannot
- * DNS-control because the allowlist is fixed, reputable domains.
+ * A link carrying a backslash or a control character is refused BEFORE the host
+ * is read (`hasUrlParserHazard`). This function parses the WHATWG way, where
+ * `https://tiktok.com\@10.0.0.1/x` has host `tiktok.com`; yt-dlp is handed the
+ * RAW string and parses it itself, and a parser that ends the authority at "/"
+ * alone reads host `10.0.0.1`. The allowlist is only a gate if both readers
+ * agree on what it admitted — so a string they can disagree on is not admitted.
  */
-export function hostnameMatchesAllowlist(hostname: string, domains: readonly string[]): boolean {
-  const h = hostname.toLowerCase().replace(/\.$/, "") // strip FQDN trailing dot
-  return domains.some((d) => {
-    const dom = d.toLowerCase()
-    return h === dom || h.endsWith("." + dom)
-  })
-}
-
-/** True when `url`'s host is on the social-video allowlist (exact-suffix match). */
 export function isAllowedSocialVideoUrl(url: string, domains: readonly string[] = SOCIAL_VIDEO_HOSTS): boolean {
+  if (hasUrlParserHazard(url)) return false
   try {
     return hostnameMatchesAllowlist(new URL(url).hostname, domains)
   } catch {
@@ -115,6 +115,9 @@ export const DIRECT_VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".avi"] as cons
  * `resolvesOnlyToPublicAddresses` before fetching.
  */
 export function isDirectVideoFileUrl(url: string): boolean {
+  // Same parser-differential refusal as the social gate: the route pre-resolves
+  // the WHATWG host, and yt-dlp would fetch whatever host ITS parser reads.
+  if (hasUrlParserHazard(url)) return false
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false

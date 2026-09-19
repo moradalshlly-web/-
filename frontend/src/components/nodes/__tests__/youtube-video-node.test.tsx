@@ -1,6 +1,17 @@
-import { describe, it, expect, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { describe, it, expect, vi, beforeEach } from "vitest"
+import { render, screen, fireEvent } from "@testing-library/react"
 import { YouTubeVideoNode } from "../youtube-video-node"
+
+const setVideoLinkUrl = vi.fn()
+const clearVideoLink = vi.fn()
+const ingestVideoLink = vi.fn().mockResolvedValue({ status: "skipped" })
+vi.mock("@/lib/video-link-ingest", () => ({
+  setVideoLinkUrl: (...a: unknown[]) => setVideoLinkUrl(...a),
+  clearVideoLink: (...a: unknown[]) => clearVideoLink(...a),
+  ingestVideoLink: (...a: unknown[]) => ingestVideoLink(...a),
+  retryVideoLinkIngest: vi.fn(),
+  resumeVideoLinkIngest: vi.fn(),
+}))
 
 vi.mock("@xyflow/react", () => ({
   Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
@@ -51,12 +62,6 @@ vi.mock("@/components/ui/cached-image", () => ({
   CachedImage: (props: any) => <img data-testid="cached-image" src={props.src} alt={props.alt} />,
 }))
 
-vi.mock("@/lib/api", () => ({
-  fetchYouTubeOEmbed: vi.fn(),
-  startVideoDownload: vi.fn(),
-  subscribeToDownloadProgress: vi.fn(),
-  downloadYouTubeAudio: vi.fn(),
-}))
 
 vi.mock("react-dom", async () => {
   const actual = await vi.importActual("react-dom")
@@ -72,6 +77,10 @@ function renderNode(overrides: Record<string, unknown> = {}) {
   } as any
   return render(<YouTubeVideoNode {...defaultProps} />)
 }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe("YouTubeVideoNode", () => {
   it("renders without crashing", () => {
@@ -116,5 +125,87 @@ describe("YouTubeVideoNode", () => {
       },
     })
     expect(screen.getByTestId("cached-image")).toBeInTheDocument()
+  })
+
+  it("hands every edit of the link to the controller — the card owns no download", () => {
+    renderNode()
+    fireEvent.change(screen.getByPlaceholderText(/YouTube/), {
+      target: { value: "https://www.tiktok.com/@someone/video/123" },
+    })
+    expect(setVideoLinkUrl).toHaveBeenCalledWith("node-1", "https://www.tiktok.com/@someone/video/123")
+  })
+
+  it("offers the download on a YOUTUBE link that was never fetched — it used to say 'streams directly' and hand a web page downstream", () => {
+    renderNode({
+      data: {
+        label: "YouTube Video",
+        youtubeUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+        videoId: "aqz-KE-bpKQ",
+        thumbnailUrl: "https://img.youtube.com/vi/aqz-KE-bpKQ/hqdefault.jpg",
+      },
+    })
+    fireEvent.click(screen.getByRole("button", { name: /Download Video/ }))
+    expect(ingestVideoLink).toHaveBeenCalledWith("node-1", { mode: "auto" })
+  })
+
+  it("shows nothing to download once the file is there", () => {
+    renderNode({
+      data: {
+        label: "YouTube Video",
+        youtubeUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+        videoId: "aqz-KE-bpKQ",
+        thumbnailUrl: "t.jpg",
+        downloadedVideoUrl: "https://cdn.nodaro.ai/videos/yt-1.mp4",
+        downloadedFromUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      },
+    })
+    expect(screen.queryByRole("button", { name: /Download Video/ })).toBeNull()
+    expect(screen.getByText("Downloaded and ready")).toBeInTheDocument()
+  })
+
+  it("plays the DOWNLOADED file once there is one — for YouTube too, where it may be one part of the video", () => {
+    renderNode({
+      data: {
+        label: "x",
+        youtubeUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+        videoId: "aqz-KE-bpKQ",
+        thumbnailUrl: "t.jpg",
+        downloadedVideoUrl: "https://cdn.nodaro.ai/videos/yt-1.mp4",
+        downloadedFromUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      },
+    })
+    fireEvent.click(screen.getByTestId("cached-image"))
+    expect(document.querySelector("video")).toHaveAttribute("src", "https://cdn.nodaro.ai/videos/yt-1.mp4")
+    expect(document.querySelector("iframe")).toBeNull()
+  })
+
+  it("falls back to the YouTube embed while nothing is downloaded", () => {
+    renderNode({
+      data: {
+        label: "x",
+        youtubeUrl: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+        videoId: "aqz-KE-bpKQ",
+        thumbnailUrl: "t.jpg",
+      },
+    })
+    fireEvent.click(screen.getByTestId("cached-image"))
+    expect(document.querySelector("iframe")).toHaveAttribute("src", expect.stringContaining("/embed/aqz-KE-bpKQ"))
+    expect(document.querySelector("video")).toBeNull()
+  })
+
+  it("the remove button clears through the controller, so a running download is dropped with it", () => {
+    renderNode({
+      data: { label: "x", youtubeUrl: "https://www.tiktok.com/@someone/video/123", videoId: "123", title: "clip" },
+    })
+    fireEvent.click(screen.getByTitle("Remove"))
+    expect(clearVideoLink).toHaveBeenCalledWith("node-1")
+  })
+
+  it("does not badge a foreign host as a platform — 'x.com' is inside 'netflix.com'", () => {
+    renderNode({
+      data: { label: "x", youtubeUrl: "https://www.netflix.com/watch/1", videoId: "", thumbnailUrl: "" },
+    })
+    expect(screen.queryByText("Twitter/X")).toBeNull()
+    expect(document.querySelector(".border-dashed")).toBeInTheDocument()
   })
 })
