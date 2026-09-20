@@ -85,9 +85,9 @@ export const RUN_RESULT_EXTRA_KEYS: readonly string[] = [
   "instrumentalUrl",
   "alignmentResults",
   "contentPolicyRewrites",
-  // The load-time restore writes the four above under names of its own
-  // (use-workflow-persistence.ts :: applyCompletedExecutionResults). Nothing
-  // reads them, but they sit on the node all the same.
+  // Until #1547 the load-time restore wrote the four above under names of its
+  // own. Nothing ever read them, and nothing writes them any more — but saved
+  // workflows still carry them, so the clear still takes them off.
   "generatedVocalUrl",
   "generatedInstrumentalUrl",
   "generatedAlignment",

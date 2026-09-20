@@ -132,6 +132,8 @@ function writtenKeys(): Written[] {
   // The two load-time recovery lanes write results too — under their own names.
   files.push(resolve(SRC, "hooks/use-workflow-persistence.ts"))
   files.push(resolve(SRC, "lib/reconcile-completed-jobs.ts"))
+  // …and the one mapping all three painters share for a node's named side outputs.
+  files.push(resolve(SRC, "lib/named-run-outputs.ts"))
   // A scraper's run ledger is built by patch functions that RETURN a literal.
   const PATCH_BUILDERS = [
     resolve(SRC, "components/nodes/web-scrape-run-state.ts"),
@@ -147,7 +149,7 @@ function writtenKeys(): Written[] {
       for (const key of topLevelKeys(src, (m.index ?? 0) + m[0].length)) out.push({ key, file })
     }
     // Patches assembled field by field before one store write.
-    for (const m of src.matchAll(/\b(?:updates|patch|runPatch|newData)\.([A-Za-z_$][\w$]*)\s*=(?!=)/g)) {
+    for (const m of src.matchAll(/\b(?:updates|patch|runPatch|newData|fields)\.([A-Za-z_$][\w$]*)\s*=(?!=)/g)) {
       out.push({ key: m[1], file })
     }
     for (const key of extractorKeys(src)) out.push({ key, file })
@@ -178,7 +180,7 @@ describe("every key a run writes onto a node has a decision", () => {
     // A regex that silently stops matching would turn this guard into a no-op.
     const keys = new Set(written.map((w) => w.key))
     expect(written.length).toBeGreaterThan(300)
-    for (const known of ["executionStatus", "generatedResults", "generatedVideoUrl", "combinedText", "lastSeenId", "generatedVocalUrl"]) {
+    for (const known of ["executionStatus", "generatedResults", "generatedVideoUrl", "combinedText", "lastSeenId", "alignmentResults"]) {
       expect(keys.has(known), known).toBe(true)
     }
     // One per extractor shape (returned literal · nested spread · `extra.x =` ·

@@ -1514,6 +1514,76 @@ describe("useWorkflowPersistence — terminal-execution restore via load", () =>
   })
 
   /**
+   * #1547 — both load-time lanes wrote four outputs under names nothing reads
+   * (`generatedVocalUrl` for `vocalUrl`, …), and wrote a Combine Text's result
+   * only where its HANDLE reads it, never where its card does. A run that
+   * finished with the tab closed came back with those outputs invisible — and a
+   * separation's `vocals` handle, finding no `vocalUrl`, fell back to the full mix.
+   */
+  describe("named side outputs come back under the names their readers use", () => {
+    const sideOutputs = {
+      sep: { status: "completed", output: { audioUrl: "https://cdn.test/mix.mp3", vocalUrl: "https://cdn.test/vocals.mp3", instrumentalUrl: "https://cdn.test/inst.mp3" } },
+      align: { status: "completed", output: { alignment: [{ word: "hi", start: 0, end: 1 }] } },
+      combine: { status: "completed", output: { combinedText: "a b" } },
+      split: { status: "completed", output: { splitResults: ["a", "b"] } },
+    }
+    const canvas = () =>
+      setupSupabaseLoad({
+        id: "w1",
+        name: "WF",
+        nodes: [
+          makeNode({ id: "sep", type: "suno-separate", data: { label: "Sep" } }),
+          makeNode({ id: "align", type: "forced-alignment", data: { label: "Align" } }),
+          makeNode({ id: "combine", type: "combine-text", data: { label: "Combine" } }),
+          makeNode({ id: "split", type: "split-text", data: { label: "Split" } }),
+        ],
+        edges: [],
+      })
+    const loaded = async () => {
+      const { result } = renderHook(() => useWorkflowPersistence("p1"))
+      await act(async () => {
+        await result.current.load("w1")
+      })
+      return Object.fromEntries(
+        getSyncedNodes().map((n) => [(n as { id: string }).id, (n as { data: Record<string, unknown> }).data]),
+      )
+    }
+    const expectReadable = (byId: Record<string, Record<string, unknown>>) => {
+      expect(byId.sep.vocalUrl).toBe("https://cdn.test/vocals.mp3")
+      expect(byId.sep.instrumentalUrl).toBe("https://cdn.test/inst.mp3")
+      expect(byId.align.alignmentResults).toEqual([{ word: "hi", start: 0, end: 1 }])
+      expect(byId.combine.combinedText).toBe("a b")
+      expect(byId.combine.generatedText).toBe("a b")
+      expect(byId.split.splitResults).toEqual(["a", "b"])
+      // The old spellings are gone — nothing ever read them.
+      for (const data of Object.values(byId)) {
+        for (const stale of ["generatedVocalUrl", "generatedInstrumentalUrl", "generatedAlignment", "generatedSplitResults"]) {
+          expect(stale in data, stale).toBe(false)
+        }
+      }
+    }
+
+    it("from a run that finished while the editor was closed", async () => {
+      canvas()
+      mockTerminal([{ id: "exec-1", triggerType: "manual", status: "completed", createdAt: new Date().toISOString(), nodeStates: sideOutputs }])
+      expectReadable(await loaded())
+    })
+
+    it("from a run that is STILL going when the editor reopens (its finished nodes are painted right away)", async () => {
+      canvas()
+      mockListWorkflowExecutions.mockImplementation((_id: string, opts: { status?: string }) =>
+        Promise.resolve({
+          data:
+            opts?.status === "pending,running,stopping"
+              ? [{ id: "exec-1", triggerType: "manual", status: "running", createdAt: new Date().toISOString(), nodeStates: sideOutputs }]
+              : [],
+        }),
+      )
+      expectReadable(await loaded())
+    })
+  })
+
+  /**
    * "Clear results" empties nodes on purpose, and an empty node is exactly what
    * this restore looks for. The stamp the clear leaves is the only thing that
    * tells the two apart; without it a reload quietly undoes the clear.

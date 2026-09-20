@@ -24,6 +24,7 @@ import {
 import { estimateRunCredits } from "./estimate-run-credits";
 import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, planFanOut, TRANSIENT_RUNTIME_KEYS, isExpandedClone, unwrapEditPlanOutput } from "@nodaro/shared"
 import { clearedConnectedListRows } from "./clear-run-results"
+import { namedRunOutputFields } from "@/lib/named-run-outputs"
 import type { NodeExecutionStatus as SharedNodeExecutionStatus, NodeExecutionStateWire } from "@nodaro/shared"
 import { collapseExpandedClones } from "./execution-graph";
 import { shouldAbandonNode } from "./abandon-guard";
@@ -1491,18 +1492,9 @@ function syncNodeStatesToStore(
           updates.generatedAudioUrl = state.output.audioUrl;
         if (state.output.script)
           updates.generatedScript = state.output.script;
-        if (state.output.generatedVoiceId)
-          updates.generatedVoiceId = state.output.generatedVoiceId;
-        if (state.output.vocalUrl)
-          updates.vocalUrl = state.output.vocalUrl;
-        if (state.output.instrumentalUrl)
-          updates.instrumentalUrl = state.output.instrumentalUrl;
-        if (state.output.alignment)
-          updates.alignmentResults = state.output.alignment;
-        if (state.output.combinedText) {
-          updates.combinedText = state.output.combinedText;
-          updates.generatedText = state.output.combinedText;
-        }
+        // Voice id, stems, alignment, combined / split text: ONE mapping, shared
+        // with the two load-time restore lanes so they cannot drift again (#1547).
+        Object.assign(updates, namedRunOutputFields(state.output));
         if (state.output.text && !state.output.combinedText) {
           updates.generatedText = state.output.text;
           const prevTextResults = (data.generatedResults ?? []) as Array<{ text?: string; jobId?: string }>;
@@ -1515,8 +1507,6 @@ function syncNodeStatesToStore(
             updates.activeResultIndex = 0;
           }
         }
-        if (state.output.splitResults)
-          updates.splitResults = state.output.splitResults;
         // Choose Best (reduce): the orchestrator reports the winner as
         // `result` (+ the strategy's meta). Without this copy an Execute /
         // Run-from-here run completed on the backend while the node kept
