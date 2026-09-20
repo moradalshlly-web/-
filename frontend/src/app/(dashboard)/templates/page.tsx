@@ -106,16 +106,19 @@ export default function TemplatesPage() {
     queryFn: () => browseTemplates({ sort: "popular", limit: TILES_PAGE_SIZE }),
     staleTime: 60_000,
   })
-  // Every use case gets a tile, in taxonomy order. A row's category is read
-  // through the legacy map here too, so a card served by an older backend
-  // still lands in its tile.
+  // A tile per use case that HOLDS at least one template, in taxonomy order —
+  // completely empty categories are hidden so the row never shows a blank tile
+  // that opens an empty list. (`all: true` keeps taxonomy order; the count
+  // filter drops the empties, unlike `all: false` which also reorders.) A row's
+  // category is read through the legacy map here too, so a card served by an
+  // older backend still lands in its tile.
   const tiles = useMemo(
     () =>
       buildUseCaseTiles(
         TEMPLATE_CATEGORY_VALUES,
         (tilesPage?.data ?? []).map((card) => ({ ...card, category: normalizeTemplateCategory(card.category) })),
         { filter: "trending", now, all: true },
-      ),
+      ).filter((tile) => tile.count > 0),
     [tilesPage, now],
   )
   const heroCover = tiles.find((tile) => tile.coverUrl)

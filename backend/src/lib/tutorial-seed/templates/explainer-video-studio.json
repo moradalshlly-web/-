@@ -323,8 +323,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 600,
-      "height": 338,
+      "width": 653.8746014877789,
+      "height": 624,
       "className": "rf-resized"
     },
     {
@@ -345,8 +345,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 600,
-      "height": 338,
+      "width": 654.5702127659574,
+      "height": 624,
       "className": "rf-resized"
     },
     {
@@ -367,8 +367,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 600,
-      "height": 338,
+      "width": 654.5702127659574,
+      "height": 624,
       "className": "rf-resized"
     },
     {
@@ -389,8 +389,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 600,
-      "height": 338,
+      "width": 653.8746014877789,
+      "height": 624,
       "className": "rf-resized"
     },
     {
@@ -433,8 +433,8 @@
         "negativePrompt": "",
         "presentationOutput": false
       },
-      "width": 600,
-      "height": 338,
+      "width": 654.2222222222222,
+      "height": 622,
       "className": "rf-resized"
     },
     {
@@ -528,7 +528,7 @@
         "presentationOutput": false
       },
       "width": 480,
-      "height": 240,
+      "height": 362,
       "className": "rf-resized"
     },
     {
@@ -578,8 +578,8 @@
         "presentationOutput": false,
         "originalAudioVolume": 0
       },
-      "width": 600,
-      "height": 338,
+      "width": 654.2222222222222,
+      "height": 368,
       "className": "rf-resized"
     },
     {
@@ -601,8 +601,8 @@
         "presentationOutput": true,
         "transcribeProvider": "elevenlabs-stt"
       },
-      "width": 600,
-      "height": 338,
+      "width": 654.2222222222222,
+      "height": 368,
       "className": "rf-resized"
     }
   ],
@@ -794,7 +794,7 @@
     "viewport": {
       "x": 80,
       "y": 60,
-      "zoom": 0.189
+      "zoom": 0.187
     },
     "flowPromptTemplates": {},
     "characterDefinitions": [],

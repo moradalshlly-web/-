@@ -16,7 +16,7 @@
     "stories"
   ],
   "complexity": "advanced",
-  "estimatedCredits": 64,
+  "estimatedCredits": 74,
   "nodeTypesUsed": [
     "upload-image",
     "text-prompt",
@@ -28,7 +28,7 @@
     "claude-sonnet-4.6",
     "gpt-image-2"
   ],
-  "previewMediaUrl": "https://cdn.nodaro.ai/images/707819fc-cf39-4408-8117-dc84131b8361.png",
+  "previewMediaUrl": "https://cdn.nodaro.ai/templates/29c424c7-818a-4dad-90d1-40bda772a934/preview-538a335ced90.png",
   "previewMediaType": "image",
   "tutorialCategorySlug": "workflows",
   "tutorialSortOrder": 30,
@@ -209,13 +209,13 @@
         "y": 850
       },
       "data": {
-        "url": "https://cdn.nodaro.ai/images/1c88bce6-2b1c-420c-b83f-8b3036102f2e.png",
+        "url": "https://cdn.nodaro.ai/images/533b1593-14ff-4307-84c9-ba2cf06dad03.png",
         "label": "Product photo",
-        "r2Url": "https://cdn.nodaro.ai/images/1c88bce6-2b1c-420c-b83f-8b3036102f2e.png",
-        "assetId": "1c88bce6-2b1c-420c-b83f-8b3036102f2e",
+        "r2Url": "https://cdn.nodaro.ai/images/533b1593-14ff-4307-84c9-ba2cf06dad03.png",
+        "assetId": "533b1593-14ff-4307-84c9-ba2cf06dad03",
         "filename": "smash-burger-packshot-demo.png",
         "mimeType": "image/png",
-        "thumbnailUrl": "https://cdn.nodaro.ai/images/1c88bce6-2b1c-420c-b83f-8b3036102f2e.png",
+        "thumbnailUrl": "https://cdn.nodaro.ai/images/533b1593-14ff-4307-84c9-ba2cf06dad03.png",
         "presentationInput": true
       },
       "width": 600,
@@ -230,7 +230,7 @@
         "y": 1570
       },
       "data": {
-        "text": "Brand: CHAR & CO. — a late-night smash-burger counter. Product: the Double Char — two thin beef patties smashed on a hot plate for lacy charred edges, American cheese, pickles, house sauce, toasted brioche. Served till 2 am, cooked to order in under four minutes. Tone: loud, warm, a little cheeky.",
+        "text": "Brand: CHAR & CO. — a late-night smash-burger counter. Product: the Double Char — two thin beef patties smashed on a hot plate for lacy charred edges, caramelised onions, pickles, house sauce, toasted brioche — no cheese. Served till 2 am, cooked to order in under four minutes. Tone: loud, warm, a little cheeky.",
         "label": "Brand notes",
         "width": 300,
         "height": 190,
