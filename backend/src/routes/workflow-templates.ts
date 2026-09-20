@@ -281,6 +281,17 @@ const adminListQuerySchema = z.object({
   listed: z.enum(["marketplace", "tutorial", "unlisted"]).optional(),
 })
 
+// Admin listing toggle for ANY template (not ownership-gated) — remove from the
+// marketplace and/or deactivate. At least one field is required.
+const adminListingBodySchema = z
+  .object({
+    isListed: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((b) => b.isListed !== undefined || b.isActive !== undefined, {
+    message: "Provide isListed and/or isActive",
+  })
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
@@ -1051,6 +1062,65 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
           })
         }
         return sendInternalError(reply, req, updateError, "Failed to update tutorial flag")
+      }
+
+      return reply.send(toCamelCase(updated as Record<string, unknown>))
+    },
+  )
+
+  // =========================================================================
+  // 12. PATCH /v1/admin/workflow-templates/:id/listing — Admin unlist/hide ANY
+  //     template. Unlike the owner PATCH (/v1/templates/:id), this is NOT
+  //     ownership-gated: an admin can remove any template from the marketplace
+  //     (isListed:false) or deactivate it (isActive:false) — e.g. to hide a
+  //     first-party template that was published without a cover.
+  // =========================================================================
+  app.patch(
+    "/v1/admin/workflow-templates/:id/listing",
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      const paramResult = z.object({ id: z.string().uuid() }).safeParse(req.params)
+      if (!paramResult.success) {
+        return reply.status(400).send({ error: { code: "validation_error", message: "Invalid template ID" } })
+      }
+      const bodyResult = adminListingBodySchema.safeParse(req.body)
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          error: { code: "validation_error", message: bodyResult.error.issues[0]?.message ?? "Invalid body" },
+        })
+      }
+
+      const { id } = paramResult.data
+      const { isListed, isActive } = bodyResult.data
+
+      const { data: existing, error: fetchError } = await supabase
+        .from("workflow_templates")
+        .select("id, listed_in")
+        .eq("id", id)
+        .maybeSingle()
+
+      if (fetchError) {
+        return sendInternalError(reply, req, fetchError, "Failed to update template listing")
+      }
+      if (!existing) {
+        return reply.status(404).send({ error: { code: "not_found", message: "Template not found" } })
+      }
+
+      const updates: Record<string, unknown> = {}
+      if (isListed !== undefined) {
+        updates.listed_in = withTag(readListedIn(existing as Record<string, unknown>), MARKETPLACE, isListed)
+      }
+      if (isActive !== undefined) updates.is_active = isActive
+
+      const { data: updated, error: updateError } = await supabase
+        .from("workflow_templates")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single()
+
+      if (updateError) {
+        return sendInternalError(reply, req, updateError, "Failed to update template listing")
       }
 
       return reply.send(toCamelCase(updated as Record<string, unknown>))
