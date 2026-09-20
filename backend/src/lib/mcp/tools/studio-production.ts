@@ -22,7 +22,8 @@ import { registerStudioProductionRunTools } from "./studio-production-run.js"
 /**
  * The studio production family — a film, from a story to a document, over MCP.
  *
- * A production is a Nodaro workflow whose `settings.studio` holds the shots,
+ * A production is a Nodaro workflow whose `settings.studio` holds the scenes
+ * (the document's `shots[]`),
  * and every read and write of one goes through `/v1/studio/productions/*`: the
  * ROUTES own the semantics, so an agent, the studio app and the copilot cannot
  * end up with three opinions about one row. Nothing here reads Supabase — not
@@ -46,6 +47,16 @@ import { registerStudioProductionRunTools } from "./studio-production-run.js"
  * The routes are served by the Nodaro Cloud plugin, so the family is
  * registered under the edition gate rather than probed for: on a deployment
  * that does not install it, every tool answers `not_available`.
+ *
+ * TWO VOCABULARIES. Every NAME here is the document's — `shots[]`, `shot_id`,
+ * `still`, `clip`, `beats[]` — and stays: renaming one would break the wire.
+ * Every SENTENCE is the person's: in the editor a film is made of SCENES, a
+ * scene has a FRAME (`still`) and a MOTION (`clip`), and the SHOTS they talk
+ * about are the `beats[]` inside a motion. A description is where an agent
+ * learns its words, and descriptions that called a scene a shot taught agents to
+ * answer "shot 2" about scene 2 (2026-09-20). `studio-tool-vocabulary.test.ts`
+ * scans the served descriptions for it; `get_studio_production` carries the one
+ * sentence that maps the words to the keys.
  */
 
 const readGate: ToolGate = { required: ["workflows:read"] }
@@ -83,7 +94,7 @@ export function registerStudioProductionTools(opts: RegisterStudioProductionTool
       title: "Studio Production Skill",
       description:
         "How to author and operate a Nodaro Studio production — the lane for " +
-        '"make me a film/short/ad of X" when the user wants shots they can edit ' +
+        '"make me a film/short/ad of X" when the user wants scenes they can edit ' +
         'afterwards at studio.nodaro.ai. `part: "operating"` (the default) is ' +
         'the tool map, the loop and the edit vocabulary; "authoring" is the plan ' +
         'format; "catalog" is every picker, model and enum in full; "schema" is ' +
@@ -165,7 +176,7 @@ export function registerStudioProductionTools(opts: RegisterStudioProductionTool
         title: "List Studio Productions",
         description:
           "The user's studio productions, newest first — id, name, version, " +
-          "thumbnail, whether it is shared, and how many shots it has. Archived " +
+          "thumbnail, whether it is shared, and how many scenes it has. Archived " +
           "productions are hidden, as they are on the dashboard. Page with " +
           "`cursor` from a prior result's `nextCursor`. Read one with " +
           "`get_studio_production`.",
@@ -199,11 +210,14 @@ export function registerStudioProductionTools(opts: RegisterStudioProductionTool
         title: "Get Studio Production",
         description:
           "One production: its film look, cast, folders, cuts, bin, what is " +
-          "running right now, and its shots in timeline order. " +
-          '`detail: "summary"` (the default) is counts plus each shot\'s ' +
-          'current image; `detail: "full"` adds every past result with the ' +
-          "context that made it. Pass `shot_id` to read ONE shot rather than " +
-          "pulling a whole film to look at one frame. Address a result by its " +
+          "running right now, and its scenes in timeline order. The keys are the " +
+          "document's, the user's words are not: a `shots[]` entry is a SCENE to " +
+          "them, its `still` is the scene's FRAME, its `clip` its MOTION, and the " +
+          "SHOTS they talk about are the `beats[]` inside a motion — speak their " +
+          'words. `detail: "summary"` (the default) is counts plus each scene\'s ' +
+          'current frame; `detail: "full"` adds every past result with the ' +
+          "context that made it. Pass `shot_id` to read ONE scene rather than " +
+          "pulling a whole film for it. Address a result by its " +
           "`key` (the job id, or the url when no job made it) — never by " +
           "position: the user may be editing while you read. THIS READ IS ALSO " +
           "THE WRITE: with `workflows:write` it first lands whatever has " +
@@ -217,7 +231,7 @@ export function registerStudioProductionTools(opts: RegisterStudioProductionTool
             .enum(["summary", "full"])
             .optional()
             .describe("summary = counts + active urls (default); full = every result."),
-          shot_id: z.string().optional().describe("Narrow to one shot."),
+          shot_id: z.string().optional().describe("Narrow to one scene — the `id` of a `shots[]` entry."),
           reconcile: z
             .boolean()
             .optional()
@@ -369,7 +383,7 @@ export function registerStudioProductionTools(opts: RegisterStudioProductionTool
         title: "Import Into Studio Production",
         description:
           'Add a plan\'s scenes to a production that already exists — the ' +
-          '"Add scenes" lane. Appending adds shots and enrolls whoever is new ' +
+          '"Add scenes" lane. Appending adds scenes and enrolls whoever is new ' +
           "in the cast; it never renames, re-briefs or re-looks the production. " +
           "Pass a `plan` you have validated, or `plan_job_id` of a FINISHED " +
           "`studio_production` LLM run to land its output. Free. If the user " +
@@ -431,8 +445,10 @@ export function registerStudioProductionTools(opts: RegisterStudioProductionTool
         title: "Edit Studio Production",
         description:
           "Change a production by sending a BATCH of operations — rename a " +
-          "shot, reorder the timeline, select a take, enroll a cast member, " +
-          "empty the bin. The operation vocabulary and every argument shape " +
+          "scene (`rename_shot`: op names are the document's), reorder the " +
+          "timeline, select a take, set the shots inside a scene's motion " +
+          "(`set_beats`), enroll a cast member, empty the bin. The operation " +
+          "vocabulary and every argument shape " +
           'live in `get_studio_production_skill` (`part: "operating"`); read it ' +
           "before composing a batch. Applied atomically under a " +
           "compare-and-swap: if one operation is refused the answer names its " +

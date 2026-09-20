@@ -8,14 +8,15 @@
  * preamble uses, for the same reason: every word of it is the person's own
  * writing.
  *
- * Nothing here asserts the document's vocabulary. The view is the studio
- * service's shape, and this file only renders what it is handed — so the cases
- * below are the RULES (no media, one read, the cap, the honest verdict), never
- * a field list that would have to be edited the day the view grows one.
+ * The view is the studio service's shape, and this file only renders what it
+ * is handed — so the cases below are the RULES (no media, one read, the cap,
+ * the honest verdict, the person's words), never a field list that would have
+ * to be edited the day the view grows one.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import type { McpInvoker, McpToolCallResult } from "../../../lib/mcp/invoke.js"
 import { TURN_CAPS } from "../constants.js"
+import { scenesCalledShots } from "../../../lib/mcp/__tests__/helpers/studio-vocabulary.js"
 
 vi.mock("../memories.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../memories.js")>()
@@ -43,6 +44,12 @@ function view(over: Record<string, unknown> = {}): Record<string, unknown> {
         name: "Opening",
         still: { count: 3, key: "job-a", url: URL_IN_THE_VIEW },
         clip: { count: 1, key: "job-b", url: URL_IN_THE_VIEW },
+        // The shots INSIDE this scene's motion, as the document keeps them.
+        beats: [
+          { seconds: 2, prompt: "wide" },
+          { seconds: 3, prompt: "push in" },
+          { seconds: 1, prompt: "close" },
+        ],
         voice: { voiceId: "v1" },
       },
       { id: "s2", name: "Reveal", still: { count: 0 } },
@@ -146,12 +153,119 @@ describe("what the model is shown", () => {
     expect(result.available && result.text).not.toContain("https://")
   })
 
-  it("names the shots in order, with the person's selection", async () => {
+  // A result's key is "the job id, or the url when no job made it" — so the one
+  // field this file prints per take can itself BE a media url.
+  it("never carries a media url that arrives as a take's KEY either", async () => {
+    const uploaded = view({
+      shots: [{ id: "s1", name: "Opening", still: { count: 1, key: URL_IN_THE_VIEW }, clip: { count: 2, key: URL_IN_THE_VIEW } }],
+    })
+    const s = stub({ get_studio_production: text({ production: uploaded }) })
+    const result = await build(s, { shotId: "s1" })
+    const body = result.available ? result.text : ""
+    expect(body).not.toContain("https://")
+    // The takes are still counted; they just have no key to repeat.
+    expect(body).toContain("frame: 1 take;")
+    expect(body).toContain("motion: 2 takes")
+  })
+
+  it("reads an odd view without throwing, and without printing nonsense", async () => {
+    const odd = view({
+      shots: [
+        { id: "s1", name: "Odd", still: { count: -2 }, clip: "not-an-object", beats: "not-an-array" },
+        { id: "s2", name: "Keyed", still: { count: 0, key: "job-z" }, beats: [1, "two", null] },
+      ],
+    })
+    const s = stub({ get_studio_production: text({ production: odd }) })
+    const result = await build(s, { shotId: "s1" })
+    const body = result.available ? result.text : ""
+    expect(body).not.toContain("-2")
+    expect(body).toContain('The person is looking at Scene 1 ("Odd") [s1]: it has no frame yet, no motion yet and no shots inside the motion.')
+    // A frame with a key and no counted take is said in the same shape as the rest.
+    expect(body).toContain("frame: active job-z; motion: no take yet, 3 shots inside the motion")
+  })
+
+  it("names the scenes in order, each with its id for the tool argument", async () => {
     const s = stub()
-    const result = await build(s, { shotId: "s2" })
+    const result = await build(s)
     const body = result.available ? result.text : ""
     expect(body.indexOf('"Opening"')).toBeLessThan(body.indexOf('"Reveal"'))
-    expect(body).toContain('Selected: shot 2 "Reveal"')
+    expect(body).toContain('1. "Opening" [s1]')
+    expect(body).toContain("2 scenes")
+  })
+
+  // Incident 2026-09-20: every line here called a scene a "shot", so "fix shot
+  // 2" was resolved against the second SCENE.
+  describe("in the person's words", () => {
+    it("a scene has a frame and a motion, counted in takes — and the shots inside the motion", async () => {
+      const s = stub()
+      const result = await build(s)
+      const body = result.available ? result.text : ""
+      expect(body).toContain("frame: 3 takes (active job-a)")
+      expect(body).toContain("motion: 1 take (active job-b), 3 shots inside")
+    })
+
+    it("says which keys of the document those words are, once, where the list starts", async () => {
+      const s = stub()
+      const result = await build(s)
+      const body = result.available ? result.text : ""
+      const legend = body.split("\n").find((line) => line.startsWith("Scenes"))
+      expect(legend).toBeDefined()
+      for (const key of ["`shots[]`", "`still`", "`clip`", "`beats[]`"]) expect(legend).toContain(key)
+    })
+
+    it("renders the focus as the scene the person is looking at, with what it has", async () => {
+      const s = stub()
+      const result = await build(s, { shotId: "s1" })
+      const body = result.available ? result.text : ""
+      expect(body).toContain(
+        'The person is looking at Scene 1 ("Opening") [s1]: it has a frame (3 takes), a motion (1 take) and 3 shots inside the motion.',
+      )
+    })
+
+    it("says so when the focused scene has no shots inside its motion — the case the model must ASK about", async () => {
+      const s = stub()
+      const result = await build(s, { shotId: "s2" })
+      const body = result.available ? result.text : ""
+      expect(body).toContain('The person is looking at Scene 2 ("Reveal") [s2]: it has no frame yet, no motion yet and no shots inside the motion.')
+    })
+
+    it("a motion that has shots planned but no take yet still says how many", async () => {
+      const planned = view({ shots: [{ id: "s1", name: "Opening", beats: [{ seconds: 2 }, { seconds: 2 }] }] })
+      const s = stub({ get_studio_production: text({ production: planned }) })
+      const result = await build(s)
+      expect(result.available && result.text).toContain("motion: no take yet, 2 shots inside")
+    })
+
+    it("never calls a scene a shot — not in the headline, the list, the overflow or the focus", async () => {
+      const s = stub()
+      const result = await build(s, { shotId: "s2" })
+      const body = result.available ? result.text : ""
+      expect(scenesCalledShots(body)).toEqual([])
+      expect(body).not.toMatch(/^Shots:/m)
+      expect(body).not.toContain("Selected: shot")
+    })
+
+    // On a production long enough for the cap to trim the list, the focus line is
+    // the only place the focused scene appears — and a tool argument needs its id.
+    it("the focus carries the scene's id even when the list was trimmed before reaching it", async () => {
+      const shots = Array.from({ length: 400 }, (_, i) => ({
+        id: `s${i}`,
+        name: `A deliberately long scene name to eat the budget, number ${i}`,
+        still: { count: 2, key: `job-${i}` },
+      }))
+      const s = stub({ get_studio_production: text({ production: view({ shots }) }) })
+      const result = await build(s, { shotId: "s399" })
+      const body = result.available ? result.text : ""
+      expect(body).not.toContain('400. "')
+      expect(body).toContain("The person is looking at Scene 400 (")
+      expect(body).toContain("[s399]:")
+    })
+
+    it("an empty production has no scenes yet", async () => {
+      const s = stub({ get_studio_production: text({ production: view({ shots: [] }) }) })
+      const result = await build(s)
+      expect(result.available && result.text).toContain("This production has no scenes yet.")
+    })
   })
 
   it("carries the person's standing preferences", async () => {
@@ -173,7 +287,7 @@ describe("what the model is shown", () => {
     expect(body.split(`</workflow-context-${open![1]}>`)).toHaveLength(2)
   })
 
-  it("stops at the turn's cap and says how many shots it did not list", async () => {
+  it("stops at the turn's cap and says how many scenes it did not list", async () => {
     const shots = Array.from({ length: 400 }, (_, i) => ({
       id: `s${i}`,
       name: `Shot number ${i} with a deliberately long name to eat the budget`,
@@ -185,8 +299,8 @@ describe("what the model is shown", () => {
     // The cap governs the BODY; the fence is the wrapper around it, as it is
     // on the canvas. Sixty characters covers both nonce-tagged tags.
     expect(body.length).toBeLessThanOrEqual(TURN_CAPS.contextPreambleMaxChars + 60)
-    expect(body).toMatch(/… and \d+ more shots/)
-    // The tail lines survive the trim: the cap drops SHOTS, not the balance.
+    expect(body).toMatch(/… and \d+ more scenes/)
+    // The tail lines survive the trim: the cap drops SCENES, not the balance.
     expect(body).toContain("Balance:")
   })
 })
