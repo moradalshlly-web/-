@@ -26,6 +26,15 @@ The Webhook Trigger node creates a public HTTP endpoint that triggers workflow e
 | Webhook URL | Full URL endpoint (auto-generated) |
 | Token | 32-byte hex authentication token (masked) |
 
+## Activation
+
+**Saving the workflow is what creates the endpoint.** Adding the node and
+saving mints a 32-byte token and registers `POST /v1/webhooks/<token>`;
+removing the node retires it. The token is minted once and then left alone, so
+the URL you hand to an external system stays valid across every later save.
+
+Read the current URL and token with `GET /v1/workflows/<id>/triggers`.
+
 ## Inputs & Outputs
 
 **Inputs:** None (this is a trigger node)

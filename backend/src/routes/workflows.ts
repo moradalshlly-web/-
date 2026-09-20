@@ -32,6 +32,7 @@ import {
   changesStudioPublishFlag,
 } from "../lib/studio-audience.js"
 import { loadWorkflowFor, toAccessRow } from "../lib/workflow-route-access.js"
+import { reconcileWorkflowTriggers, type GraphNode } from "../lib/workflow-trigger-sync.js"
 import type { WorkflowAccessRow } from "../lib/private-plugins/types.js"
 import {
   asObjectArray,
@@ -282,6 +283,37 @@ const WORKFLOW_META_COLS =
 
 const WORKFLOW_FULL_COLS =
   "id, project_id, user_id, workspace_id, visibility, folder_id, name, description, is_template, version, thumbnail_url, source_prompt, nodes, edges, settings, parent_workflow_id, app_slug, created_at, updated_at"
+
+/**
+ * Project a just-saved workflow's Schedule / Webhook Trigger nodes onto
+ * `workflow_triggers`. The graph is the source of truth; before this existed,
+ * placing a trigger node scheduled nothing at all.
+ *
+ * Scoped to the row's OWNER, never the editor: `schedule-cron` re-checks
+ * `canRunWorkflow(trigger.user_id, …)` on every tick, so a per-editor row
+ * would fire the same workflow once per collaborator.
+ *
+ * Best-effort by construction (`reconcileWorkflowTriggers` never throws) — the
+ * workflow row is already written and a sync hiccup must not 500 a good save.
+ * It is still logged: silence here is exactly how trigger nodes came to be
+ * decorative in the first place.
+ */
+async function syncTriggersForSavedWorkflow(
+  req: FastifyRequest,
+  workflowId: string,
+  row: Record<string, unknown>,
+): Promise<void> {
+  const ownerId = typeof row.user_id === "string" ? row.user_id : ""
+  if (!ownerId) return
+  const result = await reconcileWorkflowTriggers({
+    workflowId,
+    userId: ownerId,
+    nodes: row.nodes as readonly GraphNode[] | undefined,
+  })
+  if (result.error) {
+    req.log.warn({ err: result.error, workflowId }, "workflow trigger sync failed")
+  }
+}
 
 function toWorkflowMeta(row: Record<string, unknown>) {
   return {
@@ -799,6 +831,9 @@ export async function workflowRoutes(app: FastifyInstance) {
       .single()
 
     if (error) return sendInternalError(reply, req, error, "Failed to create workflow")
+    // A create can already carry trigger nodes — a template, an SDK caller and
+    // MCP's create_workflow all post a full graph.
+    await syncTriggersForSavedWorkflow(req, data.id as string, data)
     return reply.status(201).send({ data: toWorkflowFull(data) })
   })
 
@@ -1047,6 +1082,9 @@ export async function workflowRoutes(app: FastifyInstance) {
       .single()
 
     if (error) return sendInternalError(reply, req, error, "Failed to create workflow")
+    // A create can already carry trigger nodes — a template, an SDK caller and
+    // MCP's create_workflow all post a full graph.
+    await syncTriggersForSavedWorkflow(req, data.id as string, data)
     return reply.status(201).send({ data: toWorkflowFull(data) })
   })
 
@@ -1558,6 +1596,10 @@ export async function workflowRoutes(app: FastifyInstance) {
       return notFound(reply, "Workflow not found")
     }
 
+    // The saved graph decides which triggers exist. Runs for both a full-body
+    // and a delta write because it reads the PERSISTED nodes, not the request.
+    await syncTriggersForSavedWorkflow(req, params.id, data)
+
     // Same consequence as the move endpoint, reported the same way. Reported
     // only when something was actually dropped, so a plain PATCH keeps the
     // response shape it has always had.
@@ -1878,6 +1920,10 @@ export async function workflowRoutes(app: FastifyInstance) {
     }
 
     const finalRow = newWorkflow as Record<string, unknown>
+
+    // An imported bundle brings its trigger nodes with it, so the copy is
+    // scheduled on the importer's own account exactly as the graph asks.
+    await syncTriggersForSavedWorkflow(req, finalRow.id as string, finalRow)
 
     return reply
       .status(201)
