@@ -1,8 +1,8 @@
 {
   "slug": "street-interviews",
   "name": "Street Interviews",
-  "description": "Turn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about — the workflow finds the human angle, writes three different exchanges, filters the weak ones, and films each approved concept as its own real-looking interview with a distinct person, a controlled voice, lip-sync and captions.",
-  "markdownDescription": "## Street Interviews\n\nTurn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about. Describe what you are promoting (a website is optional), and the workflow finds the human conversation, develops three different angles, writes believable exchanges, filters the weak ones, then films each one as a real-looking street interview with its own person and voice.\n\n**Business use:** any brand that wants authentic-feeling social proof for Reels, TikTok, Shorts, X or LinkedIn without a film crew — the vox-pop format that spreads because it starts from a conversation people recognise, not an ad. The product is the context, never the question: the workflow asks what people would actually talk about, then connects it back to you.\n\n1. **What to promote (+ optional Website)** — the subject in a sentence, and brand context scraped from your page.\n2. **Audience Reader** — the tensions, behaviours and conversation territories around the subject.\n3. **Interview Angles** — three genuinely different concepts (curiosity, recognition, expectation shift), shown in the Interview Ideas table.\n4. **Three lanes, three interviews** — each concept becomes a short spoken exchange with a fixed person; a Quality Check scores weak or promotional ones before any video is made.\n5. **Direct, Still, Voice, Lip Sync, Captions** — each approved concept is filmed: a real-looking interviewee, the exact approved answer spoken in a natural voice, lips synced, word-highlight captions. Interview Set collects the three clips, each usable on its own.",
+  "description": "Turn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about — the workflow finds the human angle, writes three different exchanges, filters the weak ones, and films each approved concept as its own real-looking clip: the provocative question heard and shown on screen, then a distinct interviewee answering in their own voice, lip-synced and captioned.",
+  "markdownDescription": "## Street Interviews\n\nTurn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about. Describe what you are promoting (a website is optional), and the workflow finds the human conversation, develops three different angles, writes believable exchanges, filters the weak ones, then films each one as a real-looking street interview — the question you HEAR and SEE on screen, then the person answering, lip-synced.\n\n**Business use:** any brand that wants authentic-feeling social proof for Reels, TikTok, Shorts, X or LinkedIn without a film crew — the vox-pop format that spreads because it starts from a provocative question people recognise, not an ad. The product is the context, never the question: the workflow asks what people would actually talk about, then connects it back to you.\n\n1. **What to promote (+ optional Website)** — the subject in a sentence, and brand context scraped from your page.\n2. **Audience Reader** — the tensions, behaviours and conversation territories around the subject.\n3. **Interview Angles** — three genuinely different concepts (curiosity, recognition, expectation shift), shown in the Interview Ideas table.\n4. **Three lanes, three interviews** — each concept becomes a short spoken exchange with a fixed person; a Quality Check scores weak or promotional ones before any video is made.\n5. **The hook, heard and seen** — for each concept the interviewer question is spoken in its own voice and burned on screen while the interviewee really listens, then a clean cut to the same person answering in their own voice, lip-synced with word-highlight captions. Interview Set collects the three clips, each usable on its own.",
   "category": "video-ads",
   "outputTypes": [
     "video"
@@ -18,7 +18,7 @@
     "captions"
   ],
   "complexity": "advanced",
-  "estimatedCredits": 1092,
+  "estimatedCredits": 2800,
   "nodeTypesUsed": [
     "text-prompt",
     "web-scrape",
@@ -27,20 +27,25 @@
     "list",
     "qa-check",
     "generate-image",
+    "generate-video",
     "text-to-speech",
     "lip-sync",
+    "merge-video-audio",
+    "extract-frame",
     "add-captions",
+    "combine-videos",
     "collect",
     "sticky-note"
   ],
   "providersUsed": [
     "claude-sonnet-4.6",
     "gpt-image-2",
+    "seedance-2-5",
     "elevenlabs-turbo",
     "kling-avatar",
     "elevenlabs-stt"
   ],
-  "previewMediaUrl": "https://cdn.nodaro.ai/templates/0f8c3bb2-f954-48c8-b2a2-8d922a60d5c7/preview-b82a968b4538.png",
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/a7b8f1ec-de11-45d2-9a40-7d874fed057f.png",
   "previewMediaType": "image",
   "tutorialCategorySlug": "workflows",
   "tutorialSortOrder": 42,
@@ -54,12 +59,12 @@
       },
       "data": {
         "bold": false,
-        "text": "Turn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about. Describe what you are promoting (a website is optional), and the workflow finds the human conversation, develops three different angles, writes believable exchanges, filters the weak ones, then films each one as a real-looking street interview with its own person and voice.\n\n1. What to promote (+ optional Website) — the subject, and brand context scraped from your page.\n2. Audience Reader — the tensions, behaviours and conversation territories around the subject.\n3. Interview Angles — three genuinely different concepts (curiosity, recognition, expectation shift), shown in the Interview Ideas table.\n4. Three lanes — each concept becomes a short spoken exchange; a Quality Check stops weak or promotional ones before any video is made.\n5. Per lane: Direct + Still + Voice + Lip Sync + Captions — a real-looking interviewee, the exact approved answer spoken in a controlled voice, lips synced, captions burned in. Interview Set collects the three clips for Reels, TikTok, Shorts.",
+        "text": "Turn any product, app, brand or idea into a series of natural street interviews built around conversations people actually care about. Describe what you are promoting (a website is optional), and the workflow finds the human conversation, develops three different angles, writes believable exchanges, filters the weak ones, then films each one as a real-looking street interview — the question you HEAR and SEE on screen, then the person's answer, lip-synced.\n\n1. What to promote (+ optional Website) — the subject, and brand context scraped from your page.\n2. Audience Reader — the tensions, behaviours and conversation territories around the subject.\n3. Interview Angles — three genuinely different concepts (curiosity, recognition, expectation shift), shown in the Interview Ideas table.\n4. Three lanes — each concept becomes a short spoken exchange; a Quality Check stops weak or promotional ones before any video is made.\n5. Per lane: the interviewer's QUESTION is heard (its own voice) and shown on screen over the person listening, then the interviewee ANSWERS in their own voice, lips synced, captions burned in. Interview Set collects the three clips for Reels, TikTok, Shorts.",
         "color": "#1d2430",
         "label": "How it works",
         "title": "Street interviews — how it works",
         "width": 1240,
-        "height": 810,
+        "height": 860,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -71,7 +76,7 @@
       "type": "sticky-note",
       "position": {
         "x": 0,
-        "y": 970
+        "y": 1020
       },
       "data": {
         "bold": false,
@@ -92,7 +97,7 @@
       "type": "sticky-note",
       "position": {
         "x": 0,
-        "y": 1820
+        "y": 1870
       },
       "data": {
         "bold": false,
@@ -113,7 +118,7 @@
       "type": "sticky-note",
       "position": {
         "x": 820,
-        "y": 970
+        "y": 1020
       },
       "data": {
         "bold": false,
@@ -134,16 +139,16 @@
       "type": "sticky-note",
       "position": {
         "x": 1740,
-        "y": 970
+        "y": 1020
       },
       "data": {
         "bold": false,
-        "text": "Each lane takes one concept: Write Interview drafts the exchange with a fixed person (a woman ~30s, a man ~40s, a woman ~60s), the Quality Check stops weak or salesy ones, Direct Interview writes the shot, Interview Still renders the person mid-answer at the mic, Voice speaks the exact approved answer in that lane's voice, Lip Sync brings the still to life, and Add Captions burns word-highlight captions. Interview Set collects the three finished clips.",
+        "text": "Each lane takes one concept and builds a full clip from ONE portrait, so it is the same person throughout. Write Interview drafts the exchange with a fixed person (a woman ~30s, a man ~40s, a woman ~60s); the Quality Check stops weak or salesy ones; Direct Interview writes the shot; Interview Still renders the person at the mic. QUESTION segment: Listening Shot brings the still to life as the person really listens (Seedance), Interviewer Voice (River) asks the exact question over it, Question Take joins them and Question On Screen burns the words in — the hook is heard and seen. Handover Frame takes the last frame so the answer continues from exactly where the listening ended. ANSWER segment: Voice speaks the exact approved answer in that lane's voice, Lip Sync animates the answer, Answer Captions burn it in. Street Interview cuts the two together. Interview Set collects the three clips. Swap the subject on the left and every lane re-films itself.",
         "color": "#1d2430",
         "label": "Steps 4–5",
         "title": "4–5 · Three interviews, Three lanes",
-        "width": 1180,
-        "height": 350,
+        "width": 1560,
+        "height": 480,
         "italic": false,
         "fontSize": "xl",
         "alignment": "left",
@@ -155,7 +160,7 @@
       "type": "text-prompt",
       "position": {
         "x": 0,
-        "y": 1440
+        "y": 1490
       },
       "data": {
         "text": "A calm-tech sleep app that plays adaptive soundscapes and gently fades your phone to greyscale at bedtime, for people who scroll too late and wake up tired.",
@@ -171,7 +176,7 @@
       "type": "web-scrape",
       "position": {
         "x": 0,
-        "y": 2330
+        "y": 2380
       },
       "data": {
         "url": "https://studio.nodaro.ai",
@@ -190,7 +195,7 @@
       "type": "llm-chat",
       "position": {
         "x": 820,
-        "y": 1400
+        "y": 1450
       },
       "data": {
         "label": "Audience Reader",
@@ -211,7 +216,7 @@
       "type": "llm-chat",
       "position": {
         "x": 820,
-        "y": 1820
+        "y": 1870
       },
       "data": {
         "label": "Interview Angles",
@@ -232,7 +237,7 @@
       "type": "split-text",
       "position": {
         "x": 820,
-        "y": 2240
+        "y": 2290
       },
       "data": {
         "label": "Split Angles",
@@ -250,7 +255,7 @@
       "type": "list",
       "position": {
         "x": 820,
-        "y": 2560
+        "y": 2610
       },
       "data": {
         "rows": [
@@ -278,7 +283,7 @@
       "type": "llm-chat",
       "position": {
         "x": 1740,
-        "y": 1440
+        "y": 1620
       },
       "data": {
         "label": "Write Interview 1",
@@ -298,8 +303,8 @@
       "id": "qa1",
       "type": "qa-check",
       "position": {
-        "x": 2260,
-        "y": 1440
+        "x": 1740,
+        "y": 1940
       },
       "data": {
         "label": "Quality Check 1",
@@ -318,17 +323,17 @@
       "id": "direct1",
       "type": "llm-chat",
       "position": {
-        "x": 2680,
-        "y": 1440
+        "x": 1740,
+        "y": 2220
       },
       "data": {
         "label": "Direct Interview 1",
         "llmModel": "claude-sonnet-4.6",
         "maxTokens": 500,
-        "userInput": "APPROVED INTERVIEW:\n{Write Interview 1 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, caught MID-SENTENCE with the mouth open and clearly visible (not a closed-mouth smile), looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions.",
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 1 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions. Do not describe the mouth position; that is added per frame.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee, mid-answer, that a lip-sync model will bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Output ONLY the image-generation prompt, one paragraph.",
+        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee that a lip-sync model will later bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Describe the person, the hand-held microphone, the public location, the light and the framing — but do NOT state whether the mouth is open or closed; that is set per frame. Output ONLY the image-generation prompt, one paragraph.",
         "fieldMappings": {}
       },
       "width": 460,
@@ -339,13 +344,13 @@
       "id": "still1",
       "type": "generate-image",
       "position": {
-        "x": 2680,
-        "y": 1760
+        "x": 1740,
+        "y": 2214
       },
       "data": {
         "label": "Interview Still 1",
         "style": "",
-        "prompt": "{Direct Interview 1 || a real person mid-answer at a hand-held microphone on a city street, chest-up, mouth open, vertical.}",
+        "prompt": "{Direct Interview 1 || a real person at a hand-held microphone on a city street, chest-up, vertical.}\n\nThis exact frame: listening to the interviewer, mouth closed and relaxed, attentive, about to answer, eyes just off-camera on the interviewer.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "9:16",
@@ -358,20 +363,150 @@
       "className": "rf-resized"
     },
     {
+      "id": "question1",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 1620
+      },
+      "data": {
+        "label": "Ask Question 1",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 100,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 1 || When did you last do something just because everyone else was?}\n\nOutput only the interviewer's spoken question.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You extract the exact question the off-camera interviewer asks, to be read aloud by a text-to-speech voice as a real interviewer holding a microphone. Output ONLY the spoken question — nothing else: no label, no quotation marks, no stage directions, no interviewee line. Take the INTERVIEWER QUESTION from the approved interview and deliver it as ONE clean, natural spoken question of at most 11 words. It MUST read smoothly aloud, so: NO filler words, NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words. Plain punctuation, ending in a single question mark. Keep the exact hook of the question — do not soften it, generalise it, or turn it into a survey question. Tighten it to the punchiest form within 11 words.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qvoice1",
+      "type": "text-to-speech",
+      "position": {
+        "x": 2260,
+        "y": 1900
+      },
+      "data": {
+        "label": "Interviewer Voice 1",
+        "speed": 1.12,
+        "style": 0.1,
+        "voiceId": "HgBYFjTEiFvl1rnxVvgz",
+        "language": "en",
+        "provider": "elevenlabs-turbo",
+        "stability": 0.35,
+        "voiceType": "library",
+        "directText": "",
+        "textSource": "connected",
+        "languageCode": "",
+        "fieldMappings": {},
+        "similarityBoost": 0.8,
+        "voiceDisplayName": "River"
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "listen1",
+      "type": "generate-video",
+      "position": {
+        "x": 2780,
+        "y": 1620
+      },
+      "data": {
+        "label": "Listening Shot 1",
+        "prompt": "The person listens to a question asked from off-camera: subtle, natural handheld motion — a small nod, a blink, a slight shift of the eyes and head, the faint start of a reaction forming. The mouth stays CLOSED the whole time; the person does NOT speak. Keep the same face, hair, clothes, microphone and street background exactly as in the still.",
+        "duration": 6,
+        "provider": "seedance-2-5",
+        "resolution": "480p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "talking, speaking, mouth opening, lip movement, singing, text, captions, extra people, camera shake",
+        "presentationOutput": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qmerge1",
+      "type": "merge-video-audio",
+      "position": {
+        "x": 3140,
+        "y": 1620
+      },
+      "data": {
+        "label": "Question Take 1",
+        "audioType": "voiceover",
+        "fieldMappings": {},
+        "voiceoverVolume": 100,
+        "backgroundVolume": 0,
+        "keepOriginalAudio": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qframe1",
+      "type": "extract-frame",
+      "position": {
+        "x": 3500,
+        "y": 2194
+      },
+      "data": {
+        "mode": "last",
+        "label": "Handover Frame 1",
+        "timestamp": 0,
+        "fieldMappings": {}
+      },
+      "width": 300,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qcap1",
+      "type": "add-captions",
+      "position": {
+        "x": 3500,
+        "y": 1620
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Question On Screen 1",
+        "style": "word-highlight",
+        "fontSize": 46,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#111111",
+        "presentationOutput": false,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
       "id": "answer1",
       "type": "llm-chat",
       "position": {
-        "x": 3200,
-        "y": 1440
+        "x": 2780,
+        "y": 2214
       },
       "data": {
         "label": "Interview Answer 1",
         "llmModel": "claude-sonnet-4.6",
         "maxTokens": 200,
-        "userInput": "APPROVED INTERVIEW:\n{Write Interview 1 || Honestly? Probably saying what you actually want before you're already annoyed.}\n\nOutput only the interviewee's spoken answer.",
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 1 || Probably saying what I actually wanted before I was already annoyed about it.}\n\nOutput only the interviewee's spoken answer.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
+        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud and MUST feel FINISHED, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. NEVER end on a conjunction or dangling word ('so', 'but', 'and', 'because', 'though', 'anyway') — the last word must land the thought and sound complete, like a full stop the speaker meant to make. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
         "fieldMappings": {}
       },
       "width": 460,
@@ -382,8 +517,8 @@
       "id": "voice1",
       "type": "text-to-speech",
       "position": {
-        "x": 3200,
-        "y": 1720
+        "x": 2780,
+        "y": 2494
       },
       "data": {
         "label": "Voice 1",
@@ -409,8 +544,8 @@
       "id": "lipsync1",
       "type": "lip-sync",
       "position": {
-        "x": 3720,
-        "y": 1440
+        "x": 3140,
+        "y": 2214
       },
       "data": {
         "label": "Lip Sync 1",
@@ -425,23 +560,44 @@
       "className": "rf-resized"
     },
     {
-      "id": "captions1",
+      "id": "acap1",
       "type": "add-captions",
       "position": {
-        "x": 4080,
-        "y": 1440
+        "x": 3500,
+        "y": 2214
       },
       "data": {
         "color": "#ffffff",
-        "label": "Street Interview 1",
+        "label": "Answer Captions 1",
         "style": "word-highlight",
         "fontSize": 46,
         "position": "bottom",
         "fieldMappings": {},
         "autoTranscribe": true,
         "backgroundColor": "#111111",
-        "presentationOutput": true,
+        "presentationOutput": false,
         "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "combine1",
+      "type": "combine-videos",
+      "position": {
+        "x": 3860,
+        "y": 1917
+      },
+      "data": {
+        "label": "Street Interview 1",
+        "audioMode": "keep",
+        "transition": "cut",
+        "fieldMappings": {},
+        "trimEndFrames": 2,
+        "trimStartFrames": 1,
+        "presentationOutput": true,
+        "transitionDuration": 0.5
       },
       "width": 300,
       "height": 534,
@@ -452,7 +608,7 @@
       "type": "llm-chat",
       "position": {
         "x": 1740,
-        "y": 2180
+        "y": 2988
       },
       "data": {
         "label": "Write Interview 2",
@@ -472,8 +628,8 @@
       "id": "qa2",
       "type": "qa-check",
       "position": {
-        "x": 2260,
-        "y": 2180
+        "x": 1740,
+        "y": 3308
       },
       "data": {
         "label": "Quality Check 2",
@@ -492,17 +648,17 @@
       "id": "direct2",
       "type": "llm-chat",
       "position": {
-        "x": 2680,
-        "y": 2180
+        "x": 1740,
+        "y": 3588
       },
       "data": {
         "label": "Direct Interview 2",
         "llmModel": "claude-sonnet-4.6",
         "maxTokens": 500,
-        "userInput": "APPROVED INTERVIEW:\n{Write Interview 2 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, caught MID-SENTENCE with the mouth open and clearly visible (not a closed-mouth smile), looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions.",
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 2 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions. Do not describe the mouth position; that is added per frame.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee, mid-answer, that a lip-sync model will bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Output ONLY the image-generation prompt, one paragraph.",
+        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee that a lip-sync model will later bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Describe the person, the hand-held microphone, the public location, the light and the framing — but do NOT state whether the mouth is open or closed; that is set per frame. Output ONLY the image-generation prompt, one paragraph.",
         "fieldMappings": {}
       },
       "width": 460,
@@ -513,13 +669,13 @@
       "id": "still2",
       "type": "generate-image",
       "position": {
-        "x": 2680,
-        "y": 2500
+        "x": 1740,
+        "y": 3582
       },
       "data": {
         "label": "Interview Still 2",
         "style": "",
-        "prompt": "{Direct Interview 2 || a real person mid-answer at a hand-held microphone on a city street, chest-up, mouth open, vertical.}",
+        "prompt": "{Direct Interview 2 || a real person at a hand-held microphone on a city street, chest-up, vertical.}\n\nThis exact frame: listening to the interviewer, mouth closed and relaxed, attentive, about to answer, eyes just off-camera on the interviewer.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "9:16",
@@ -532,20 +688,150 @@
       "className": "rf-resized"
     },
     {
+      "id": "question2",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 2988
+      },
+      "data": {
+        "label": "Ask Question 2",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 100,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 2 || When did you last do something just because everyone else was?}\n\nOutput only the interviewer's spoken question.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You extract the exact question the off-camera interviewer asks, to be read aloud by a text-to-speech voice as a real interviewer holding a microphone. Output ONLY the spoken question — nothing else: no label, no quotation marks, no stage directions, no interviewee line. Take the INTERVIEWER QUESTION from the approved interview and deliver it as ONE clean, natural spoken question of at most 11 words. It MUST read smoothly aloud, so: NO filler words, NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words. Plain punctuation, ending in a single question mark. Keep the exact hook of the question — do not soften it, generalise it, or turn it into a survey question. Tighten it to the punchiest form within 11 words.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qvoice2",
+      "type": "text-to-speech",
+      "position": {
+        "x": 2260,
+        "y": 3268
+      },
+      "data": {
+        "label": "Interviewer Voice 2",
+        "speed": 1.12,
+        "style": 0.1,
+        "voiceId": "HgBYFjTEiFvl1rnxVvgz",
+        "language": "en",
+        "provider": "elevenlabs-turbo",
+        "stability": 0.35,
+        "voiceType": "library",
+        "directText": "",
+        "textSource": "connected",
+        "languageCode": "",
+        "fieldMappings": {},
+        "similarityBoost": 0.8,
+        "voiceDisplayName": "River"
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "listen2",
+      "type": "generate-video",
+      "position": {
+        "x": 2780,
+        "y": 2988
+      },
+      "data": {
+        "label": "Listening Shot 2",
+        "prompt": "The person listens to a question asked from off-camera: subtle, natural handheld motion — a small nod, a blink, a slight shift of the eyes and head, the faint start of a reaction forming. The mouth stays CLOSED the whole time; the person does NOT speak. Keep the same face, hair, clothes, microphone and street background exactly as in the still.",
+        "duration": 6,
+        "provider": "seedance-2-5",
+        "resolution": "480p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "talking, speaking, mouth opening, lip movement, singing, text, captions, extra people, camera shake",
+        "presentationOutput": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qmerge2",
+      "type": "merge-video-audio",
+      "position": {
+        "x": 3140,
+        "y": 2988
+      },
+      "data": {
+        "label": "Question Take 2",
+        "audioType": "voiceover",
+        "fieldMappings": {},
+        "voiceoverVolume": 100,
+        "backgroundVolume": 0,
+        "keepOriginalAudio": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qframe2",
+      "type": "extract-frame",
+      "position": {
+        "x": 3500,
+        "y": 3562
+      },
+      "data": {
+        "mode": "last",
+        "label": "Handover Frame 2",
+        "timestamp": 0,
+        "fieldMappings": {}
+      },
+      "width": 300,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qcap2",
+      "type": "add-captions",
+      "position": {
+        "x": 3500,
+        "y": 2988
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Question On Screen 2",
+        "style": "word-highlight",
+        "fontSize": 46,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#111111",
+        "presentationOutput": false,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
       "id": "answer2",
       "type": "llm-chat",
       "position": {
-        "x": 3200,
-        "y": 2180
+        "x": 2780,
+        "y": 3582
       },
       "data": {
         "label": "Interview Answer 2",
         "llmModel": "claude-sonnet-4.6",
         "maxTokens": 200,
-        "userInput": "APPROVED INTERVIEW:\n{Write Interview 2 || Honestly? Probably saying what you actually want before you're already annoyed.}\n\nOutput only the interviewee's spoken answer.",
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 2 || Probably saying what I actually wanted before I was already annoyed about it.}\n\nOutput only the interviewee's spoken answer.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
+        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud and MUST feel FINISHED, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. NEVER end on a conjunction or dangling word ('so', 'but', 'and', 'because', 'though', 'anyway') — the last word must land the thought and sound complete, like a full stop the speaker meant to make. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
         "fieldMappings": {}
       },
       "width": 460,
@@ -556,8 +842,8 @@
       "id": "voice2",
       "type": "text-to-speech",
       "position": {
-        "x": 3200,
-        "y": 2460
+        "x": 2780,
+        "y": 3862
       },
       "data": {
         "label": "Voice 2",
@@ -583,8 +869,8 @@
       "id": "lipsync2",
       "type": "lip-sync",
       "position": {
-        "x": 3720,
-        "y": 2180
+        "x": 3140,
+        "y": 3582
       },
       "data": {
         "label": "Lip Sync 2",
@@ -599,23 +885,44 @@
       "className": "rf-resized"
     },
     {
-      "id": "captions2",
+      "id": "acap2",
       "type": "add-captions",
       "position": {
-        "x": 4080,
-        "y": 2180
+        "x": 3500,
+        "y": 3582
       },
       "data": {
         "color": "#ffffff",
-        "label": "Street Interview 2",
+        "label": "Answer Captions 2",
         "style": "word-highlight",
         "fontSize": 46,
         "position": "bottom",
         "fieldMappings": {},
         "autoTranscribe": true,
         "backgroundColor": "#111111",
-        "presentationOutput": true,
+        "presentationOutput": false,
         "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "combine2",
+      "type": "combine-videos",
+      "position": {
+        "x": 3860,
+        "y": 3285
+      },
+      "data": {
+        "label": "Street Interview 2",
+        "audioMode": "keep",
+        "transition": "cut",
+        "fieldMappings": {},
+        "trimEndFrames": 2,
+        "trimStartFrames": 1,
+        "presentationOutput": true,
+        "transitionDuration": 0.5
       },
       "width": 300,
       "height": 534,
@@ -626,7 +933,7 @@
       "type": "llm-chat",
       "position": {
         "x": 1740,
-        "y": 2920
+        "y": 4356
       },
       "data": {
         "label": "Write Interview 3",
@@ -646,8 +953,8 @@
       "id": "qa3",
       "type": "qa-check",
       "position": {
-        "x": 2260,
-        "y": 2920
+        "x": 1740,
+        "y": 4676
       },
       "data": {
         "label": "Quality Check 3",
@@ -666,17 +973,17 @@
       "id": "direct3",
       "type": "llm-chat",
       "position": {
-        "x": 2680,
-        "y": 2920
+        "x": 1740,
+        "y": 4956
       },
       "data": {
         "label": "Direct Interview 3",
         "llmModel": "claude-sonnet-4.6",
         "maxTokens": 500,
-        "userInput": "APPROVED INTERVIEW:\n{Write Interview 3 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, caught MID-SENTENCE with the mouth open and clearly visible (not a closed-mouth smile), looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions.",
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 3 || a real person answering a natural question on a city street.}\n\nWrite the still-frame prompt: a vertical 9:16 photo of the interviewee described above, chest-up, standing in the public location, holding or beside a hand-held interview microphone, looking just off-camera at the interviewer, real skin texture, natural street light, believable passers-by softly out of focus behind. One person only, exactly the age and gender described. No text, no logo, no watermark, no captions. Do not describe the mouth position; that is added per frame.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee, mid-answer, that a lip-sync model will bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Output ONLY the image-generation prompt, one paragraph.",
+        "systemPrompt": "You direct a photorealistic, creator-style street interview as a SINGLE still frame of the interviewee that a lip-sync model will later bring to life. It must look captured in a real public place, not staged for a commercial. Prioritise a realistic public location, natural available light, casual framing, authentic body language and real eye contact. Never make it look like a commercial, a fashion campaign, a studio production or a cinematic trailer. No subtitles, no on-screen text, no logos, no watermark. Do not rewrite any dialogue — the speech is generated separately. Describe the person, the hand-held microphone, the public location, the light and the framing — but do NOT state whether the mouth is open or closed; that is set per frame. Output ONLY the image-generation prompt, one paragraph.",
         "fieldMappings": {}
       },
       "width": 460,
@@ -687,13 +994,13 @@
       "id": "still3",
       "type": "generate-image",
       "position": {
-        "x": 2680,
-        "y": 3240
+        "x": 1740,
+        "y": 4950
       },
       "data": {
         "label": "Interview Still 3",
         "style": "",
-        "prompt": "{Direct Interview 3 || a real person mid-answer at a hand-held microphone on a city street, chest-up, mouth open, vertical.}",
+        "prompt": "{Direct Interview 3 || a real person at a hand-held microphone on a city street, chest-up, vertical.}\n\nThis exact frame: listening to the interviewer, mouth closed and relaxed, attentive, about to answer, eyes just off-camera on the interviewer.",
         "provider": "gpt-image-2",
         "resolution": "1K",
         "aspectRatio": "9:16",
@@ -706,20 +1013,150 @@
       "className": "rf-resized"
     },
     {
+      "id": "question3",
+      "type": "llm-chat",
+      "position": {
+        "x": 2260,
+        "y": 4356
+      },
+      "data": {
+        "label": "Ask Question 3",
+        "llmModel": "claude-sonnet-4.6",
+        "maxTokens": 100,
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 3 || When did you last do something just because everyone else was?}\n\nOutput only the interviewer's spoken question.",
+        "templateId": "custom",
+        "temperature": 0.3,
+        "systemPrompt": "You extract the exact question the off-camera interviewer asks, to be read aloud by a text-to-speech voice as a real interviewer holding a microphone. Output ONLY the spoken question — nothing else: no label, no quotation marks, no stage directions, no interviewee line. Take the INTERVIEWER QUESTION from the approved interview and deliver it as ONE clean, natural spoken question of at most 11 words. It MUST read smoothly aloud, so: NO filler words, NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words. Plain punctuation, ending in a single question mark. Keep the exact hook of the question — do not soften it, generalise it, or turn it into a survey question. Tighten it to the punchiest form within 11 words.",
+        "fieldMappings": {}
+      },
+      "width": 460,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qvoice3",
+      "type": "text-to-speech",
+      "position": {
+        "x": 2260,
+        "y": 4636
+      },
+      "data": {
+        "label": "Interviewer Voice 3",
+        "speed": 1.12,
+        "style": 0.1,
+        "voiceId": "HgBYFjTEiFvl1rnxVvgz",
+        "language": "en",
+        "provider": "elevenlabs-turbo",
+        "stability": 0.35,
+        "voiceType": "library",
+        "directText": "",
+        "textSource": "connected",
+        "languageCode": "",
+        "fieldMappings": {},
+        "similarityBoost": 0.8,
+        "voiceDisplayName": "River"
+      },
+      "width": 360,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "listen3",
+      "type": "generate-video",
+      "position": {
+        "x": 2780,
+        "y": 4356
+      },
+      "data": {
+        "label": "Listening Shot 3",
+        "prompt": "The person listens to a question asked from off-camera: subtle, natural handheld motion — a small nod, a blink, a slight shift of the eyes and head, the faint start of a reaction forming. The mouth stays CLOSED the whole time; the person does NOT speak. Keep the same face, hair, clothes, microphone and street background exactly as in the still.",
+        "duration": 6,
+        "provider": "seedance-2-5",
+        "resolution": "480p",
+        "aspectRatio": "9:16",
+        "fieldMappings": {},
+        "generateAudio": false,
+        "negativePrompt": "talking, speaking, mouth opening, lip movement, singing, text, captions, extra people, camera shake",
+        "presentationOutput": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qmerge3",
+      "type": "merge-video-audio",
+      "position": {
+        "x": 3140,
+        "y": 4356
+      },
+      "data": {
+        "label": "Question Take 3",
+        "audioType": "voiceover",
+        "fieldMappings": {},
+        "voiceoverVolume": 100,
+        "backgroundVolume": 0,
+        "keepOriginalAudio": false
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qframe3",
+      "type": "extract-frame",
+      "position": {
+        "x": 3500,
+        "y": 4930
+      },
+      "data": {
+        "mode": "last",
+        "label": "Handover Frame 3",
+        "timestamp": 0,
+        "fieldMappings": {}
+      },
+      "width": 300,
+      "height": 240,
+      "className": "rf-resized"
+    },
+    {
+      "id": "qcap3",
+      "type": "add-captions",
+      "position": {
+        "x": 3500,
+        "y": 4356
+      },
+      "data": {
+        "color": "#ffffff",
+        "label": "Question On Screen 3",
+        "style": "word-highlight",
+        "fontSize": 46,
+        "position": "bottom",
+        "fieldMappings": {},
+        "autoTranscribe": true,
+        "backgroundColor": "#111111",
+        "presentationOutput": false,
+        "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
       "id": "answer3",
       "type": "llm-chat",
       "position": {
-        "x": 3200,
-        "y": 2920
+        "x": 2780,
+        "y": 4950
       },
       "data": {
         "label": "Interview Answer 3",
         "llmModel": "claude-sonnet-4.6",
         "maxTokens": 200,
-        "userInput": "APPROVED INTERVIEW:\n{Write Interview 3 || Honestly? Probably saying what you actually want before you're already annoyed.}\n\nOutput only the interviewee's spoken answer.",
+        "userInput": "APPROVED INTERVIEW:\n{Write Interview 3 || Probably saying what I actually wanted before I was already annoyed about it.}\n\nOutput only the interviewee's spoken answer.",
         "templateId": "custom",
         "temperature": 0.3,
-        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
+        "systemPrompt": "You write the exact words the interviewee says to camera, to be read aloud by a text-to-speech voice. Output ONLY the spoken words — nothing else: no name, no label, no quotation marks, no stage directions, no interviewer line. Take the meaning of the approved answer and deliver it as ONE clean, fluent, confident spoken line of at most 22 words. It MUST read smoothly aloud and MUST feel FINISHED, so: NO filler words (no 'um', 'uh', 'like', 'you know', 'honestly', 'I mean'), NO ellipses (...), NO em-dashes or trailing dashes, NO stutter or repeated words, NO sentence that trails off. NEVER end on a conjunction or dangling word ('so', 'but', 'and', 'because', 'though', 'anyway') — the last word must land the thought and sound complete, like a full stop the speaker meant to make. Use plain full stops and, at most, one comma. Keep the real, specific idea of the answer, said the way a self-assured person says it in one breath.",
         "fieldMappings": {}
       },
       "width": 460,
@@ -730,8 +1167,8 @@
       "id": "voice3",
       "type": "text-to-speech",
       "position": {
-        "x": 3200,
-        "y": 3200
+        "x": 2780,
+        "y": 5230
       },
       "data": {
         "label": "Voice 3",
@@ -757,8 +1194,8 @@
       "id": "lipsync3",
       "type": "lip-sync",
       "position": {
-        "x": 3720,
-        "y": 2920
+        "x": 3140,
+        "y": 4950
       },
       "data": {
         "label": "Lip Sync 3",
@@ -773,23 +1210,44 @@
       "className": "rf-resized"
     },
     {
-      "id": "captions3",
+      "id": "acap3",
       "type": "add-captions",
       "position": {
-        "x": 4080,
-        "y": 2920
+        "x": 3500,
+        "y": 4950
       },
       "data": {
         "color": "#ffffff",
-        "label": "Street Interview 3",
+        "label": "Answer Captions 3",
         "style": "word-highlight",
         "fontSize": 46,
         "position": "bottom",
         "fieldMappings": {},
         "autoTranscribe": true,
         "backgroundColor": "#111111",
-        "presentationOutput": true,
+        "presentationOutput": false,
         "transcribeProvider": "elevenlabs-stt"
+      },
+      "width": 300,
+      "height": 534,
+      "className": "rf-resized"
+    },
+    {
+      "id": "combine3",
+      "type": "combine-videos",
+      "position": {
+        "x": 3860,
+        "y": 4653
+      },
+      "data": {
+        "label": "Street Interview 3",
+        "audioMode": "keep",
+        "transition": "cut",
+        "fieldMappings": {},
+        "trimEndFrames": 2,
+        "trimStartFrames": 1,
+        "presentationOutput": true,
+        "transitionDuration": 0.5
       },
       "width": 300,
       "height": 534,
@@ -800,7 +1258,7 @@
       "type": "collect",
       "position": {
         "x": 1740,
-        "y": 3660
+        "y": 5724
       },
       "data": {
         "label": "Interview Set",
@@ -869,6 +1327,13 @@
       "targetHandle": "prompt"
     },
     {
+      "id": "e-qa1-question1",
+      "source": "qa1",
+      "target": "question1",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
       "id": "e-qa1-answer1",
       "source": "qa1",
       "target": "answer1",
@@ -883,6 +1348,48 @@
       "targetHandle": "prompt"
     },
     {
+      "id": "e-still1-listen1",
+      "source": "still1",
+      "target": "listen1",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-question1-qvoice1",
+      "source": "question1",
+      "target": "qvoice1",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-listen1-qmerge1",
+      "source": "listen1",
+      "target": "qmerge1",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qvoice1-qmerge1",
+      "source": "qvoice1",
+      "target": "qmerge1",
+      "sourceHandle": "audio",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qmerge1-qcap1",
+      "source": "qmerge1",
+      "target": "qcap1",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qmerge1-qframe1",
+      "source": "qmerge1",
+      "target": "qframe1",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
       "id": "e-answer1-voice1",
       "source": "answer1",
       "target": "voice1",
@@ -890,8 +1397,8 @@
       "targetHandle": "prompt"
     },
     {
-      "id": "e-still1-lipsync1",
-      "source": "still1",
+      "id": "e-qframe1-lipsync1",
+      "source": "qframe1",
       "target": "lipsync1",
       "sourceHandle": "image",
       "targetHandle": "image"
@@ -904,9 +1411,23 @@
       "targetHandle": "audio"
     },
     {
-      "id": "e-lipsync1-captions1",
+      "id": "e-lipsync1-acap1",
       "source": "lipsync1",
-      "target": "captions1",
+      "target": "acap1",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qcap1-combine1",
+      "source": "qcap1",
+      "target": "combine1",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-acap1-combine1",
+      "source": "acap1",
+      "target": "combine1",
       "sourceHandle": "video",
       "targetHandle": "in"
     },
@@ -932,6 +1453,13 @@
       "targetHandle": "prompt"
     },
     {
+      "id": "e-qa2-question2",
+      "source": "qa2",
+      "target": "question2",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
       "id": "e-qa2-answer2",
       "source": "qa2",
       "target": "answer2",
@@ -946,6 +1474,48 @@
       "targetHandle": "prompt"
     },
     {
+      "id": "e-still2-listen2",
+      "source": "still2",
+      "target": "listen2",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-question2-qvoice2",
+      "source": "question2",
+      "target": "qvoice2",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-listen2-qmerge2",
+      "source": "listen2",
+      "target": "qmerge2",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qvoice2-qmerge2",
+      "source": "qvoice2",
+      "target": "qmerge2",
+      "sourceHandle": "audio",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qmerge2-qcap2",
+      "source": "qmerge2",
+      "target": "qcap2",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qmerge2-qframe2",
+      "source": "qmerge2",
+      "target": "qframe2",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
       "id": "e-answer2-voice2",
       "source": "answer2",
       "target": "voice2",
@@ -953,8 +1523,8 @@
       "targetHandle": "prompt"
     },
     {
-      "id": "e-still2-lipsync2",
-      "source": "still2",
+      "id": "e-qframe2-lipsync2",
+      "source": "qframe2",
       "target": "lipsync2",
       "sourceHandle": "image",
       "targetHandle": "image"
@@ -967,9 +1537,23 @@
       "targetHandle": "audio"
     },
     {
-      "id": "e-lipsync2-captions2",
+      "id": "e-lipsync2-acap2",
       "source": "lipsync2",
-      "target": "captions2",
+      "target": "acap2",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qcap2-combine2",
+      "source": "qcap2",
+      "target": "combine2",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-acap2-combine2",
+      "source": "acap2",
+      "target": "combine2",
       "sourceHandle": "video",
       "targetHandle": "in"
     },
@@ -995,6 +1579,13 @@
       "targetHandle": "prompt"
     },
     {
+      "id": "e-qa3-question3",
+      "source": "qa3",
+      "target": "question3",
+      "sourceHandle": "approved",
+      "targetHandle": "prompt"
+    },
+    {
       "id": "e-qa3-answer3",
       "source": "qa3",
       "target": "answer3",
@@ -1009,6 +1600,48 @@
       "targetHandle": "prompt"
     },
     {
+      "id": "e-still3-listen3",
+      "source": "still3",
+      "target": "listen3",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-question3-qvoice3",
+      "source": "question3",
+      "target": "qvoice3",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "e-listen3-qmerge3",
+      "source": "listen3",
+      "target": "qmerge3",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qvoice3-qmerge3",
+      "source": "qvoice3",
+      "target": "qmerge3",
+      "sourceHandle": "audio",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qmerge3-qcap3",
+      "source": "qmerge3",
+      "target": "qcap3",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-qmerge3-qframe3",
+      "source": "qmerge3",
+      "target": "qframe3",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
       "id": "e-answer3-voice3",
       "source": "answer3",
       "target": "voice3",
@@ -1016,8 +1649,8 @@
       "targetHandle": "prompt"
     },
     {
-      "id": "e-still3-lipsync3",
-      "source": "still3",
+      "id": "e-qframe3-lipsync3",
+      "source": "qframe3",
       "target": "lipsync3",
       "sourceHandle": "image",
       "targetHandle": "image"
@@ -1030,29 +1663,43 @@
       "targetHandle": "audio"
     },
     {
-      "id": "e-lipsync3-captions3",
+      "id": "e-lipsync3-acap3",
       "source": "lipsync3",
-      "target": "captions3",
+      "target": "acap3",
       "sourceHandle": "video",
       "targetHandle": "in"
     },
     {
-      "id": "e-c1-finals",
-      "source": "captions1",
+      "id": "e-qcap3-combine3",
+      "source": "qcap3",
+      "target": "combine3",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-acap3-combine3",
+      "source": "acap3",
+      "target": "combine3",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-cb1-finals",
+      "source": "combine1",
       "target": "finals",
       "sourceHandle": "video",
       "targetHandle": "in"
     },
     {
-      "id": "e-c2-finals",
-      "source": "captions2",
+      "id": "e-cb2-finals",
+      "source": "combine2",
       "target": "finals",
       "sourceHandle": "video",
       "targetHandle": "in"
     },
     {
-      "id": "e-c3-finals",
-      "source": "captions3",
+      "id": "e-cb3-finals",
+      "source": "combine3",
       "target": "finals",
       "sourceHandle": "video",
       "targetHandle": "in"
@@ -1062,7 +1709,7 @@
     "viewport": {
       "x": 80,
       "y": 60,
-      "zoom": 0.202
+      "zoom": 0.133
     },
     "flowPromptTemplates": {},
     "characterDefinitions": [],
@@ -1074,7 +1721,7 @@
         },
         "finals": {
           "title": "Interview set",
-          "description": "The three finished street-interview clips, each ready to post on its own."
+          "description": "The three finished street-interview clips — question heard and shown, then the answer — each ready to post on its own."
         },
         "website": {
           "title": "Website (optional)",
