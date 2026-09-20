@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { parseRssXml, fetchRssItems } from "../parser.js"
 
 const BASIC_RSS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -130,7 +130,10 @@ describe("parseRssXml", () => {
     expect(items[0].guid).toBe("https://e.com/a")
   })
 
-  it("returns [] when no <item> blocks match (e.g. Atom feed)", () => {
+  it("reads the <entry> blocks of an Atom feed", () => {
+    // This document used to parse to [] — and a completed run with [] is a
+    // charged run (incident 2026-09-20). The Atom mapping itself is pinned in
+    // parser-atom.test.ts.
     const atom = `<?xml version="1.0"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <entry>
@@ -138,7 +141,9 @@ describe("parseRssXml", () => {
     <link href="https://example.com/a"/>
   </entry>
 </feed>`
-    expect(parseRssXml(atom)).toEqual([])
+    expect(parseRssXml(atom)).toEqual([
+      { title: "Atom entry", url: "https://example.com/a", description: "", pubDate: "", guid: "https://example.com/a" },
+    ])
   })
 
   it("handles Atom-style <link href> inside an <item>", () => {
@@ -154,6 +159,38 @@ describe("parseRssXml", () => {
     expect(items[0].url).toBe("https://e.com/atom-style")
   })
 
+  it("leaves an RSS item's <atom:link rel=\"self\"> alone — it is not the item's link", () => {
+    // Un-prefixing is for documents whose ROOT is a prefixed Atom feed. Doing
+    // it to an RSS feed would plant a second <link> inside its items.
+    const xml = `<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
+      <atom:link href="https://e.com/feed.xml" rel="self" type="application/rss+xml"/>
+      <item>
+        <title>t</title>
+        <atom:link href="https://e.com/feed.xml" rel="self"/>
+      </item>
+    </channel></rss>`
+    expect(parseRssXml(xml)[0].url).toBe("")
+  })
+
+  it("an RSS description that QUOTES </item> in CDATA does not end the item", () => {
+    const xml = `<rss version="2.0"><channel>
+      <item>
+        <title>About feeds</title>
+        <description><![CDATA[An item ends with </item>, like this.]]></description>
+        <link>https://e.com/about</link>
+      </item>
+    </channel></rss>`
+    expect(parseRssXml(xml)).toEqual([
+      {
+        title: "About feeds",
+        url: "https://e.com/about",
+        description: "An item ends with </item>, like this.",
+        pubDate: "",
+        guid: "https://e.com/about",
+      },
+    ])
+  })
+
   it("yields empty strings for missing fields rather than throwing", () => {
     const xml = `<rss><channel><item></item></channel></rss>`
     const items = parseRssXml(xml)
@@ -166,10 +203,11 @@ describe("parseRssXml", () => {
     }])
   })
 
-  it("does not crash on totally malformed XML", () => {
-    expect(parseRssXml("<rss<<>broken")).toEqual([])
-    expect(parseRssXml("")).toEqual([])
-    expect(parseRssXml("not xml at all")).toEqual([])
+  it("does not crash on malformed XML inside a feed", () => {
+    // A document that is not a feed AT ALL now throws instead of returning []
+    // (so it is refunded, not billed) — see parser-document.test.ts.
+    expect(parseRssXml("<rss><channel><item><title>unterminated")).toEqual([])
+    expect(parseRssXml("<rss version=\"2.0\"><<>broken")).toEqual([])
   })
 })
 
@@ -215,14 +253,34 @@ describe("fetchRssItems", () => {
   })
 
   it("throws on non-2xx response with the status code in the message", async () => {
-    const fakeFetch = async () =>
-      new Response("", { status: 404 })
+    // 403 is a verdict, not a blip: it fails at once. The statuses that ARE
+    // retried (and the one retry a 404 earns) live in fetch-rss-retry.test.ts.
+    const fakeFetch = vi.fn(async () => new Response("", { status: 403 }))
     await expect(
       fetchRssItems({
         url: "https://example.com/feed.xml",
         fetchImpl: fakeFetch as unknown as typeof fetch,
       }),
-    ).rejects.toThrow(/HTTP 404/)
+    ).rejects.toThrow(/HTTP 403/)
+    expect(fakeFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("fails a response that is not a feed, without retrying it", async () => {
+    const fakeFetch = vi.fn(async () => new Response("<!DOCTYPE html><html><body>Not found</body></html>", { status: 200 }))
+    await expect(
+      fetchRssItems({
+        url: "https://example.com/feed.xml",
+        fetchImpl: fakeFetch as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/not an RSS or Atom feed/i)
+    expect(fakeFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("returns [] for a valid feed that has no items", async () => {
+    const fakeFetch = async () => makeFetchResponse(`<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Empty</title></feed>`)
+    await expect(
+      fetchRssItems({ url: "https://example.com/feed.atom", fetchImpl: fakeFetch as unknown as typeof fetch }),
+    ).resolves.toEqual([])
   })
 
   it("rejects non-http(s) protocols before the fetch fires", async () => {

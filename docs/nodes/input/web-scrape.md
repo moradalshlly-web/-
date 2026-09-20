@@ -21,7 +21,7 @@ The Web Scrape node retrieves data from external sources using configurable acto
 |-------|-------|-------------|
 | `google-search` | Google Search | Returns up to 10 search-result items |
 | `content-crawler` | Website Content (Markdown) | Crawls one page or an entire site; emits Markdown |
-| `rss` | RSS Feed | Directly fetches and parses an RSS/Atom feed (no Apify) |
+| `rss` | RSS Feed | Directly fetches and parses an RSS 2.0 or Atom feed (no Apify) |
 | `instagram` | Instagram | Retrieves posts from a profile or URL |
 | `tiktok` | TikTok | Retrieves posts from a profile or URL |
 
@@ -46,6 +46,20 @@ The Web Scrape node retrieves data from external sources using configurable acto
 |-------|------|---------|-------------|
 | Feed URL | text | — | Address of the RSS or Atom feed (`https://` optional) |
 | Results limit | number | 10 | Maximum items to return (1–50). Emits `{ title, url, description, pubDate, guid }` per item |
+
+**Supported formats.** Both feed formats are read: **RSS 2.0** (and the older 0.9x / 1.0 shapes) and **Atom** — YouTube channel feeds (`https://www.youtube.com/feeds/videos.xml?channel_id=…`), GitHub `releases.atom` and the Atom feed most blog platforms publish. Every item has the same five fields whichever format the feed uses:
+
+| Field | RSS 2.0 (`<item>`) | Atom (`<entry>`) |
+|-------|--------------------|------------------|
+| `title` | `<title>` | `<title>` |
+| `url` | `<link>` | `<link rel="alternate" href>` — a `<link>` with no `rel` counts as the alternate. Otherwise the first link that is not `rel="self"` or `rel="enclosure"`; empty when the entry has no such link |
+| `description` | `<description>` | `<summary>`, else `<content>`, else `<media:description>` (where a YouTube entry keeps its text) |
+| `pubDate` | `<pubDate>` | `<published>`, else `<updated>` |
+| `guid` | `<guid>`, else the `url` | `<id>`, else the `url` |
+
+`pubDate` is normalised to ISO 8601; a date that cannot be parsed is passed through as written. `description` may contain HTML.
+
+**Temporary upstream errors.** When the feed's server drops the connection or answers `408`, `425`, `429` or `5xx`, the fetch is tried again — three requests at most, about a second apart (or as long as the server's `Retry-After` asks, up to 5 seconds), all inside the same 30-second budget — before the run fails. A `404` is tried once more and then treated as final. Any other status fails at once, and so does a server that asks for a longer wait than 5 seconds. A run that uses up the 30 seconds fails with `RSS fetch timed out`, naming the server's last answer.
 
 ### Instagram / TikTok fields
 
@@ -80,6 +94,8 @@ After a run, the node card peeks at the first few items and the settings panel's
 The Run button on the node, the Run button in the panel, the price beside each crawl mode and the Execute-workflow total all show the same figure — the one your account is charged for that run.
 
 A run that fails is refunded in full. A run that finds nothing is a completed run: it is charged, and the node keeps the last good result beside the empty outcome.
+
+For the RSS source, "finds nothing" means a real feed — RSS or Atom — that has no items in it. An address that does not return a feed at all (a web page, an error page, JSON) is an unrecognised document: the run **fails and is refunded**, and the error says what the address returned instead of a feed.
 
 ## Long crawls and the API
 
