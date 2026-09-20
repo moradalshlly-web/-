@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus, Search, ScanSearch, Package, Film, StickyNote, Wand2, PanelLeft, Undo2, Redo2, ChevronLeft, Puzzle, Keyboard, History, GripHorizontal } from "lucide-react"
+import { Plus, Search, ScanSearch, Package, Film, StickyNote, Wand2, PanelLeft, Undo2, Redo2, ChevronLeft, Puzzle, Keyboard, History, GripHorizontal, Eraser } from "lucide-react"
 import { useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -35,6 +35,14 @@ interface CanvasToolbarProps {
   readonly onRedo: () => void
   readonly canUndo: boolean
   readonly canRedo: boolean
+  /**
+   * Clear every run result off the canvas (one undoable step). Omitted on a
+   * canvas that cannot be edited — the button is then not rendered at all.
+   * It sits beside Undo on purpose: that is the button that takes it back.
+   */
+  readonly onClearResults?: () => void
+  /** False while there is nothing to clear; the button dims but keeps its tooltip. */
+  readonly canClearResults?: boolean
   readonly onShowShortcuts: () => void
 }
 
@@ -57,6 +65,7 @@ function ToolbarButton({ icon, label, shortcut, onClick, active, disabled }: Too
           <button
             type="button"
             aria-label={label}
+            aria-disabled={disabled || undefined}
             onClick={disabled ? undefined : onClick}
             className={cn(
               "w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200",
@@ -82,12 +91,15 @@ function ToolbarButton({ icon, label, shortcut, onClick, active, disabled }: Too
           )}
         >
           <span className="text-sm">{label}</span>
-          <span className={cn(
-            "text-xs px-1.5 py-0.5 rounded font-mono",
-            "bg-black/5 text-[var(--pill-fg-muted)] dark:bg-white/10"
-          )}>
-            {shortcut}
-          </span>
+          {/* No key, no chip — an empty one reads as a broken tooltip. */}
+          {shortcut && (
+            <span className={cn(
+              "text-xs px-1.5 py-0.5 rounded font-mono",
+              "bg-black/5 text-[var(--pill-fg-muted)] dark:bg-white/10"
+            )}>
+              {shortcut}
+            </span>
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -99,6 +111,7 @@ function MobileToolbarButton({ icon, label, onClick, active, disabled }: Omit<To
     <button
       type="button"
       aria-label={label}
+      aria-disabled={disabled || undefined}
       onClick={disabled ? undefined : onClick}
       className={cn(
         "w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200 touch-manipulation",
@@ -139,6 +152,8 @@ export function CanvasToolbar({
   onRedo,
   canUndo,
   canRedo,
+  onClearResults,
+  canClearResults = false,
   onShowShortcuts,
 }: CanvasToolbarProps) {
   const t = useT()
@@ -254,6 +269,14 @@ export function CanvasToolbar({
           label={t("marketplace.title")}
           onClick={onComponents}
         />
+        {onClearResults && (
+          <MobileToolbarButton
+            icon={<Eraser className="w-5 h-5" />}
+            label={t("ctb.clearResults")}
+            onClick={onClearResults}
+            disabled={!canClearResults}
+          />
+        )}
         <MobileToolbarButton
           icon={<Undo2 className="w-5 h-5" />}
           label={t("ctb.undo")}
@@ -407,7 +430,16 @@ export function CanvasToolbar({
 
         <ToolbarDivider />
 
-        {/* Undo / Redo */}
+        {/* Clear results · Undo / Redo — the clear sits beside the button that takes it back */}
+        {onClearResults && (
+          <ToolbarButton
+            icon={<Eraser className="w-5 h-5" />}
+            label={t("ctb.clearResults")}
+            shortcut=""
+            onClick={onClearResults}
+            disabled={!canClearResults}
+          />
+        )}
         <ToolbarButton
           icon={<Undo2 className="w-5 h-5" />}
           label={t("ctb.undo")}

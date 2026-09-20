@@ -7,7 +7,7 @@ import {
   equalIgnoringTransient,
   mergeNodePreservingResults,
 } from "../workflow-delta"
-import type { WorkflowNode, WorkflowEdge } from "@/types/nodes"
+import type { WorkflowNode, WorkflowEdge, GeneratedResult } from "@/types/nodes"
 
 function node(id: string, data: Record<string, unknown> = {}): WorkflowNode {
   return { id, type: "text-prompt", position: { x: 0, y: 0 }, data: { label: id, ...data } } as WorkflowNode
@@ -165,5 +165,46 @@ describe("applyDeltaToGraph — result-preserving rebase (incident replay)", () 
     const localStale = node("n1", { prompt: "p", generatedResults: [], activeResultIndex: 0, executionStatus: "idle" })
     const merged = applyDeltaToGraph(base, { upsertNodes: [localStale], deleteNodeIds: [], upsertEdges: [], deleteEdgeIds: [] })
     expect((merged.nodes[0].data as { generatedResults: unknown[] }).generatedResults.length).toBe(13)
+  })
+})
+
+/**
+ * "Clear results" is the one loss this merge must NOT repair. The remote row is
+ * the save from before the clear, so a blind union hands every cleared result
+ * back and the rebase then persists it — with delta saves on, any conflict
+ * (a second tab, a phone, a server-side write) silently undid the clear.
+ */
+describe("mergeNodePreservingResults — a node emptied by Clear results", () => {
+  const CLEARED_AT = "2026-09-20T10:00:00.000Z"
+  const result = (url: string, timestamp?: string) => ({ url, jobId: url, timestamp }) as unknown as GeneratedResult
+  const withData = (data: Record<string, unknown>) =>
+    ({ id: "n1", type: "generate-image", position: { x: 0, y: 0 }, data }) as unknown as WorkflowNode
+
+  it("does not take back what was cleared: remote results older than the local stamp stay out", () => {
+    const remote = withData({ prompt: "old", generatedResults: [result("a", "2026-09-20T09:00:00.000Z"), result("b", "2026-09-20T09:30:00.000Z")], generatedImageUrl: "a" })
+    const local = withData({ prompt: "new", resultsClearedAt: CLEARED_AT })
+    const merged = mergeNodePreservingResults(remote, local)
+    expect(merged).toBe(local)
+  })
+
+  it("still keeps what the remote gained AFTER the clear — another tab ran the node since", () => {
+    const remote = withData({ generatedResults: [result("old", "2026-09-20T09:00:00.000Z"), result("fresh", "2026-09-20T10:30:00.000Z")] })
+    const local = withData({ prompt: "new", resultsClearedAt: CLEARED_AT })
+    const data = mergeNodePreservingResults(remote, local).data as Record<string, unknown>
+    expect((data.generatedResults as GeneratedResult[]).map((r) => r.url)).toEqual(["fresh"])
+    expect(data.prompt).toBe("new")
+  })
+
+  it("a remote result with no timestamp cannot be shown to be newer than the clear", () => {
+    const remote = withData({ generatedResults: [result("undated")] })
+    const local = withData({ resultsClearedAt: CLEARED_AT })
+    expect(mergeNodePreservingResults(remote, local)).toBe(local)
+  })
+
+  it("an un-cleared node is merged exactly as before — nothing is ever lost there", () => {
+    const remote = withData({ generatedResults: [result("a", "2026-09-20T09:00:00.000Z")] })
+    const local = withData({ prompt: "edited", generatedResults: [result("b", "2026-09-20T09:10:00.000Z")], activeResultIndex: 0 })
+    const data = mergeNodePreservingResults(remote, local).data as Record<string, unknown>
+    expect((data.generatedResults as GeneratedResult[]).map((r) => r.url).sort()).toEqual(["a", "b"])
   })
 })

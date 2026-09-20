@@ -11,6 +11,7 @@
 
 import type { WorkflowNode, WorkflowEdge, GeneratedResult } from "@/types/nodes"
 import { TRANSIENT_RUNTIME_KEYS, EXECUTION_DATA_KEYS } from "@nodaro/shared"
+import { settledBeforeClear } from "@/lib/results-cleared"
 
 /** References (NOT copies) to the graph handed to the last successful
  *  save / load / remote-reconcile — the base the next delta diffs against. */
@@ -184,11 +185,20 @@ function mergeResultsByUrl(remote: GeneratedResult[], local: GeneratedResult[]):
  * generations are lost) and `activeResultIndex` (follows the local active
  * result's URL into the merged array). No-op (returns local) when neither side
  * has results — preserves identity for the common non-result case.
+ *
+ * One kind of loss is deliberate and must survive the union: "Clear results".
+ * The remote row is, by construction, the save from BEFORE the clear, so a
+ * blind union hands every cleared result straight back — and then persists it.
+ * The clear stamps the node (`resultsClearedAt`); remote results older than the
+ * LOCAL stamp are what the person cleared, and stay out. Anything the remote
+ * gained after the clear (another tab ran the node) is still kept.
  */
 export function mergeNodePreservingResults(remote: WorkflowNode, local: WorkflowNode): WorkflowNode {
   const rd = (remote.data ?? {}) as Record<string, unknown>
   const ld = (local.data ?? {}) as Record<string, unknown>
-  const rRes = (rd.generatedResults as GeneratedResult[] | undefined) ?? []
+  const rRes = ((rd.generatedResults as GeneratedResult[] | undefined) ?? []).filter(
+    (result) => !settledBeforeClear(ld, result?.timestamp),
+  )
   const lRes = (ld.generatedResults as GeneratedResult[] | undefined) ?? []
   if (rRes.length === 0 && lRes.length === 0) return local
   const merged = mergeResultsByUrl(rRes, lRes)

@@ -58,9 +58,18 @@ describe("TRANSIENT_RUNTIME_KEYS", () => {
       "downloadStatus",
       "downloadedVideoUrl",
       "downloadId",
+      // "Clear results" stamps it for the NEXT load to read — stripping it on
+      // save would bring every cleared result back on reload.
+      "resultsClearedAt",
     ]) {
       expect(TRANSIENT_RUNTIME_KEYS.has(key), `${key} must stay persisted`).toBe(false)
     }
+  })
+})
+
+describe("EXECUTION_DATA_KEYS", () => {
+  it("files the clear-results watermark as runtime bookkeeping — never preset / template / copilot-visible config", () => {
+    expect(EXECUTION_DATA_KEYS.has("resultsClearedAt")).toBe(true)
   })
 })
 

@@ -283,7 +283,9 @@ The running version is shown in the app sidebar and at `/health`. Click the
 version for the release notes — of the version you are running, or of the
 newest release when one is available: then a red dot appears next to it and
 the same dialog adds the exact upgrade commands, with the backup step first.
-The check is one anonymous request a day to GitHub's API; for air-gapped
+The check is one anonymous request a day to GitHub's API (a check that
+fails is tried again after five minutes, then less and less often, until one
+gets through); for air-gapped
 installs, add `NODARO_UPDATE_CHECK: "off"` under the `nodaro` service's
 `environment:` block in `docker-compose.community.yml` to disable it
 entirely — the compose file does not pass this variable through from `.env`

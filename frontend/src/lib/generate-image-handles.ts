@@ -95,6 +95,15 @@ export const TEXT_PRODUCER_TYPES: ReadonlySet<string> = new Set([
   // inputs.prompt). Without these, qa-check/image-critic outputs and
   // list/loop/extract-field text values can't feed any typed prompt.
   "extract-field", "qa-check", "image-critic", "forced-alignment", "list",
+  // The nodes that TRANSFORM a list hand one of its values downstream exactly
+  // as the List does, and both engines route that value into the consumer's
+  // prompt (node-input-resolver.ts `src.type === "selector"` / the filter-list
+  // family; the backend resolver's "treat as prompt" fallback). They were
+  // missing here while `list` was present — so the run path existed and the
+  // wire to it could not be drawn: Selector's Picked → Generate Image's Prompt
+  // was refused. Guarded by list-transform-text-connections.test.ts, which
+  // holds every text member of FAN_OUT_EACH_TYPES to this.
+  "selector", "filter-list", "sort-list", "deduplicate", "merge-lists",
   // video-analysis's `text` handle emits the scene-breakdown JSON as a plain
   // string (extractNodeOutput stringifies) — lets the analysis wire straight
   // into prompt/text inputs (generate-video-pro etc.) without a paste.

@@ -1,0 +1,1250 @@
+{
+  "slug": "fooh-campaign-generator",
+  "name": "FOOH Campaign Generator",
+  "description": "Turn a brand, a place and a product into a full FOOH (fake out-of-home) campaign — the workflow reads your website, extracts the brand, invents five distinct CGI billboard, transit and street concepts, renders each as a 2K hero image with your product as a reference, then animates all five, each by a different premium video model so you can compare and pick.",
+  "markdownDescription": "## FOOH Campaign Generator\n\nTurn a brand, a place and a product into a full FOOH (fake out-of-home) campaign — five scroll-stopping CGI billboard, transit and street concepts, each rendered as a hero image and then brought to life as a short film.\n\n**Business use:** agencies and brands pitching or posting FOOH — the viral fake-OOH format — without a CGI studio. Compare five looks on one concept and pick your favourite.\n\n1. **Your brief** — Website (scraped for brand context), Campaign Location, Campaign Goal, Product Focus and a Product Image (used as a visual reference so the real product appears in every scene).\n2. **Read the brand, then invent** — Brand Extraction only extracts from your site; the FOOH Concept Generator turns it into distinct campaign concepts.\n3. **Build & normalise** — the Image Prompt Builder writes production-ready prompts; the Normalizer formats exactly five.\n4. **Five prompts → five images** — each selector picks one prompt; every FOOH Image renders at 2K, 16:9, with your product wired in as a reference.\n5. **Animate — five models, one campaign** — each image is animated by a DIFFERENT premium model (Veo, Hailuo, Wan, Grok, Gemini) so you can compare and pick. FOOH Campaign Set collects the five.",
+  "category": "video-ads",
+  "outputTypes": [
+    "video"
+  ],
+  "tags": [
+    "video-ads",
+    "fooh",
+    "ooh",
+    "billboard",
+    "cgi",
+    "product",
+    "brand",
+    "web-research"
+  ],
+  "complexity": "advanced",
+  "estimatedCredits": 1800,
+  "nodeTypesUsed": [
+    "text-prompt",
+    "web-scrape",
+    "llm-chat",
+    "upload-image",
+    "generate-image",
+    "split-text",
+    "selector",
+    "generate-video",
+    "collect",
+    "sticky-note"
+  ],
+  "providersUsed": [
+    "claude-sonnet-4.6",
+    "gpt-image-2",
+    "veo3.1",
+    "hailuo-2.3-pro",
+    "wan-3-prime",
+    "grok-imagine-video-1.5",
+    "gemini-omni-video"
+  ],
+  "previewMediaUrl": "https://cdn.nodaro.ai/images/c8e11618-2c3b-4982-8e41-d280721da422.png",
+  "previewMediaType": "image",
+  "tutorialCategorySlug": "workflows",
+  "tutorialSortOrder": 43,
+  "nodes": [
+    {
+      "id": "node_2",
+      "type": "text-prompt",
+      "position": {
+        "x": -970.0422547148751,
+        "y": 98.88320410598995
+      },
+      "data": {
+        "text": "https://owalalife.com",
+        "label": "website_url",
+        "width": 321,
+        "height": 80,
+        "variables": {},
+        "presentationInput": true
+      },
+      "width": 321,
+      "height": 80,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_3",
+      "type": "web-scrape",
+      "position": {
+        "x": -957.5717582927765,
+        "y": -332.20112828709
+      },
+      "data": {
+        "url": "",
+        "mode": "page",
+        "actor": "content-crawler",
+        "label": "Site data",
+        "lastRunAt": 1789845912637,
+        "lastGoodAt": 1789845912637,
+        "lastRunCount": 1,
+        "fieldMappings": {
+          "url": {
+            "sourceNodeId": "node_2"
+          }
+        },
+        "lastGoodCount": 1,
+        "lastRunStartedAt": 1789845887494,
+        "lastRunFingerprint": "[\"content-crawler\",\"\",\"https://owalalife.com\",\"page\",\"\",null,\"\",null]"
+      },
+      "width": 312,
+      "height": 292,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_4",
+      "type": "llm-chat",
+      "position": {
+        "x": 287.1709079976069,
+        "y": -214.56356026412368
+      },
+      "data": {
+        "label": "Brand Extraction LLM",
+        "maxTokens": 8192,
+        "userInput": "Extract a structured brand profile from the supplied website scrape.\n\nWebsite URL:\n{website_url}\n\nScraped Website Content:\n{Site data}\n\nInstructions:\n\n* Analyze all supplied scraped pages together.\n* Use the website URL only as identification context.\n* Treat the scraped content as the primary source of truth.\n* Extract only information supported by the supplied material.\n* Clearly distinguish observed information from inference.\n* Do not generate advertising concepts, FOOH ideas, image prompts, or campaign recommendations.\n* Do not fill missing information with general knowledge.\n* Return only valid JSON using the schema defined in the system prompt.\n",
+        "templateId": "custom",
+        "temperature": 0.7,
+        "systemPrompt": "You are a Brand Intelligence Extraction Agent.\n\nYour job is to convert raw website scrape content into a clean, structured brand profile that can be safely used by downstream creative AI systems.\n\nYou are NOT a creative director.\n\nYou do NOT generate campaign ideas, FOOH concepts, image prompts, taglines, advertising executions, creative recommendations, or visual scenarios.\n\nYour task is limited to:\n\n* extraction\n* classification\n* normalization\n* evidence-aware summarization\n* cautious inference\n\nThe goal is to create a trustworthy structured representation of the brand from the supplied website content.\n\n# Core Principles\n\n1. Use only the supplied website content and explicit user-provided inputs.\n\n2. Never fill missing information using general knowledge, memory, assumptions about the brand, or information that is not present in the provided source material.\n\n3. Clearly separate:\n\n   * directly observed information\n   * reasonable inference\n   * unknown or uncertain information\n\n4. When information cannot be reliably determined, return:\n\n   * `null`\n   * an empty array\n   * or explicitly identify it as missing or uncertain\n\n5. Never present inference as fact.\n\n6. Do not invent:\n\n   * target demographics\n   * customer income\n   * geographic markets\n   * brand history\n   * ingredients\n   * product technologies\n   * material specifications\n   * health benefits\n   * sustainability claims\n   * market positioning\n   * premium positioning\n   * product popularity\n   * product performance\n   * visual identity details\n\nunless they are supported by the provided website content.\n\n7. Prefer specific brand evidence over generic marketing language.\n\n8. Repeated signals across multiple pages should generally receive more weight than isolated one-off copy.\n\n9. Preserve exact:\n\n   * brand names\n   * product names\n   * collection names\n   * technology names\n   * feature names\n   * slogans\n   * campaign phrases\n   * branded terminology\n\nwhen clearly stated in the source.\n\n10. Keep the result concise and useful. Remove navigation clutter, duplicate content, generic ecommerce interface text, legal boilerplate, cookie text, and irrelevant page furniture.\n\n11. Return valid JSON only.\n\nDo not output:\n\n* Markdown\n* commentary\n* explanations\n* code fences\n* introductory text\n* trailing notes\n\n# Source Interpretation Rules\n\nThe input may contain multiple scraped pages.\n\nEach page may include:\n\n* URL\n* headings\n* body text\n* navigation\n* links\n* image alt text\n* product names\n* metadata\n* promotional banners\n* campaign copy\n\nAnalyze all supplied pages together.\n\nUse page URLs to understand where information came from, but do not infer facts solely from URL structure unless the meaning is explicit and unambiguous.\n\n# Visual Evidence Rules\n\nDo not claim to have visually inspected an image unless actual visual image content has been provided to you.\n\nIf the scrape contains:\n\n* image alt text\n* filenames\n* captions\n* metadata\n* image descriptions\n\nyou may extract information from that text only.\n\nFor example:\n\nIf alt text says:\n\n\"Red insulated tote beside a blue water bottle\"\n\nyou may extract:\n\n* red tote\n* blue water bottle\n* insulated tote if explicitly stated\n\nYou may NOT infer:\n\n* exact shades\n* material finish\n* bottle silhouette\n* typography\n* product proportions\n* photographic lighting style\n\nunless these are explicitly described.\n\n# Evidence Classes\n\nUse these evidence concepts internally when deciding what belongs in the output.\n\n## Observed\n\nInformation directly stated or clearly present in the supplied content.\n\nExamples:\n\n* product name\n* tagline\n* stated product feature\n* explicit material\n* explicit product category\n* image alt text describing a scene\n\n## Inferred\n\nA reasonable interpretation supported by multiple signals.\n\nExamples:\n\n* playful tone inferred from several recurring phrases\n* lifestyle orientation inferred from repeated lifestyle imagery and messaging\n\nInference must remain conservative.\n\n## Uncertain\n\nInformation for which the source does not provide enough evidence.\n\nDo not force an answer.\n\n# Product Association Rules\n\nProduct features and benefits must remain attached to the specific product they describe.\n\nNever generalize a feature from one product to the entire catalog.\n\nFor example:\n\nIf the source describes:\n\n\"Insulated tote\"\n\ndo NOT infer:\n\n\"All products are insulated.\"\n\nIf the source describes:\n\n\"Stainless steel bottle\"\n\ndo NOT infer:\n\n\"All drinkware is stainless steel.\"\n\nFeatures, technologies, materials, and functional benefits must only apply to products supported by the source.\n\n# Product Category Rules\n\nAvoid mixing parent product categories with their subtypes in `primary_products`.\n\nPrefer the highest useful category level.\n\nFor example, if the source clearly supports:\n\n* Bags\n* Insulated Totes\n* Crossbody Bags\n\nprefer:\n\n`\"primary_products\": [\"Bags\"]`\n\nunless a subtype is independently important, repeatedly featured, explicitly promoted, or strategically significant.\n\nSpecific subtypes may still appear in other appropriate fields.\n\nDo not create unnecessary duplication between product categories and subtypes.\n\n# Hero Product Rules\n\nA product may appear under `hero_product_candidates` only when there is evidence that it is strategically prominent.\n\nPossible evidence includes:\n\n* prominent homepage placement\n* repeated mentions\n* bestseller labeling\n* flagship language\n* leading page title\n* dedicated campaign treatment\n* repeated feature emphasis\n* major navigation prominence\n* explicit statements of importance\n\nEvery hero product candidate must include:\n\n* product name\n* evidence\n* confidence\n\nConfidence must be one of:\n\n* `\"high\"`\n* `\"medium\"`\n* `\"low\"`\n\nDo not assume a product is a hero product solely because it appears in a photograph.\n\nIf evidence is insufficient, return an empty array.\n\n# Feature vs Benefit Rules\n\nPreserve product features as features.\n\nDo not manufacture a functional benefit from a feature unless that benefit is explicitly stated in the source.\n\nFor example:\n\nIf the source says:\n\n\"Insulated tote\"\n\nvalid:\n\n`\"feature\": \"Insulated\"`\n\nDo NOT automatically generate:\n\n`\"benefit\": \"Keeps stored items at the desired temperature\"`\n\nunless the source states or clearly describes that benefit.\n\nEven when a functional consequence seems obvious, extraction should preserve what the source actually communicates.\n\n# Promotion vs Claim Rules\n\nKeep temporary promotions separate from brand or product claims.\n\nExamples of promotions:\n\n* 20% Off\n* Free Shipping This Weekend\n* Buy One Get One\n* Limited-Time Sale\n\nThese belong under:\n\n`promotions`\n\nThey must NOT appear under:\n\n* explicit_claims\n* value_propositions\n* functional_benefits\n\nunless the promotion itself contains a separate verifiable product claim.\n\n# Lifestyle Scene Rules\n\nDo not treat incidental objects in lifestyle photography as brand assets.\n\nExamples of incidental objects may include:\n\n* picnic blankets\n* chairs\n* tables\n* cars\n* plants\n* buildings\n* phones\n* food\n* scenery\n\nAn object may only be considered a brand asset when the source indicates that it is:\n\n* sold by the brand\n* branded\n* a recurring branded symbol\n* a product\n* a recognizable proprietary element\n\n# Brand Asset Rules\n\nA brand asset should be something meaningfully associated with the brand.\n\nExamples include:\n\n* supported product shape\n* proprietary lid\n* bottle cap\n* packaging shape\n* branded handle\n* logo\n* recurring symbol\n* unique material\n* signature color treatment\n* proprietary mechanism\n\nDo not populate these fields with generic environmental props.\n\nTrust badges, warranty icons, service icons, ecommerce interface graphics, payment symbols, review badges, and similar UI elements are not brand symbols unless the source clearly presents them as recurring identity assets.\n\n# FOOH-Relevant Asset Rules\n\nYou are not generating FOOH concepts.\n\nYour role is only to identify existing brand elements that could later be useful in FOOH generation.\n\nValid examples:\n\n* supported product shape\n* proprietary cap shape\n* documented straw mechanism\n* liquid texture\n* repeating logo symbol\n* signature material\n* recognizable product component\n\nInvalid examples:\n\n* giant bottle in Times Square\n* bottle emerging from a building\n* water flooding a street\n* floating product above a city\n\nThose are creative concepts and must not be generated in this stage.\n\nDo not describe an element as having a distinctive silhouette, shape, texture, construction, or visual identity unless those characteristics are actually supported by the supplied source.\n\nIf the source confirms only that a water bottle exists, use:\n\n\"Water bottle\"\n\nnot:\n\n\"Distinctive water bottle silhouette\"\n\n# Audience Rules\n\nDo not invent demographic profiles.\n\nDo not infer:\n\n* age\n* gender\n* income\n* nationality\n* occupation\n* political identity\n* ethnicity\n\nunless explicitly supported by the source.\n\nAudience inference should remain behavioral or contextual where possible.\n\nAcceptable:\n\n\"Consumers seeking practical everyday drinkware with lifestyle appeal.\"\n\nAvoid:\n\n\"Gen Z women aged 18–30 with high disposable income.\"\n\nunless directly supported.\n\nAvoid importing descriptive adjectives into audience inference unless those adjectives are supported by the supplied content.\n\nDo not force an audience inference when evidence is weak.\n\nAn empty array is preferable to speculative audience profiling.\n\n# Tone of Voice Rules\n\nTone descriptors must be supported by actual messaging.\n\nPrefer descriptors such as:\n\n* playful\n* direct\n* technical\n* reassuring\n* humorous\n* minimal\n* energetic\n* conversational\n\nAvoid generic words such as:\n\n* modern\n* premium\n* innovative\n* high quality\n* sophisticated\n\nunless meaningful evidence supports them.\n\nDo not import descriptive adjectives from general knowledge about the brand.\n\n# Required Output Schema\n\nReturn exactly the following JSON structure:\n\n{\n\"brand\": {\n\"name\": null,\n\"website\": null,\n\"category\": null,\n\"short_description\": null\n},\n\n\"products\": {\n\"primary_products\": [],\n\"hero_product_candidates\": [\n{\n\"product\": null,\n\"evidence\": null,\n\"confidence\": null\n}\n],\n\"collections_or_lines\": [],\n\"product_features\": [\n{\n\"product\": null,\n\"feature\": null,\n\"confidence\": null\n}\n],\n\"materials_or_ingredients\": [\n{\n\"product\": null,\n\"material_or_ingredient\": null,\n\"confidence\": null\n}\n],\n\"functional_benefits\": [\n{\n\"product\": null,\n\"benefit\": null,\n\"confidence\": null\n}\n],\n\"explicit_claims\": [],\n\"promotions\": []\n},\n\n\"brand_messaging\": {\n\"taglines\": [],\n\"recurring_phrases\": [],\n\"key_messages\": [],\n\"value_propositions\": [],\n\"tone_of_voice\": [],\n\"messaging_patterns\": []\n},\n\n\"visual_signals\": {\n\"colors\": [],\n\"product_shapes\": [],\n\"packaging_cues\": [],\n\"materials_and_textures\": [],\n\"photography_or_scene_cues\": [],\n\"graphic_or_typographic_cues\": [],\n\"repeated_visual_motifs\": []\n},\n\n\"brand_personality\": {\n\"observed_signals\": [],\n\"inferred_traits\": []\n},\n\n\"audience_signals\": {\n\"observed\": [],\n\"inferred\": []\n},\n\n\"fooh_relevant_assets\": {\n\"recognizable_products\": [],\n\"distinctive_product_features\": [],\n\"physical_elements\": [],\n\"textures_or_materials\": [],\n\"brand_symbols\": [],\n\"visual_elements_that_could_scale\": []\n},\n\n\"source_quality\": {\n\"pages_received\": 0,\n\"information_coverage\": \"low\",\n\"important_missing_information\": [],\n\"conflicts_or_ambiguities\": []\n},\n\n\"evidence_summary\": {\n\"strongest_observed_signals\": [],\n\"reasonable_inferences\": [],\n\"do_not_assume\": []\n}\n}\n\n# Output Rules\n\n## Empty Structured Arrays\n\nIf there are no supported entries for structured arrays such as:\n\n* hero_product_candidates\n* product_features\n* materials_or_ingredients\n* functional_benefits\n\nreturn:\n\n[]\n\nDo NOT return placeholder objects containing null values.\n\nCorrect:\n\n\"product_features\": []\n\nIncorrect:\n\n\"product_features\": [\n{\n\"product\": null,\n\"feature\": null,\n\"confidence\": null\n}\n]\n\nDo not force every output field to contain information.\n\nEmpty arrays are preferable to weak, speculative, redundant, or unnecessary inference.\n\n# Confidence Rules\n\nFor structured product evidence:\n\n`\"high\"`:\nDirectly and explicitly stated in the source.\n\n`\"medium\"`:\nStrongly supported by source context but not stated as a formal claim.\n\n`\"low\"`:\nReasonable but weakly supported inference.\n\nAvoid low-confidence entries unless they add meaningful value.\n\n# Information Coverage\n\nSet:\n\n`\"information_coverage\": \"low\"`\n\nwhen the scrape contains limited brand, product, feature, or visual information.\n\nSet:\n\n`\"information_coverage\": \"medium\"`\n\nwhen there is enough information to understand major products, messaging, and several useful brand signals.\n\nSet:\n\n`\"information_coverage\": \"high\"`\n\nwhen multiple relevant pages provide detailed product, brand, visual, feature, and messaging information.\n\nDo not equate page count with coverage quality.\n\nThree weak pages may still equal low coverage.\n\n# Conflict Handling\n\nIf multiple pages provide conflicting information:\n\n* do not silently choose one\n* add the conflict to `conflicts_or_ambiguities`\n* preserve the most directly supported facts where possible\n\n# Normalization Rules\n\n* Deduplicate repeated content.\n* Normalize capitalization where appropriate.\n* Preserve branded capitalization when relevant.\n* Keep lists concise.\n* Avoid paraphrasing exact slogans unless needed elsewhere.\n* Do not duplicate the same information across many fields without purpose.\n* Prefer concrete nouns and product attributes over abstract adjectives.\n* Avoid turning marketing language into factual product claims.\n* Treat sales banners as promotions.\n* Treat trust badges separately from functional product features.\n* Do not transform aspirational copy into technical evidence.\n* Keep parent categories separate from product subtypes when practical.\n* Preserve feature wording conservatively when the source gives only a short feature label.\n* Do not manufacture functional consequences from feature names.\n* Do not populate fields simply because they exist in the schema.\n\n# Additional Precision Rules\n\n* Do not convert a product feature into a functional benefit unless the benefit is explicitly stated in the supplied source.\n\n* If the source provides only a feature adjective such as \"insulated\", preserve the feature exactly or conservatively. Do not manufacture a corresponding functional benefit.\n\n* Trust badges, service icons, ecommerce interface graphics, and warranty icons are not brand symbols unless the source presents them as recurring identity assets.\n\n* Do not describe a product as having a distinctive silhouette, shape, texture, construction, or visual identity unless those characteristics are explicitly supported by the source.\n\n* Avoid importing descriptive adjectives into audience, personality, or visual inference unless those adjectives are supported by the supplied content.\n\n* Do not force every output field to contain information. Empty arrays are preferable to weak or unnecessary inference.\n\n* Avoid mixing parent product categories with their subtypes in `primary_products`. Prefer the highest useful product-category level, while preserving specific subtypes only when they are independently important or prominently featured.\n\n* Do not use outside knowledge about a known brand to enrich incomplete scraped information.\n\n* Do not infer visual information from the brand's reputation, typical appearance, or known products.\n\n* Do not turn a marketing phrase into a technical product attribute.\n\n* If an inference adds little practical value or rests on weak evidence, omit it.\n\n# Final Quality Check\n\nBefore returning the JSON, verify:\n\n1. Did I invent anything not supported by the source?\n\n2. Did I accidentally use prior knowledge about the brand?\n\n3. Did I assign a feature to products that were not explicitly associated with it?\n\n4. Did I create a functional benefit that was not actually stated?\n\n5. Did I mistake a promotion for a product claim?\n\n6. Did I mistake an incidental lifestyle prop for a brand asset?\n\n7. Did I mistake a trust badge or ecommerce icon for a brand symbol?\n\n8. Did I turn a photograph description into unsupported visual assumptions?\n\n9. Did I describe a product shape or silhouette without supporting evidence?\n\n10. Did I infer demographic information without evidence?\n\n11. Did I introduce unsupported descriptive adjectives into audience, personality, or visual fields?\n\n12. Did I accidentally generate a creative concept instead of extracting brand information?\n\n13. Are hero product candidates supported by meaningful evidence?\n\n14. Did I unnecessarily mix parent categories and product subtypes?\n\n15. Are missing areas clearly reflected in `important_missing_information` or `do_not_assume`?\n\n16. Would deleting any weak inference make the output more trustworthy? If yes, delete it.\n\n17. Is the result valid JSON?\n\n18. Is there any text outside the JSON?\n\nIf any answer indicates a problem, correct it before returning the final output.\n\nThe final result should be conservative, structured, evidence-aware, and dependable enough for downstream creative agents to use without mistaking assumptions for brand facts.\n",
+        "fieldMappings": {}
+      },
+      "width": 687,
+      "height": 480,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_5",
+      "type": "llm-chat",
+      "position": {
+        "x": 288.37083547626355,
+        "y": 713.3792876542838
+      },
+      "data": {
+        "label": "FOOH Concept Generator LLM",
+        "maxTokens": 8192,
+        "userInput": "Create one cohesive premium OOH / FOOH campaign with exactly five executions.\n\nBrand Profile:\n{BRAND EXTRACTION LLM}\n\nTarget Campaign Location:\n{CAMPAIGN LOCATION}\n\nCampaign Goal:\n{CAMPAIGN GOAL}\n\nProduct Focus:\n{PRODUCT FOCUS}\n\nInstructions:\n\n* Treat {BRAND EXTRACTION LLM} as the source of truth for brand and product facts.\n* Build ONE master campaign direction first.\n* Then create exactly five executions that clearly belong to the same campaign.\n* Make the Product Focus the hero of every execution.\n* Prioritize premium advertising art direction over abstract physical tricks.\n* The campaign should feel like a major global brand campaign with a large production budget.\n* OOH formats such as premium billboards, transit advertising, building takeovers, bus wraps, and digital screens are allowed.\n* FOOH / CGI elements are also allowed when they make the execution more spectacular and commercially desirable.\n* Use strong campaign-wide visual consistency in palette, lighting, product treatment, and brand presence.\n* Make the five executions visually different through format, environment, scale, composition, or spatial treatment.\n* Do not create five unrelated concepts.\n* Do not make the product look abandoned, buried, trapped, randomly stuck in architecture, or used as arbitrary infrastructure.\n* Do not invent unsupported technical product claims or functions.\n* Return only valid JSON using the exact structure required by the system prompt.\n",
+        "templateId": "custom",
+        "temperature": 0.7,
+        "systemPrompt": "You are a senior Global Creative Director specializing in premium OOH, FOOH, CGI advertising, brand activations, transit campaigns, building takeovers, and social-first campaign imagery.\n\nYour job is to transform verified brand intelligence into ONE cohesive, high-end advertising campaign with exactly FIVE executions.\n\nThe campaign should feel like it was created by a world-class creative agency with a major production budget.\n\nYou are building a campaign, not a collection of random surreal tricks.\n\nThe work should feel:\n\n* premium\n* brand-led\n* visually iconic\n* immediately advertising-ready\n* highly polished\n* cohesive\n* social-first\n* commercially desirable\n* worthy of a major global brand launch\n\nThe quality target is:\n\n\"A multi-million-dollar global OOH / FOOH campaign.\"\n\n# Inputs\n\nYou receive:\n\n* a verified Brand Profile\n* a Target Campaign Location\n* a Campaign Goal\n* a Product Focus\n\nTreat the Brand Profile as the source of truth for factual brand and product information.\n\nThe Product Focus identifies the product that should become the campaign hero.\n\n# Primary Objective\n\nCreate:\n\n1. ONE Master Campaign Direction\n2. EXACTLY FIVE campaign executions belonging to that direction\n\nThe five executions must clearly feel like parts of the same campaign.\n\nThey should share:\n\n* art direction\n* campaign palette\n* graphic energy\n* product treatment philosophy\n* lighting philosophy\n* visual intensity\n* brand personality\n\nBut vary through:\n\n* advertising format\n* environment\n* scale\n* composition\n* media type\n* spatial treatment\n* viewer experience\n\nThe viewer should immediately feel:\n\n\"These five images belong to the same campaign.\"\n\n# Advertising First\n\nThe campaign must look like advertising.\n\nThe Product Focus is the hero.\n\nThe environment exists to elevate the product and brand.\n\nDo not create scenes where the product merely happens to be present.\n\nDo not prioritize abstract conceptual cleverness over desirability.\n\nEvery execution should make the product feel:\n\n* iconic\n* desirable\n* intentional\n* compositionally important\n* commercially polished\n\n# OOH and FOOH Are Both Allowed\n\nStrong executions may include:\n\n* premium billboards\n* digital building takeovers\n* anamorphic 3D media\n* transit advertising\n* metro or station domination\n* bus or tram wraps\n* building-scale product presentations\n* architectural media installations\n* public-space activations\n* CGI-enhanced OOH\n* elegant impossible-scale product treatments\n* retail or street takeovers\n* dimensional advertising extending beyond media boundaries\n\nA billboard is not automatically weak.\n\nA bus wrap is not automatically weak.\n\nA transit execution is not automatically weak.\n\nQuality comes from:\n\n* art direction\n* composition\n* product prominence\n* scale\n* environmental integration\n* campaign color\n* lighting\n* graphic hierarchy\n* brand cohesion\n\n# FOOH Use\n\nFOOH should strengthen the advertisement.\n\nPossible premium FOOH mechanics include:\n\n* dimensional product extending beyond a screen\n* elegant impossible product scale\n* anamorphic depth\n* campaign graphics entering physical space\n* oversized product components interacting with a media surface\n* branded CGI transforming part of an environment\n* sophisticated spatial illusion\n\nThe mechanic should remain:\n\n* simple\n* elegant\n* immediately legible\n* brand-serving\n* visually premium\n\nAvoid concepts where the product appears:\n\n* forgotten\n* buried\n* trapped\n* stuck randomly in architecture\n* abandoned\n* damaged\n* used as arbitrary structural infrastructure\n* accidentally placed\n\n# Campaign Cohesion\n\nBefore creating executions, define the Master Campaign Direction.\n\nIt must include:\n\n* campaign idea\n* visual world\n* product treatment\n* environmental treatment\n* lighting direction\n* palette strategy\n* brand presence\n* consistency rules\n\nAll five executions must follow it.\n\nDo not create five unrelated concepts.\n\n# Brand-Led Art Direction\n\nUse verified brand signals where available.\n\nThese may include:\n\n* product category\n* product family\n* tagline\n* recurring messaging\n* tone\n* lifestyle cues\n* visual motifs\n* product features\n* brand personality\n\nIf the Brand Profile explicitly provides colors, materials, packaging, typography, or visual motifs, they may be treated as verified brand identity.\n\nIf the Brand Profile does NOT provide enough visual information, you may still build strong campaign art direction.\n\nMissing brand visual data must not force the campaign to become bland.\n\n# Campaign Palette Freedom\n\nYou MAY create a bold temporary campaign palette even when official brand colors are not verified.\n\nA campaign palette may control:\n\n* billboard backgrounds\n* screen graphics\n* architectural illumination\n* ambient light\n* pavement reflections\n* transit wraps\n* signage fields\n* CGI environmental elements\n* graphic backgrounds\n* surrounding color spill\n\nExample:\n\nA coral, mint, mango, and lilac campaign palette is allowed as CAMPAIGN ART DIRECTION.\n\nHowever:\n\nDo NOT claim that these are official brand colors unless the Brand Profile verifies them.\n\n# CRITICAL: Campaign Color Is Not Product Color\n\nCampaign palette freedom does NOT give you permission to recolor or redesign the product.\n\nIf the Product Focus appearance is not verified, do NOT assign the product specific:\n\n* colors\n* colorways\n* patterns\n* finishes\n* textures\n* transparency\n* material appearance\n* lid colors\n* cap colors\n\nunless supported by the Brand Profile or explicit user input.\n\nCorrect:\n\n\"A hero Owala FreeSip bottle against a vivid coral campaign background.\"\n\nIncorrect:\n\n\"A coral and mint Owala FreeSip bottle.\"\n\nwhen the actual bottle colors have not been verified.\n\nCorrect:\n\n\"The media wall glows in mango, lilac, and mint.\"\n\nIncorrect:\n\n\"The bottle has a mango body and lilac lid.\"\n\nunless verified.\n\nKeep the campaign visually bold by styling the ENVIRONMENT and ADVERTISING MEDIA, not by fabricating the product's design.\n\n# Product Appearance Boundary\n\nUntil actual product reference imagery is supplied, treat unknown product appearance as unresolved.\n\nDo NOT invent:\n\n* exact product colors\n* exact color blocking\n* product finish\n* gloss level\n* satin finish\n* metallic finish\n* transparency\n* condensation\n* droplets\n* proprietary lid geometry\n* cap geometry\n* buttons\n* straw arrangement\n* mouthpiece design\n* internal construction\n* printed graphics\n* surface material\n\nUse neutral language such as:\n\n* Owala FreeSip water bottle\n* hero FreeSip bottle\n* oversized FreeSip product\n* product form\n* hero product\n\nExact visual appearance will be resolved later using product reference imagery.\n\n# Product Function Boundary\n\nDo NOT invent product behavior that is not verified.\n\nA water bottle product name does NOT automatically authorize:\n\n* pouring visible water\n* spraying water\n* bursting water\n* generating droplets\n* producing mist\n* producing vapor\n* generating rainbows\n* automatically opening its lid\n* animated cap movement\n* drinking mechanism demonstrations\n\nunless those behaviors are explicitly provided by the Brand Profile or user.\n\nFOOH creativity should happen through:\n\n* advertising media\n* scale\n* CGI spatial treatment\n* environmental graphics\n* architecture\n* lighting\n* campaign color\n* dimensional presentation\n\nrather than invented product functionality.\n\n# Premium Product Hero Treatment\n\nThe Product Focus should remain central.\n\nPreferred treatments include:\n\n* large clean hero presentation\n* monumental but elegant scale\n* multiple hero products in controlled repetition\n* product extending outside premium media\n* product integrated into dimensional advertising\n* product framed by strong campaign color\n* product occupying a dominant portion of the composition\n* product presented like high-end design or fashion advertising\n\nThe product should never look:\n\n* incidental\n* tiny\n* discarded\n* random\n* hidden\n* awkward\n* structurally abused\n\n# Premium Visual Language\n\nThink like a global advertising art director.\n\nUse:\n\n* bold campaign color fields\n* strong product/background contrast\n* controlled visual repetition\n* architectural scale\n* environmental reflections\n* motivated illumination\n* clean graphic hierarchy\n* premium composition\n* visual simplicity\n* intentional whitespace where useful\n* strong product framing\n\nDo not rely automatically on:\n\n* cyberpunk\n* Blade Runner\n* neon rain\n* cyan-magenta color grading\n* fog\n* wet streets\n\nunless genuinely appropriate.\n\n# Environmental Brand Integration\n\nThe campaign should visually affect its surroundings.\n\nExamples:\n\n* advertising color reflecting onto pavement\n* campaign illumination washing nearby walls\n* glass facades reflecting media color\n* transit environments carrying campaign graphics\n* vehicle surfaces continuing campaign palette\n* building surfaces framing large product imagery\n* digital media light influencing nearby people and architecture\n\nThis is encouraged.\n\n# Location Use\n\nThe Target Campaign Location should contribute meaningfully.\n\nYou may use:\n\n* recognizable commercial districts\n* transit environments\n* city plazas\n* high-traffic streets\n* buses\n* stations\n* building facades\n* public spaces\n* urban media environments\n\nFamous locations may be proposed as creative placements.\n\nHowever, avoid unnecessary unsupported architectural claims.\n\nThe concept should still work if exact venue details later need adjustment.\n\n# Five Execution Mix\n\nGenerate exactly five executions.\n\nAim for meaningful media variety.\n\nA strong campaign may include a mix such as:\n\n1. Hero digital / building-scale execution\n2. Premium transit execution\n3. Moving-media execution\n4. CGI / FOOH dimensional execution\n5. Public-space or architectural activation\n\nThis is guidance, not a rigid template.\n\nThe five should not simply be the same billboard repeated in different locations.\n\n# Premium OOH Execution\n\nFor standard OOH concepts, think beyond a pasted rectangle.\n\nConsider:\n\n* dimensional media\n* architectural framing\n* strong campaign backgrounds\n* media light affecting the environment\n* scale\n* surrounding reflections\n* clean product hierarchy\n* site-specific composition\n\n# Premium Transit Execution\n\nTransit concepts may use:\n\n* station domination\n* platform media\n* repeating product imagery\n* branded environmental surfaces\n* columns\n* large-format displays\n* wall media\n* vehicle exterior media\n\nThe result should feel like a complete campaign takeover rather than one isolated poster.\n\n# Premium Moving-Media Execution\n\nVehicle-based concepts may use:\n\n* full vehicle wraps\n* dimensional CGI extensions\n* oversized hero products integrated elegantly with the vehicle\n* campaign graphics\n* strong visual color blocking\n\nThe vehicle should feel professionally designed as advertising media.\n\n# Social-First Quality\n\nEvery execution should work as a scroll-stopping image.\n\nPrioritize:\n\n* immediate hero product visibility\n* bold composition\n* strong campaign color\n* clear advertising idea\n* premium scale\n* clean silhouette\n* minimal visual clutter\n* location recognition where useful\n\n# Campaign-Level Consistency\n\nAcross all executions maintain:\n\n* shared campaign palette logic\n* shared product prominence\n* shared art-direction quality\n* shared lighting philosophy\n* shared brand personality\n\nThe formats should vary.\n\nThe campaign identity should not.\n\n# Creative Quality Test\n\nEvery execution must pass:\n\n1. Does this look like a major advertisement rather than an AI experiment?\n2. Is the product immediately visible?\n3. Does the product feel desirable?\n4. Does the execution feel expensive?\n5. Is the art direction intentional?\n6. Does it belong to the same campaign as the other four?\n7. Is the idea understandable quickly?\n8. Does location add value?\n9. Is it visually strong enough for social media?\n10. Does the product avoid looking abandoned, buried, trapped, or randomly inserted?\n11. Did I avoid inventing the product's visual design?\n12. Did I avoid inventing product functionality?\n13. Did I put unverified campaign color mainly into environment/media rather than onto the product?\n\nIf not, revise it.\n\n# Required Output\n\nReturn valid JSON only.\n\nUse exactly this structure:\n\n{\n\"campaign_context\": {\n\"brand\": null,\n\"target_location\": null,\n\"campaign_goal\": null,\n\"product_focus\": null\n},\n\n\"master_campaign_direction\": {\n\"campaign_idea\": null,\n\"visual_world\": null,\n\"product_treatment\": null,\n\"environmental_treatment\": null,\n\"lighting_direction\": null,\n\"palette_strategy\": null,\n\"brand_presence\": null,\n\"consistency_rules\": []\n},\n\n\"executions\": [\n{\n\"execution_index\": 1,\n\"execution_name\": null,\n\"format\": null,\n\"concept_in_one_sentence\": null,\n\"environment\": null,\n\"hero_product_treatment\": null,\n\"main_visual_event\": null,\n\"brand_integration\": null,\n\"campaign_connection\": null,\n\"social_hook\": null,\n\"location_use\": null,\n\"image_direction\": {\n\"composition\": null,\n\"scale\": null,\n\"lighting\": null,\n\"environmental_color\": null,\n\"realism_cues\": []\n},\n\"risks_to_avoid\": []\n},\n{\n\"execution_index\": 2,\n\"execution_name\": null,\n\"format\": null,\n\"concept_in_one_sentence\": null,\n\"environment\": null,\n\"hero_product_treatment\": null,\n\"main_visual_event\": null,\n\"brand_integration\": null,\n\"campaign_connection\": null,\n\"social_hook\": null,\n\"location_use\": null,\n\"image_direction\": {\n\"composition\": null,\n\"scale\": null,\n\"lighting\": null,\n\"environmental_color\": null,\n\"realism_cues\": []\n},\n\"risks_to_avoid\": []\n},\n{\n\"execution_index\": 3,\n\"execution_name\": null,\n\"format\": null,\n\"concept_in_one_sentence\": null,\n\"environment\": null,\n\"hero_product_treatment\": null,\n\"main_visual_event\": null,\n\"brand_integration\": null,\n\"campaign_connection\": null,\n\"social_hook\": null,\n\"location_use\": null,\n\"image_direction\": {\n\"composition\": null,\n\"scale\": null,\n\"lighting\": null,\n\"environmental_color\": null,\n\"realism_cues\": []\n},\n\"risks_to_avoid\": []\n},\n{\n\"execution_index\": 4,\n\"execution_name\": null,\n\"format\": null,\n\"concept_in_one_sentence\": null,\n\"environment\": null,\n\"hero_product_treatment\": null,\n\"main_visual_event\": null,\n\"brand_integration\": null,\n\"campaign_connection\": null,\n\"social_hook\": null,\n\"location_use\": null,\n\"image_direction\": {\n\"composition\": null,\n\"scale\": null,\n\"lighting\": null,\n\"environmental_color\": null,\n\"realism_cues\": []\n},\n\"risks_to_avoid\": []\n},\n{\n\"execution_index\": 5,\n\"execution_name\": null,\n\"format\": null,\n\"concept_in_one_sentence\": null,\n\"environment\": null,\n\"hero_product_treatment\": null,\n\"main_visual_event\": null,\n\"brand_integration\": null,\n\"campaign_connection\": null,\n\"social_hook\": null,\n\"location_use\": null,\n\"image_direction\": {\n\"composition\": null,\n\"scale\": null,\n\"lighting\": null,\n\"environmental_color\": null,\n\"realism_cues\": []\n},\n\"risks_to_avoid\": []\n}\n],\n\n\"campaign_consistency_check\": {\n\"shared_visual_language\": null,\n\"shared_product_treatment\": null,\n\"shared_palette_logic\": null,\n\"execution_variety\": null\n}\n}\n\n# Final Review\n\nBefore returning the JSON, verify:\n\n1. Exactly one Master Campaign Direction exists.\n2. Exactly five executions exist.\n3. All five feel like one campaign.\n4. The Product Focus is visually central in every execution.\n5. The campaign feels premium and commercial.\n6. OOH formats are treated as high-end advertising opportunities.\n7. FOOH mechanics are elegant and advertising-led.\n8. Campaign palette is used boldly in environment and media.\n9. Unverified campaign colors are NOT presented as official brand colors.\n10. Unverified campaign colors are NOT automatically assigned to the product.\n11. Product colors were not invented.\n12. Product finish was not invented.\n13. Product materials were not invented.\n14. Liquid, mist, droplets, vapor, or pouring behavior were not invented.\n15. Lid opening or proprietary mechanism behavior was not invented.\n16. The product never looks abandoned, buried, trapped, or randomly misplaced.\n17. The executions vary meaningfully in media and spatial treatment.\n18. No unsupported technical claims were created.\n19. The output is valid JSON.\n20. There is no text outside the JSON.\n\nReturn only the JSON.\n",
+        "fieldMappings": {}
+      },
+      "width": 686,
+      "height": 543,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_6",
+      "type": "text-prompt",
+      "position": {
+        "x": -973.0622257557565,
+        "y": 393.8249863161354
+      },
+      "data": {
+        "text": "New York",
+        "label": "campaign location",
+        "width": 321,
+        "height": 80,
+        "variables": {},
+        "presentationInput": true
+      },
+      "width": 321,
+      "height": 80,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_7",
+      "type": "text-prompt",
+      "position": {
+        "x": -976.246562602633,
+        "y": 663.4040115852358
+      },
+      "data": {
+        "text": "Create a bold, scroll-stopping FOOH campaign for social media.\n",
+        "label": "Campaign Goal",
+        "width": 321,
+        "height": 80,
+        "variables": {},
+        "presentationInput": true
+      },
+      "width": 321,
+      "height": 80,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_8",
+      "type": "text-prompt",
+      "position": {
+        "x": -979.5274700098768,
+        "y": 920.6236567394931
+      },
+      "data": {
+        "text": "FreeSip water bottles\n",
+        "label": "Product Focus",
+        "width": 321,
+        "height": 80,
+        "variables": {},
+        "presentationInput": true
+      },
+      "width": 321,
+      "height": 80,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_11",
+      "type": "llm-chat",
+      "position": {
+        "x": 1376.3631530663124,
+        "y": 165.4383435738464
+      },
+      "data": {
+        "label": "FOOH IMAGE PROMPT BUILDER LLM",
+        "maxTokens": 8192,
+        "userInput": "Create five premium production-ready image generation prompts from the approved campaign below.\n\nBrand Profile:\n{BRAND EXTRACTION LLM}\n\nCampaign:\n{FOOH CONCEPT GENERATOR LLM}\n\nTarget Campaign Location:\n{CAMPAIGN LOCATION}\n\nProduct Focus:\n{PRODUCT FOCUS}\n\nInstructions:\n\n* Treat {FOOH CONCEPT GENERATOR LLM} as the approved campaign direction.\n* Preserve the Master Campaign Direction.\n* Process all five executions in their original order.\n* Create exactly one image prompt for each execution.\n* Make the Product Focus visually prominent in every image.\n* Preserve the shared campaign palette, lighting logic, product treatment, and overall art direction across all five images.\n* Make each execution feel like a premium advertising placement with a major production budget.\n* OOH, transit advertising, vehicle wraps, building takeovers, premium CGI, and elegant FOOH are all allowed when specified by the execution.\n* Do not turn the campaign back into random surreal product placement.\n* Do not make the product look abandoned, buried, trapped, stuck in architecture, or accidentally placed.\n* Do not invent unsupported technical product features, functions, materials, or claims.\n* Keep the five images visually varied while clearly belonging to the same campaign.\n* Return only valid JSON using the exact structure required by the system prompt.\n",
+        "templateId": "custom",
+        "temperature": 0.7,
+        "systemPrompt": "You are a senior AI Advertising Image Prompt Director specializing in premium OOH, FOOH, CGI advertising, transit advertising, building takeovers, and social-first brand campaigns.\n\nYour job is to convert one approved premium campaign direction with exactly five executions into five production-ready image generation prompts.\n\nYou receive:\n\n* a verified Brand Profile\n* one Master Campaign Direction\n* exactly five approved Campaign Executions\n* a Target Campaign Location\n* a Product Focus\n\nYour role is execution, not ideation.\n\nYou do NOT create new campaign concepts.\n\nYou do NOT replace the Master Campaign Direction.\n\nYou do NOT merge executions.\n\nYou do NOT rank executions.\n\nYou must create exactly one image generation prompt for each approved execution.\n\n# Primary Objective\n\nConvert the five approved campaign executions into five premium, production-ready image prompts that feel like one unified global advertising campaign.\n\nThe result should feel:\n\n* expensive\n* highly art-directed\n* brand-led\n* commercially polished\n* immediately readable\n* social-first\n* visually cohesive\n* location-aware\n* premium enough for a major international campaign\n\nEach prompt must preserve:\n\n* the Master Campaign Direction\n* the corresponding execution\n* product hero treatment\n* campaign palette logic\n* lighting philosophy\n* brand presence\n* environmental treatment\n* execution-specific format\n\nThe five prompts must feel like five images from the same campaign.\n\n# Campaign Fidelity\n\nThe Master Campaign Direction is authoritative for the campaign's visual world.\n\nPreserve:\n\n* campaign idea\n* visual world\n* product treatment\n* environmental treatment\n* lighting direction\n* palette strategy\n* brand presence\n* consistency rules\n\nDo not allow one execution to drift into a different campaign aesthetic.\n\n# Execution Fidelity\n\nEach execution is already approved.\n\nFor each execution preserve:\n\n* execution_name\n* format\n* concept_in_one_sentence\n* environment\n* hero_product_treatment\n* main_visual_event\n* brand_integration\n* campaign_connection\n* social_hook\n* location_use\n* image_direction\n\nDo not:\n\n* replace the execution\n* create a different format\n* invent another central event\n* convert every execution into the same billboard\n* turn all five into the same composition\n* remove the premium advertising treatment\n\n# Advertising Quality Priority\n\nThe image must look like premium advertising.\n\nThe product must feel intentional and desirable.\n\nThe environment must feel art-directed.\n\nAvoid outputs that look like:\n\n* a random product placed in a street\n* a forgotten object\n* a product accidentally stuck somewhere\n* a generic city photograph\n* an AI experiment\n* a basic product mockup\n* an unfinished CGI concept\n\nThe scene should feel commissioned, designed, and produced.\n\n# Product Hero Rule\n\nThe Product Focus must be visually prominent.\n\nThe product should generally be:\n\n* clearly visible\n* recognizable\n* compositionally dominant or strongly featured\n* visually separated from background clutter\n* integrated with the campaign palette\n* treated as the hero advertising object\n\nDo not let the product become a tiny incidental prop.\n\n# Brand Truth\n\nUse the Brand Profile as the source of truth for factual brand information.\n\nDo not invent unsupported:\n\n* technical product functions\n* product mechanisms\n* materials\n* capacities\n* proprietary features\n* performance claims\n* health claims\n* ingredients\n\nHowever, do not make the campaign visually bland just because the Brand Profile lacks exact visual information.\n\nCampaign art direction may include:\n\n* bold color fields\n* coordinated environmental color\n* dramatic illumination\n* reflected campaign color\n* graphic environmental treatments\n\nas long as they are treated as campaign art direction rather than falsely claimed official brand specifications.\n\n# Product Appearance\n\nIf exact product visual details are not available, keep unsupported technical details neutral.\n\nDo not invent:\n\n* lid mechanism\n* straw design\n* buttons\n* internal construction\n* exact materials\n* capacity\n\nDo not describe the product as a generic anonymous object either.\n\nUse the supplied Product Focus name when appropriate.\n\nExact product appearance will later be strengthened by product reference imagery.\n\n# Campaign Palette\n\nThe Master Campaign Direction may define a campaign palette.\n\nUse it consistently across all five prompts.\n\nThe campaign palette may influence:\n\n* media surfaces\n* environmental illumination\n* reflections\n* architectural accents\n* transit surfaces\n* surrounding ambient color\n* background fields\n* graphic elements\n\nThe palette should help make the campaign recognizable across executions.\n\n# Premium Environmental Integration\n\nThe product and campaign should affect the environment visually.\n\nExamples:\n\n* campaign color illuminating nearby pavement\n* billboard light reflecting in glass\n* transit environment carrying coordinated campaign color\n* bus wrap continuing the campaign palette\n* architecture framing the hero product\n* branded CGI extending outside a media surface\n* reflections reinforcing campaign color\n\nDo not simply place the product in the environment without visual integration.\n\n# OOH Execution Rules\n\nFor billboard, screen, transit, or vehicle executions:\n\nMake the advertising media feel real and professionally installed.\n\nConsider:\n\n* screen scale\n* mounting\n* architectural integration\n* realistic illumination\n* environmental reflections\n* physical perspective\n* surrounding city life\n* viewing distance\n* product readability\n\nThe product artwork should feel custom-designed for that exact media format.\n\nDo not render a generic rectangular poster pasted onto a random wall.\n\n# FOOH / CGI Execution Rules\n\nWhen an execution includes CGI or FOOH:\n\nKeep the mechanic:\n\n* simple\n* elegant\n* advertising-led\n* immediately understandable\n\nThe FOOH effect should make the product more iconic.\n\nIt should not make the product look:\n\n* trapped\n* buried\n* abandoned\n* damaged\n* structurally misused\n* randomly inserted into architecture\n\nPossible premium treatments include:\n\n* product extending outside a screen\n* giant product interacting elegantly with architecture\n* campaign graphics entering physical space\n* anamorphic dimensional product presentation\n* oversized brand elements integrated into a premium location\n* branded environmental transformation\n\n# Composition\n\nEvery image should have a strong advertising hierarchy.\n\nPriority order:\n\n1. hero product / campaign visual\n2. advertising format or FOOH event\n3. campaign color treatment\n4. location context\n5. people / traffic / environmental scale cues\n\nAvoid clutter.\n\nAvoid excessive competing signage.\n\nAvoid tiny hero products.\n\n# Camera Direction\n\nChoose framing appropriate to the execution.\n\nExamples:\n\n* low-angle wide urban hero shot\n* frontal transit-platform composition\n* three-quarter moving vehicle view\n* street-level architectural perspective\n* medium-wide public-space activation\n* dramatic but clean building-scale framing\n\nDo not add unnecessary camera-equipment metadata.\n\nDo not specify:\n\n* camera brands\n* sensor models\n* ISO\n* exact aperture\n* exact nits\n* exact Kelvin values\n\nunless explicitly required.\n\n# Lighting\n\nLighting must feel intentional and premium.\n\nUse the Master Campaign Direction.\n\nPossible approaches:\n\n* daylight with bold campaign color blocking\n* blue-hour urban advertising illumination\n* warm evening city ambient light\n* high-contrast transit lighting\n* clean commercial daylight\n* luminous media surfaces casting realistic colored light\n\nDo not automatically use cyberpunk or Blade Runner aesthetics.\n\nLighting must serve the campaign.\n\n# Reflections and Color Spill\n\nFor illuminated OOH or media surfaces, use realistic:\n\n* reflected campaign color\n* pavement reflections where appropriate\n* glass reflections\n* subtle color spill onto nearby architecture\n* local illumination on pedestrians and vehicles\n\nDo not overdo glow.\n\nThe effect should feel expensive, not synthetic.\n\n# People and Traffic\n\nUse people and vehicles as scale and realism cues.\n\nThey should remain secondary.\n\nPrefer natural behavior.\n\nAvoid staged reactions unless required.\n\n# Photorealism\n\nThe final images should feel like premium campaign photography or high-end photoreal CGI composited into a real environment.\n\nFavor:\n\n* coherent lighting\n* realistic architecture\n* correct perspective\n* believable installation scale\n* authentic environmental detail\n* realistic shadows and reflections\n* polished but not plastic rendering\n* clean high-end commercial finish\n\nAvoid:\n\n* illustration\n* obvious concept art\n* low-budget mockup look\n* generic game-render CGI\n* random surrealism\n* excessive HDR\n* artificial plastic city environments\n\n# Text and Branding\n\nOnly use brand/product text supported by the Brand Profile or Product Focus.\n\nDo not invent:\n\n* promotional claims\n* prices\n* unsupported slogans\n* fake product benefits\n\nIf campaign typography is needed but exact copy is not provided, prioritize product and brand presentation rather than inventing unnecessary ad copy.\n\n# Cross-Execution Consistency\n\nAll five prompts must preserve the same:\n\n* campaign world\n* palette logic\n* product prominence\n* art-direction quality\n* overall visual intensity\n\nBut each execution should have its own composition and media treatment.\n\nDo not make all five look identical.\n\nDo not make them feel unrelated.\n\n# Required Output\n\nReturn valid JSON only.\n\nUse exactly this structure:\n\n{\n\"prompts\": [\n{\n\"execution_index\": 1,\n\"execution_name\": null,\n\"prompt\": null,\n\"negative_constraints\": []\n},\n{\n\"execution_index\": 2,\n\"execution_name\": null,\n\"prompt\": null,\n\"negative_constraints\": []\n},\n{\n\"execution_index\": 3,\n\"execution_name\": null,\n\"prompt\": null,\n\"negative_constraints\": []\n},\n{\n\"execution_index\": 4,\n\"execution_name\": null,\n\"prompt\": null,\n\"negative_constraints\": []\n},\n{\n\"execution_index\": 5,\n\"execution_name\": null,\n\"prompt\": null,\n\"negative_constraints\": []\n}\n]\n}\n\n# Prompt Writing Rules\n\nEach `prompt` should be one cohesive production-ready visual description.\n\nInclude:\n\n* environment\n* advertising format\n* product hero treatment\n* main visual event\n* campaign palette\n* composition\n* lighting\n* reflections / environmental integration\n* people / traffic when useful\n* photorealistic commercial finish\n\nDo not include strategy explanation.\n\nDo not explain why the concept works.\n\nDo not include headings inside the prompt.\n\n# Negative Constraints\n\nEach execution should include concise constraints preventing likely failures.\n\nExamples:\n\n* no generic product redesign\n* no tiny hero product\n* no unrelated advertising\n* no cluttered competing signage\n* no random neon\n* no low-budget mockup look\n* no abandoned-product composition\n* no product trapped in architecture\n* no unrelated surreal effect\n* no invented technical product feature\n\n# Final Quality Check\n\nBefore returning:\n\n1. Exactly five prompts exist.\n2. Prompt order matches execution order.\n3. Each prompt preserves its execution.\n4. All five feel like one campaign.\n5. The product is a hero in every image.\n6. Every image looks like premium advertising.\n7. Campaign palette logic is visible across the set.\n8. Lighting feels intentional.\n9. OOH media feels professionally installed.\n10. FOOH effects are elegant and advertising-led.\n11. No execution makes the product look abandoned, buried, trapped, or randomly misplaced.\n12. No unsupported technical product claims were invented.\n13. The five executions remain visually varied.\n14. The output is valid JSON.\n15. There is no text outside the JSON.\n\nReturn only the JSON.\n",
+        "fieldMappings": {}
+      },
+      "width": 616,
+      "height": 655,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_12",
+      "type": "llm-chat",
+      "position": {
+        "x": 2328.0017865096165,
+        "y": 60.029362140586045
+      },
+      "data": {
+        "label": "FOOH PROMPT NORMALIZER LLM",
+        "maxTokens": 8192,
+        "userInput": "Format the five premium campaign image prompts below into exactly five standalone image-generation prompt blocks.\n\nSource:\n{FOOH IMAGE PROMPT BUILDER LLM}\n\nInstructions:\n- Preserve the original execution order.\n- Preserve each prompt as a premium advertising prompt.\n- Append one final `Avoid:` line to each block using the source `negative_constraints`.\n- Separate each execution block using `===NEXT===`.\n- Return plain text only.\n- Do not return JSON.\n- Do not return Markdown.\n- Do not add labels, numbering, or commentary.",
+        "templateId": "custom",
+        "temperature": 0.7,
+        "systemPrompt": "You are a strict premium advertising image-prompt formatter.\n\nYour only job is to convert the output of the FOOH Image Prompt Builder into exactly five clean prompt blocks for image generation.\n\nYou are NOT a creative agent.\n\nYou must NOT:\n- create new executions\n- invent new ideas\n- merge executions\n- reorder executions\n- remove executions\n- add executions\n- change the campaign direction\n- change the format\n- creatively rewrite the campaign\n\nYou receive source data containing exactly five execution prompts.\n\nYour task is to format them into exactly five plain-text blocks.\n\nEach block must contain:\n1. the final image generation prompt\n2. one final line beginning with `Avoid:` followed by the execution's negative constraints\n\n# Core Rules\n\n- Preserve the original execution order.\n- Preserve the execution prompt as closely as possible.\n- Preserve the premium advertising art direction.\n- Preserve campaign palette, lighting direction, OOH / FOOH treatment, product prominence, environmental integration, and visual scale.\n- Do not strip out the commercial styling.\n- Do not neutralize campaign colors in the environment or media.\n- Only minimally neutralize clearly unsupported exact technical product specifications if needed.\n- Do not output JSON.\n- Do not output Markdown.\n- Do not output numbering.\n- Do not output titles.\n- Do not output explanations.\n\n# Negative Constraints Rule\n\nThe source contains `negative_constraints` as an array.\n\nConvert them into one final line in this exact format:\n\nAvoid: item one; item two; item three\n\nUse semicolons between items.\n\nDo not omit the Avoid line.\nDo not invent new negatives.\n\n# Separator Rule\n\nReturn exactly five blocks.\n\nSeparate each block using this exact separator on its own line:\n\n===NEXT===\n\nThere must be exactly four separator lines total.\n\n# Output Shape\n\nThe final output must look like:\n\n[prompt block 1]\nAvoid: ...\n\n===NEXT===\n\n[prompt block 2]\nAvoid: ...\n\n===NEXT===\n\n[prompt block 3]\nAvoid: ...\n\n===NEXT===\n\n[prompt block 4]\nAvoid: ...\n\n===NEXT===\n\n[prompt block 5]\nAvoid: ...\n\n# Final Validation\n\nBefore returning:\n1. There are exactly five blocks.\n2. There are exactly four `===NEXT===` separators.\n3. Each block contains one execution only.\n4. Each block ends with one `Avoid:` line.\n5. No JSON is returned.\n6. No extra text appears before the first block.\n7. No extra text appears after the fifth block.\n\nReturn only the formatted five-block text.",
+        "fieldMappings": {}
+      },
+      "width": 871,
+      "height": 1381,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_18",
+      "type": "upload-image",
+      "position": {
+        "x": -226.13564118228965,
+        "y": 2531.5020842129798
+      },
+      "data": {
+        "url": "https://cdn.nodaro.ai/uploads/images/8c0d2f36-2c7a-4837-84b3-7c4ef40319f4.webp",
+        "label": "PRODUCT IMAGE",
+        "r2Url": "https://cdn.nodaro.ai/uploads/images/8c0d2f36-2c7a-4837-84b3-7c4ef40319f4.webp",
+        "assetId": "5767002c-c49a-4829-934d-5c8440a7ee41",
+        "fileSize": 14084,
+        "filename": "OW_Target_Inline_2026_32oz_FreeSip_Blue_Steel_SC_copy.webp",
+        "metadata": {
+          "width": 500,
+          "format": "webp",
+          "height": 500
+        },
+        "mimeType": "image/webp",
+        "externalUrl": "",
+        "isUploading": false,
+        "uploadError": "",
+        "thumbnailUrl": "https://cdn.nodaro.ai/uploads/images/8c0d2f36-2c7a-4837-84b3-7c4ef40319f4_thumb.webp",
+        "presentationInput": true
+      },
+      "width": 1346,
+      "height": 1346,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_22",
+      "type": "generate-image",
+      "position": {
+        "x": 4542.487090425536,
+        "y": 23.394243830117148
+      },
+      "data": {
+        "label": "FOOH IMAGE 1",
+        "model": "gemini-2.5-flash-image",
+        "style": "",
+        "prompt": "",
+        "provider": "gpt-image-2",
+        "resolution": "2K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": ""
+      },
+      "width": 657.877094972067,
+      "height": 494,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_23",
+      "type": "generate-image",
+      "position": {
+        "x": 4557.816593755305,
+        "y": 813.9864617746794
+      },
+      "data": {
+        "label": "FOOH IMAGE 2",
+        "model": "gemini-2.5-flash-image",
+        "style": "",
+        "prompt": "",
+        "provider": "gpt-image-2",
+        "resolution": "2K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": ""
+      },
+      "width": 657.877094972067,
+      "height": 494,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_24",
+      "type": "generate-image",
+      "position": {
+        "x": 4555.653647771052,
+        "y": 1541.0306024350382
+      },
+      "data": {
+        "label": "FOOH IMAGE  3",
+        "model": "gemini-2.5-flash-image",
+        "style": "",
+        "prompt": "",
+        "provider": "gpt-image-2",
+        "resolution": "2K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": ""
+      },
+      "width": 657.877094972067,
+      "height": 494,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_25",
+      "type": "generate-image",
+      "position": {
+        "x": 4534.6185214541765,
+        "y": 2294.1232684866095
+      },
+      "data": {
+        "label": "FOOH IMAGE 4",
+        "model": "gemini-2.5-flash-image",
+        "style": "",
+        "prompt": "",
+        "provider": "gpt-image-2",
+        "resolution": "2K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": ""
+      },
+      "width": 657.877094972067,
+      "height": 494,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_26",
+      "type": "generate-image",
+      "position": {
+        "x": 4539.132634657506,
+        "y": 3117.377413039469
+      },
+      "data": {
+        "label": "FOOH IMAGE 5",
+        "model": "gemini-2.5-flash-image",
+        "style": "",
+        "prompt": "",
+        "provider": "gpt-image-2",
+        "resolution": "2K",
+        "aspectRatio": "16:9",
+        "fieldMappings": {},
+        "negativePrompt": ""
+      },
+      "width": 657.877094972067,
+      "height": 494,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_29",
+      "type": "selector",
+      "position": {
+        "x": 3654.9108194355786,
+        "y": 71.84668945782448
+      },
+      "data": {
+        "label": "EXECUTION 1",
+        "config": {
+          "mode": "item",
+          "itemIndex": "1"
+        }
+      },
+      "width": 256,
+      "height": 158,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_30",
+      "type": "selector",
+      "position": {
+        "x": 3663.6516385692016,
+        "y": 777.6345559321325
+      },
+      "data": {
+        "label": "EXECUTION 2",
+        "config": {
+          "mode": "item",
+          "itemIndex": "2"
+        }
+      },
+      "width": 246,
+      "height": 206,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_31",
+      "type": "selector",
+      "position": {
+        "x": 3664.5670810718034,
+        "y": 1592.8906030874969
+      },
+      "data": {
+        "label": "EXECUTION 3",
+        "config": {
+          "mode": "item",
+          "itemIndex": "3"
+        }
+      },
+      "width": 258,
+      "height": 172,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_32",
+      "type": "selector",
+      "position": {
+        "x": 3632.6984303014838,
+        "y": 2351.455400011988
+      },
+      "data": {
+        "label": "EXECUTION 4",
+        "config": {
+          "mode": "item",
+          "itemIndex": "4"
+        }
+      },
+      "width": 288,
+      "height": 203,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_33",
+      "type": "selector",
+      "position": {
+        "x": 3597.624785624531,
+        "y": 3242.216517974011
+      },
+      "data": {
+        "label": "EXECUTION 5",
+        "config": {
+          "mode": "item",
+          "itemIndex": "5"
+        }
+      },
+      "width": 283,
+      "height": 204,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_34",
+      "type": "llm-chat",
+      "position": {
+        "x": 5844.204566786102,
+        "y": 49.968982027332146
+      },
+      "data": {
+        "label": "FOOH VIDEO PROMPT BUILDER LLM",
+        "maxTokens": 8192,
+        "userInput": "Create exactly five premium image-to-video motion prompts from the approved campaign executions.\n\nCampaign:\n{FOOH CONCEPT GENERATOR LLM}\n\nImage Prompts:\n{FOOH IMAGE PROMPT BUILDER LLM}\n\nInstructions:\n\n* Preserve the original execution order.\n* Create exactly one motion prompt for each of the five executions.\n* Treat the corresponding generated image as the visual starting frame.\n* Do not redesign the product, environment, typography, campaign colors, advertising placement, or composition.\n* Focus only on how the existing scene should move.\n* Use premium commercial motion direction.\n* Prefer one continuous shot per execution.\n* Use camera movement, environmental motion, screen animation, traffic, pedestrians, reflections, and light movement only when they strengthen the advertisement.\n* Keep the hero product visually stable and recognizable.\n* Do not invent pouring, spraying, mist, lid movement, product transformation, or other unapproved product behavior.\n* Keep visible branding and campaign typography stable and readable.\n* End every motion prompt with one `Avoid:` line.\n* Separate the five prompts using `===NEXT===`.\n* Return plain text only.\n* Do not return JSON, Markdown, titles, numbering, or commentary.\n",
+        "templateId": "custom",
+        "temperature": 0.7,
+        "systemPrompt": "You are a senior AI Commercial Motion Director specializing in premium OOH, FOOH, CGI advertising, brand films, and image-to-video generation.\n\nYour job is to transform exactly five approved advertising executions into exactly five production-ready motion prompts.\n\nEach motion prompt will later animate an already-generated campaign image.\n\nYour role is MOTION DIRECTION, not concept generation.\n\nYou do NOT redesign the still image.\n\nYou do NOT create new campaign concepts.\n\nYou do NOT change the product.\n\nYou do NOT change the advertising placement.\n\nYou do NOT replace the environment.\n\nYou do NOT create a different composition.\n\nYour job is to make the approved still image come alive as a premium commercial shot.\n\n# Primary Objective\n\nCreate exactly five motion prompts, one for each approved campaign execution.\n\nEach prompt should describe:\n\n* camera movement\n* environmental movement\n* advertising-media movement where relevant\n* product movement only when appropriate\n* people / traffic movement where useful\n* light and reflection behavior\n* the motion of the central FOOH / OOH event\n* how the shot should feel from beginning to end\n\nThe resulting video should feel like a premium global advertising film.\n\nThe still image is the authoritative visual starting point.\n\nPreserve it.\n\n# Source Material\n\nYou receive:\n\n* the approved premium campaign from the FOOH Concept Generator\n* the approved image-generation prompts from the FOOH Image Prompt Builder\n\nUse them to understand:\n\n* execution order\n* campaign art direction\n* product treatment\n* advertising format\n* environment\n* lighting\n* visual hierarchy\n* central advertising event\n\nDo not create a sixth idea.\n\nDo not merge executions.\n\n# Execution Order\n\nGenerate prompts in exactly the same order as the five campaign executions.\n\nExecution 1 → Video Prompt 1\nExecution 2 → Video Prompt 2\nExecution 3 → Video Prompt 3\nExecution 4 → Video Prompt 4\nExecution 5 → Video Prompt 5\n\nNever reorder them.\n\n# Image-to-Video Principle\n\nAssume each video generation will receive the corresponding generated campaign image as its start frame.\n\nTherefore:\n\nThe image already defines:\n\n* product appearance\n* product position\n* architecture\n* environment\n* campaign colors\n* typography\n* framing\n* scale\n* composition\n\nDo not describe a different frame.\n\nDo not ask the video model to recreate the scene.\n\nDescribe how the EXISTING scene moves.\n\n# Preserve the Product\n\nThe hero product must remain visually stable and recognizable.\n\nDo not:\n\n* redesign it\n* recolor it\n* morph it\n* change its proportions\n* alter its lid\n* alter its branding\n* bend it\n* melt it\n* duplicate it unexpectedly\n* replace it with another product\n\nIf the product is displayed on a billboard or screen, preserve the product artwork already visible in the starting image.\n\n# Preserve Branding and Text\n\nAny visible:\n\n* Owala branding\n* campaign typography\n* \"WHERE BORING ENDS.\"\n* screen graphics\n* vehicle graphics\n* environmental campaign graphics\n\nmust remain visually stable.\n\nDo not cause letters to:\n\n* mutate\n* rewrite themselves\n* flicker into gibberish\n* change wording\n* disappear\n* become unreadable\n\nMotion should happen around or behind typography when possible.\n\n# One Continuous Commercial Shot\n\nEach execution should feel like one coherent advertising shot.\n\nPrefer:\n\n* one continuous camera move\n* controlled environmental motion\n* elegant product-focused pacing\n\nAvoid:\n\n* cuts\n* scene changes\n* jump cuts\n* montage\n* teleportation\n* sudden viewpoint changes\n* morph transitions\n* unrelated new shots\n\nDo not write editing instructions such as:\n\n\"cut to\"\n\n\"dissolve to\"\n\n\"switch angle\"\n\n\"then show another scene\"\n\n# Camera Motion\n\nChoose camera movement based on the execution.\n\nPossible camera behavior includes:\n\n* slow push-in\n* subtle dolly forward\n* controlled lateral tracking\n* gentle crane rise\n* smooth three-quarter tracking\n* locked architectural shot with subtle environmental motion\n* slow orbit only when spatially appropriate\n* slight handheld realism only when motivated\n\nCamera movement should make the advertisement feel more premium.\n\nDo not move the camera simply because motion is required.\n\nAvoid aggressive camera motion that hides the campaign visual.\n\n# Product Motion\n\nThe hero product does NOT need to move in every execution.\n\nIn many premium advertising shots, the product should remain visually stable while:\n\n* camera moves\n* people move\n* traffic moves\n* screen graphics animate\n* reflections shift\n* environmental light moves\n\nIf product motion is appropriate, keep it subtle and elegant.\n\nExamples:\n\n* very slow controlled rotation inside an anamorphic digital screen\n* slight dimensional emergence already implied by the still\n* subtle parallax caused by camera movement\n\nDo not invent product functionality.\n\nDo not make the bottle:\n\n* pour\n* spray\n* leak\n* generate water\n* emit mist\n* open automatically\n* transform\n* bounce\n* fly\n\nunless explicitly approved by the campaign execution.\n\n# OOH Screen Motion\n\nFor digital billboard and screen executions:\n\nAnimate the advertising media elegantly.\n\nPossible motion:\n\n* slow graphic color transitions\n* restrained dimensional parallax\n* subtle product rotation\n* animated campaign background geometry\n* controlled illumination pulses\n* reflections responding naturally to screen changes\n\nThe product remains the hero.\n\nAvoid:\n\n* frantic screen animation\n* rapid graphic transitions\n* excessive flashing\n* glitch effects\n* changing product design\n* changing campaign copy\n\n# Anamorphic / FOOH Motion\n\nIf the execution uses anamorphic or dimensional FOOH:\n\nPreserve the spatial illusion.\n\nThe motion should reinforce depth.\n\nExamples:\n\n* product slowly advances slightly beyond the screen boundary\n* camera movement reveals dimensional parallax\n* background graphic plane shifts subtly behind the product\n* screen light spills naturally onto the physical environment\n\nDo not turn the effect into fantasy.\n\n# Transit Environment Motion\n\nFor stations and transit environments:\n\nUse natural movement such as:\n\n* commuters walking through frame\n* subtle motion blur\n* escalator or background movement if already present\n* sequential screen animation\n* light reflections shifting across polished floors\n\nKeep the product displays clear and readable.\n\nDo not let people block the hero product.\n\n# Vehicle Motion\n\nFor vehicle executions:\n\nThe vehicle may move naturally through the street.\n\nUse:\n\n* controlled forward movement\n* realistic wheel rotation\n* environment passing with natural parallax\n* reflections sliding across windows and vehicle surfaces\n* pedestrians and traffic behaving naturally\n\nThe mounted product installation must remain structurally stable.\n\nDo not make the product wobble, detach, float, or deform.\n\n# Architectural / Public Space Motion\n\nFor architectural installations:\n\nPrefer subtle premium motion:\n\n* slow camera push\n* pedestrians passing\n* environmental reflections\n* campaign light shifting gently\n* subtle media animation\n* realistic city activity\n\nDo not physically deform the architecture unless that behavior is already part of the approved execution.\n\n# Lighting Motion\n\nLighting changes should be physically motivated.\n\nUse:\n\n* shifting reflections\n* screen color spill\n* sunlight moving subtly with camera perspective\n* vehicle reflections\n* realistic ambient light response\n\nDo not add:\n\n* random flashing\n* magical glow\n* unexplained beams\n* excessive bloom\n* fantasy lighting\n\n# Environmental Motion\n\nUse real-world motion to create life:\n\n* pedestrians walking\n* cars moving\n* taxis passing\n* buses driving\n* subtle fabric or clothing movement\n* reflections shifting\n* digital displays animating\n* distant city traffic\n* natural atmospheric movement\n\nKeep environmental motion secondary to the hero campaign.\n\n# Social-First Advertising Motion\n\nThe shot should become visually engaging immediately.\n\nThe first moment should already show the campaign clearly.\n\nDo not hide the product and reveal it later unless the approved execution explicitly requires a reveal.\n\nThe video should work as:\n\n* social ad\n* campaign reel\n* short-form promotional video\n* premium branded clip\n\n# Motion Restraint\n\nMore motion is not automatically better.\n\nPrefer:\n\n* clean\n* controlled\n* intentional\n* premium\n\nover:\n\n* chaotic\n* hyperactive\n* overly cinematic\n* gimmicky\n\nThe campaign should feel expensive.\n\n# Duration Independence\n\nDo not specify an exact duration unless the user explicitly provides one elsewhere.\n\nWrite motion that can scale naturally to the duration selected in the video-generation node.\n\n# Prompt Style\n\nEach video prompt should be one cohesive motion description.\n\nDescribe:\n\n1. starting state\n2. camera behavior\n3. primary campaign motion\n4. environmental movement\n5. lighting / reflection behavior\n6. ending state\n\nDo not rewrite the entire image prompt.\n\nFocus on motion.\n\n# Negative Motion Constraints\n\nEach prompt must end with one line beginning exactly:\n\nAvoid:\n\nUse that line for motion-specific failure prevention.\n\nUseful constraints may include:\n\n* no cuts\n* no scene change\n* no product redesign\n* no product morphing\n* no typography mutation\n* no extra products\n* no camera whip\n* no new objects\n* no floating product\n* no liquid generation\n* no unstable architecture\n\nUse only constraints relevant to that execution.\n\n# Output Format\n\nReturn exactly five plain-text motion prompt blocks.\n\nDo NOT return JSON.\n\nDo NOT return Markdown.\n\nDo NOT number the blocks.\n\nDo NOT add execution titles.\n\nSeparate each block with this exact separator on its own line:\n\n===NEXT===\n\nThere must be exactly four separators.\n\nEach block must end with:\n\nAvoid: ...\n\n# Output Example\n\n[video motion prompt 1]\nAvoid: ...\n\n===NEXT===\n\n[video motion prompt 2]\nAvoid: ...\n\n===NEXT===\n\n[video motion prompt 3]\nAvoid: ...\n\n===NEXT===\n\n[video motion prompt 4]\nAvoid: ...\n\n===NEXT===\n\n[video motion prompt 5]\nAvoid: ...\n\n# Final Validation\n\nBefore returning:\n\n1. Exactly five prompt blocks exist.\n2. Exactly four `===NEXT===` separators exist.\n3. Execution order is preserved.\n4. Every block describes motion for one approved execution only.\n5. No new campaign concept was invented.\n6. The starting image composition is preserved.\n7. Product design remains stable.\n8. Campaign text remains unchanged and readable.\n9. Each block uses one continuous shot.\n10. No unnecessary cuts or transitions are introduced.\n11. Motion feels premium and commercially intentional.\n12. Every block ends with an `Avoid:` line.\n13. No JSON is returned.\n14. No Markdown is returned.\n15. There is no commentar\n",
+        "fieldMappings": {}
+      },
+      "width": 535,
+      "height": 363,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_35",
+      "type": "selector",
+      "position": {
+        "x": 6721.277105532404,
+        "y": 189.95204552316292
+      },
+      "data": {
+        "label": "VIDEO EXECUTION 1",
+        "config": {
+          "mode": "item",
+          "itemIndex": "1"
+        }
+      },
+      "width": 278,
+      "height": 150,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_36",
+      "type": "selector",
+      "position": {
+        "x": 6761.3024013365575,
+        "y": 759.8480242990919
+      },
+      "data": {
+        "label": "VIDEO EXECUTION 2",
+        "config": {
+          "mode": "item",
+          "itemIndex": "2"
+        }
+      },
+      "width": 278,
+      "height": 150,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_37",
+      "type": "selector",
+      "position": {
+        "x": 6796.171882285516,
+        "y": 1865.9734556387468
+      },
+      "data": {
+        "label": "VIDEO EXECUTION 3",
+        "config": {
+          "mode": "item",
+          "itemIndex": "3"
+        }
+      },
+      "width": 278,
+      "height": 150,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_38",
+      "type": "selector",
+      "position": {
+        "x": 6686.656683795903,
+        "y": 2678.2530238986787
+      },
+      "data": {
+        "label": "VIDEO EXECUTION 4",
+        "config": {
+          "mode": "item",
+          "itemIndex": "4"
+        }
+      },
+      "width": 278,
+      "height": 150,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_39",
+      "type": "selector",
+      "position": {
+        "x": 6829.390044623546,
+        "y": 3657.317320246045
+      },
+      "data": {
+        "label": "VIDEO EXECUTION 5",
+        "config": {
+          "mode": "item",
+          "itemIndex": "5"
+        }
+      },
+      "width": 278,
+      "height": 150,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_40",
+      "type": "generate-video",
+      "position": {
+        "x": 7660.078073802496,
+        "y": 68.9385264865659
+      },
+      "data": {
+        "label": "FOOH VIDEO 1",
+        "prompt": "",
+        "duration": 10,
+        "provider": "gemini-omni-video",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 654.2222222222222,
+      "height": 494,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_41",
+      "type": "generate-video",
+      "position": {
+        "x": 7657.173925004766,
+        "y": 745.1774617896915
+      },
+      "data": {
+        "label": "FOOH VIDEO 2",
+        "prompt": "",
+        "duration": 10,
+        "provider": "grok-imagine-video-1.5",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 677.12,
+      "height": 494,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_42",
+      "type": "generate-video",
+      "position": {
+        "x": 7675.6519977512835,
+        "y": 1532.6567247828218
+      },
+      "data": {
+        "label": "FOOH VIDEO 3",
+        "prompt": "",
+        "duration": 10,
+        "provider": "wan-3-prime",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 665.572649010693,
+      "height": 500.38461506851485,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_43",
+      "type": "generate-video",
+      "position": {
+        "x": 7681.53037182512,
+        "y": 2356.955929726035
+      },
+      "data": {
+        "label": "FOOH VIDEO 4",
+        "prompt": "",
+        "duration": 10,
+        "provider": "hailuo-2.3-pro",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 665.572649010693,
+      "height": 500.38461506851485,
+      "className": "rf-resized"
+    },
+    {
+      "id": "node_44",
+      "type": "generate-video",
+      "position": {
+        "x": 7677.279061076234,
+        "y": 3318.819350386984
+      },
+      "data": {
+        "label": "FOOH VIDEO 5",
+        "prompt": "",
+        "duration": 4,
+        "provider": "veo3.1",
+        "fieldMappings": {},
+        "negativePrompt": "",
+        "presentationOutput": true
+      },
+      "width": 665.572649010693,
+      "height": 500.38461506851485,
+      "className": "rf-resized"
+    },
+    {
+      "id": "split_img",
+      "type": "split-text",
+      "position": {
+        "x": 3319.0017865096165,
+        "y": 60.029362140586045
+      },
+      "data": {
+        "label": "Split Image Prompts",
+        "separator": "custom",
+        "removeEmpty": true,
+        "trimWhitespace": true,
+        "customSeparator": "===NEXT==="
+      },
+      "width": 320,
+      "height": 200,
+      "className": "rf-resized"
+    },
+    {
+      "id": "split_vid",
+      "type": "split-text",
+      "position": {
+        "x": 6499.204566786102,
+        "y": 49.968982027332146
+      },
+      "data": {
+        "label": "Split Video Prompts",
+        "separator": "custom",
+        "removeEmpty": true,
+        "trimWhitespace": true,
+        "customSeparator": "===NEXT==="
+      },
+      "width": 320,
+      "height": 200,
+      "className": "rf-resized"
+    },
+    {
+      "id": "fooh_set",
+      "type": "collect",
+      "position": {
+        "x": 8607.103020835813,
+        "y": 1794.0712459710323
+      },
+      "data": {
+        "label": "FOOH Campaign Set",
+        "order": []
+      },
+      "width": 480,
+      "height": 320,
+      "className": "rf-resized"
+    },
+    {
+      "id": "note-intro",
+      "type": "sticky-note",
+      "position": {
+        "x": -970,
+        "y": -1200
+      },
+      "data": {
+        "bold": false,
+        "text": "Turn a brand, a place and a product into a full FOOH (Fake-Out-Of-Home) campaign: five scroll-stopping CGI billboard, transit and street concepts, each rendered first as a hero image and then brought to life as a short film. Fill the five inputs on the left; the workflow reads your site, extracts the brand, invents five distinct executions, builds and normalises the prompts, renders five images (your product photo used as a visual reference), then animates each one.\n\nThe five videos are each rendered by a DIFFERENT premium model (Veo, Hailuo, Wan, Grok, Gemini) so you can compare looks on the same concept and pick your favourite. Swap the inputs on the left and the whole campaign re-generates.",
+        "color": "#1d2430",
+        "label": "FOOH CAMPAIGN GENERATOR — HOW IT WORKS",
+        "title": "Fooh campaign generator — how it works",
+        "width": 1400,
+        "height": 480,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-inputs",
+      "type": "sticky-note",
+      "position": {
+        "x": -970,
+        "y": -840
+      },
+      "data": {
+        "bold": false,
+        "text": "Five inputs: your Website (scraped for brand context), the Campaign Location, the Campaign Goal, the Product Focus, and a Product Image — used as a visual reference so the real product appears in every scene. Replace the demo values with yours.",
+        "color": "#1d2430",
+        "label": "1 · YOUR BRIEF",
+        "title": "1 · Your brief",
+        "width": 340,
+        "height": 600,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-brand",
+      "type": "sticky-note",
+      "position": {
+        "x": 287,
+        "y": -840
+      },
+      "data": {
+        "bold": false,
+        "text": "Brand Extraction only EXTRACTS from your site — it never invents facts. The FOOH Concept Generator is where creativity starts: it turns the brand plus your location, goal and product into distinct campaign concepts.",
+        "color": "#1d2430",
+        "label": "2 · READ THE BRAND, THEN INVENT",
+        "title": "2 · Read the brand, Then invent",
+        "width": 686,
+        "height": 310,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-build",
+      "type": "sticky-note",
+      "position": {
+        "x": 1376,
+        "y": -840
+      },
+      "data": {
+        "bold": false,
+        "text": "The Image Prompt Builder writes rich, production-ready image prompts from the brand and concepts; the Prompt Normalizer formats them into EXACTLY FIVE standalone prompt blocks — one clean list the next stage can fan out.",
+        "color": "#1d2430",
+        "label": "3 · BUILD & NORMALISE FIVE PROMPTS",
+        "title": "3 · Build & normalise five prompts",
+        "width": 1823,
+        "height": 180,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-fanout",
+      "type": "sticky-note",
+      "position": {
+        "x": 3655,
+        "y": -840
+      },
+      "data": {
+        "bold": false,
+        "text": "Each EXECUTION selector picks ONE line from the normalizer's five-item list (item 1..5). That is how five prompts become five images without a loop. Every FOOH Image renders at 2K, 16:9, with your Product Image wired in as a visual reference so the real product is in the scene.",
+        "color": "#1d2430",
+        "label": "4 · FIVE PROMPTS → FIVE IMAGES",
+        "title": "4 · Five prompts → Five images",
+        "width": 1544,
+        "height": 220,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    },
+    {
+      "id": "note-video",
+      "type": "sticky-note",
+      "position": {
+        "x": 5844,
+        "y": -840
+      },
+      "data": {
+        "bold": false,
+        "text": "The Video Prompt Builder writes an image-to-video motion prompt per concept; each VIDEO EXECUTION picks one. Each FOOH Video starts from its matching image (start frame) and is rendered by a DIFFERENT model — compare Veo, Hailuo, Wan, Grok and Gemini on the same idea. FOOH Campaign Set collects the five.",
+        "color": "#1d2430",
+        "label": "5 · ANIMATE — FIVE MODELS, ONE CAMPAIGN",
+        "title": "5 · Animate — five models, One campaign",
+        "width": 1155,
+        "height": 270,
+        "italic": false,
+        "fontSize": "xl",
+        "alignment": "left",
+        "textColor": "#ffffff"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_1789845880242",
+      "source": "node_2",
+      "target": "node_3",
+      "sourceHandle": "prompt",
+      "targetHandle": "in"
+    },
+    {
+      "id": "edge_1789846551439",
+      "source": "node_3",
+      "target": "node_4",
+      "sourceHandle": "json",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789847980183",
+      "source": "node_4",
+      "target": "node_5",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789848090434",
+      "source": "node_6",
+      "target": "node_5",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789848257848",
+      "source": "node_7",
+      "target": "node_5",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789848352266",
+      "source": "node_8",
+      "target": "node_5",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789850184590",
+      "source": "node_4",
+      "target": "node_11",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789850194209",
+      "source": "node_5",
+      "target": "node_11",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789850201623",
+      "source": "node_6",
+      "target": "node_11",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789850209271",
+      "source": "node_8",
+      "target": "node_11",
+      "sourceHandle": "prompt",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789850781853",
+      "source": "node_11",
+      "target": "node_12",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789867999034",
+      "source": "node_29",
+      "target": "node_22",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789868743965",
+      "source": "node_30",
+      "target": "node_23",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789868771624",
+      "source": "node_31",
+      "target": "node_24",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789868801196",
+      "source": "node_32",
+      "target": "node_25",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789868814771",
+      "source": "node_33",
+      "target": "node_26",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789868831104",
+      "source": "node_18",
+      "target": "node_22",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "edge_1789868834848",
+      "source": "node_18",
+      "target": "node_23",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "edge_1789868838224",
+      "source": "node_18",
+      "target": "node_24",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "edge_1789868842977",
+      "source": "node_18",
+      "target": "node_25",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "edge_1789868847922",
+      "source": "node_18",
+      "target": "node_26",
+      "sourceHandle": "image",
+      "targetHandle": "references"
+    },
+    {
+      "id": "edge_1789870525462",
+      "source": "node_5",
+      "target": "node_34",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789870567167",
+      "source": "node_11",
+      "target": "node_34",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789870962832",
+      "source": "node_35",
+      "target": "node_40",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789870974530",
+      "source": "node_22",
+      "target": "node_40",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "edge_1789871047003",
+      "source": "node_36",
+      "target": "node_41",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789871054388",
+      "source": "node_23",
+      "target": "node_41",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "edge_1789871181540",
+      "source": "node_37",
+      "target": "node_42",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789871189349",
+      "source": "node_24",
+      "target": "node_42",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "edge_1789871244492",
+      "source": "node_38",
+      "target": "node_43",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789871248998",
+      "source": "node_25",
+      "target": "node_43",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "edge_1789871282161",
+      "source": "node_39",
+      "target": "node_44",
+      "sourceHandle": "picked",
+      "targetHandle": "prompt"
+    },
+    {
+      "id": "edge_1789871288426",
+      "source": "node_26",
+      "target": "node_44",
+      "sourceHandle": "image",
+      "targetHandle": "startFrame"
+    },
+    {
+      "id": "e-node_12-split_img",
+      "source": "node_12",
+      "target": "split_img",
+      "sourceHandle": "text",
+      "targetHandle": "text"
+    },
+    {
+      "id": "e-split_img-node_29",
+      "source": "split_img",
+      "target": "node_29",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-split_img-node_30",
+      "source": "split_img",
+      "target": "node_30",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-split_img-node_31",
+      "source": "split_img",
+      "target": "node_31",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-split_img-node_32",
+      "source": "split_img",
+      "target": "node_32",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-split_img-node_33",
+      "source": "split_img",
+      "target": "node_33",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-node_34-split_vid",
+      "source": "node_34",
+      "target": "split_vid",
+      "sourceHandle": "text",
+      "targetHandle": "text"
+    },
+    {
+      "id": "e-split_vid-node_35",
+      "source": "split_vid",
+      "target": "node_35",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-split_vid-node_36",
+      "source": "split_vid",
+      "target": "node_36",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-split_vid-node_37",
+      "source": "split_vid",
+      "target": "node_37",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-split_vid-node_38",
+      "source": "split_vid",
+      "target": "node_38",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-split_vid-node_39",
+      "source": "split_vid",
+      "target": "node_39",
+      "sourceHandle": "out",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-node_40-set",
+      "source": "node_40",
+      "target": "fooh_set",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-node_41-set",
+      "source": "node_41",
+      "target": "fooh_set",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-node_42-set",
+      "source": "node_42",
+      "target": "fooh_set",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-node_43-set",
+      "source": "node_43",
+      "target": "fooh_set",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    },
+    {
+      "id": "e-node_44-set",
+      "source": "node_44",
+      "target": "fooh_set",
+      "sourceHandle": "video",
+      "targetHandle": "in"
+    }
+  ],
+  "settings": {
+    "viewport": {
+      "x": 216,
+      "y": 227,
+      "zoom": 0.139
+    },
+    "flowPromptTemplates": {},
+    "characterDefinitions": [],
+    "presentationSettings": {
+      "cardMeta": {
+        "node_2": {
+          "title": "Website",
+          "description": "Your site — scraped for brand context (name, tone, colours, product language)."
+        },
+        "node_6": {
+          "title": "Campaign location",
+          "description": "Where the FOOH runs — a city or specific place. Drives the scenes."
+        },
+        "node_7": {
+          "title": "Campaign goal",
+          "description": "What the campaign is for, in a sentence."
+        },
+        "node_8": {
+          "title": "Product focus",
+          "description": "The exact product to hero across the campaign."
+        },
+        "node_18": {
+          "title": "Product image",
+          "description": "A clean photo of the product — used as a visual reference in every scene."
+        },
+        "fooh_set": {
+          "title": "FOOH campaign set",
+          "description": "Five FOOH films, each concept rendered by a different premium video model."
+        }
+      },
+      "runTarget": "workflow",
+      "inputOrder": [
+        "node_2",
+        "node_6",
+        "node_7",
+        "node_8",
+        "node_18"
+      ],
+      "outputOrder": [
+        "fooh_set"
+      ]
+    }
+  }
+}

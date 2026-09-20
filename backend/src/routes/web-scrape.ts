@@ -139,7 +139,16 @@ export async function webScrapeRoutes(app: FastifyInstance) {
         // this path off the Apify bill and cuts per-run latency ~orders
         // of magnitude.
         const result: Record<string, unknown> = parsed.data.actor === "rss"
-          ? { json: await fetchRssItems({ url: parsed.data.url, resultsLimit: parsed.data.resultsLimit }) }
+          ? {
+              json: await fetchRssItems({
+                url: parsed.data.url,
+                resultsLimit: parsed.data.resultsLimit,
+                // A feed host answering some requests and not others is an
+                // upstream incident worth seeing in the logs even when the
+                // retry saves the run.
+                onRetry: (info) => req.log.warn({ jobId: job.id, ...info }, "[web-scrape] rss upstream failed; retrying"),
+              }),
+            }
           : (await shouldRunOnCloud(config.APIFY_API_TOKEN))
             ? await scrapeViaConnection(parsed.data as Record<string, unknown>)
             : { ...(await runScraper(parsed.data)) }

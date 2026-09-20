@@ -75,6 +75,26 @@ describe("useUpdateCheck", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it("an answer with NO release in it is 'not known yet' — kept ten minutes, not a day", async () => {
+    // The backend's read of the release list failed and it is already trying
+    // again. Stamped for a day, that answer kept the version dialog empty in this
+    // browser long after the backend had healed.
+    const UNKNOWN = { current: "1.23.0", latest: null, updateAvailable: false }
+    localStorage.setItem("nodaro-update-check", JSON.stringify({ at: Date.now() - 11 * 60 * 1000, info: UNKNOWN }))
+    const { result } = renderHook(() => useUpdateCheck())
+    await waitFor(() => expect(result.current?.latest?.version).toBe("v2.0.0"))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("…and is still reused inside those ten minutes — no request per page load", async () => {
+    const UNKNOWN = { current: "1.23.0", latest: null, updateAvailable: false }
+    localStorage.setItem("nodaro-update-check", JSON.stringify({ at: Date.now() - 5 * 60 * 1000, info: UNKNOWN }))
+    const { result } = renderHook(() => useUpdateCheck())
+    await new Promise((r) => setTimeout(r, 30))
+    expect(result.current).toEqual(UNKNOWN)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it("a failed fetch stays silent — null, no throw, no dot", async () => {
     fetchMock.mockRejectedValue(new Error("offline"))
     const { result } = renderHook(() => useUpdateCheck())

@@ -77,6 +77,12 @@ export const EXECUTION_DATA_KEYS: ReadonlySet<string> = new Set([
   // progress tick (~2/s). Pure run-state; also in TRANSIENT_RUNTIME_KEYS below.
   "downloadPercent",
   "downloadPhase",
+  // When the editor's "Clear results" last emptied this node (ISO time). Not a
+  // result and not config: bookkeeping that tells the load-time recovery lanes
+  // "this node is empty ON PURPOSE" — without it, every reload reads an empty
+  // node as "ran while the editor was closed" and paints the last run back.
+  // Persisted (never transient): the reload is exactly when it is read.
+  "resultsClearedAt",
 ])
 
 /**

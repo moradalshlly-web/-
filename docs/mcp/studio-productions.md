@@ -1,11 +1,45 @@
 # Studio productions over MCP — direct a film from a conversation
 
 The MCP lane onto a **studio production** (Cloud edition): a Nodaro workflow
-whose `settings.studio` holds an ordered list of shots — each one a framed
-still, an optional animated clip, and the plan, looks, cast bindings and voice
-that made them. The same production opens in the editor at
+whose `settings.studio` holds an ordered list of scenes — each one a frame, an
+optional motion, and the plan, looks, cast bindings and voice that made them.
+The same production opens in the editor at
 [studio.nodaro.ai](https://studio.nodaro.ai), so an assistant can draft the film,
-hand it over, and pick it up again after the user has moved three shots around.
+hand it over, and pick it up again after the user has moved three scenes around.
+
+## Two vocabularies: the user's words, the document's keys
+
+The editor and the document name the same things differently, and an assistant
+talks to a person who only ever sees the editor.
+
+| The user says (the editor) | The document says (keys, arguments, operations) |
+|---|---|
+| **film** | the production |
+| **scene** — "Scene 3", the cards on the timeline | a `shots[]` entry, addressed by `shot_id`; `add_shot`, `rename_shot`, `remove_shot`, … |
+| a scene's **frame** (its results are takes) | `still` |
+| a scene's **motion** (its results are takes) | `clip` |
+| the **shots** inside a motion | `beats[]`, set with `set_beats` |
+
+The identifiers are the document's and they stay — every tool, argument and
+operation name on this page is exact. **Prose is the user's:** say "scene 3",
+"the frame", "the motion", "shot 2 of this scene", and never call a scene a
+shot.
+
+- **"Shot" means a shot inside a motion** — an entry of the `beats[]` of the
+  scene the user is looking at — never a `shots[]` entry. "Change shot 2" is
+  `set_beats` on that scene, and "delete shot 3" removes that `beats[]` entry,
+  never a scene. If no scene is in view, if its motion has no shots, or if that
+  motion has fewer shots than the number they named, ask which they mean rather
+  than guessing.
+- **"Scene N" is always `shots[N-1]`:** "rename scene 3" is `rename_shot` on it
+  and "delete scene 3" is `remove_shot` on it.
+- **A scene's frame is its `still` and nothing else.** A *planned frame* is a
+  different thing — a frame plan the user reviews and accepts, generated with
+  `generate_studio_keyframe` — and a scene's *start frame* and *end frame* are
+  the endpoints its motion runs between.
+- The operating guide's operation list and the `receipts` an edit returns are
+  the document's own text: their operation names are exact, but where they say
+  "shot" they mean a scene. Do not repeat that wording to the user.
 
 Prefer this lane for "make me a film / a scene / a sequence, and let me keep
 editing it". [Recast authoring](./recast-authoring.md) is the lane for a movie
@@ -30,21 +64,22 @@ workflow tools remain the right choice for a canvas build.
    For a brief rather than a plan, **`describe_studio_production`** runs the
    Director: it starts a job and records it on the production, and the drafted
    scenes arrive when that run is landed, like any other finished job.
-4. **`get_studio_production`** — the production as it now stands: its shots,
+4. **`get_studio_production`** — the production as it now stands: its scenes,
    what has landed on them, and a `pending` block naming what is still in
    flight. **With `workflows:write`, reading also lands what has finished** —
    the view you get back is the one taken after that landing, so a re-read is
-   how a finished generation reaches its shot. **With read-only scope it is a
+   how a finished generation reaches its scene. **With read-only scope it is a
    pure read:** nothing lands, and a job that has finished stays in `pending`
    until someone who may write brings the production up to date.
    `detail: "full"` adds every result with the context that regenerates it;
-   `shot_id` reads one shot, the cheap re-read after a generation.
+   `shot_id` reads one scene, the cheap re-read after a generation.
 5. **`edit_studio_production`** — every change to a production is an
    **operation**, and this is the one tool that applies them. See below.
-6. **Generate:** `generate_studio_still` frames a shot, `generate_studio_clip`
-   animates it, `new_studio_shot_from_frame` grabs a frame out of a clip,
-   `voice_studio_shot` speaks a line, `revoice_studio_clip` recasts the voices
-   of a clip, `score_studio_production` writes the soundtrack.
+6. **Generate:** `generate_studio_still` generates a scene's frame,
+   `generate_studio_clip` its motion, `new_studio_shot_from_frame` grabs a frame
+   out of a motion, `voice_studio_shot` speaks a line over a scene,
+   `revoice_studio_clip` recasts the voices of a motion,
+   `score_studio_production` writes the soundtrack.
 7. **`plan_studio_export`** — the ordered steps that assemble the film, each
    with its price. Run them with the ordinary generation verbs and record the
    finished file back on the production.
@@ -61,7 +96,7 @@ or by the next assistant the user asks.
 `edit_studio_production` takes a batch of operations and applies it **atomically
 against the newest document**:
 
-- An operation addresses by **stable key** — a shot by its id, a cast row by its
+- An operation addresses by **stable key** — a scene by its id, a cast row by its
   role slug, a result by its job id or url — never by position, because the user
   may be editing the same production in the browser while you work.
 - A batch composed against a slightly older version is still applied to the
@@ -71,7 +106,7 @@ against the newest document**:
   send the same batch again.
 - `receipts` is one past-tense line per operation — the thing to show a user who
   asks what you just did.
-- Many deletes are recoverable: a removed shot, take or planned frame goes to
+- Many deletes are recoverable: a removed scene, take or planned frame goes to
   the production's bin and can be restored. Others are not — clearing a cast
   member, a voice or the soundtrack, deleting a cut, removing a sequence,
   purging one bin entry or emptying the bin. Do not tell a user a delete can be
@@ -121,11 +156,11 @@ reads the bin ids off the APPLY's receipts and never the preview's.
 | `share_studio_production` | `workflows:write` | Open or close the share-by-link read. |
 | `clone_studio_production` | `workflows:write` | Copy one into the caller's own Studio project. |
 | `describe_studio_production` | `workflows:write` + `workflows:execute` | Turn a brief into scenes (a Director run). |
-| `generate_studio_still` | `workflows:write` + `workflows:execute` | Frame a shot — `count` candidates. |
-| `generate_studio_clip` | `workflows:write` + `workflows:execute` | Animate a shot. |
-| `new_studio_shot_from_frame` | `workflows:write` + `workflows:execute` | A still out of a clip, placed where you say. |
-| `voice_studio_shot` | `workflows:write` + `workflows:execute` | Speak a shot's line. |
-| `revoice_studio_clip` | `workflows:write` + `workflows:execute` | Recast the voices of a shot's clip. |
+| `generate_studio_still` | `workflows:write` + `workflows:execute` | Generate a scene's frame — `count` candidates. |
+| `generate_studio_clip` | `workflows:write` + `workflows:execute` | Generate a scene's motion. |
+| `new_studio_shot_from_frame` | `workflows:write` + `workflows:execute` | A frame out of a scene's motion, placed where you say. |
+| `voice_studio_shot` | `workflows:write` + `workflows:execute` | Speak a scene's line. |
+| `revoice_studio_clip` | `workflows:write` + `workflows:execute` | Recast the voices of a scene's motion. |
 | `score_studio_production` | `workflows:write` + `workflows:execute` | Write the film's soundtrack. |
 
 The seven that spend need **both** grants, not either one: their routes
@@ -175,10 +210,10 @@ agent driving a film makes dozens of calls:
   Mint it yourself (8–128 characters of `A-Za-z0-9_.:-`) and never derive it
   from the request body. **Never retry a spend without it.**
 
-Generation is **run-then-poll**, and a finished job becomes a result on the
-shot only when it is **landed**. Nothing here blocks a request for minutes:
+Generation is **run-then-poll**, and a finished job becomes a take on the
+scene only when it is **landed**. Nothing here blocks a request for minutes:
 
-1. a still or clip run returns its job ids immediately;
+1. a frame or motion run returns its job ids immediately;
 2. wait on those jobs — `get_job`, or the production's own `pending` block;
 3. re-read with `get_studio_production`. Holding `workflows:write`, that read
    lands everything that has finished before it answers, so the view already

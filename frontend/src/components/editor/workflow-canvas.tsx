@@ -60,6 +60,8 @@ import { useAutoPanWhenIdle } from "@/hooks/use-auto-pan-when-idle"
 import { __resetSeenNodesForTests } from "./workflow-editor/use-node-insert-animation"
 import { __resetSeenEdgesForTests } from "./workflow-editor/use-edge-insert-animation"
 import { computeOverlap, worldToLocal, localToWorld, GROUP_ATTACH_THRESHOLD, orderNodesParentFirst } from "./workflow-editor/group-coords"
+import { hasRunResults } from "./workflow-editor/clear-run-results"
+import { clearWorkflowResults } from "./workflow-editor/clear-results-action"
 const UnifiedAssetLibraryModal = lazy(() => import("./unified-asset-library").then(m => ({ default: m.UnifiedAssetLibraryModal })))
 const MediaLibraryModal = lazy(() => import("./media-library-modal").then(m => ({ default: m.MediaLibraryModal })))
 const ComponentMarketplaceModal = lazy(() => import("./component-marketplace-modal").then(m => ({ default: m.ComponentMarketplaceModal })))
@@ -496,6 +498,12 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
   }, [nodeIdSignature, updateNodeInternals])
   const setSavedViewport = useWorkflowStore((s) => s.setSavedViewport)
   const { undo, redo, canUndo, canRedo } = useUndoRedoActions()
+  // "Clear results" (canvas toolbar, beside Undo). `undo` rides along because
+  // the confirmation toast offers it — the clear is one step on the same history.
+  const canClearResults = useMemo(() => hasRunResults(nodes), [nodes])
+  const handleClearResults = useCallback(() => {
+    clearWorkflowResults(undo)
+  }, [undo])
   const [searchParams, setSearchParams] = useSearchParams()
   const [nodeContextMenu, setNodeContextMenu] = useState<NodeContextMenuState | null>(null)
   const [canvasContextMenu, setCanvasContextMenu] = useState<CanvasContextMenuState | null>(null)
@@ -2752,6 +2760,8 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onClearResults={isReadOnly ? undefined : handleClearResults}
+        canClearResults={canClearResults}
         onShowShortcuts={() => setShortcutsHelpOpen(true)}
       />
 

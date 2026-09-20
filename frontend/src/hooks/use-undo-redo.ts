@@ -93,6 +93,28 @@ function captureSnapshot(): WorkflowSnapshot {
   }
 }
 
+/**
+ * Close the undo step that is still collecting changes.
+ *
+ * Changes inside a 300 ms burst share ONE snapshot — right for typing, wrong
+ * for an action that must be undoable ON ITS OWN: without this, "Clear
+ * results" clicked a moment after a prompt edit would join that edit's step,
+ * and one Undo would take back both.
+ */
+export function flushPendingUndoSnapshot(): void {
+  flushPending()
+}
+
+/**
+ * The "before" snapshot of the step that is collecting changes right now, or
+ * null. It is the very object that lands in the history when the step closes,
+ * so a caller can hold it and later ask "is my edit still in the history?" —
+ * by identity, which survives the 50-step cap where an index would not.
+ */
+export function pendingUndoSnapshot(): WorkflowSnapshot | null {
+  return _pendingSnapshot
+}
+
 function flushPending(): void {
   if (_debounceTimer) {
     clearTimeout(_debounceTimer)

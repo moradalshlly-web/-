@@ -308,6 +308,26 @@ const VIDEO_AUTO_DURATION_WORDING_BYTES = 52
 // outfit / object / place an edit brings in; the other v2v models take a single
 // `reference_image_url`). No tool added. Measured: 363_409 − 363_032 = 377 B.
 const SEEDANCE_VIDEO_EDIT_VERB_BYTES = 377
+// The studio family speaks the PERSON's words (2026-09-20) and nothing else. Its
+// descriptions called a scene a "shot" — the document's word (`shots[]`,
+// `shot_id`) — while in the editor a film is made of SCENES, a scene has a FRAME
+// (`still`) and a MOTION (`clip`), and the SHOTS a person talks about are the
+// `beats[]` inside a motion; an agent that learned its words here answered a
+// question about "shot 2" with scene 2. Every name is unchanged; the prose says
+// scene / frame / motion. Most of it is a word swap that costs a byte or two
+// ("shot" -> "scene"); the rest is the four things an agent cannot infer from a
+// key list: the one sentence on `get_studio_production` that maps the person's
+// four words to the keys (+257), the two op names on `edit_studio_production`
+// that carry the document's word (`rename_shot`, `set_beats`; +99), `shot_id`
+// described as a scene's id on the six tools that take it, and
+// `generate_studio_keyframe` saying PLANNED frame (+57) — "frame" alone now
+// means a scene's `still`. Trimmed once before measuring (698 -> 553 for the
+// first three). No tool was added, so the fixture does NOT move. Thirteen
+// definitions changed and none is near the per-tool budget: the largest in the
+// family is `generate_studio_clip` at 2_323 B. Measured by this suite: 363_886
+// total − 363_284 base = 602 B, so the headroom the list had before is exactly
+// the headroom it has after. Held to the rule by `studio-tool-vocabulary.test.ts`.
+const STUDIO_PERSON_VOCABULARY_BYTES = 602
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -332,7 +352,8 @@ export const TOOL_WIRE_BUDGET = {
     TRANSCRIBE_WORD_TIMESTAMPS_BYTES +
     CAPTION_WORD_WINDOW_WORDING_BYTES +
     VIDEO_AUTO_DURATION_WORDING_BYTES +
-    SEEDANCE_VIDEO_EDIT_VERB_BYTES,
+    SEEDANCE_VIDEO_EDIT_VERB_BYTES +
+    STUDIO_PERSON_VOCABULARY_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

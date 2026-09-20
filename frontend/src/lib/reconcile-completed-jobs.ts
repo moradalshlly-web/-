@@ -49,6 +49,7 @@ import { COMPOSER_PLAN_MAP, unwrapEditPlanOutput } from "@nodaro/shared"
 import { findRevision, resolveSceneCompletion } from "@/lib/scene3d/revisions"
 import { planRevisionId } from "@/lib/scene3d/plan-view"
 import { isScrapeNodeType, scrapeJobNeedsApplying, scrapeResultPatch } from "@/components/nodes/scrape-result-recovery"
+import { settledBeforeClear } from "@/lib/results-cleared"
 import type { GeneratedResult, Scene3DRevisionEntry, WorkflowNode } from "@/types/nodes"
 
 /** The single-entry nodeState a completed single-node job carries (backend
@@ -64,6 +65,7 @@ interface ExecItemLike {
   readonly triggerType?: string
   readonly nodeStates?: Record<string, unknown>
   readonly createdAt?: string
+  readonly completedAt?: string
 }
 
 /** A terminal job a node may be recovered from. */
@@ -74,6 +76,9 @@ export interface TerminalJobRef {
   /** When the server created the job. The scrape lane ties a job to the node's
    *  last run with it (`scrapeJobNeedsApplying`). */
   readonly createdAt?: string
+  /** When the job settled (falls back to `createdAt`). Compared with the stamp
+   *  "Clear results" leaves on a node — see `blocksRecovery`. */
+  readonly settledAt?: string
 }
 
 export interface NodeResultUpdate {
@@ -113,7 +118,13 @@ export function pickLatestTerminalJobPerNode(
     const status = st?.status
     if (status !== "completed" && status !== "failed") continue
     if (status === "failed" && !opts.acceptsFailed?.(nodeId)) continue
-    byNode.set(nodeId, { nodeId, jobId: st?.jobId ?? item.id, status, createdAt: item.createdAt })
+    byNode.set(nodeId, {
+      nodeId,
+      jobId: st?.jobId ?? item.id,
+      status,
+      createdAt: item.createdAt,
+      settledAt: item.completedAt ?? item.createdAt,
+    })
   }
   return [...byNode.values()]
 }
@@ -171,8 +182,13 @@ function nodeHasResult(data: Record<string, unknown>): boolean {
 function blocksRecovery(
   nodeType: string | undefined,
   data: Record<string, unknown>,
-  ref: Pick<TerminalJobRef, "jobId" | "createdAt">,
+  ref: Pick<TerminalJobRef, "jobId" | "createdAt" | "settledAt">,
 ): boolean {
+  // Emptied on purpose, AFTER this job settled ("Clear results"). First, and
+  // for every node type: the per-type guards below all answer "may this job's
+  // result be written?", and for a job the user has already cleared away the
+  // answer is no before any of them is asked.
+  if (settledBeforeClear(data, ref.settledAt)) return true
   if (isScene3DNodeType(nodeType)) return false
   // Scrapers, for the same reason as Scene3D and with their own guard: a scrape
   // node KEEPS its last good payload through a failed or empty rerun (#765), so

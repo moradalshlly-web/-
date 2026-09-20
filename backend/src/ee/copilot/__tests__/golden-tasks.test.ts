@@ -155,3 +155,95 @@ describe('golden task C — "a song similar to this" plus a YouTube link (incide
 // Add new golden tasks BELOW — one per real failure, dated, with the incident
 // in the comment.
 // ---------------------------------------------------------------------------
+
+describe('golden task D — "fix shot 2" was answered about SCENE 2 (incident 2026-09-20, studio surface)', () => {
+  // The person, in the studio editor: "it calls a scene a shot — we have, in every
+  // scene, a frame and a motion, and a motion can hold several shots, so I ask
+  // about one thing and it answers about another." Nothing the model read told it
+  // so: the doctrine, the per-turn summary and every tool description used the
+  // DOCUMENT's word (`shots[]` = scenes; the person's shots are `beats[]`).
+  //
+  // The taught fix is two halves that only work TOGETHER, which is why this is a
+  // golden task and not two unit tests: the system block defines the words and
+  // how to resolve "shot", and the per-turn summary hands it the thing to resolve
+  // against — the focused scene and how many shots its motion holds.
+  const production = {
+    id: "prod-1",
+    name: "The Long Walk",
+    version: 3,
+    shots: [
+      { id: "s1", name: "Opening", still: { count: 1, key: "j1" } },
+      {
+        id: "s2",
+        name: "Rooftop dawn",
+        still: { count: 2, key: "j2" },
+        clip: { count: 1, key: "j3" },
+        beats: [{ seconds: 2 }, { seconds: 3 }, { seconds: 1 }],
+      },
+      { id: "s3", name: "Reveal" },
+    ],
+  }
+
+  const invoker = {
+    listTools: async () => [],
+    callTool: async (name: string) =>
+      name === "get_studio_production"
+        ? { content: [{ type: "text", text: "{}" }], structuredContent: { production } }
+        : { content: [{ type: "text", text: JSON.stringify({ data: { total: 500 } }) }] },
+    close: async () => undefined,
+  } as never
+
+  // What production appends to the doctrine: the studio service's OWN operation
+  // list, written in the document's words on purpose (one home for that text).
+  const SERVED = {
+    vocabulary: "## Editing a production\n\n- `add_shot` — adds a shot after the given one.\n- `remove_shot` — removes a shot.",
+    rules: null,
+  }
+
+  it("the doctrine and the turn's summary agree on the words — and the doctrine says the served list does not", async () => {
+    const { buildSystemPrompt, resetSystemPromptCache } = await import("../system-prompt.js")
+    const { buildStudioPreamble } = await import("../studio-preamble.js")
+    const { STUDIO_COPILOT_DOCTRINE } = await import("../doctrine.js")
+    const { scenesCalledShots } = await import("../../../lib/mcp/__tests__/helpers/studio-vocabulary.js")
+    resetSystemPromptCache()
+
+    const system = buildSystemPrompt("studio", SERVED)
+    // The appended slice IS in the document's voice, and this repo does not own
+    // it — so the claim is about OUR text, and about our text saying so.
+    expect(scenesCalledShots(SERVED.vocabulary)).not.toEqual([])
+    expect(system).toContain(SERVED.vocabulary)
+    expect(system).toMatch(/are the DOCUMENT's own text/)
+    const preamble = await buildStudioPreamble({ invoker, userId: "u1", productionId: "prod-1", focus: { shotId: "s2" } })
+    expect(preamble.available).toBe(true)
+    const summary = preamble.available ? preamble.text : ""
+
+    // "make shot 2 longer" / "delete shot 3": the rule names the op, the summary
+    // names the scene in focus and says its motion HAS three shots to address.
+    expect(system).toContain("`set_beats`")
+    expect(summary).toContain('The person is looking at Scene 2 ("Rooftop dawn")')
+    expect(summary).toContain("3 shots inside the motion")
+
+    // "rename scene 3": Scene N is `shots[N-1]`, and the summary lists scene 3
+    // with the id the tool argument needs.
+    expect(system).toContain("`shots[N-1]`")
+    expect(summary).toContain('3. "Reveal" [s3]')
+
+    // "regenerate the frame": the frame is the focused scene's `still`.
+    expect(system).toMatch(/FRAME \(the document's `still`\)/)
+
+    // "regenerate the frame" must not land on a planned frame or an endpoint.
+    expect(system).toMatch(/A scene's FRAME is its `still` and nothing else/)
+
+    // In every clause WE wrote, "shot" is never the word for a scene.
+    expect(scenesCalledShots(STUDIO_COPILOT_DOCTRINE)).toEqual([])
+    expect(scenesCalledShots(summary)).toEqual([])
+  })
+
+  it('"what is in this shot?" on a scene whose motion has none: the summary says so, and the rule says ASK', async () => {
+    const { buildSystemPrompt } = await import("../system-prompt.js")
+    const { buildStudioPreamble } = await import("../studio-preamble.js")
+    const preamble = await buildStudioPreamble({ invoker, userId: "u1", productionId: "prod-1", focus: { shotId: "s1" } })
+    expect(preamble.available && preamble.text).toContain("no shots inside the motion")
+    expect(buildSystemPrompt("studio", SERVED)).toMatch(/ask one short question/i)
+  })
+})

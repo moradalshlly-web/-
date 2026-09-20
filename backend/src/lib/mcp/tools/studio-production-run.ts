@@ -16,6 +16,10 @@ import type { RegisterStudioProductionToolsOpts } from "./studio-production.js"
  * frame grab, a voiceover, a revoice, a soundtrack, and the Director draft that
  * writes a whole production from a brief.
  *
+ * Names are the document's (`shot_id`, `voice_studio_shot`); every sentence is
+ * the person's — a `shots[]` entry is a SCENE, its `still` the scene's FRAME,
+ * its `clip` the scene's MOTION. See the note in `studio-production.ts`.
+ *
  * Split out of `studio-production.ts` for size, not for taste — the family is
  * one surface, and a test pins the names both halves register to
  * `STUDIO_PRODUCTION_TOOL_NAMES`.
@@ -48,10 +52,14 @@ import type { RegisterStudioProductionToolsOpts } from "./studio-production.js"
 const runGate: ToolGate = { required: ["workflows:write", "workflows:execute"] }
 
 const productionId = z.string().uuid().describe("The production.")
-const shotId = z.string().min(1).describe("The shot, by its id (see `get_studio_production`).")
+/** The document's name for it; to the person it is a SCENE (see `studio-production.ts`). */
+const shotId = z
+  .string()
+  .min(1)
+  .describe("The scene's id — a `shots[]` entry's `id` (see `get_studio_production`).")
 
 /**
- * The levers a single call has over what the shot's plan already says — the
+ * The levers a single call has over what the scene's plan already says — the
  * provider, the prompt, the aspect, the direction ids. Left open on purpose:
  * the server owns the lever list, and a restatement of it here would be a
  * second spelling that drifts the first time one is added.
@@ -59,7 +67,7 @@ const shotId = z.string().min(1).describe("The shot, by its id (see `get_studio_
 const overrides = z
   .record(z.string(), z.unknown())
   .optional()
-  .describe("Per-call overrides of the shot's own settings. See the operating skill.")
+  .describe("Per-call overrides of the scene's own settings. See the operating skill.")
 
 const dryRun = z
   .boolean()
@@ -91,12 +99,12 @@ export function registerStudioProductionRunTools({
       title: "Draft Studio Production From A Brief",
       description:
         "Hand a BRIEF to the Director and let it write the production — scenes, " +
-        "shots, cast and looks — into an existing production. Costs an LLM run, " +
+        "cast and looks — into an existing production. Costs an LLM run, " +
         "not a render. It returns a job id and a marker on the production; the " +
         "draft is written into the document by your next `get_studio_production` " +
         "and by nothing else (`get_job` / `wait_for_job` land nothing). Use it " +
         "when the user has a story rather than a plan; author the plan yourself " +
-        "and `create_studio_production` when you already know the shots.",
+        "and `create_studio_production` when you already know the scenes.",
       inputSchema: {
         production_id: productionId,
         brief: z
@@ -125,23 +133,23 @@ export function registerStudioProductionRunTools({
       }),
   )
 
-  // ── framing: the shot's still ─────────────────────────────────────────────
+  // ── framing: the scene's frame (the document's `still`) ────────────────────
   server.registerTool(
     "generate_studio_still",
     {
       title: "Generate Studio Still",
       description:
-        "Frame a shot: generate `count` candidate images from what the shot " +
-        "already says (its prompt, references, cast bindings and direction), " +
-        "plus any `overrides` for this call. Spends credits per candidate — " +
-        "`dry_run: true` prices it first. Returns job ids; a finished image " +
-        "reaches the shot's result history only on your next " +
+        "Generate a scene's FRAME (the document's `still`): `count` candidate " +
+        "images from what the scene already says (its prompt, references, cast " +
+        "bindings and direction), plus any `overrides` for this call. Spends " +
+        "credits per candidate — `dry_run: true` prices it first. Returns job " +
+        "ids; a finished image joins the scene's takes only on your next " +
         "`get_studio_production` (`get_job` / `wait_for_job` report status and " +
         "land nothing). Generating again ADDS takes, it never replaces one.",
       inputSchema: {
         production_id: productionId,
         shot_id: shotId,
-        count: z.number().int().min(1).max(10).optional().describe("Candidates. Omit for the shot's own default."),
+        count: z.number().int().min(1).max(10).optional().describe("Candidates. Omit for the scene's own default."),
         overrides,
         dry_run: dryRun,
         client_request_id: clientRequestIdSchema.optional(),
@@ -165,12 +173,13 @@ export function registerStudioProductionRunTools({
     {
       title: "Generate Studio Keyframe",
       description:
-        "Generate one candidate at expected_revision; requires dependent-frame support " +
+        "Generate one candidate for a PLANNED frame (a keyframe — not a scene's frame) " +
+        "at expected_revision; requires dependent-frame support " +
         "and an accepted parent for derived frames. Spends image credits; no quote. " +
         "Description-only cast needs no portrait. Returns a job ID; the candidate " +
-        "reaches the frame only on your next `get_studio_production` (`get_job` / " +
+        "reaches the planned frame only on your next `get_studio_production` (`get_job` / " +
         "`wait_for_job` land nothing), and landing it neither accepts it nor starts " +
-        "another frame. Review, then accept with edit_studio_production.",
+        "another. Review, then accept with edit_studio_production.",
       inputSchema: {
         production_id: productionId,
         keyframe_id: z.string().min(1).describe("The planned keyframe id."),
@@ -191,17 +200,17 @@ export function registerStudioProductionRunTools({
     }),
   )
 
-  // ── directing: the shot's clip ────────────────────────────────────────────
+  // ── directing: the scene's motion (the document's `clip`) ───────────────────
   server.registerTool(
     "generate_studio_clip",
     {
       title: "Generate Studio Clip",
       description:
-        "Animate a shot using its saved inputs. Omit mode for automatic lane selection; " +
+        "Generate a scene's MOTION (the document's `clip`) from its saved inputs. Omit mode for automatic lane selection; " +
         "start uses its start frame, references uses reference media. Spends credits; " +
         "dry_run quotes without submitting. Returns a job ID and a pending marker; the " +
-        "finished clip reaches the shot only on your next `get_studio_production` " +
-        "(`get_job` / `wait_for_job` land nothing). Still and clip jobs may run concurrently.",
+        "finished take reaches the scene only on your next `get_studio_production` " +
+        "(`get_job` / `wait_for_job` land nothing). Frame and motion jobs may run concurrently.",
       inputSchema: {
         production_id: productionId,
         shot_id: shotId,
@@ -231,16 +240,16 @@ export function registerStudioProductionRunTools({
       }),
   )
 
-  // ── a frame out of the shot's clip ────────────────────────────────────────
+  // ── a frame out of the scene's motion ─────────────────────────────────────
   server.registerTool(
     "new_studio_shot_from_frame",
     {
       title: "New Studio Shot From Frame",
       description:
-        "Grab a frame out of a shot's current video and put it to work: " +
-        'target "new-shot" (the default) opens the next shot on it — the way a ' +
+        "Grab a frame out of a scene's current motion and put it to work: " +
+        'target "new-shot" (the default) opens the next SCENE on it — the way a ' +
         'sequence is continued — while "start-frame" / "end-frame" pin it as ' +
-        'this shot\'s own endpoint and "still" adds it as a take. Take the ' +
+        'this scene\'s own endpoint and "still" adds it as a take of its frame. Take the ' +
         'first or last frame, or a "timestamp" in seconds. Costs a frame ' +
         "extraction; the route waits for it and answers with the updated " +
         "production.",
@@ -271,14 +280,14 @@ export function registerStudioProductionRunTools({
       }),
   )
 
-  // ── voice: a spoken line for the shot ─────────────────────────────────────
+  // ── voice: a spoken line for the scene ────────────────────────────────────
   server.registerTool(
     "voice_studio_shot",
     {
       title: "Voice Studio Shot",
       description:
-        "Speak a line over a shot — the voiceover lane. Give the `text`; pick a " +
-        "`voice_id` from `list_voices` or let the shot's own voice settings " +
+        "Speak a line over a scene — the voiceover lane. Give the `text`; pick a " +
+        "`voice_id` from `list_voices` or let the scene's own voice settings " +
         "stand. Costs a text-to-speech run; the route waits for it and answers " +
         "with the updated production.",
       inputSchema: {
@@ -309,17 +318,17 @@ export function registerStudioProductionRunTools({
       }),
   )
 
-  // ── revoice: recast the voices inside the shot's clip ─────────────────────
+  // ── revoice: recast the voices inside the scene's motion ──────────────────
   server.registerTool(
     "revoice_studio_clip",
     {
       title: "Revoice Studio Clip",
       description:
-        "Replace the voices inside a shot's current video — the dialogue is " +
+        "Replace the voices inside a scene's current motion — the dialogue is " +
         "re-performed and mixed back over the same picture. Takes a `plan` " +
         "naming which speaker gets which voice (see the operating skill for its " +
         "shape). Spends credits and returns a job id; the new mix reaches the " +
-        "shot only on your next `get_studio_production` (`get_job` / " +
+        "scene only on your next `get_studio_production` (`get_job` / " +
         "`wait_for_job` land nothing).",
       inputSchema: {
         production_id: productionId,
@@ -345,7 +354,7 @@ export function registerStudioProductionRunTools({
       title: "Score Studio Production",
       description:
         "Write the film a soundtrack from a `prompt` describing the music. One " +
-        "track for the whole production, not per shot. Spends credits and " +
+        "track for the whole production, not per scene. Spends credits and " +
         "returns a job id; the track reaches the production only on your next " +
         "`get_studio_production` (`get_job` / `wait_for_job` land nothing).",
       inputSchema: {

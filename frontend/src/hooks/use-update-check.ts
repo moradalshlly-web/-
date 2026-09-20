@@ -22,6 +22,16 @@ export interface UpdateInfo {
 
 const STORAGE_KEY = "nodaro-update-check"
 const TTL_MS = 24 * 60 * 60 * 1000
+/**
+ * An answer with no release in it is "not known yet": the backend's read of the
+ * release list failed and it is already trying again. Stamping THAT for a day
+ * kept the version dialog empty in a browser long after the backend had healed.
+ */
+const UNKNOWN_TTL_MS = 10 * 60 * 1000
+
+function ttlFor(info: UpdateInfo): number {
+  return info.latest ? TTL_MS : UNKNOWN_TTL_MS
+}
 
 let memory: UpdateInfo | null = null
 let inflight: Promise<UpdateInfo | null> | null = null
@@ -75,7 +85,7 @@ export function useUpdateCheck(): UpdateInfo | null {
   const [info, setInfo] = useState<UpdateInfo | null>(() => {
     if (memory) return memory
     const stored = readStored()
-    return stored && Date.now() - stored.at < TTL_MS ? stored.info : null
+    return stored && Date.now() - stored.at < ttlFor(stored.info) ? stored.info : null
   })
 
   useEffect(() => {

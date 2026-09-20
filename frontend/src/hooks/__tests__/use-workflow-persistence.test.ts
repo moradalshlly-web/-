@@ -103,7 +103,7 @@ vi.mock("@/hooks/use-workflow-store", () => {
 // Import under test (after mocks)
 // ---------------------------------------------------------------------------
 
-import { useWorkflowPersistence, TERMINAL_RESTORABLE_STATUSES } from "../use-workflow-persistence"
+import { useWorkflowPersistence, TERMINAL_RESTORABLE_STATUSES, executionSettledAt } from "../use-workflow-persistence"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1511,6 +1511,178 @@ describe("useWorkflowPersistence — terminal-execution restore via load", () =>
     const opts = restoreCall![1] as { limit?: number; source?: string }
     expect(opts.limit).toBeGreaterThan(1)
     expect(opts.source).toBe("editor")
+  })
+
+  /**
+   * #1547 — both load-time lanes wrote four outputs under names nothing reads
+   * (`generatedVocalUrl` for `vocalUrl`, …), and wrote a Combine Text's result
+   * only where its HANDLE reads it, never where its card does. A run that
+   * finished with the tab closed came back with those outputs invisible — and a
+   * separation's `vocals` handle, finding no `vocalUrl`, fell back to the full mix.
+   */
+  describe("named side outputs come back under the names their readers use", () => {
+    const sideOutputs = {
+      sep: { status: "completed", output: { audioUrl: "https://cdn.test/mix.mp3", vocalUrl: "https://cdn.test/vocals.mp3", instrumentalUrl: "https://cdn.test/inst.mp3" } },
+      align: { status: "completed", output: { alignment: [{ word: "hi", start: 0, end: 1 }] } },
+      combine: { status: "completed", output: { combinedText: "a b" } },
+      split: { status: "completed", output: { splitResults: ["a", "b"] } },
+    }
+    const canvas = () =>
+      setupSupabaseLoad({
+        id: "w1",
+        name: "WF",
+        nodes: [
+          makeNode({ id: "sep", type: "suno-separate", data: { label: "Sep" } }),
+          makeNode({ id: "align", type: "forced-alignment", data: { label: "Align" } }),
+          makeNode({ id: "combine", type: "combine-text", data: { label: "Combine" } }),
+          makeNode({ id: "split", type: "split-text", data: { label: "Split" } }),
+        ],
+        edges: [],
+      })
+    const loaded = async () => {
+      const { result } = renderHook(() => useWorkflowPersistence("p1"))
+      await act(async () => {
+        await result.current.load("w1")
+      })
+      return Object.fromEntries(
+        getSyncedNodes().map((n) => [(n as { id: string }).id, (n as { data: Record<string, unknown> }).data]),
+      )
+    }
+    const expectReadable = (byId: Record<string, Record<string, unknown>>) => {
+      expect(byId.sep.vocalUrl).toBe("https://cdn.test/vocals.mp3")
+      expect(byId.sep.instrumentalUrl).toBe("https://cdn.test/inst.mp3")
+      expect(byId.align.alignmentResults).toEqual([{ word: "hi", start: 0, end: 1 }])
+      expect(byId.combine.combinedText).toBe("a b")
+      expect(byId.combine.generatedText).toBe("a b")
+      expect(byId.split.splitResults).toEqual(["a", "b"])
+      // The old spellings are gone — nothing ever read them.
+      for (const data of Object.values(byId)) {
+        for (const stale of ["generatedVocalUrl", "generatedInstrumentalUrl", "generatedAlignment", "generatedSplitResults"]) {
+          expect(stale in data, stale).toBe(false)
+        }
+      }
+    }
+
+    it("from a run that finished while the editor was closed", async () => {
+      canvas()
+      mockTerminal([{ id: "exec-1", triggerType: "manual", status: "completed", createdAt: new Date().toISOString(), nodeStates: sideOutputs }])
+      expectReadable(await loaded())
+    })
+
+    it("from a run that is STILL going when the editor reopens (its finished nodes are painted right away)", async () => {
+      canvas()
+      mockListWorkflowExecutions.mockImplementation((_id: string, opts: { status?: string }) =>
+        Promise.resolve({
+          data:
+            opts?.status === "pending,running,stopping"
+              ? [{ id: "exec-1", triggerType: "manual", status: "running", createdAt: new Date().toISOString(), nodeStates: sideOutputs }]
+              : [],
+        }),
+      )
+      expectReadable(await loaded())
+    })
+  })
+
+  /**
+   * "Clear results" empties nodes on purpose, and an empty node is exactly what
+   * this restore looks for. The stamp the clear leaves is the only thing that
+   * tells the two apart; without it a reload quietly undoes the clear.
+   */
+  describe("a node emptied by Clear results", () => {
+    const CLEARED_AT = "2026-09-20T10:00:00.000Z"
+    const run = (completedAt: string | undefined, nodeStates: Record<string, unknown>) => ({
+      id: "exec-1",
+      triggerType: "manual",
+      status: "completed",
+      createdAt: "2026-09-20T08:00:00.000Z",
+      startedAt: "2026-09-20T08:00:01.000Z",
+      completedAt,
+      nodeStates,
+    })
+    const loadedData = async () => {
+      const { result } = renderHook(() => useWorkflowPersistence("p1"))
+      await act(async () => {
+        await result.current.load("w1")
+      })
+      return Object.fromEntries(
+        getSyncedNodes().map((n) => [(n as { id: string }).id, (n as { data: Record<string, unknown> }).data]),
+      )
+    }
+    const canvas = () =>
+      setupSupabaseLoad({
+        id: "w1",
+        name: "WF",
+        nodes: [
+          makeNode({ id: "cleared", data: { label: "A", resultsClearedAt: CLEARED_AT } }),
+          makeNode({ id: "untouched", data: { label: "B" } }),
+        ],
+        edges: [],
+      })
+    const bothCompleted = {
+      cleared: { status: "completed", output: { imageUrl: "https://cdn.test/old-a.png" } },
+      untouched: { status: "completed", output: { imageUrl: "https://cdn.test/old-b.png" } },
+    }
+
+    it("stays empty when the last run settled BEFORE the clear — the un-cleared node beside it is still restored", async () => {
+      canvas()
+      mockTerminal([run("2026-09-20T09:00:00+00:00", bothCompleted)])
+      const byId = await loadedData()
+      expect(byId.cleared.generatedImageUrl).toBeUndefined()
+      expect(byId.cleared.generatedResults).toBeUndefined()
+      expect(byId.untouched.generatedImageUrl).toBe("https://cdn.test/old-b.png")
+    })
+
+    it("is restored as always from a run that settled AFTER the clear (it ran while the editor was closed)", async () => {
+      canvas()
+      mockTerminal([run("2026-09-20T11:00:00+00:00", bothCompleted)])
+      const byId = await loadedData()
+      expect(byId.cleared.generatedImageUrl).toBe("https://cdn.test/old-a.png")
+    })
+
+    it("judges a run with no completion time by the newest time it does carry", async () => {
+      canvas()
+      // started 08:00:01, before the 10:00 clear
+      mockTerminal([run(undefined, bothCompleted)])
+      const byId = await loadedData()
+      expect(byId.cleared.generatedImageUrl).toBeUndefined()
+    })
+
+    it("a run that carries no completion time but STARTED after the clear is still new work", async () => {
+      canvas()
+      mockTerminal([{ ...run(undefined, bothCompleted), createdAt: "2026-09-20T11:00:00.000Z", startedAt: "2026-09-20T11:00:01.000Z" }])
+      const byId = await loadedData()
+      expect(byId.cleared.generatedImageUrl).toBe("https://cdn.test/old-a.png")
+    })
+
+    it("executionSettledAt is the newest server time the execution carries", () => {
+      expect(executionSettledAt({ completedAt: "c", startedAt: "s", createdAt: "k" })).toBe("c")
+      expect(executionSettledAt({ completedAt: null, startedAt: "s", createdAt: "k" })).toBe("s")
+      expect(executionSettledAt({ createdAt: "k" })).toBe("k")
+      expect(executionSettledAt({})).toBeUndefined()
+    })
+
+    it("holds on the OTHER restore site too — an 'active' execution that had already finished by load time", async () => {
+      canvas()
+      mockListWorkflowExecutions.mockImplementation((_id: string, opts: { status?: string }) =>
+        Promise.resolve({
+          data: opts?.status === "pending,running,stopping" ? [run("2026-09-20T09:00:00+00:00", bothCompleted)] : [],
+        }),
+      )
+      const byId = await loadedData()
+      expect(byId.cleared.generatedImageUrl).toBeUndefined()
+      expect(byId.untouched.generatedImageUrl).toBe("https://cdn.test/old-b.png")
+    })
+
+    it("…and that site, too, still restores a run that settled after the clear", async () => {
+      canvas()
+      mockListWorkflowExecutions.mockImplementation((_id: string, opts: { status?: string }) =>
+        Promise.resolve({
+          data: opts?.status === "pending,running,stopping" ? [run("2026-09-20T11:00:00+00:00", bothCompleted)] : [],
+        }),
+      )
+      const byId = await loadedData()
+      expect(byId.cleared.generatedImageUrl).toBe("https://cdn.test/old-a.png")
+    })
   })
 
   /**

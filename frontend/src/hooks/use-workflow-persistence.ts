@@ -17,6 +17,8 @@ import { isStudioWorkflowSettings } from "@/lib/studio"
 import { isValidUuid } from "@/lib/uuid"
 import { collectRestorableSingleNodeJobs, applySingleNodeJobRestore } from "@/lib/single-node-restore"
 import { refreshEntityNodes } from "@/lib/entity-node-data"
+import { settledBeforeClear } from "@/lib/results-cleared"
+import { namedRunOutputFields } from "@/lib/named-run-outputs"
 
 /**
  * Execution statuses whose `node_states` are worth restoring onto the canvas on
@@ -38,6 +40,15 @@ import { refreshEntityNodes } from "@/lib/entity-node-data"
  * `__tests__/use-workflow-persistence.test.ts`.
  */
 export const TERMINAL_RESTORABLE_STATUSES = "completed,failed,cancelled,timed_out"
+
+/** When a finished execution stopped producing results — the newest server time it carries. */
+export function executionSettledAt(execution: {
+  readonly completedAt?: string | null
+  readonly startedAt?: string | null
+  readonly createdAt?: string | null
+}): string | undefined {
+  return execution.completedAt ?? execution.startedAt ?? execution.createdAt ?? undefined
+}
 
 interface StillRunningJob {
   readonly nodeId: string
@@ -394,12 +405,9 @@ function applyBackendExecutionState(
         if (state.output.videoUrl) data.generatedVideoUrl = state.output.videoUrl
         if (state.output.audioUrl) data.generatedAudioUrl = state.output.audioUrl
         if (state.output.script) data.generatedScript = state.output.script
-        if (state.output.generatedVoiceId) data.generatedVoiceId = state.output.generatedVoiceId
-        if (state.output.vocalUrl) data.generatedVocalUrl = state.output.vocalUrl
-        if (state.output.instrumentalUrl) data.generatedInstrumentalUrl = state.output.instrumentalUrl
-        if (state.output.alignment) data.generatedAlignment = state.output.alignment
-        if (state.output.combinedText) data.generatedText = state.output.combinedText
-        if (state.output.splitResults) data.generatedSplitResults = state.output.splitResults
+        // Voice id, stems, alignment, combined / split text — under the names
+        // their readers use (#1547: this lane used to invent its own).
+        Object.assign(data, namedRunOutputFields(state.output))
 
         // Build generated result entries from the output
         const listResultUrls = (state.output.listResults ?? []).filter(
@@ -462,16 +470,23 @@ function applyBackendExecutionState(
  * Apply results from a completed backend execution to nodes that don't
  * already have outputs. This handles the case where execution ran while
  * the frontend was closed — the workflow JSON was never updated with results.
+ *
+ * `settledAt` is when that execution ended. A node the user emptied with
+ * "Clear results" AFTER it looks exactly like a node that never got its
+ * result, so the stamp the clear leaves (lib/results-cleared.ts) is what tells
+ * the two apart — without it every reload undoes the clear.
  */
-function applyCompletedExecutionResults(
+export function applyCompletedExecutionResults(
   nodes: WorkflowNode[],
   nodeStates: Record<string, NodeExecutionState>,
+  settledAt: string | null | undefined,
 ): WorkflowNode[] {
   return nodes.map(node => {
     const state = nodeStates[node.id]
     if (!state || state.status !== "completed" || !state.output) return node
 
     const data = node.data as Record<string, unknown>
+    if (settledBeforeClear(data, settledAt)) return node
 
     // Scene results are revisions, not URLs. Recover even if an older load
     // marked the node complete without restoring its plan; the shared guard
@@ -516,12 +531,9 @@ function applyCompletedExecutionResults(
     if (state.output.videoUrl) newData.generatedVideoUrl = state.output.videoUrl
     if (state.output.audioUrl) newData.generatedAudioUrl = state.output.audioUrl
     if (state.output.script) newData.generatedScript = state.output.script
-    if (state.output.generatedVoiceId) newData.generatedVoiceId = state.output.generatedVoiceId
-    if (state.output.vocalUrl) newData.generatedVocalUrl = state.output.vocalUrl
-    if (state.output.instrumentalUrl) newData.generatedInstrumentalUrl = state.output.instrumentalUrl
-    if (state.output.alignment) newData.generatedAlignment = state.output.alignment
-    if (state.output.combinedText) newData.generatedText = state.output.combinedText
-    if (state.output.splitResults) newData.generatedSplitResults = state.output.splitResults
+    // Voice id, stems, alignment, combined / split text — under the names
+    // their readers use (#1547: this lane used to invent its own).
+    Object.assign(newData, namedRunOutputFields(state.output))
     // Choose Best (reduce): winner + the judge's reasoning, same fields the
     // single-node Run writes (execute-node.ts) — mirrors syncNodeStatesToStore.
     if (nodeType === "reduce" && typeof state.output.result === "string") {
@@ -1183,7 +1195,7 @@ export function useWorkflowPersistence(projectId?: string) {
               activeBackendExecution = { executionId: orchestrator.id, nodeStates }
             } else if (Object.keys(nodeStates).length > 0) {
               // Execution already finished — apply results like a completed execution
-              nodes = applyCompletedExecutionResults(nodes, nodeStates)
+              nodes = applyCompletedExecutionResults(nodes, nodeStates, executionSettledAt(orchestrator))
               nodesChanged = true
             }
           }
@@ -1239,7 +1251,7 @@ export function useWorkflowPersistence(projectId?: string) {
               if (Object.keys(nodeStates).length > 0) {
                 // Only apply outputs to nodes that don't already have results
                 const before = JSON.stringify(nodes)
-                nodes = applyCompletedExecutionResults(nodes, nodeStates)
+                nodes = applyCompletedExecutionResults(nodes, nodeStates, executionSettledAt(lastOrchestrated))
                 if (JSON.stringify(nodes) !== before) {
                   nodesChanged = true
                 }

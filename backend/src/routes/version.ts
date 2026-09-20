@@ -11,6 +11,10 @@ import { getUpdateStatus } from "../lib/update-check.js"
 export async function versionRoutes(app: FastifyInstance) {
   app.get("/v1/version", async (_req, reply) => {
     const status = await getUpdateStatus()
-    return reply.header("Cache-Control", "public, max-age=3600").send(status)
+    // `latest: null` is "not known yet" (the release read has not succeeded) or
+    // "switched off" — either way not an answer worth pinning in a browser or a
+    // proxy for an hour while the backend is already trying again.
+    const maxAge = status.latest ? 3600 : 60
+    return reply.header("Cache-Control", `public, max-age=${maxAge}`).send(status)
   })
 }

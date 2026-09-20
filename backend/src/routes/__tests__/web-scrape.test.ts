@@ -218,6 +218,14 @@ describe("POST /v1/web-scrape", () => {
 
     expect(res.statusCode).toBe(502)
     expect(res.json().error.code).toBe("scrape_error")
+    // Whatever the feed fetch throws — the network, a status, or "this is not
+    // a feed" — is a failed job with its reservation handed back, never a
+    // completed (= charged) one. The real parser is exercised end to end in
+    // web-scrape-rss-billing.test.ts.
+    expect(settle.markJobFailed).toHaveBeenCalledTimes(1)
+    expect(settle.refund).toHaveBeenCalledTimes(1)
+    expect(settle.commit).not.toHaveBeenCalled()
+    expect(settle.markJobCompleted).not.toHaveBeenCalled()
   })
 })
 

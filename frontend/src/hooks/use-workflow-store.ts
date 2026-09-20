@@ -708,6 +708,22 @@ interface WorkflowState {
   readonly skipSelectedNodes: (nodeIds: string[]) => void
   readonly unskipSelectedNodes: (nodeIds: string[]) => void
   readonly restoreSnapshot: (snapshot: WorkflowSnapshot) => void
+  /**
+   * Rewrite the graph in ONE store update — one undo step, one dirty epoch.
+   *
+   * For a bulk edit computed outside the store (Clear results). `edit` reads
+   * the live graph and returns the next one, or null to change nothing; it
+   * runs inside the update, so nothing can interleave between its read and
+   * its write. Unlike `updateNodeData`, this NEVER takes the execution-only
+   * undo exemption: the caller is making a user edit even when every key it
+   * touches is run state — which is exactly what makes clearing undoable.
+   * Returns whether anything changed.
+   */
+  readonly editGraph: (
+    edit: (graph: { readonly nodes: WorkflowNode[]; readonly edges: WorkflowEdge[] }) =>
+      | { readonly nodes: WorkflowNode[]; readonly edges: WorkflowEdge[] }
+      | null,
+  ) => boolean
   readonly batchAddNodesAndEdges: (nodes: WorkflowNode[], edges: WorkflowEdge[]) => void
   readonly expandStoryboard: ((scriptNodeId: string, options: { layout: "horizontal" | "vertical"; autoRun: boolean; includeCombine: boolean; narrationSource?: "visualDescription" | "action" | "imagePrompt"; nodeType?: "pipeline" | "scene" }) => void) | null
   readonly setExpandStoryboard: (fn: ((scriptNodeId: string, options: { layout: "horizontal" | "vertical"; autoRun: boolean; includeCombine: boolean; narrationSource?: "visualDescription" | "action" | "imagePrompt"; nodeType?: "pipeline" | "scene" }) => void) | null) => void
@@ -3196,6 +3212,18 @@ export const useWorkflowStore = create<WorkflowState>((rawSet, get) => {
       workflowName: snapshot.workflowName,
       isDirty: true,
     })
+  },
+
+  editGraph: (edit) => {
+    if (get().isReadOnly) return false
+    let changed = false
+    set((state) => {
+      const next = edit({ nodes: state.nodes, edges: state.edges })
+      if (!next) return {}
+      changed = true
+      return { nodes: next.nodes, edges: next.edges, isDirty: true }
+    })
+    return changed
   },
 
   batchAddNodesAndEdges: (newNodes, newEdges) => {
