@@ -23,6 +23,7 @@ import {
 } from "./types";
 import { estimateRunCredits } from "./estimate-run-credits";
 import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, planFanOut, TRANSIENT_RUNTIME_KEYS, isExpandedClone, unwrapEditPlanOutput } from "@nodaro/shared"
+import { clearedConnectedListRows } from "./clear-run-results"
 import type { NodeExecutionStatus as SharedNodeExecutionStatus, NodeExecutionStateWire } from "@nodaro/shared"
 import { collapseExpandedClones } from "./execution-graph";
 import { shouldAbandonNode } from "./abandon-guard";
@@ -115,12 +116,10 @@ function warnUnderMinRows(nodes: WorkflowNode[]): void {
  * used for display: without clearing, a saved workflow would carry stale
  * cells in connected columns across runs and show them briefly (or durably,
  * if the upstream disconnects) as leftover data.
+ *
+ * WHICH cells count as connected is decided by `clearedConnectedListRows` —
+ * the same rule "Clear results" applies, so the two can never disagree.
  */
-type ListLoopColumn = {
-  handleId: string
-  connectedSourceId?: string
-  [key: string]: unknown
-}
 
 /**
  * Fields that accumulate output across runs. `syncNodeStatesToStore` and
@@ -211,27 +210,8 @@ export function resetNodeAccumulation(
 export function clearConnectedListRows(nodes: WorkflowNode[]): void {
   const { updateNodeData } = useWorkflowStore.getState()
   for (const node of nodes) {
-    if (node.type !== "list") continue
-    const data = node.data as Record<string, unknown>
-    const columns = (data.columns as ListLoopColumn[] | undefined) ?? []
-    if (columns.length === 0) continue
-    const connectedIdxs = columns
-      .map((c, i) => (c.connectedSourceId ? i : -1))
-      .filter((i) => i >= 0)
-    if (connectedIdxs.length === 0) continue
-
-    const existingRows = (data.rows as string[][] | undefined) ?? []
-    const connectedSet = new Set(connectedIdxs)
-    // Reset only connected cells; leave manual columns alone so mixed tables
-    // don't lose user input when a sibling column is wired to upstream.
-    const clearedRows = existingRows.map((row) =>
-      row.map((cell, ci) => (connectedSet.has(ci) ? "" : cell)),
-    )
-    // If every column is connected, collapse to a single empty row so the
-    // live upstream resolver drives row count from scratch.
-    const allConnected = connectedIdxs.length === columns.length
-    const nextRows = allConnected ? [columns.map(() => "")] : clearedRows
-    updateNodeData(node.id, { rows: nextRows })
+    const rows = clearedConnectedListRows(node)
+    if (rows) updateNodeData(node.id, { rows })
   }
 }
 

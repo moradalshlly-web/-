@@ -6,14 +6,25 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useWorkflowStore, EXECUTION_DATA_KEYS } from "@/hooks/use-workflow-store"
 import { autoExecuteNode } from "@/components/editor/workflow-editor/auto-execute"
+import { RUN_RESULT_EXTRA_KEYS } from "@/components/editor/workflow-editor/clear-run-results"
 
-/** Keys that are NOT config — changes to these should NOT trigger auto-execute. */
-const IGNORE_KEYS = new Set([
+/**
+ * Keys that are NOT config — changes to these should NOT trigger auto-execute.
+ *
+ * Exported for the guard in clear-run-results.test.ts: "Clear results" REMOVES
+ * result keys, and a removal this set does not know about reads as a config
+ * change — the inline node would re-run 300 ms after being cleared and paint
+ * its result straight back.
+ */
+export const AUTO_EXECUTE_IGNORE_KEYS: ReadonlySet<string> = new Set([
   ...EXECUTION_DATA_KEYS,
   // Extra output keys not in the undo set
   "generatedJson", "__listInputs",
   // Node-specific outputs
   "combinedText", "splitResults", "extractedText", "listResults",
+  // Every other result field runs write outside the registry (one list, shared
+  // with the clear — fan-out bookkeeping like `__currentRunId` lives there).
+  ...RUN_RESULT_EXTRA_KEYS,
   // Meta fields
   "label", "presentationInput", "presentationOutput", "skipped", "__expandedClone",
 ])
@@ -21,7 +32,7 @@ const IGNORE_KEYS = new Set([
 function configSnapshot(data: Record<string, unknown>): string {
   const config: Record<string, unknown> = {}
   for (const key of Object.keys(data)) {
-    if (!IGNORE_KEYS.has(key)) config[key] = data[key]
+    if (!AUTO_EXECUTE_IGNORE_KEYS.has(key)) config[key] = data[key]
   }
   return JSON.stringify(config)
 }

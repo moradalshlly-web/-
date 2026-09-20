@@ -746,3 +746,76 @@ describe("scrape result recovery", () => {
     expect(updateNodeData).toHaveBeenCalledWith("n1", expect.objectContaining({ lastRunOutcome: "success", generatedJson: crawl }))
   })
 })
+
+/**
+ * "Clear results" empties a node ON PURPOSE, and an emptied node is exactly
+ * what this lane looks for. The stamp the clear leaves (`resultsClearedAt`) is
+ * the only thing that tells "cleared" from "never got its result" — without it
+ * every reload brings back whatever the person just cleared.
+ */
+describe("a node emptied by Clear results", () => {
+  const CLEARED_AT = "2026-09-20T10:00:00.000Z"
+  const BEFORE = "2026-09-20T09:00:00.000Z"
+  const AFTER = "2026-09-20T11:00:00.000Z"
+  const videoJob = async () => ({ status: "completed", output_data: { videoUrl: "https://cdn.test/v.mp4" } })
+  const timedItem = (jobId: string, nodeId: string, times: { createdAt?: string; completedAt?: string }) => ({
+    ...completedItem(jobId, nodeId),
+    ...times,
+  })
+
+  it("carries the job's settle time on the ref — completion first, creation as the fallback", () => {
+    expect(pickLatestTerminalJobPerNode([timedItem("j1", "n1", { createdAt: BEFORE, completedAt: AFTER })])[0].settledAt).toBe(AFTER)
+    expect(pickLatestTerminalJobPerNode([timedItem("j1", "n1", { createdAt: BEFORE })])[0].settledAt).toBe(BEFORE)
+  })
+
+  it("stays empty: a job that settled BEFORE the clear is not painted back (and is never even fetched)", async () => {
+    const fetchOutput = vi.fn(videoJob)
+    const refs = pickLatestTerminalJobPerNode([timedItem("j1", "n1", { createdAt: BEFORE, completedAt: BEFORE })])
+    const nodes = [node("n1", "generate-video-pro", { prompt: "p", resultsClearedAt: CLEARED_AT })]
+    expect(await computeCompletedJobPatches(refs, nodes, fetchOutput, NOW)).toEqual([])
+    expect(fetchOutput).not.toHaveBeenCalled()
+  })
+
+  it("still recovers a job that settled AFTER the clear — a run started after it, finished with the tab closed", async () => {
+    const refs = pickLatestTerminalJobPerNode([timedItem("j2", "n1", { createdAt: AFTER, completedAt: AFTER })])
+    const nodes = [node("n1", "generate-video-pro", { prompt: "p", resultsClearedAt: CLEARED_AT })]
+    const patches = await computeCompletedJobPatches(refs, nodes, videoJob, NOW)
+    expect(patches).toHaveLength(1)
+    expect(patches[0].updates.generatedVideoUrl).toBe("https://cdn.test/v.mp4")
+  })
+
+  it("a long job STARTED before the clear but finished after it is judged by when it finished", async () => {
+    const refs = pickLatestTerminalJobPerNode([timedItem("j3", "n1", { createdAt: BEFORE, completedAt: AFTER })])
+    const nodes = [node("n1", "generate-video-pro", { prompt: "p", resultsClearedAt: CLEARED_AT })]
+    expect(await computeCompletedJobPatches(refs, nodes, videoJob, NOW)).toHaveLength(1)
+  })
+
+  it("an un-cleared node beside it is recovered exactly as before", async () => {
+    const refs = pickLatestTerminalJobPerNode([timedItem("j1", "n1", { completedAt: BEFORE }), timedItem("j4", "n2", { completedAt: BEFORE })])
+    const nodes = [
+      node("n1", "generate-video-pro", { prompt: "p", resultsClearedAt: CLEARED_AT }),
+      node("n2", "generate-video-pro", { prompt: "p" }),
+    ]
+    const patches = await computeCompletedJobPatches(refs, nodes, videoJob, NOW)
+    expect(patches.map((p) => p.nodeId)).toEqual(["n2"])
+  })
+
+  it("respects a clear made WHILE the job lookup was in flight", async () => {
+    const refs = pickLatestTerminalJobPerNode([timedItem("j1", "n1", { completedAt: BEFORE })])
+    const nodes = [node("n1", "generate-video-pro", { prompt: "p" })]
+    const live = () => ({ prompt: "p", resultsClearedAt: CLEARED_AT })
+    expect(await computeCompletedJobPatches(refs, nodes, videoJob, NOW, live)).toEqual([])
+  })
+
+  it("holds for the node types that have their OWN recovery guard — the clear is asked first", async () => {
+    const sceneJob = async () => ({ status: "completed", output_data: { scenePlan: { revisionId: "r9", objects: [] } } })
+    const sceneRefs = pickLatestTerminalJobPerNode([timedItem("j5", "sc", { completedAt: BEFORE })])
+    const scene = [node("sc", "generate-3d-scene", { resultsClearedAt: CLEARED_AT })]
+    expect(await computeCompletedJobPatches(sceneRefs, scene, sceneJob, NOW)).toEqual([])
+
+    const scrapeJob = async () => ({ status: "completed", output_data: { json: { results: [{ url: "https://a.test" }] } } })
+    const scrapeRefs = pickLatestTerminalJobPerNode([timedItem("j6", "ws", { createdAt: BEFORE, completedAt: BEFORE })])
+    const scraper = [node("ws", "web-scrape", { resultsClearedAt: CLEARED_AT })]
+    expect(await computeCompletedJobPatches(scrapeRefs, scraper, scrapeJob, NOW)).toEqual([])
+  })
+})
