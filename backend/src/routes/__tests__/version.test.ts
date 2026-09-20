@@ -40,4 +40,11 @@ describe("GET /v1/version", () => {
     })
     expect(res.headers["cache-control"]).toContain("max-age=3600")
   })
+
+  it("an answer with no release in it is not pinned for an hour", async () => {
+    mocks.getUpdateStatus.mockResolvedValue({ current: "1.23.0", latest: null, updateAvailable: false })
+    const res = await app.inject({ method: "GET", url: "/v1/version" })
+    expect(res.json().latest).toBeNull()
+    expect(res.headers["cache-control"]).toBe("public, max-age=60")
+  })
 })
