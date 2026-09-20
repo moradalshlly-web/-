@@ -23,25 +23,36 @@ npx @nodaro/cli projects list
 
 Single-file executables compiled with `bun build --compile` — ~60 MB, ~10 ms cold start, no dependencies.
 
+CLI releases are tagged `cli-vX.Y.Z`. This repository's **"latest" release is the app's**, not the CLI's, so a `releases/latest/download/…` link never reaches a CLI binary. Resolve the newest `cli-v*` tag first, then download from it:
+
 ```bash
-# macOS Apple Silicon
-curl -L https://github.com/nodaroai/app.nodaro.ai/releases/latest/download/nodaro-darwin-arm64 \
-  -o /usr/local/bin/nodaro && chmod +x /usr/local/bin/nodaro
+# 1. The newest CLI version (e.g. 1.20.0)
+NODARO_CLI_VERSION=$(curl -fsSL "https://api.github.com/repos/nodaroai/app.nodaro.ai/git/matching-refs/tags/cli-v?per_page=100" \
+  | grep -o '"refs/tags/cli-v[0-9][0-9.]*"' | tr -d '"' | sed 's#refs/tags/cli-v##' \
+  | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)
+echo "Installing @nodaro/cli $NODARO_CLI_VERSION"
 
-# macOS Intel
-curl -L https://github.com/nodaroai/app.nodaro.ai/releases/latest/download/nodaro-darwin-x64 \
-  -o /usr/local/bin/nodaro && chmod +x /usr/local/bin/nodaro
+# 2. Your platform: darwin-arm64 (Apple Silicon) · darwin-x64 (Intel Mac) · linux-x64 · linux-arm64
+NODARO_CLI_PLATFORM=darwin-arm64
 
-# Linux x86_64
-curl -L https://github.com/nodaroai/app.nodaro.ai/releases/latest/download/nodaro-linux-x64 \
+# 3. Download. -f fails on an HTTP error instead of saving the error page as the binary.
+curl -fL "https://github.com/nodaroai/app.nodaro.ai/releases/download/cli-v$NODARO_CLI_VERSION/nodaro-$NODARO_CLI_PLATFORM" \
   -o /usr/local/bin/nodaro && chmod +x /usr/local/bin/nodaro
-
-# Linux ARM64
-curl -L https://github.com/nodaroai/app.nodaro.ai/releases/latest/download/nodaro-linux-arm64 \
-  -o /usr/local/bin/nodaro && chmod +x /usr/local/bin/nodaro
+nodaro --version
 ```
 
-Windows: download `nodaro-windows-x64.exe` from the [releases page](https://github.com/nodaroai/app.nodaro.ai/releases) and rename to `nodaro.exe`.
+Windows (PowerShell):
+
+```powershell
+$v = (Invoke-RestMethod "https://api.github.com/repos/nodaroai/app.nodaro.ai/git/matching-refs/tags/cli-v?per_page=100") |
+  ForEach-Object { $_.ref -replace '^refs/tags/cli-v', '' } |
+  Where-Object { $_ -match '^\d+\.\d+\.\d+$' } |
+  Sort-Object { [version]$_ } | Select-Object -Last 1
+Invoke-WebRequest "https://github.com/nodaroai/app.nodaro.ai/releases/download/cli-v$v/nodaro-windows-x64.exe" -OutFile nodaro.exe
+.\nodaro.exe --version
+```
+
+To pin a version, skip step 1 and set `NODARO_CLI_VERSION` yourself. Every CLI release and its binaries: [releases tagged `cli-v`](https://github.com/nodaroai/app.nodaro.ai/releases?q=cli-v).
 
 ## Authentication
 
