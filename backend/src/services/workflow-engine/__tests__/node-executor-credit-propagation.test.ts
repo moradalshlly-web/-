@@ -58,6 +58,12 @@ vi.mock("../../../lib/config.js", () => ({
 // Heavy/irrelevant deps pulled in transitively by node-executor — stub to keep
 // the import graph hermetic (no BullMQ/Redis, no credit RPCs).
 vi.mock("../../../lib/queue.js", () => ({ videoQueue: { add: vi.fn() } }))
+// executeNode asks the availability door first; the real module reads the
+// deployment profile through config helpers this file's config stub omits.
+vi.mock("../../../lib/availability-viewer.js", () => ({
+  assertNodeAvailableForUser: async () => {},
+  viewerForNode: async () => ({ admin: false }),
+}))
 vi.mock("../../../lib/render-queue.js", () => ({ renderQueue: { add: vi.fn() } }))
 vi.mock("../../../ee/billing/credits.js", () => ({
   CreditsService: { checkCredits: vi.fn(), reserveCredits: vi.fn() },

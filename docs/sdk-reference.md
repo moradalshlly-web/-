@@ -3868,14 +3868,18 @@ downloadVideo(input: {
   maxHeight?: number
   sectionStartSec?: number
   sectionEndSec?: number
+  requireAudio?: boolean
 }): Promise<{ downloadId: string }>
 ```
 
 Download a social video (YouTube / TikTok / Instagram / X / Facebook) into your
 storage (`POST /v1/download-video`). `maxHeight` caps the resolution (omit for
 best available); `sectionStartSec` + `sectionEndSec` (both-or-neither) fetch
-only that time range. Returns a `downloadId` — not a job id — whose progress
-streams from `downloadVideoProgress()`. The finished file lands in your library.
+only that time range. A download that arrives with no audio stream fails by
+default — it is usually a degraded source response, and is retried through
+other routes first; pass `requireAudio: false` to accept a clip that really has
+no sound. Returns a `downloadId` — not a job id — whose progress streams from
+`downloadVideoProgress()`. The finished file lands in your library.
 
 #### `downloadVideoProgress(downloadId, opts?)`
 
@@ -3942,15 +3946,19 @@ addCaptions(input: {
   fontSize?: number
   color?: string
   backgroundColor?: string
-  // Kinetic-style look levers — rejected on the static "subtitle" style:
-  look?: "outline" | "clean"          // preset; UNSET renders as "outline"
+  // Look + motion levers. The STYLING levers (look, fontFamily, fontWeight,
+  // strokeColor/strokeWidth, uppercase, positionY) now apply to the static
+  // "subtitle" style too — a subtitle carrying any of them renders via Remotion.
+  // Only highlightColor and animate stay kinetic-only (rejected 400 on subtitle):
+  look?: "outline" | "clean"          // preset; on the kinetic styles an UNSET look renders as "outline"
   fontFamily?: SupportedFontName
   fontWeight?: number                 // 100–900 in 100s
   strokeColor?: string
   strokeWidth?: number
-  highlightColor?: string
+  highlightColor?: string             // kinetic only — the spoken/active word colour
   uppercase?: boolean
   positionY?: number                  // caption CENTER as % of height; overrides position
+  animate?: boolean                   // kinetic only; false freezes per-word motion (default true)
   // Apply different treatments to non-overlapping time ranges in one call:
   segments?: CaptionSegmentInput[]
 }): Promise<{ jobId: string }>
@@ -3958,13 +3966,19 @@ addCaptions(input: {
 
 Burn captions into a video (`POST /v1/add-captions`). Give the words as `text`,
 word-timed `captions[]` (one entry per WORD for the kinetic styles), or let it
-transcribe (the default). The kinetic styles carry a `look` preset — `outline`
+transcribe (the default). On the kinetic styles a `look` preset — `outline`
 (Montserrat 900, UPPERCASE, black outline, yellow spoken word — the TikTok read)
-or `clean`; an unset `look` renders as `outline`, and the explicit levers
-override individual fields of it. `segments[]` applies different treatments to
-non-overlapping time ranges; a segment that names its own `look` starts fresh
-from that preset and does not inherit the top-level explicit levers. Poll
-`jobs.get(jobId)`.
+or `clean` — drives the styling, and an unset `look` renders as `outline`; the
+explicit levers override individual fields of it. The styling levers (`look`,
+`fontFamily`, `fontWeight`, `strokeColor`/`strokeWidth`, `uppercase`,
+`positionY`) now apply to `subtitle` too — a styled subtitle renders via Remotion
+and bills at the kinetic price, while a bare plain-text subtitle stays on the
+cheap FFmpeg path. Only `highlightColor` and `animate` stay kinetic-only.
+`animate` (default `true`) freezes the per-word motion when `false` — grouping,
+line-holding and the highlight colour stay; set `highlightColor` = `color` for a
+fully static line. `segments[]` applies different treatments to non-overlapping
+time ranges; a segment that names its own `look` starts fresh from that preset
+and does not inherit the top-level explicit levers. Poll `jobs.get(jobId)`.
 
 A kinetic style (and any `segments[]` render) is word-timed, so when the call
 auto-transcribes, `transcribeProvider` must be an engine that returns word

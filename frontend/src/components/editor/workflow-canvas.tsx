@@ -54,6 +54,7 @@ import { AlignmentGuideLines } from "./alignment-guide-lines"
 import { useAlignmentGuides, type GuideLine, type DraggedNodeRect } from "@/hooks/use-alignment-guides"
 import { useCameraAutoPan } from "./workflow-editor/use-camera-auto-pan"
 import { useWorkflowRealtimeSync } from "./workflow-editor/use-workflow-realtime-sync"
+import { SaveRefusedPill } from "./save-refused-pill"
 import { useElkLayout, getElk, ELK_LAYOUT_OPTIONS, toElkLayoutNode, whenNodesMeasured } from "@/hooks/use-elk-layout"
 import { useAutoPanWhenIdle } from "@/hooks/use-auto-pan-when-idle"
 import { __resetSeenNodesForTests } from "./workflow-editor/use-node-insert-animation"
@@ -2918,6 +2919,7 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
             Studio workflow — view only. Open in Studio to edit, or Clone &amp; Remix.
           </div>
         )}
+        <SaveRefusedPill />
         <ReactFlow
           ariaLabelConfig={ariaLabelConfig}
           nodes={orderedNodes}

@@ -7,6 +7,7 @@
 
 import { createOrchestratorWorker } from "./workers/orchestrator-worker.js"
 import { loadOverlay } from "./lib/overlay/load.js"
+import { loadAvailabilityOverrides } from "./lib/availability-override.js"
 import { registerMainlinePromptPolicies } from "./lib/prompt-policies/index.js"
 import { beginWorkerDrain, SHUTDOWN_DRAIN_MS } from "./lib/worker-drain.js"
 
@@ -28,6 +29,12 @@ await loadOverlay()
 // Mainline prompt policies run AFTER the overlay's (registration order):
 // the minor-age floor is a platform safety invariant, not deployment content.
 registerMainlinePromptPolicies()
+
+// The DAG's run-time availability check (executeNode → isNodeDenied) reads the
+// admin's stored override. app.ts loads it for the API process; this process
+// never builds the app, so it loads it here — otherwise the admin switch does
+// not exist for any execution this worker picks up.
+await loadAvailabilityOverrides()
 
 const worker = createOrchestratorWorker()
 

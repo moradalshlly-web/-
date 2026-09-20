@@ -121,12 +121,16 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * A synchronous cloud route answers only when the work is done — for a
- * web-scrape site crawl that can be ~10 minutes with no headers on the wire.
- * undici's default headersTimeout (300 s) would drop the socket at five
- * minutes while the cloud finishes and bills the connected account, so long
- * calls go through a dispatcher whose deadlines cover the route's own budget
- * (the cloud's web-scrape route allows 600 s).
+ * A synchronous cloud route answers only when the work is done, with no headers
+ * on the wire until then. undici's default headersTimeout (300 s) would drop
+ * the socket at five minutes while the cloud finishes and bills the connected
+ * account, so held calls go through a dispatcher whose deadlines cover a
+ * 600 s route budget.
+ *
+ * The scrapers no longer come through here: the cloud's edge cuts a held
+ * request at ~100 s whatever this socket allows, so they ask for a job id and
+ * poll it (`createCloudJob` + `waitForCloudJob`). What is left is short — an
+ * advertiser lookup, a video probe — and the long deadlines are only headroom.
  */
 const LONG_CALL_TIMEOUT_MS = 620_000
 let longCallAgent: Agent | null = null
@@ -139,8 +143,9 @@ function longCallDispatcher(): Agent {
 
 /**
  * A synchronous cloud route — one that answers with the result in the
- * response body rather than a job to poll (web-scrape). Returns the parsed
- * JSON; throws NodaroCloudError with the cloud's own message on refusal.
+ * response body rather than a job to poll (an advertiser lookup, a video
+ * probe). Returns the parsed JSON; throws NodaroCloudError with the cloud's own
+ * message on refusal.
  */
 export async function callCloudRoute(
   path: string,

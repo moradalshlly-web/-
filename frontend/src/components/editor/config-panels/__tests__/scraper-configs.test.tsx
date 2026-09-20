@@ -2,6 +2,13 @@ import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { WebScrapeConfig } from "../scraper-configs"
 import { translate } from "@/lib/i18n"
+import { SCRAPER_CREDIT_COSTS } from "@nodaro/shared"
+
+// What the server charges for each price row. The table is only the fallback.
+const serverPrices = vi.hoisted(() => ({ current: {} as Record<string, number> }))
+vi.mock("@/ee/hooks/use-model-credits", () => ({
+  useModelCredits: (id: string | undefined, fallback = 0) => (id ? serverPrices.current[id] : undefined) ?? fallback,
+}))
 import type { WebScrapeNodeData } from "@/types/nodes"
 
 // The panel's field labels are localized; assert against the English
@@ -98,6 +105,30 @@ describe("WebScrapeConfig", () => {
     renderPanel({ actor: "content-crawler", url: "https://example.com" })
     expect(screen.getByLabelText(en("cfgext.scrapeStartUrl"))).toBeInTheDocument()
     expect(screen.getByLabelText(en("cfgext.scrapeCrawlMode"))).toBeInTheDocument()
+  })
+
+  // The two crawl-mode labels carried their own price literals (3 and 10) and
+  // were never touched when prices moved: "Site crawl … (10 CR)" sat beside a
+  // panel button reading 55 — the figure that was charged.
+  const crawlModeLabels = () => {
+    const options = [...(screen.getByLabelText(en("cfgext.scrapeCrawlMode")) as HTMLSelectElement).options]
+    return (value: string) => options.find((o) => o.value === value)?.textContent ?? ""
+  }
+
+  it("quotes each crawl mode at the CHARGED figure, by the price row the Run buttons use", () => {
+    serverPrices.current = { "web-scrape:content-crawler": 11, "web-scrape:content-crawler:site": 55 }
+    renderPanel({ actor: "content-crawler", url: "https://example.com" })
+    const label = crawlModeLabels()
+    expect(label("page")).toContain("(11 ")
+    expect(label("site")).toContain("(55 ")
+  })
+
+  it("falls back to the shared table while the price loads — never to a literal of its own", () => {
+    serverPrices.current = {}
+    renderPanel({ actor: "content-crawler", url: "https://example.com" })
+    const label = crawlModeLabels()
+    expect(label("page")).toContain(`(${SCRAPER_CREDIT_COSTS["web-scrape:content-crawler"]} `)
+    expect(label("site")).toContain(`(${SCRAPER_CREDIT_COSTS["web-scrape:content-crawler:site"]} `)
   })
 
   it("instagram actor shows target URL field", () => {

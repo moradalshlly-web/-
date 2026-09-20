@@ -29,11 +29,19 @@ const mocks = vi.hoisted(() => ({
   creditIds: [] as string[],
   basePrice: vi.fn(),
   denied: vi.fn(() => false),
+  admins: new Set<string>(),
 }))
 
+// `denied` = hidden from USERS by the admin switch. The route asks per user
+// (lib/availability-viewer.ts); `admins` is who keeps a hidden node.
 vi.mock("@/lib/surface-deny.js", () => ({
-  isNodeDenied: mocks.denied,
+  isNodeDenied: (_type: string, viewer: { admin: boolean }) => mocks.denied() && !viewer.admin,
+  USER_VIEWER: { admin: false },
   deniedNodeRejectionMessage: (types: string[]) => `Unavailable: ${types.join(", ")}`,
+}))
+vi.mock("@/lib/availability-viewer.js", () => ({
+  isNodeDeniedForUser: async (_type: string, userId?: string) => mocks.denied() && !mocks.admins.has(userId ?? ""),
+  viewerForNode: async (_type: string, userId?: string) => ({ admin: mocks.admins.has(userId ?? "") }),
 }))
 
 vi.mock("@/lib/config.js", () => ({
@@ -106,6 +114,7 @@ function spentNothing() {
 beforeEach(async () => {
   vi.clearAllMocks()
   mocks.denied.mockReturnValue(false)
+  mocks.admins.clear()
   mocks.creditIds = []
   mocks.insertJob.mockResolvedValue({ data: { id: "job-1" }, error: null })
   mocks.reserveCreditsForJob.mockResolvedValue({ usageLogId: "usage-1", creditsReserved: 1, watermark: false })
@@ -173,6 +182,18 @@ describe("the refusals that cost nothing", () => {
     expect(engine.quoteProRender).not.toHaveBeenCalled()
     expect(engine.proRender).not.toHaveBeenCalled()
     spentNothing()
+  })
+
+  it("an admin keeps a Pro node the admin switch hides from users — quote and run reach the engine", async () => {
+    const engine = proEngine()
+    setPluginEngines({ scene3d: engine })
+    mocks.denied.mockReturnValue(true)
+    mocks.admins.add(USER_ID)
+    for (const response of [await quote(), await run({})]) {
+      expect(response.statusCode).not.toBe(403)
+    }
+    expect(engine.quoteProRender).toHaveBeenCalled()
+    expect(engine.proRender).toHaveBeenCalled()
   })
   let engine: ReturnType<typeof proEngine>
   beforeEach(() => {

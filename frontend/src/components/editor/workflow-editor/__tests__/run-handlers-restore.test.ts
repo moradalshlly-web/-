@@ -100,6 +100,7 @@ vi.mock("../execution-graph", () => ({
 
 vi.mock("../node-input-resolver", () => ({
   getListInputForNode: vi.fn().mockReturnValue(null),
+  getListFanOutForNode: vi.fn().mockReturnValue(undefined),
 }))
 
 vi.mock("../execute-node", () => ({
@@ -234,6 +235,46 @@ describe("restorePollingForRunningJobs", () => {
     )
     expect(ctx.untrackInterval).toHaveBeenCalled()
     expect(mockToastSuccess).toHaveBeenCalledWith("Background job completed")
+  })
+
+  // 3b. A scrape that finishes after a reload. It ran through the generic media
+  // branch, found no URL, and completed its node EMPTY with a blank-url result.
+  it("paints a restored web-scrape through the live run's own patch", async () => {
+    mockNodes = [makeNode("n1", "web-scrape", { generatedJson: { pages: [{ url: "old" }] } })]
+    const crawl = { pages: [{ url: "https://owalalife.com/" }, { url: "https://owalalife.com/collections/all" }] }
+    mockGetJobStatus.mockResolvedValue({ status: "completed", output_data: { json: crawl } })
+
+    const ctx = makeCtx()
+    restorePollingForRunningJobs([{ nodeId: "n1", jobId: "j1", nodeType: "web-scrape" }], ctx, vi.fn())
+    await vi.advanceTimersByTimeAsync(3000)
+
+    const patch = mockUpdateNodeData.mock.calls.find((c) => c[0] === "n1" && (c[1] as Record<string, unknown>).lastRunOutcome)?.[1]
+    expect(patch).toMatchObject({
+      executionStatus: "completed",
+      lastRunOutcome: "success",
+      lastRunCount: 2,
+      generatedJson: crawl,
+      lastAppliedJobId: "j1",
+      currentJobId: undefined,
+    })
+    // Not the media shape: a scrape card renders generatedJson only.
+    expect(patch).not.toHaveProperty("generatedResults")
+    expect(mockToastSuccess).toHaveBeenCalledWith("Background job completed")
+  })
+
+  it("records a restored scrape FAILURE on the card, not just in a toast", async () => {
+    mockNodes = [makeNode("n1", "instagram-scrape", { lastRunOutcome: "success", generatedJson: [{ caption: "kept" }] })]
+    mockGetJobStatus.mockResolvedValue({ status: "failed", error_message: "Actor run timed out" })
+
+    restorePollingForRunningJobs([{ nodeId: "n1", jobId: "j1", nodeType: "instagram-scrape" }], makeCtx(), vi.fn())
+    await vi.advanceTimersByTimeAsync(3000)
+
+    const patch = mockUpdateNodeData.mock.calls.find((c) => c[0] === "n1" && (c[1] as Record<string, unknown>).errorMessage)?.[1]
+    // The card derives its state from lastRunOutcome — executionStatus alone is
+    // transient and stripped on the next save.
+    expect(patch).toMatchObject({ executionStatus: "failed", lastRunOutcome: "failed", errorMessage: "Actor run timed out" })
+    // #765: a failure never touches the last good payload.
+    expect(patch).not.toHaveProperty("generatedJson")
   })
 
   // 4. Single running node completes with videoUrl

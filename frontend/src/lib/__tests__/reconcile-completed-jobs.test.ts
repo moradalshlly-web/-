@@ -617,3 +617,132 @@ describe("Scene3D retained-draft recovery (a FAILED job)", () => {
     expect((written.scenePlan as Record<string, unknown>).revisionId).toBe(REV_A)
   })
 })
+
+/**
+ * A scrape runs for minutes, so the tab that started it is often not the one
+ * open when it lands. Measured: a 20-page site crawl took 252 s, the held
+ * request died at the edge ~100 s in, the node said "Web scrape failed" — and
+ * the job completed and was charged. Reopening the workflow painted nothing,
+ * because this lane knew media URLs and three JSON emitters, and no scraper.
+ */
+describe("scrape result recovery", () => {
+  const T = Date.parse("2026-09-19T18:25:59.000Z")
+  const iso = (offsetMs: number) => new Date(T + offsetMs).toISOString()
+  const crawl = { pages: [{ url: "https://owalalife.com/", markdown: "# Owala" }] }
+  const scrapeItem = (jobId: string, nodeId: string, status: string, createdAt: string) => ({
+    ...terminalItem(jobId, nodeId, status),
+    createdAt,
+  })
+  const cutOff = {
+    lastRunStartedAt: T - 1_000,
+    lastRunOutcome: "failed",
+    lastRunAt: T + 100_000,
+    errorMessage: "Web scrape failed",
+  }
+  const completedWith = (json: unknown) => async () => ({ status: "completed", output_data: { json } })
+
+  it("buildCompletedResultPatch writes a scrape's json through the live run's own patch", () => {
+    expect(buildCompletedResultPatch("web-scrape", { json: crawl }, "j1", NOW)).toMatchObject({
+      executionStatus: "completed",
+      lastRunOutcome: "success",
+      lastRunCount: 1,
+      generatedJson: crawl,
+      lastAppliedJobId: "j1",
+    })
+  })
+
+  it.each(["web-scrape", "meta-ads-scrape", "instagram-scrape"])("recovers a %s node whose run was cut off while its job finished", async (type) => {
+    const refs = pickLatestTerminalJobPerNode([scrapeItem("j1", "n1", "completed", iso(0))], { acceptsFailed: () => true })
+    const json = type === "web-scrape" ? crawl : [{ caption: "post" }]
+    const patches = await computeCompletedJobPatches(refs, [node("n1", type, cutOff)], completedWith(json), NOW)
+    expect(patches).toHaveLength(1)
+    expect(patches[0].updates).toMatchObject({ lastRunOutcome: "success", generatedJson: json, lastAppliedJobId: "j1" })
+  })
+
+  it("recovers over a PREVIOUS good payload — a scrape node keeps one through every failed rerun", async () => {
+    const holdsOldResult = { ...cutOff, generatedJson: { pages: [{ url: "old" }] }, lastGoodAt: T - 3_600_000 }
+    const refs = pickLatestTerminalJobPerNode([scrapeItem("j1", "n1", "completed", iso(0))])
+    const patches = await computeCompletedJobPatches(refs, [node("n1", "web-scrape", holdsOldResult)], completedWith(crawl), NOW)
+    expect(patches[0]?.updates).toMatchObject({ generatedJson: crawl })
+  })
+
+  it("is idempotent — a second reload does not re-apply the same job", async () => {
+    const applied = { ...cutOff, lastRunOutcome: "success", lastAppliedJobId: "j1", generatedJson: crawl }
+    const fetchOutput = vi.fn(completedWith(crawl))
+    const refs = pickLatestTerminalJobPerNode([scrapeItem("j1", "n1", "completed", iso(0))])
+    expect(await computeCompletedJobPatches(refs, [node("n1", "web-scrape", applied)], fetchOutput, NOW)).toEqual([])
+    expect(fetchOutput).not.toHaveBeenCalled() // the guard short-circuits before the job lookup
+  })
+
+  it("a newer FAILED job shadows the older completed one — a real failure is never papered over", async () => {
+    const items = [scrapeItem("j2", "n1", "failed", iso(0)), scrapeItem("j1", "n1", "completed", iso(-600_000))]
+    const refs = pickLatestTerminalJobPerNode(items, { acceptsFailed: () => true })
+    expect(refs).toEqual([expect.objectContaining({ jobId: "j2", status: "failed" })])
+    const fetchOutput = vi.fn(async () => ({ status: "failed", output_data: { error: "Actor run timed out" } }))
+    expect(await computeCompletedJobPatches(refs, [node("n1", "web-scrape", cutOff)], fetchOutput, NOW)).toEqual([])
+  })
+
+  it("never resurrects a job older than the node's last run", async () => {
+    const refs = pickLatestTerminalJobPerNode([scrapeItem("j0", "n1", "completed", iso(-600_000))])
+    expect(await computeCompletedJobPatches(refs, [node("n1", "web-scrape", cutOff)], completedWith(crawl), NOW)).toEqual([])
+  })
+
+  it("respects a rerun started DURING recovery, not the pre-fetch snapshot", async () => {
+    const refs = pickLatestTerminalJobPerNode([scrapeItem("j1", "n1", "completed", iso(0))])
+    const patches = await computeCompletedJobPatches(
+      refs, [node("n1", "web-scrape", cutOff)], completedWith(crawl), NOW,
+      () => ({ ...cutOff, executionStatus: "running" }),
+    )
+    expect(patches).toEqual([])
+  })
+
+  it("reconcileCompletedSingleNodeJobs asks for failed scrape jobs too, so they can shadow", async () => {
+    const updateNodeData = vi.fn()
+    await reconcileCompletedSingleNodeJobs("wf-1", [node("n1", "web-scrape", cutOff)], updateNodeData, {
+      listCompleted: async () => ({
+        // j1 is recent enough to pass every OTHER guard — only the newer failed job
+        // shadowing it keeps the stale result off the node.
+        data: [scrapeItem("j2", "n1", "failed", iso(0)), scrapeItem("j1", "n1", "completed", iso(-30_000))],
+      }),
+      // Each job answers for itself: j1 really did complete, with a payload. If
+      // the failed j2 stopped shadowing it, this is what would land on the node.
+      fetchOutput: async (jobId: string) =>
+        jobId === "j1" ? { status: "completed", output_data: { json: crawl } } : { status: "failed", output_data: null },
+      nowIso: NOW,
+    })
+    expect(updateNodeData).not.toHaveBeenCalled()
+  })
+
+  it("with two completed runs for one node, the NEWER one is what lands — run, 'failed', run again, 'failed' again", async () => {
+    // Both runs were cut off at the edge and both jobs completed and were
+    // charged. The node records only its latest attempt; that is the job whose
+    // pages belong on it.
+    const secondRun = { pages: [{ url: "https://owalalife.com/" }, { url: "https://owalalife.com/pages/about" }] }
+    const afterSecondFailure = { lastRunStartedAt: T + 1_063_000, lastRunOutcome: "failed", lastRunAt: T + 1_165_000, errorMessage: "Web scrape failed" }
+    const fetchOutput = vi.fn(async (jobId: string) => ({
+      status: "completed",
+      output_data: { json: jobId === "j2" ? secondRun : crawl },
+    }))
+    const updateNodeData = vi.fn()
+    await reconcileCompletedSingleNodeJobs("wf-1", [node("n1", "web-scrape", afterSecondFailure)], updateNodeData, {
+      listCompleted: async () => ({
+        data: [scrapeItem("j2", "n1", "completed", iso(1_064_000)), scrapeItem("j1", "n1", "completed", iso(0))],
+      }),
+      fetchOutput,
+      nowIso: NOW,
+    })
+    expect(fetchOutput).toHaveBeenCalledTimes(1)
+    expect(fetchOutput).toHaveBeenCalledWith("j2")
+    expect(updateNodeData).toHaveBeenCalledWith("n1", expect.objectContaining({ generatedJson: secondRun, lastAppliedJobId: "j2" }))
+  })
+
+  it("reconcileCompletedSingleNodeJobs paints the paid result onto the node that said it failed", async () => {
+    const updateNodeData = vi.fn()
+    await reconcileCompletedSingleNodeJobs("wf-1", [node("n1", "web-scrape", cutOff)], updateNodeData, {
+      listCompleted: async () => ({ data: [scrapeItem("j1", "n1", "completed", iso(0))] }),
+      fetchOutput: completedWith(crawl),
+      nowIso: NOW,
+    })
+    expect(updateNodeData).toHaveBeenCalledWith("n1", expect.objectContaining({ lastRunOutcome: "success", generatedJson: crawl }))
+  })
+})

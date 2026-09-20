@@ -1,5 +1,5 @@
 import type { Caption } from "@remotion/captions"
-import { resolveCaptionLook, type CaptionLookId, type CaptionLookLevers, type SupportedFontName } from "@nodaro/shared"
+import { resolveCaptionLevers, type CaptionLookId, type CaptionLookLevers, type SupportedFontName } from "@nodaro/shared"
 import { syntheticCaptionsFromText } from "../audio/captions-mappers.js"
 
 /**
@@ -19,6 +19,8 @@ export interface CaptionStyleDefaults {
   fontSize: number
   /** Top-level look; a segment without its own look inherits it. */
   look?: CaptionLookId
+  /** Top-level per-word motion switch; a segment without its own inherits it. */
+  animate?: boolean
   /** Top-level EXPLICIT levers (what the caller passed, before look resolution);
    *  a segment without its own look inherits these too. */
   explicit: CaptionLookLevers
@@ -43,6 +45,7 @@ export interface CaptionSegmentInput {
   strokeWidth?: number
   highlightColor?: string
   uppercase?: boolean
+  animate?: boolean
   // Own words:
   text?: string
   captions?: Caption[]
@@ -57,6 +60,7 @@ export interface ResolvedCaptionSegment extends CaptionLookLevers {
   position: "top" | "center" | "bottom"
   positionY?: number
   fontSize: number
+  animate?: boolean
   captions: Caption[]
 }
 
@@ -155,7 +159,9 @@ export function resolveCaptionSegments(
     const explicit = seg.look
       ? { ...inheritedBase, ...segExplicit }
       : { ...defaults.explicit, ...segExplicit }
-    const levers = resolveCaptionLook(look, explicit, fontSize)
+    // Bare `subtitle` segment (no own or inherited look) stays PLAIN, same as the
+    // top-level rule — shared helper so the two can't drift.
+    const levers = resolveCaptionLevers(style, look, explicit, fontSize)
 
     return {
       startMs: seg.startMs,
@@ -169,6 +175,9 @@ export function resolveCaptionSegments(
       // when the segment names no placement of its own.
       positionY: seg.positionY ?? (seg.position !== undefined ? undefined : defaults.positionY),
       fontSize,
+      // Per-word motion: the segment's own, else the top-level default (inert on
+      // a subtitle segment, which has no motion to switch off).
+      animate: seg.animate ?? defaults.animate,
       ...levers,
       captions,
     }

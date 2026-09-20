@@ -41,7 +41,7 @@ const NOT_A_MEDIA_PUBLICATION = [
   "routes/llm-structured.ts", "routes/llm-suggest-description.ts", "routes/lottie-overlay-ai.ts",
   "routes/motion-graphics-ai.ts", "routes/prompt-helper.ts", "routes/qa-check.ts",
   "routes/reduce.ts", "routes/scene-graph-ai.ts", "routes/text-to-picker.ts",
-  "routes/three-d-title-ai.ts", "routes/web-scrape.ts",
+  "routes/three-d-title-ai.ts",
 ] as const
 
 /** Sinks: they SEND somewhere, they do not produce an asset. */

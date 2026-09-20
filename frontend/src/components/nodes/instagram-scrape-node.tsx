@@ -9,7 +9,7 @@ import { RunNodeButton } from "./run-node-button"
 import { EditableNodeLabel } from "./editable-node-label"
 import { HandleWithPopover } from "./handle-with-popover"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
-import { estimateNodeCredits } from "@/components/editor/workflow-editor/types"
+import { useScrapeNodeCredits } from "./use-scrape-node-credits"
 import { getVideoProxyUrl } from "@/lib/api"
 import { splitInstagramTargets } from "@nodaro/shared"
 import type { InstagramScrapeNodeData } from "@/types/nodes"
@@ -219,7 +219,7 @@ function InstagramScrapeNodeComponent({ id, data, selected }: NodeProps) {
   const selectNode = useWorkflowStore((s) => s.selectNode)
 
   const mode = nodeData.mode === "hashtag" ? "hashtag" : "profile"
-  const credits = estimateNodeCredits({ type: "instagram-scrape", data: nodeData })
+  const credits = useScrapeNodeCredits(id, "instagram-scrape", nodeData)
   const state = deriveInstagramScrapeCardState(nodeData)
   const running = state.kind === "running"
   const hasAge = state.kind !== "never-ran" && !running && "at" in state && state.at !== undefined

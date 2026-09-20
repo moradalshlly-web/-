@@ -5,6 +5,10 @@ import {
   deniedNodeRejectionMessage,
   isModelDenied,
   filterDeniedModels,
+  effectiveDeniedNodeTypes,
+  nodesHiddenFromUsers,
+  USER_VIEWER,
+  ADMIN_VIEWER,
 } from "../surface-deny.js"
 import { __resetSurfaceProfileCacheForTests } from "../surface-profile.js"
 
@@ -15,15 +19,15 @@ afterEach(() => {
 
 describe("surface-deny — node deny reads the profile", () => {
   it("denies nothing by default", () => {
-    expect(isNodeDenied("social-publish")).toBe(false)
-    expect(findDeniedNodeTypes([{ type: "social-publish" }])).toEqual([])
+    expect(isNodeDenied("social-publish", USER_VIEWER)).toBe(false)
+    expect(findDeniedNodeTypes([{ type: "social-publish" }], USER_VIEWER)).toEqual([])
   })
 
   it("denies the profile's nodes.deny (requires __resetSurfaceProfileCacheForTests)", () => {
     process.env.NODARO_SURFACE_PROFILE = JSON.stringify({ nodes: { deny: ["social-publish"] } })
     __resetSurfaceProfileCacheForTests()
-    expect(isNodeDenied("social-publish")).toBe(true)
-    expect(findDeniedNodeTypes([{ type: "social-publish" }, { type: "generate-image" }])).toEqual([
+    expect(isNodeDenied("social-publish", USER_VIEWER)).toBe(true)
+    expect(findDeniedNodeTypes([{ type: "social-publish" }, { type: "generate-image" }], USER_VIEWER)).toEqual([
       "social-publish",
     ])
   })
@@ -60,9 +64,9 @@ describe("surface-deny — profile allow whitelist (factory layer)", () => {
   it("a non-empty nodes.allow denies unlisted GATEABLE types and keeps listed ones", () => {
     process.env.NODARO_SURFACE_PROFILE = JSON.stringify({ nodes: { allow: ["generate-image", "text-prompt"] } })
     __resetSurfaceProfileCacheForTests()
-    expect(isNodeDenied("generate-image")).toBe(false)
-    expect(isNodeDenied("generate-video")).toBe(true)
-    expect(isNodeDenied("suno-generate")).toBe(true)
+    expect(isNodeDenied("generate-image", USER_VIEWER)).toBe(false)
+    expect(isNodeDenied("generate-video", USER_VIEWER)).toBe(true)
+    expect(isNodeDenied("suno-generate", USER_VIEWER)).toBe(true)
   })
 
   it("inversion is scoped to the gateable universe: utility nodes and unknown pseudo-types are never denied by omission", () => {
@@ -70,10 +74,10 @@ describe("surface-deny — profile allow whitelist (factory layer)", () => {
     __resetSurfaceProfileCacheForTests()
     // sticky-note/preview are registry "utility" — exempt from inversion.
     expect(GATEABLE_NODE_TYPES.has("sticky-note")).toBe(false)
-    expect(isNodeDenied("sticky-note")).toBe(false)
-    expect(isNodeDenied("preview")).toBe(false)
+    expect(isNodeDenied("sticky-note", USER_VIEWER)).toBe(false)
+    expect(isNodeDenied("preview", USER_VIEWER)).toBe(false)
     // A workflow-internal pseudo-type the registry never heard of.
-    expect(isNodeDenied("node_7_iter_0")).toBe(false)
+    expect(isNodeDenied("node_7_iter_0", USER_VIEWER)).toBe(false)
   })
 
   it("deny still applies on top of allow (deny wins), and explicit deny can hit utility nodes", () => {
@@ -81,9 +85,9 @@ describe("surface-deny — profile allow whitelist (factory layer)", () => {
       nodes: { allow: ["generate-image", "generate-video"], deny: ["generate-video", "sticky-note"] },
     })
     __resetSurfaceProfileCacheForTests()
-    expect(isNodeDenied("generate-image")).toBe(false)
-    expect(isNodeDenied("generate-video")).toBe(true)
-    expect(isNodeDenied("sticky-note")).toBe(true)
+    expect(isNodeDenied("generate-image", USER_VIEWER)).toBe(false)
+    expect(isNodeDenied("generate-video", USER_VIEWER)).toBe(true)
+    expect(isNodeDenied("sticky-note", USER_VIEWER)).toBe(true)
   })
 
   it("models.allow mirrors the node semantics over the model universe", () => {
@@ -106,20 +110,20 @@ describe("surface-deny — admin override REPLACES the factory layer", () => {
     __resetSurfaceProfileCacheForTests()
     __resetAvailabilityOverridesForTests({ nodes: new Set(["generate-video"]) })
     // Enabled by the override even though factory denies it…
-    expect(isNodeDenied("generate-video")).toBe(false)
+    expect(isNodeDenied("generate-video", USER_VIEWER)).toBe(false)
     // …and factory-allowed types not in the override are now denied.
-    expect(isNodeDenied("generate-image")).toBe(true)
+    expect(isNodeDenied("generate-image", USER_VIEWER)).toBe(true)
     // Utility exemption holds under an override too.
-    expect(isNodeDenied("sticky-note")).toBe(false)
+    expect(isNodeDenied("sticky-note", USER_VIEWER)).toBe(false)
   })
 
   it("reset to factory (override null) falls back to the profile layer", () => {
     process.env.NODARO_SURFACE_PROFILE = JSON.stringify({ nodes: { allow: ["generate-image"] } })
     __resetSurfaceProfileCacheForTests()
     __resetAvailabilityOverridesForTests({ nodes: new Set(["generate-video"]) })
-    expect(isNodeDenied("generate-image")).toBe(true)
+    expect(isNodeDenied("generate-image", USER_VIEWER)).toBe(true)
     __resetAvailabilityOverridesForTests({ nodes: null })
-    expect(isNodeDenied("generate-image")).toBe(false)
+    expect(isNodeDenied("generate-image", USER_VIEWER)).toBe(false)
   })
 
   it("model override mirrors node semantics", () => {
@@ -127,5 +131,72 @@ describe("surface-deny — admin override REPLACES the factory layer", () => {
     expect(isModelDenied("flux")).toBe(false)
     expect(isModelDenied("kling")).toBe(true)
     expect(isModelDenied("not-in-any-universe")).toBe(false)
+  })
+})
+
+// ── Admin viewer: the admin switch hides a node from USERS, not from admins ──
+
+describe("surface-deny — the admin switch hides a node from users, not from admins", () => {
+  it("an admin keeps a node the override turned off; a user does not", () => {
+    __resetAvailabilityOverridesForTests({ nodes: new Set(["generate-image"]) })
+    expect(isNodeDenied("instagram-scrape", USER_VIEWER)).toBe(true)
+    expect(isNodeDenied("instagram-scrape", ADMIN_VIEWER)).toBe(false)
+    // A node the override leaves on reads the same for both.
+    expect(isNodeDenied("generate-image", USER_VIEWER)).toBe(false)
+    expect(isNodeDenied("generate-image", ADMIN_VIEWER)).toBe(false)
+  })
+
+  it("an admin does NOT get back what the deployment profile itself removed (no override)", () => {
+    process.env.NODARO_SURFACE_PROFILE = JSON.stringify({ nodes: { deny: ["social-publish"] } })
+    __resetSurfaceProfileCacheForTests()
+    expect(isNodeDenied("social-publish", ADMIN_VIEWER)).toBe(true)
+
+    process.env.NODARO_SURFACE_PROFILE = JSON.stringify({ nodes: { allow: ["generate-image"] } })
+    __resetSurfaceProfileCacheForTests()
+    expect(isNodeDenied("generate-video", ADMIN_VIEWER)).toBe(true)
+    expect(isNodeDenied("generate-image", ADMIN_VIEWER)).toBe(false)
+  })
+
+  it("under an override an admin gets the FACTORY set back — never more than the deployment offers", () => {
+    process.env.NODARO_SURFACE_PROFILE = JSON.stringify({
+      nodes: { allow: ["generate-image", "generate-video"], deny: ["generate-video"] },
+    })
+    __resetSurfaceProfileCacheForTests()
+    __resetAvailabilityOverridesForTests({ nodes: new Set(["text-prompt"]) })
+    // Hidden by the override, offered by the factory → the admin keeps it.
+    expect(isNodeDenied("generate-image", USER_VIEWER)).toBe(true)
+    expect(isNodeDenied("generate-image", ADMIN_VIEWER)).toBe(false)
+    // Hidden by the override AND removed by the factory (deny wins) → stays removed.
+    expect(isNodeDenied("generate-video", ADMIN_VIEWER)).toBe(true)
+    // Hidden by the override AND never whitelisted by the factory → stays removed.
+    expect(isNodeDenied("suno-generate", ADMIN_VIEWER)).toBe(true)
+    // Enabled by the override although the factory never listed it → on for everyone.
+    expect(isNodeDenied("text-prompt", USER_VIEWER)).toBe(false)
+    expect(isNodeDenied("text-prompt", ADMIN_VIEWER)).toBe(false)
+  })
+
+  it("the list helpers follow the viewer", () => {
+    __resetAvailabilityOverridesForTests({ nodes: new Set(["generate-image"]) })
+    const nodes = [{ type: "instagram-scrape" }, { type: "generate-image" }]
+    expect(findDeniedNodeTypes(nodes, USER_VIEWER)).toEqual(["instagram-scrape"])
+    expect(findDeniedNodeTypes(nodes, ADMIN_VIEWER)).toEqual([])
+    expect(effectiveDeniedNodeTypes(USER_VIEWER)).toContain("instagram-scrape")
+    expect(effectiveDeniedNodeTypes(ADMIN_VIEWER)).not.toContain("instagram-scrape")
+  })
+
+  it("nodesHiddenFromUsers is exactly what an admin can use and a user cannot", () => {
+    expect(nodesHiddenFromUsers()).toEqual([])
+
+    process.env.NODARO_SURFACE_PROFILE = JSON.stringify({ nodes: { deny: ["generate-video"] } })
+    __resetSurfaceProfileCacheForTests()
+    const everythingBut = (...off: string[]) => new Set([...GATEABLE_NODE_TYPES].filter((t) => !off.includes(t)))
+    __resetAvailabilityOverridesForTests({ nodes: everythingBut("instagram-scrape", "meta-ads-scrape", "generate-video") })
+    // generate-video is off for the admin too (the profile removed it), so it is not "hidden from users" — it is gone.
+    expect(nodesHiddenFromUsers().sort()).toEqual(["instagram-scrape", "meta-ads-scrape"])
+  })
+
+  it("the model lever is untouched: no viewer, no admin exception", () => {
+    __resetAvailabilityOverridesForTests({ models: new Set(["flux"]) })
+    expect(isModelDenied("kling")).toBe(true)
   })
 })

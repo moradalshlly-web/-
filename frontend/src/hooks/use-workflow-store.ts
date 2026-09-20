@@ -595,6 +595,21 @@ interface WorkflowState {
    * UI, which is the whole reason this is carried at all.
    */
   readonly runBlockedReason: string | null
+  /**
+   * The id of the workflow whose SAVE the server refused, or null.
+   *
+   * A third state beside the two above: the canvas stays interactive and
+   * nodes still run and paint their results, but nothing is persisted —
+   * the row policy turned the write away (a platform admin looking at
+   * somebody else's workflow). Deliberately NOT `isReadOnly`: that flag
+   * makes `updateNodeData` a no-op, so raising it mid-run would drop the
+   * result of a job already paid for and leave the node spinning.
+   *
+   * An id rather than a flag so a verdict can only apply to the workflow
+   * it was reached for — read it through `isSaveRefused()`, never bare.
+   * See `workflow-save-refusal.ts`.
+   */
+  readonly saveRefusedFor: string | null
   readonly needsAutoLayout: boolean
   readonly setNeedsAutoLayout: (v: boolean) => void
   readonly loadWorkflow: (id: string, name: string, nodes: WorkflowNode[], edges: WorkflowEdge[], characterDefinitions?: CharacterDefinition[], flowPromptTemplates?: Record<string, string>, presentationSettings?: PresentationSettings, viewport?: { x: number; y: number; zoom: number } | null) => void
@@ -870,6 +885,7 @@ export function buildDuplicatedNodeData(
   delete d.__listTotal
   delete d.__listCompleted
   delete d.__listResults
+  delete d.__alignedListResults
   delete d.subWorkflowProgress
   // Clear "owns DB row X" pointers so the clone creates its own entity row on
   // first save. Otherwise editing/deleting the clone mutates the original's
@@ -981,6 +997,7 @@ export const useWorkflowStore = create<WorkflowState>((rawSet, get) => {
   isReadOnly: false,
   readOnlyReason: null,
   runBlockedReason: null,
+  saveRefusedFor: null,
   needsAutoLayout: false,
   setNeedsAutoLayout: (v) => set({ needsAutoLayout: v }),
   loadGeneration: 0,
@@ -2690,6 +2707,7 @@ export const useWorkflowStore = create<WorkflowState>((rawSet, get) => {
       isReadOnly: false,
       readOnlyReason: null,
       runBlockedReason: null,
+      saveRefusedFor: null,
       needsAutoLayout: positioned.filledCount > 0,
       loadGeneration: state.loadGeneration + 1,
       saveStatus: "idle" as SaveStatus,

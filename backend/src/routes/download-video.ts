@@ -21,16 +21,26 @@ const downloadVideoBody = z
       { message: "Must be a social video URL (YouTube, Facebook, TikTok, Instagram, X) or a direct video file URL (.mp4, .webm, .mov, .avi)" },
     ),
     // Optional max video height (px). When present, caps yt-dlp's format
-    // selection to `<=maxHeight`; ABSENT keeps today's "best" behaviour
-    // byte-for-byte (the platform's own youtube-video-node passes nothing, and
-    // the DEFAULT-to-1080p decision lives in the VCP client, not here). A
-    // non-number is rejected (strict body); the value is clamped below.
+    // selection to `<=maxHeight`; ABSENT keeps the "best" behaviour
+    // byte-for-byte. The DEFAULT-to-1080p decision lives in the CLIENTS, not
+    // here — the editor's Video URL node, Recast, Studio and VCP each send
+    // their cap for a YouTube link. A non-number is rejected (strict body);
+    // the value is clamped below.
     maxHeight: z.number().int().optional(),
     // Optional section fetch: both-or-neither, 0 <= start < end (seconds).
     // The provider pads the range ±3s before handing it to yt-dlp, because
     // --download-sections cuts at keyframes; the client does the exact trim.
     sectionStartSec: z.number().min(0, "sectionStartSec must be >= 0").optional(),
     sectionEndSec: z.number().min(0, "sectionEndSec must be >= 0").optional(),
+    // Whether a download that arrives with NO audio stream fails. ABSENT means
+    // TRUE — the behaviour every released client (Studio, Recast, the voice
+    // changer) was built on, and the one that keeps Instagram's failover
+    // working: a silent first attempt is retried through the proxy pool, which
+    // sees the full format set. `false` is the editor's explicit second try,
+    // offered only AFTER a no-audio failure — a genuinely silent clip is a
+    // valid input to a video node, and there it must be importable. A
+    // non-boolean is rejected: a truthy string must not switch the policy off.
+    requireAudio: z.boolean().optional(),
   })
   .superRefine((body, ctx) => {
     const hasStart = body.sectionStartSec !== undefined
@@ -58,7 +68,20 @@ const downloadVideoBody = z
  *  behavior must not change. */
 const DIRECT_FILE_MAX_BYTES = 500 * 1024 * 1024
 
+/**
+ * Downloads one account may have RUNNING at once. Each one is a yt-dlp process,
+ * usually an ffmpeg re-encode, and paid proxy bandwidth — and this route has no
+ * credit guard in front of it. The editor now starts downloads by itself (on a
+ * pasted link, and before a run for every link that feeds it), so the bound has
+ * to live here, where workflow JSON written by someone else cannot argue with
+ * it. Generous for a person — Recast, Studio and the voice changer import one
+ * video at a time — and the editor's pre-run pass stays under it on purpose.
+ */
+export const MAX_ACTIVE_DOWNLOADS_PER_USER = 4
+
 interface ActiveDownload {
+  /** The owner — only ever read to count an account's running downloads. */
+  userId: string
   percent: number
   phase: "downloading" | "processing" | "uploading" | "completed" | "failed"
   videoUrl?: string
@@ -67,6 +90,16 @@ interface ActiveDownload {
 }
 
 const activeDownloads = new Map<string, ActiveDownload>()
+
+/** How many of this account's downloads are still running (terminal ones linger
+ *  in the map for the progress stream's sake and do not count). */
+function runningDownloadsFor(userId: string): number {
+  let count = 0
+  for (const download of activeDownloads.values()) {
+    if (download.userId === userId && download.phase !== "completed" && download.phase !== "failed") count++
+  }
+  return count
+}
 
 async function findAndUploadThumbnail(baseName: string, outputId: string): Promise<string | undefined> {
   const thumbExtensions = [".jpg", ".webp", ".png"]
@@ -109,6 +142,7 @@ async function runDownloadWithProgress(
   section?: { startSec: number; endSec: number },
   maxHeight?: number,
   maxFilesizeBytes?: number,
+  requireAudio = true,
 ): Promise<void> {
   const state = activeDownloads.get(downloadId)
   if (!state) return
@@ -124,10 +158,12 @@ async function runDownloadWithProgress(
       section,
       maxHeight,
       maxFilesizeBytes,
-      // A voice changer can't use a silent clip — fail the import on a no-audio
-      // download instead of ingesting/processing it (also avoids the re-encode's
-      // "-c:a aac" crash). See assertAudioPresent.
-      requireAudio: true,
+      // Default TRUE: a voice changer can't use a silent clip, and a silent
+      // result is usually a degraded source response — so fail the import (and
+      // fail over to the next attempt) instead of ingesting it. The caller can
+      // opt out for a clip that really has no sound. See assertAudioPresent; a
+      // silent file re-encodes video-only, so the "-c:a aac" crash can't happen.
+      requireAudio,
       onProgress: (pct) => {
         if (state.phase === "downloading") {
           state.percent = Math.min(Math.round(pct), 99)
@@ -229,7 +265,16 @@ export async function downloadVideoRoutes(app: FastifyInstance) {
     }
 
     const userId = req.userId
-    const { url, sectionStartSec, sectionEndSec, maxHeight: rawMaxHeight } = parsed.data
+    const { url, sectionStartSec, sectionEndSec, maxHeight: rawMaxHeight, requireAudio } = parsed.data
+
+    if (runningDownloadsFor(userId) >= MAX_ACTIVE_DOWNLOADS_PER_USER) {
+      return reply.status(429).send({
+        error: {
+          code: "too_many_downloads",
+          message: "Too many downloads are running — wait for one to finish and try again.",
+        },
+      })
+    }
 
     const isSocial = isAllowedSocialVideoUrl(url)
     if (!isSocial) {
@@ -260,7 +305,7 @@ export async function downloadVideoRoutes(app: FastifyInstance) {
         ? { startSec: sectionStartSec, endSec: sectionEndSec }
         : undefined
 
-    const state: ActiveDownload = { percent: 0, phase: "downloading" }
+    const state: ActiveDownload = { userId, percent: 0, phase: "downloading" }
     activeDownloads.set(downloadId, state)
 
     // Start download in background. Direct files carry the 500MB cap; social
@@ -268,6 +313,7 @@ export async function downloadVideoRoutes(app: FastifyInstance) {
     void runDownloadWithProgress(
       downloadId, url, outputId, baseName, outPath, userId, section, maxHeight,
       isSocial ? undefined : DIRECT_FILE_MAX_BYTES,
+      requireAudio ?? true,
     )
 
     return { downloadId }

@@ -5,10 +5,10 @@ import type { WorkflowNode, WorkflowEdge, SubWorkflowData, SubWorkflowInputData,
 import { buildExecutionLevels, extractNodeOutput } from "./execution-graph"
 import { isExecutableNode, type ExecutionContext } from "./types"
 import { executeNode } from "./execute-node"
-import { getListInputForNode } from "./node-input-resolver"
+import { getListFanOutForNode } from "./node-input-resolver"
 import { executeNodeForList } from "./list-execution"
 import { RUN_START_RESET } from "./poll-job"
-import { expandItemsWithRepeat } from "@nodaro/shared"
+import { planFanOut } from "@nodaro/shared"
 
 const MAX_DEPTH = 5
 
@@ -210,11 +210,14 @@ export async function executeSubWorkflow(
           }
 
           const { nodes: latestNodes, edges: latestEdges } = useWorkflowStore.getState()
-          const listItems = getListInputForNode(subNode, latestNodes, latestEdges)
-          const expanded = expandItemsWithRepeat(listItems, subNode.type ?? "", subNode.data as Record<string, unknown>)
+          const expanded = planFanOut(
+            getListFanOutForNode(subNode, latestNodes, latestEdges),
+            subNode.type ?? "",
+            subNode.data as Record<string, unknown>,
+          )
 
           if (expanded) {
-            return executeNodeForList(subNode, expanded, ctx)
+            return executeNodeForList(subNode, expanded.items, ctx, expanded)
           }
           return executeNode(subNode, ctx)
         }),

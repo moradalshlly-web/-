@@ -448,6 +448,16 @@ export type RSSFeedData = {
   extractFields: string[]
 }
 
+/**
+ * The Video URL node. `youtubeUrl` holds ANY supported link (YouTube, TikTok,
+ * Instagram, Facebook, X) or a direct video file url — the name predates the
+ * other hosts and is kept because saved workflows carry it.
+ *
+ * The node's output is `resolveVideoLinkOutput` (`@nodaro/shared`): the
+ * downloaded file when it belongs to the current link, else the link itself.
+ * Everything below `thumbnailUrl` is written by `lib/video-link-ingest.ts`,
+ * never by a component.
+ */
 export type YouTubeVideoData = {
   [key: string]: unknown
   label: string
@@ -457,10 +467,37 @@ export type YouTubeVideoData = {
   thumbnailUrl: string
   downloadedVideoUrl?: string
   downloadedThumbnailUrl?: string
-  downloadStatus?: "idle" | "downloading" | "completed" | "failed"
+  /** The link `downloadedVideoUrl` was fetched from. A file whose source is not
+   *  the node's current link is never emitted (absent on nodes saved before it
+   *  existed — those are trusted as they always were). */
+  downloadedFromUrl?: string
+  /** The part the stored file covers; null = the whole video. */
+  downloadedSection?: { startSec: number; endSec: number } | null
+  downloadStatus?: "idle" | "checking" | "downloading" | "completed" | "failed"
+  /** The server's own words — shown as a tooltip under the friendly message. */
   downloadError?: string
+  /** `DownloadErrorCode` (`lib/video-link.ts`) — picks the friendly message. */
+  downloadErrorCode?: string
+  /** The server-side download being followed; lets a reload re-attach to it. */
+  downloadId?: string
+  /** The link `downloadId` was made for. A reload re-attaches ONLY when it is
+   *  still the node's link — the link can change where the editor is not
+   *  looking, and the old id would deliver the old link's video. */
+  downloadIdUrl?: string
+  /** TRANSIENT (never saved, never dirties): the live progress ticks. */
   downloadPercent?: number
   downloadPhase?: "downloading" | "processing" | "uploading"
+  /** What the last download was asked for. A RECORD, never an instruction:
+   *  Retry, Run and a reload all start again from `auto` (which asks before a
+   *  long download), because a saved workflow may be someone else's. */
+  downloadMode?: "auto" | "whole" | "section"
+  downloadAllowSilent?: boolean
+  sectionStartSec?: number
+  sectionEndSec?: number
+  /** A long YouTube video (or one of unknown length) waits for the person to
+   *  pick a part or ask for all of it. */
+  needsRangeChoice?: boolean
+  videoDurationSec?: number | null
   downloadedAudioUrl?: string
   audioDownloadStatus?: "idle" | "downloading" | "completed" | "failed"
   audioDownloadError?: string
@@ -3758,16 +3795,26 @@ export type AddCaptionsData = {
   // captions (one per word — karaoke/word-highlight) vs grouped lines; only
   // meaningful with a kinetic style + a wired transcript.
   wordLevel?: boolean
-  // Kinetic-style look levers (kinetic styles only; ignored by the static
-  // subtitle path). `look` selects a preset (outline/clean); an unset look
-  // resolves to the default preset at render. The explicit levers below (kept in
-  // [key: string]: unknown) override individual fields of it.
+  // Caption look levers. The STYLING levers (look/fontFamily/fontWeight/
+  // strokeColor/strokeWidth/uppercase/positionY) apply to EVERY style — the
+  // static `subtitle` now routes to the Remotion renderer when it carries any of
+  // them. `look` selects a preset (outline/clean); for a kinetic style an unset
+  // look resolves to the default preset at render, while a bare `subtitle` with
+  // no look stays plain (explicit levers only). The explicit levers (kept in
+  // [key: string]: unknown) override individual fields of the resolved look.
   look?: CaptionLookId
   fontWeight?: number
   fontFamily?: SupportedFontName
   strokeColor?: string
   strokeWidth?: number
+  // Kinetic-only: subtitle has no per-word spoken cursor to colour and no motion
+  // to switch off (both members of KINETIC_ONLY_CAPTION_LEVER_KEYS).
   highlightColor?: string
+  // Per-word MOTION switch (default true). false freezes the geometric animation
+  // on the kinetic styles (word-highlight hop, karaoke sweep, tiktok/word-pop/
+  // bouncy springs) while keeping line grouping + the spoken-word highlight
+  // colour. Inert on the static `subtitle` style.
+  animate?: boolean
   uppercase?: boolean
   positionY?: number
 }

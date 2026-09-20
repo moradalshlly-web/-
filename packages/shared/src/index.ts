@@ -442,6 +442,18 @@ export type {
 
 export { REPEATABLE_NODE_TYPES, REPEAT_PLACEHOLDER, PROVIDER_PLACEHOLDER_PREFIX, encodeProviderItem, decodeProviderItem, getEffectiveRepeatCount, expandItemsWithRepeat } from "./repeat-types.js"
 
+export {
+  NON_PROMPT_TEXT_LANES,
+  fanOutTextFeedsPrompt,
+  isFanOutUrlItem,
+  compactWithRows,
+  liveRowColumn,
+  resolveListFanOut,
+  planFanOut,
+  alignedFieldList,
+} from "./fan-out-rows.js"
+export type { FanOutCandidate, ListFanOut, FanOutPlan } from "./fan-out-rows.js"
+
 export { settledWithLimit } from "./settled-with-limit.js"
 
 
@@ -896,9 +908,12 @@ export {
   CAPTION_LOOK_IDS,
   CAPTION_LOOKS,
   DEFAULT_CAPTION_LOOK,
+  DEFAULT_SUBTITLE_LOOK,
   KINETIC_ONLY_CAPTION_LEVER_KEYS,
+  captionRoutesToRemotion,
   autoStrokeWidth,
   resolveCaptionLook,
+  resolveCaptionLevers,
 } from "./caption-styles.js"
 export type { StaticCaptionStyle, KineticCaptionStyle, CaptionStyle, CaptionLookId, CaptionLookLevers, KineticOnlyCaptionLeverKey } from "./caption-styles.js"
 
@@ -1088,6 +1103,22 @@ export {
 } from "./producer-types.js"
 
 export { SUNO_TRACK_SOURCE_TYPES } from "./suno-track-sources.js"
+
+// --- Video URL node + social-video import (host allowlist, node output rule) ---
+export {
+  SOCIAL_VIDEO_HOSTS,
+  YOUTUBE_HOSTS,
+  INSTAGRAM_HOSTS,
+  VIDEO_LINK_TOLERANT_CONSUMER_TYPES,
+  hostnameMatchesAllowlist,
+  hasUrlParserHazard,
+  isSocialVideoUrl,
+  detectVideoLinkPlatform,
+  videoLinkDownloadedFile,
+  resolveVideoLinkOutput,
+  videoLinkNeedsDownload,
+} from "./video-link.js"
+export type { VideoLinkPlatform, VideoLinkNodeFields } from "./video-link.js"
 
 export {
   VOICE_CHANGER_MODELS,

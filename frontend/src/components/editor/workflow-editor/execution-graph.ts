@@ -1,6 +1,6 @@
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
-import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs, featuredInstagramOutputs, type Transcript } from "@nodaro/shared";
+import { collectAncestorRefs as sharedCollectAncestorRefs, isExpandedClone, PARAMETER_NODE_TYPES, aggregateByType, buildChildrenByParent, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, ASPECT_RATIO_DIMENSIONS, overlayVariantIdFromHandle, featuredMetaAdOutputs, featuredInstagramOutputs, resolveVideoLinkOutput, type Transcript } from "@nodaro/shared";
 import { getParameterPromptHint } from "@nodaro/prompts"
 import type {
   WorkflowNode,
@@ -201,10 +201,10 @@ export function extractNodeOutput(node: WorkflowNode, sourceHandle?: string): st
     return (data.url as string | undefined)?.trim();
   }
   if (type === "youtube-video") {
-    return (
-      (data.downloadedVideoUrl as string | undefined)?.trim() ||
-      (data.youtubeUrl as string | undefined)?.trim()
-    );
+    // One rule for both engines (`@nodaro/shared`): the downloaded file when it
+    // belongs to the node's CURRENT link, else the link itself — a direct file
+    // url is a legitimate value of the field and passes through.
+    return resolveVideoLinkOutput(data);
   }
   if (type === "upload-audio") {
     return (

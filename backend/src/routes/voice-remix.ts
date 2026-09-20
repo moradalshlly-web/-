@@ -10,7 +10,8 @@ import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
-import { isNodeDenied, deniedNodeRejectionMessage } from "../lib/surface-deny.js"
+import { deniedNodeRejectionMessage } from "../lib/surface-deny.js"
+import { isNodeDeniedForUser } from "../lib/availability-viewer.js"
 
 const voiceRemixBody = z.object({
   text: z.string().min(1).max(5000),
@@ -40,7 +41,7 @@ export async function voiceRemixRoutes(app: FastifyInstance) {
     }
 
     // B4c: reuse B1's nodes.deny — inert when "voice-remix" isn't denied.
-    if (isNodeDenied("voice-remix")) {
+    if (await isNodeDeniedForUser("voice-remix", userId)) {
       return reply.status(403).send({
         error: { code: "node_not_available", message: deniedNodeRejectionMessage(["voice-remix"]) },
       })

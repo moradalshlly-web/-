@@ -61,7 +61,6 @@ const ALLOWLIST = new Set([
   "backend/src/routes/suno.ts",
   "backend/src/routes/three-d-title-ai.ts",
   "backend/src/routes/video-retake.ts",
-  "backend/src/routes/web-scrape.ts",
   "backend/src/routes/workflow-execution.ts",
   "backend/src/routes/workflow-templates.ts",
 
@@ -187,6 +186,11 @@ const ALLOWLIST = new Set([
   "frontend/src/components/nodes/remove-audio-node.tsx",
   "frontend/src/components/nodes/remove-background-node.tsx",
   "frontend/src/components/nodes/silence-detect-node.tsx",
+  // The scrapers' Run-button price: the charged figure via useModelCredits, the
+  // same hook the other ~95 node cards read. One file for all three nodes.
+  "frontend/src/components/nodes/use-scrape-node-credits.ts",
+  // The crawl-mode dropdown quotes the same charged figure as the Run buttons.
+  "frontend/src/components/editor/config-panels/scraper-configs.tsx",
   "frontend/src/components/nodes/render-video-node.tsx",
   "frontend/src/components/nodes/resize-video-node.tsx",
   "frontend/src/components/nodes/scene-node.tsx",

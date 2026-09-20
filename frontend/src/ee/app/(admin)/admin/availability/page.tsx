@@ -169,7 +169,8 @@ export default function AdminAvailabilityPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Which node types and models this deployment offers. The surface profile is the factory set; changes here
           store a runtime override that replaces it until reset. Disabled items disappear from the picker and
-          dropdowns, and are refused at write and run.
+          dropdowns, and are refused at write and run. A node type you turn off here is hidden from your users
+          only: admins still see it (marked in the picker) and can run it. Models have no such exception.
         </p>
       </div>
 

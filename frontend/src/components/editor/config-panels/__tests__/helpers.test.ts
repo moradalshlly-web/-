@@ -315,6 +315,50 @@ describe("getModelIdentifier", () => {
     expect(getModelIdentifier(editPlan, [], [editPlan])).toBe("edit-plan:tighten:standard:180m")
   })
 
+  // A URL-sourced master (YouTube / reference-audio) carries NO readable length
+  // on its node data. The estimate must NOT borrow one from the wired transcript:
+  // the browser only holds the PREVIOUS run's, reusing a workflow for a longer
+  // episode is the normal case, and Execute-All prechecks the balance against
+  // this id — a stale 12-minute transcript would pass the precheck, charge
+  // Transcribe, then fail the Edit Plan reserve mid-run. Ceiling = refuse up front.
+  it("edit-plan with a URL master quotes the ceiling even when a transcript is wired (never under-quotes)", () => {
+    const editPlan = makeNode({ id: "ep", type: "edit-plan", data: { label: "EP", mode: "tighten", planTier: "standard" } as any })
+    const urlMaster = makeNode({ id: "ref", type: "reference-audio", data: { label: "Episode", audioUrl: "https://youtu.be/x" } as any })
+    const lastWeeks = { language: "en", words: [{ text: "bye", startMs: 0, endMs: 12 * 60_000 }] }
+    const transcribe = makeNode({
+      id: "tr", type: "transcribe",
+      data: { label: "T", activeResultIndex: 0, generatedJson: lastWeeks, generatedResults: [{ text: "bye", jobId: "j", timestamp: "t", transcript: lastWeeks }] } as any,
+    })
+    const edges = [
+      { id: "e1", source: "ref", target: "ep", targetHandle: "sources" },
+      { id: "e2", source: "tr", sourceHandle: "json", target: "ep", targetHandle: "transcript" },
+    ] as WorkflowEdge[]
+    expect(getModelIdentifier(editPlan, edges, [editPlan, urlMaster, transcribe])).toBe("edit-plan:tighten:standard:180m")
+  })
+
+  // The config panel's Run button and the presentation view used to call this
+  // WITHOUT the graph nodes, so the master lane was blind there and they quoted
+  // the ceiling while the node's own pill quoted the real bucket.
+  it("edit-plan without the graph nodes cannot see the master — callers must pass them", () => {
+    const editPlan = makeNode({ id: "ep", type: "edit-plan", data: { label: "EP", mode: "tighten", planTier: "standard" } as any })
+    const audio = makeNode({ id: "a1", type: "upload-audio", data: { label: "A", metadata: { durationSeconds: 45 * 60 } } as any })
+    const edges = [{ id: "e1", source: "a1", target: "ep", targetHandle: "sources" }] as WorkflowEdge[]
+    expect(getModelIdentifier(editPlan, edges)).toBe("edit-plan:tighten:standard:180m")
+    expect(getModelIdentifier(editPlan, edges, [editPlan, audio])).toBe("edit-plan:tighten:standard:60m")
+  })
+
+  it("edit-plan buckets on the master's length, not on the wired transcript's", () => {
+    const editPlan = makeNode({ id: "ep", type: "edit-plan", data: { label: "EP", mode: "tighten", planTier: "standard" } as any })
+    const audio = makeNode({ id: "a1", type: "upload-audio", data: { label: "A", metadata: { durationSeconds: 100 * 60 } } as any })
+    // Speech ends at 20 min; the file runs 100 — the reserve bills the FILE.
+    const transcribe = makeNode({ id: "tr", type: "transcribe", data: { label: "T", generatedJson: { words: [{ endMs: 20 * 60_000 }] } } as any })
+    const edges = [
+      { id: "e1", source: "a1", target: "ep", targetHandle: "sources" },
+      { id: "e2", source: "tr", sourceHandle: "json", target: "ep", targetHandle: "transcript" },
+    ] as WorkflowEdge[]
+    expect(getModelIdentifier(editPlan, edges, [editPlan, audio, transcribe])).toBe("edit-plan:tighten:standard:120m")
+  })
+
   it("motion-graphics with engine 'lottie' uses the lottie feature", () => {
     const node = makeNode({ type: "motion-graphics", data: { label: "MG", engine: "lottie" } as any })
     expect(getModelIdentifier(node)).toBe("motion-graphics-lottie")

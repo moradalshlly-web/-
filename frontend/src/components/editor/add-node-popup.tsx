@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense, lazy, type ReactNode } from "react";
 import { useSurfaceAvailability } from "@/lib/surface-availability"
+import { HiddenFromUsersMark } from "@/components/nodes/hidden-from-users-mark"
 import {
   ArrowLeft,
   BookOpen,
@@ -1165,6 +1166,7 @@ export function AddNodePopup({
                       <div className="text-base font-medium text-[var(--npk-t1)] truncate">{localizeNode(node.label)}</div>
                       <div className="text-sm text-[var(--npk-muted)]">{nodeCategory(node.category)}</div>
                     </div>
+                    <HiddenFromUsersMark type={node.type} />
                     <MatchBadge label={matchLabel} />
                   </button>
                 ))}
@@ -1198,6 +1200,7 @@ export function AddNodePopup({
                         <div className="text-base font-medium text-[var(--npk-t2)] truncate">{localizeNode(node.label)}</div>
                         <div className="text-sm text-[var(--npk-muted)]">{nodeCategory(node.category)}</div>
                       </div>
+                      <HiddenFromUsersMark type={node.type} />
                     </button>
                   );
                 })}
@@ -1254,6 +1257,7 @@ export function AddNodePopup({
                   <span className="text-base text-[var(--npk-t1)]">
                     {localizeNode(node.label)}
                   </span>
+                  <HiddenFromUsersMark type={node.type} />
                   {directMatchTypes.has(node.type) && (
                     <MatchBadge label={matchLabel} className="ms-auto" />
                   )}

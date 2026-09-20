@@ -40,7 +40,7 @@ import {
   isSourceNode,
   isSkipNode,
 } from "../services/workflow-engine/execution-graph.js"
-import { resolveNodeInputs, getListInputForNode } from "../services/workflow-engine/input-resolver.js"
+import { resolveNodeInputs, getListInputForNode, getListFanOutForNode } from "../services/workflow-engine/input-resolver.js"
 import { normalizeLegacyNodeTypes } from "../services/workflow-engine/normalize-node-types.js"
 import { migrateGenerateImageHandles } from "../lib/generate-image-handle-migration.js"
 import { extractSourceNodeOutput, extractSavedNodeOutput } from "../services/workflow-engine/output-extractor.js"
@@ -56,13 +56,13 @@ import type {
   OrchestratorContext,
 } from "../services/workflow-engine/types.js"
 import { WORKFLOW_TIMEOUT_MS } from "../services/workflow-engine/types.js"
-import { filterCloneNodes, PARAMETER_NODE_TYPES, migrateEdgeOutputMode, REPEAT_PLACEHOLDER, getEffectiveRepeatCount, REPEATABLE_NODE_TYPES, expandItemsWithRepeat, decodeProviderItem, calculateMonetizationMarkup, resolveEffectiveTier } from "@nodaro/shared"
+import { filterCloneNodes, PARAMETER_NODE_TYPES, migrateEdgeOutputMode, getEffectiveRepeatCount, REPEATABLE_NODE_TYPES, planFanOut, type FanOutPlan, decodeProviderItem, calculateMonetizationMarkup, resolveEffectiveTier } from "@nodaro/shared"
 import { getParameterPromptHint, findForeignCatalogIds, foreignCatalogIdMessage } from "@nodaro/prompts"
 import { applyInputOverridesToNodes } from "./apply-input-overrides.js"
 import { buildStatsKey, upsertExecutionStats } from "../services/execution-stats.js"
 import { settledWithLimit } from "../lib/settled-with-limit.js"
 import { assembleFanOutResult } from "./fan-out-result.js"
-import { overrideInputWithListItem as applyListItem } from "./list-item-override.js"
+import { resolveFanOutIterationInputs } from "./fan-out-inputs.js"
 import { hydrateEntityNodes } from "../lib/entity-hydration.js"
 
 /** Env-var ceiling — tier limits are capped by this. */
@@ -1061,17 +1061,12 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
             failedNodes: failedCount,
           })
 
-          // Check for list fan-out input
-          const listItems = getListInputForNode(
-            node,
-            edges,
-            nodeStates,
-            nodes,
-            triggerData,
-          )
-
-          const expanded = expandItemsWithRepeat(
-            listItems, node.type, node.data as Record<string, unknown>,
+          // Check for list fan-out input. The plan pins every iteration to the
+          // ROW it reads and carries the handle the driving list is wired to.
+          const expanded = planFanOut(
+            getListFanOutForNode(node, edges, nodeStates, nodes, triggerData),
+            node.type,
+            node.data as Record<string, unknown>,
           )
 
           let result: ExecuteNodeResult
@@ -1409,7 +1404,7 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
  */
 async function executeNodeForList(
   node: SimpleNode,
-  items: string[],
+  plan: FanOutPlan,
   edges: SimpleEdge[],
   allNodes: SimpleNode[],
   nodeStates: Record<string, NodeExecutionState>,
@@ -1420,6 +1415,7 @@ async function executeNodeForList(
   maxConcurrency?: number,
   onToleratedFailures?: (count: number) => void,
 ): Promise<ExecuteNodeResult> {
+  const items = plan.items
   // Set iteration total so frontend can show "0/N" progress
   nodeStates[node.id] = {
     ...nodeStates[node.id],
@@ -1451,15 +1447,10 @@ async function executeNodeForList(
     // no duplicate provider call. Otherwise execute this iteration fresh.
     let result = priorIterations.get(i)
     if (!result) {
-      const inputs = resolveNodeInputs(
-        node,
-        edges,
-        nodeStates,
-        allNodes,
-        triggerData,
-        i,
-      )
-      overrideInputWithListItem(inputs, item)
+      // Inputs are resolved on the iteration's ROW and the driving item is
+      // applied through the handle its list is wired to — see fan-out-inputs.ts.
+      // `i` stays the iteration's identity (resume, idempotency, result slot).
+      const inputs = resolveFanOutIterationInputs(node, plan, i, edges, nodeStates, allNodes, triggerData)
 
       // For provider-fanout iterations, swap data.provider for this run only.
       const providerOverride = decodeProviderItem(item)
@@ -1528,25 +1519,6 @@ async function executeNodeForList(
     usageLogId: assembly.usageLogId,
     creditsUsed: assembly.creditsUsed,
   }
-}
-
-/**
- * Override the appropriate input field in ResolvedInputs with the current list item.
- * If the item looks like a URL, set it as the media URL; otherwise set as prompt.
- */
-function overrideInputWithListItem(
-  inputs: ResolvedInputs,
-  item: string,
-): void {
-  // Skip override for repeat placeholder — use normal upstream inputs
-  if (item === REPEAT_PLACEHOLDER) return
-  // Provider-fanout sentinel — provider swap happens at the executeNode call site;
-  // here we just avoid touching prompt/media inputs.
-  if (decodeProviderItem(item) !== undefined) return
-  // URL/text routing (incl. overridePrompt for text items) lives in the
-  // testable pure module; the two guards above stay here since they depend on
-  // worker-local helpers.
-  applyListItem(inputs, item)
 }
 
 // ---------------------------------------------------------------------------

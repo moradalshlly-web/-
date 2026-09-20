@@ -62,6 +62,32 @@ describe("extractSourceNodeOutput", () => {
     expect(result).toEqual({ videoUrl: "https://yt.com" })
   })
 
+  it("youtube-video: a file downloaded from ANOTHER link is never emitted — the node falls back to its current link", () => {
+    // The link changed where no editor was looking (an agent or an import
+    // rewrote the JSON). Emitting the stored file would hand every downstream
+    // node the PREVIOUS video, silently.
+    const result = extractSourceNodeOutput(node("1", "youtube-video", {
+      youtubeUrl: "https://youtu.be/newVideo0001",
+      downloadedVideoUrl: "https://cdn.nodaro.ai/videos/yt-old.mp4",
+      downloadedFromUrl: "https://youtu.be/oldVideo0001",
+    }))
+    expect(result).toEqual({ videoUrl: "https://youtu.be/newVideo0001" })
+  })
+
+  it("youtube-video: a file bound to the current link is emitted", () => {
+    const result = extractSourceNodeOutput(node("1", "youtube-video", {
+      youtubeUrl: " https://youtu.be/sameVideo001 ",
+      downloadedVideoUrl: "https://cdn.nodaro.ai/videos/yt-1.mp4",
+      downloadedFromUrl: "https://youtu.be/sameVideo001",
+    }))
+    expect(result).toEqual({ videoUrl: "https://cdn.nodaro.ai/videos/yt-1.mp4" })
+  })
+
+  it("youtube-video: a direct file link passes through untouched", () => {
+    const result = extractSourceNodeOutput(node("1", "youtube-video", { youtubeUrl: "https://cdn.nodaro.ai/videos/yt-9.mp4" }))
+    expect(result).toEqual({ videoUrl: "https://cdn.nodaro.ai/videos/yt-9.mp4" })
+  })
+
   it("extracts audioUrl from reference-audio", () => {
     const result = extractSourceNodeOutput(node("1", "reference-audio", { extractedAudioUrl: "https://ref.mp3" }))
     expect(result).toEqual({ audioUrl: "https://ref.mp3" })

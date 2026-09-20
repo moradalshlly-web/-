@@ -26,6 +26,12 @@ vi.mock("@/lib/queue.js", () => ({ videoQueue: { add: vi.fn() } }))
 vi.mock("@/lib/render-queue.js", () => ({ renderQueue: { add: vi.fn() } }))
 vi.mock("@/workers/shared.js", () => ({ refundJobCredits: vi.fn() }))
 vi.mock("../payload-builder.js", () => ({ buildPayload: vi.fn() }))
+// node-executor resolves the execution's availability viewer itself; the real
+// module reaches `@nodaro/shared`'s model catalog, which the stub below omits.
+vi.mock("@/lib/availability-viewer.js", () => ({
+  viewerForNode: async () => ({ admin: false }),
+  assertNodeAvailableForUser: async () => {},
+}))
 // completedJobResult builds its output via buildNodeOutputFromJobData — echo imageUrl.
 vi.mock("../output-extractor.js", () => ({
   buildNodeOutputFromJobData: (data: Record<string, unknown>) => ({ imageUrl: data?.imageUrl }),

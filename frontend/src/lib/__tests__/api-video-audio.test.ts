@@ -940,7 +940,7 @@ describe("addCaptionsApi", () => {
     vi.stubGlobal("fetch", mock)
 
     await addCaptionsApi("http://vid.mp4", "hi", "word-pop", "bottom", 64, "#fff", undefined, undefined, {
-      look: "outline", fontFamily: "Montserrat", fontWeight: 900, highlightColor: "#FFE600", uppercase: true, positionY: 65,
+      look: "outline", fontFamily: "Montserrat", fontWeight: 900, highlightColor: "#FFE600", uppercase: true, positionY: 65, animate: false,
     })
 
     const body = JSON.parse(mock.mock.calls[0][1].body as string)
@@ -949,22 +949,34 @@ describe("addCaptionsApi", () => {
     expect(body.highlightColor).toBe("#FFE600")
     expect(body.uppercase).toBe(true)
     expect(body.positionY).toBe(65)
+    expect(body.animate).toBe(false)
   })
 
-  it("STRIPS look levers for the static subtitle style (they'd 400 the route)", async () => {
+  it("keeps STYLING levers for the static subtitle style, strips only the kinetic-only two", async () => {
     noSession()
     const mock = mockFetchJson({ jobId: "js" })
     vi.stubGlobal("fetch", mock)
 
-    // A subtitle node can carry stale look levers in its data; they must not ship.
+    // A subtitle now routes to Remotion when it carries a styling lever, so those
+    // pass through; only highlightColor + animate are kinetic-only and are stripped
+    // (the route Zod rejects those two on the static style).
     await addCaptionsApi("http://vid.mp4", "hi", "subtitle", "bottom", 32, "#fff", undefined, undefined, {
-      look: "outline", fontFamily: "Montserrat", fontWeight: 900, highlightColor: "#FFE600", uppercase: true, positionY: 65,
+      look: "outline", fontFamily: "Montserrat", fontWeight: 900, strokeColor: "#000000", strokeWidth: 4, uppercase: true, positionY: 65,
+      highlightColor: "#FFE600", animate: false,
     })
 
     const body = JSON.parse(mock.mock.calls[0][1].body as string)
-    for (const k of ["look", "fontFamily", "fontWeight", "highlightColor", "uppercase", "positionY"]) {
-      expect(body[k]).toBeUndefined()
-    }
+    // Styling levers pass through on subtitle.
+    expect(body.look).toBe("outline")
+    expect(body.fontFamily).toBe("Montserrat")
+    expect(body.fontWeight).toBe(900)
+    expect(body.strokeColor).toBe("#000000")
+    expect(body.strokeWidth).toBe(4)
+    expect(body.uppercase).toBe(true)
+    expect(body.positionY).toBe(65)
+    // Kinetic-only levers are stripped on the static style.
+    expect(body.highlightColor).toBeUndefined()
+    expect(body.animate).toBeUndefined()
   })
 
   it("throws on error response", async () => {

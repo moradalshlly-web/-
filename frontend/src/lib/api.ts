@@ -3827,8 +3827,9 @@ export async function audioFxApi(params: {
 
 export async function addCaptionsApi(videoUrl: string, text: string, style?: string, position?: string, fontSize?: number, color?: string, backgroundColor?: string, userId?: string, opts?: {
   autoTranscribe?: boolean; transcribeProvider?: string; transcript?: unknown; wordLevel?: boolean;
-  // Kinetic-style look levers (see AddCaptionsData). Sent only for a kinetic style.
-  look?: string; fontFamily?: string; fontWeight?: number; strokeColor?: string; strokeWidth?: number; highlightColor?: string; uppercase?: boolean; positionY?: number;
+  // Caption look levers (see AddCaptionsData). The styling levers apply to EVERY
+  // style; only highlightColor + animate are kinetic-only (see the strip below).
+  look?: string; fontFamily?: string; fontWeight?: number; strokeColor?: string; strokeWidth?: number; highlightColor?: string; uppercase?: boolean; positionY?: number; animate?: boolean;
 }): Promise<{ jobId: string }> {
   // text is OMITTED when empty — the route's schema is `min(1).optional()`,
   // so sending `text: ""` fails validation even though absent-text is the
@@ -3856,13 +3857,17 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
   if (opts?.wordLevel !== undefined) {
     body.wordLevel = opts.wordLevel
   }
-  // Kinetic-only look levers: send ONLY for a kinetic style. A subtitle node may
-  // still carry stale look levers in its data (the config panel hides them but
-  // doesn't clear them), and the route Zod REJECTS a look lever on the static
-  // style — so a stale value would 400 the run. The strip list is the same
-  // shared constant the route rejects on (KINETIC_ONLY_CAPTION_LEVER_KEYS).
-  if (opts && isKineticCaptionStyle(style)) {
-    const leverVals: Record<(typeof KINETIC_ONLY_CAPTION_LEVER_KEYS)[number], unknown> = {
+  // Caption look levers. The STYLING levers (look/font/weight/stroke/uppercase/
+  // positionY) apply to every style — a static `subtitle` carrying one now routes
+  // to the Remotion renderer — so they're sent for every style. Only the members
+  // of KINETIC_ONLY_CAPTION_LEVER_KEYS (highlightColor + animate) are dropped for
+  // a static subtitle: it has no per-word cursor to colour and no motion to switch
+  // off, and the route Zod REJECTS those two on the static style (a stale value —
+  // e.g. left over from a node that was once kinetic — would otherwise 400 the run).
+  if (opts) {
+    const kinetic = isKineticCaptionStyle(style)
+    const kineticOnly = new Set<string>(KINETIC_ONLY_CAPTION_LEVER_KEYS)
+    const leverVals: Record<string, unknown> = {
       look: opts.look,
       fontFamily: opts.fontFamily,
       fontWeight: opts.fontWeight,
@@ -3871,9 +3876,12 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
       highlightColor: opts.highlightColor,
       uppercase: opts.uppercase,
       positionY: opts.positionY,
+      animate: opts.animate,
     }
-    for (const k of KINETIC_ONLY_CAPTION_LEVER_KEYS) {
-      if (leverVals[k] !== undefined) body[k] = leverVals[k]
+    for (const k of Object.keys(leverVals)) {
+      if (leverVals[k] !== undefined && (kinetic || !kineticOnly.has(k))) {
+        body[k] = leverVals[k]
+      }
     }
   }
   return apiJson("/v1/add-captions", {
@@ -4031,46 +4039,71 @@ export async function downloadYouTubeAudio(url: string): Promise<{ url: string; 
   })
 }
 
-export async function startVideoDownload(url: string): Promise<{ downloadId: string }> {
+/** A sub-span of the source, in seconds (both or neither, 0 <= start < end). The
+ *  server pads it ±3s and cuts on keyframes, so the file may run a little wider. */
+export interface VideoDownloadSection {
+  readonly startSec: number
+  readonly endSec: number
+}
+
+export interface StartVideoDownloadOptions {
+  /** Quality cap, "up to N rows". YouTube only — other hosts have no ladder. */
+  readonly maxHeight?: number
+  readonly section?: VideoDownloadSection
+  /** `false` = accept a download with no sound. Absent keeps the server's default
+   *  (a silent result fails, and is retried through the proxy pool first). */
+  readonly requireAudio?: boolean
+}
+
+/**
+ * Start a server-side download of a social video link (or a direct video file).
+ * Answers at once with a `downloadId`; follow it with `followVideoDownload`
+ * (`video-download-stream.ts`). Every option rides along only when present.
+ */
+export async function startVideoDownload(
+  url: string,
+  options: StartVideoDownloadOptions = {},
+): Promise<{ downloadId: string }> {
+  const { maxHeight, section, requireAudio } = options
   return apiJson("/v1/download-video", {
-    body: { url },
+    body: {
+      url,
+      ...(maxHeight !== undefined ? { maxHeight } : {}),
+      ...(section ? { sectionStartSec: section.startSec, sectionEndSec: section.endSec } : {}),
+      ...(requireAudio !== undefined ? { requireAudio } : {}),
+    },
     label: "Failed to start download. The video may be private or require login.",
   })
 }
 
-export interface DownloadProgressEvent {
-  phase: "downloading" | "processing" | "uploading" | "completed" | "failed"
-  percent: number
-  videoUrl?: string
-  thumbnailUrl?: string
-  error?: string
+/** What a pre-download probe knows about a link. Every field may be unknown. */
+export interface VideoLinkMetadata {
+  readonly durationSec: number | null
+  readonly title: string | null
+  readonly isLive: boolean
 }
 
-export function subscribeToDownloadProgress(
-  downloadId: string,
-  onProgress: (event: DownloadProgressEvent) => void,
-): () => void {
-  const url = `${API_BASE_URL}/v1/download-video/progress/${downloadId}`
-  const eventSource = new EventSource(url)
+const UNKNOWN_VIDEO_METADATA: VideoLinkMetadata = { durationSec: null, title: null, isLive: false }
 
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data) as DownloadProgressEvent
-      onProgress(data)
-      if (data.phase === "completed" || data.phase === "failed") {
-        eventSource.close()
-      }
-    } catch {
-      // Ignore parse errors
+/**
+ * Probe a link's length / title / live-ness BEFORE downloading it
+ * (`POST /v1/video-metadata`, YouTube only — other hosts answer all-unknown).
+ * NEVER throws: a failed, slow or malformed probe resolves to "unknown", so it
+ * can only ever DEGRADE what happens next, never block an import.
+ */
+export async function fetchVideoMetadata(url: string): Promise<VideoLinkMetadata> {
+  try {
+    const raw = await apiJson<unknown>("/v1/video-metadata", { body: { url }, label: "Failed to read video info" })
+    if (typeof raw !== "object" || raw === null) return UNKNOWN_VIDEO_METADATA
+    const obj = raw as Record<string, unknown>
+    return {
+      durationSec: typeof obj.durationSec === "number" && Number.isFinite(obj.durationSec) ? obj.durationSec : null,
+      title: typeof obj.title === "string" && obj.title.trim() !== "" ? obj.title : null,
+      isLive: obj.isLive === true,
     }
+  } catch {
+    return UNKNOWN_VIDEO_METADATA
   }
-
-  eventSource.onerror = () => {
-    eventSource.close()
-    onProgress({ phase: "failed", percent: 0, error: "Connection lost" })
-  }
-
-  return () => eventSource.close()
 }
 
 export async function textToAudioApi(prompt: string, provider?: string, duration?: number, userId?: string, options?: { loop?: boolean; promptInfluence?: number }): Promise<{ jobId: string }> {
@@ -4361,9 +4394,13 @@ export async function webScrape(params: {
   target?: string
   resultsLimit?: number
   workflowId?: string
-}): Promise<{ jobId: string; json: unknown }> {
+}): Promise<{ jobId: string }> {
+  // `respondAsync`: answer with the job id and finish server-side. Held open, a
+  // site crawl outlasts the ~100 s edge timeout — the request died with a 524
+  // ("Web scrape failed", this label) while the job completed and was charged.
+  // The caller polls the job (pollScrapeJobOutput).
   return apiJson("/v1/web-scrape", {
-    body: params,
+    body: { ...params, respondAsync: true },
     workflowId: true,
     label: "Web scrape failed",
   })
@@ -4396,9 +4433,14 @@ export async function metaAdsScrape(params: {
   analysisModel?: string
   analysisFocus?: string
   workflowId?: string
-}): Promise<{ jobId: string; json: unknown; text?: string; imageUrl?: string; videoUrl?: string; mediaStorage?: unknown; analysis?: unknown }> {
+}): Promise<{ jobId: string }> {
+  // `respondAsync`: answer with the job id and finish server-side. A run that
+  // copies every video and analyses every ad outlasts the ~100 s edge timeout;
+  // held open, the request died with a 524 ("Meta Ads scrape failed", this
+  // label) while the job completed and was charged. The caller polls the job
+  // (pollScrapeJobOutput) — same contract as web-scrape and instagram-scrape.
   return apiJson("/v1/meta-ads-scrape", {
-    body: params,
+    body: { ...params, respondAsync: true },
     workflowId: true,
     label: "Meta Ads scrape failed",
   })
@@ -7068,6 +7110,8 @@ interface ExecutionNodeState {
     splitResults?: string[]
     combinedText?: string
     listResults?: string[]
+    /** Row-aligned twin of listResults (Extract Field, List output) — read only by the fan-out. */
+    alignedListResults?: string[]
   }
   error?: string
 }

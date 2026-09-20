@@ -104,13 +104,14 @@ import {
   executeReduce,
 } from "@/lib/api";
 import { applyWebScrapeFailure, applyWebScrapeResult, webScrapeRunStartPatch } from "@/components/nodes/web-scrape-run-state";
+import { scrapeResultPatch } from "@/components/nodes/scrape-result-recovery";
 import { applyMetaAdsScrapeFailure, applyMetaAdsScrapeResult, metaAdsScrapeRunStartPatch } from "@/components/nodes/meta-ads-scrape-run-state";
 import { applyInstagramScrapeFailure, applyInstagramScrapeResult, instagramScrapeRunStartPatch } from "@/components/nodes/instagram-scrape-run-state";
 import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, splitMetaAdsAdvertiserNames, splitInstagramTargets } from "@nodaro/shared";
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
-  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
+  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, alignedFieldList, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
 import { applyPromptAffixes, buildSeedanceVideoEditPrompt, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
@@ -1110,9 +1111,14 @@ export function executeNode(
   listIterationIndex?: number,
   runId?: string,
   authoredOverride?: Record<string, unknown>,
+  /** The ROW a list fan-out iteration resolves its inputs on (`FanOutPlan.rows`).
+   *  Not the iteration number: with Repeat xN the copies of a row share it. An
+   *  ARGUMENT on purpose, never part of `ctx` — ctx flows into everything this
+   *  node executes (a Sub-Workflow's children), and the row must stop here. */
+  listRowIndex?: number,
 ): Promise<string> {
   try {
-    return executeNodeCore(node, ctx, overridePrompt, overrideMediaUrl, listIterationIndex, runId, authoredOverride);
+    return executeNodeCore(node, ctx, overridePrompt, overrideMediaUrl, listIterationIndex, runId, authoredOverride, listRowIndex);
   } catch (err) {
     return Promise.reject(err);
   }
@@ -1126,10 +1132,15 @@ function executeNodeCore(
   listIterationIndex?: number,
   runId?: string,
   authoredOverride?: Record<string, unknown>,
+  listRowIndex?: number,
 ): Promise<string> {
   assertCanvasExecutionAllowed([node]);
   const { nodes, edges } = useWorkflowStore.getState();
-  const inputs = resolveNodeInputs(node, nodes, edges, listIterationIndex);
+  // Inputs are resolved on the iteration's ROW (`listRowIndex`, from the fan-out
+  // plan); `listIterationIndex` stays the iteration's identity — the idempotency
+  // key below. They differ under Repeat xN and empty cells. Outside a list-
+  // driven fan-out there is no row and the iteration number stands.
+  const inputs = resolveNodeInputs(node, nodes, edges, listRowIndex ?? listIterationIndex);
 
   // Per-call idempotency key. ctx.idempotencyKey is set by the click handler
   // (handleRunSingleNode / handleRun*) to one UUID per click intent. For
@@ -2231,7 +2242,8 @@ function executeNodeCore(
     // field-mapping block above ran, so a mapping-injected value in
     // `syntheticNode.data` doesn't re-qualify as "authored" inside the inner
     // call (see the comment on `authoredData`'s declaration).
-    return executeNode(syntheticNode, ctx, overridePrompt, overrideMediaUrl, listIterationIndex, runId, authoredData);
+    // Same node, re-typed: it keeps the row it is running on.
+    return executeNode(syntheticNode, ctx, overridePrompt, overrideMediaUrl, listIterationIndex, runId, authoredData, listRowIndex);
   }
 
   // Generate Video Pro — Seedance-2-family multi-segment stitch (Task 13).
@@ -5204,6 +5216,7 @@ function executeNodeCore(
     const videoWired = liveEdges.some((e) => e.source === node.id && e.sourceHandle === "video");
     updateNodeData(node.id, instagramScrapeRunStartPatch(d));
     setUserPromptTemplate(undefined);
+    let instagramJobId = "";
     return instagramScrape({
       mode: d.mode === "hashtag" ? "hashtag" : "profile",
       targets,
@@ -5219,10 +5232,16 @@ function executeNodeCore(
     })
       // The scrape runs past the ~100s edge timeout, so the route answers with a
       // job id and finishes server-side; poll it to completion here.
-      .then(({ jobId }) => pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal }))
+      .then(({ jobId }) => {
+        instagramJobId = jobId;
+        return pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal });
+      })
       .then((output) => {
         const json = output.json;
-        const patch = applyInstagramScrapeResult(json);
+        // scrapeResultPatch = applyInstagramScrapeResult + the job the payload
+        // came from; without that stamp a later reload cannot tell this result
+        // is already on the node, and re-applying it resets the featured post.
+        const patch = scrapeResultPatch("instagram-scrape", json, instagramJobId) ?? applyInstagramScrapeResult(json);
         updateNodeData(node.id, patch);
         guardedToast.success(patch.lastRunOutcome === "empty" ? "Instagram completed — 0 posts" : "Instagram completed");
         return json === undefined ? "" : JSON.stringify(json);
@@ -5260,18 +5279,30 @@ function executeNodeCore(
     updateNodeData(node.id, metaAdsScrapeRunStartPatch(d));
 
     setUserPromptTemplate(undefined);
+    let metaAdsJobId = "";
     return metaAdsScrape(params)
-      .then((res) => {
+      // The scrape, the media copy and the analysis run past the ~100 s edge
+      // timeout, so the route answers with a job id and finishes server-side;
+      // poll it here (same contract as web-scrape and instagram-scrape).
+      .then(({ jobId }) => {
+        metaAdsJobId = jobId;
+        return pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal });
+      })
+      .then((output) => {
+        const json = output.json;
         // Same #765 contract as Web Scrape: an empty run records the outcome
         // and KEEPS the previous good payload; the chain gets THIS run's output.
-        const patch = applyMetaAdsScrapeResult(res.json);
+        const patch = scrapeResultPatch("meta-ads-scrape", json, metaAdsJobId) ?? applyMetaAdsScrapeResult(json);
         updateNodeData(node.id, patch);
         guardedToast.success(
           patch.lastRunOutcome === "empty" ? "Meta Ads completed — 0 ads" : "Meta Ads completed",
         );
-        return res.json === undefined ? "" : JSON.stringify(res.json);
+        return json === undefined ? "" : JSON.stringify(json);
       })
       .catch((err: Error) => {
+        // Stop → the poll was aborted; the central Stop handler already restored
+        // the node, so don't overwrite it with a failure (mirrors instagram-scrape).
+        if (err?.name === "AbortError" || ctx.signal?.aborted) return "";
         updateNodeData(node.id, applyMetaAdsScrapeFailure(err.message || "Scrape failed"));
         guardedToast.error(`Meta Ads failed: ${err.message}`);
         throw err;
@@ -5287,23 +5318,34 @@ function executeNodeCore(
     updateNodeData(node.id, webScrapeRunStartPatch(d));
 
     setUserPromptTemplate(undefined);
+    let scrapeJobId = "";
     return webScrape(params)
-      .then((res) => {
+      // A site crawl runs for minutes — past the ~100 s edge timeout — so the
+      // route answers with a job id and finishes server-side; poll it here.
+      .then(({ jobId }) => {
+        scrapeJobId = jobId;
+        return pollScrapeJobOutput(jobId, node.id, { signal: ctx.signal });
+      })
+      .then((output) => {
+        const json = output.json;
         // #765: the patch records success/empty and KEEPS the previous good
         // payload on an empty run — the incident was an empty rerun silently
         // destroying 20 real results. The chain still receives THIS run's
         // actual output below (honest for the executing graph); only the
         // stored node payload is protected.
-        const patch = applyWebScrapeResult(res.json);
+        const patch = scrapeResultPatch("web-scrape", json, scrapeJobId) ?? applyWebScrapeResult(json);
         updateNodeData(node.id, patch);
         guardedToast.success(
           patch.lastRunOutcome === "empty" ? "Web Scrape completed — 0 results" : "Web Scrape completed",
         );
         // Return stringified JSON for callers that expect a string — same coercion
         // getPrimaryOutput uses on the backend.
-        return res.json === undefined ? "" : JSON.stringify(res.json);
+        return json === undefined ? "" : JSON.stringify(json);
       })
       .catch((err: Error) => {
+        // Stop → the poll was aborted; the central Stop handler already restored
+        // the node, so don't overwrite it with a failure (mirrors instagram-scrape).
+        if (err?.name === "AbortError" || ctx.signal?.aborted) return "";
         // Failed runs record the outcome but never touch generatedJson.
         updateNodeData(node.id, applyWebScrapeFailure(err.message || "Scrape failed"));
         guardedToast.error(`Web Scrape failed: ${err.message}`);
@@ -7642,7 +7684,9 @@ function executeNodeCore(
             // wordLevel is node data. Matches the DAG payload-builder.
             transcript: inputs.transcript,
             wordLevel: d.wordLevel,
-            // Kinetic look levers — addCaptionsApi drops them for a static style.
+            // Caption look levers. Styling levers apply to every style;
+            // addCaptionsApi drops only highlightColor + animate for a static
+            // subtitle (KINETIC_ONLY_CAPTION_LEVER_KEYS).
             look: d.look,
             fontFamily: d.fontFamily,
             fontWeight: d.fontWeight,
@@ -7651,6 +7695,7 @@ function executeNodeCore(
             highlightColor: d.highlightColor,
             uppercase: d.uppercase,
             positionY: d.positionY,
+            animate: d.animate,
           },
         ),
       "generatedVideoUrl",
@@ -8813,6 +8858,12 @@ function executeNodeCore(
       extractedText: joined,
       executionStatus: "completed",
       __listResults: outputType === "list" ? strings : undefined,
+      // The same list with ONE ENTRY PER ARRAY ELEMENT ("" where the element has
+      // no value), so two Extract Field lists cut from the same array stay row-
+      // aligned in a fan-out. A separate channel on purpose: __listResults is the
+      // public list every item:N / range / Bundle / list node indexes, and must
+      // not grow holes. Mirrors backend executeExtractField.
+      __alignedListResults: outputType === "list" ? alignedFieldList(value ?? null, path) : undefined,
       generatedJson: outputType === "json" ? raw : undefined,
     });
     return Promise.resolve(joined);

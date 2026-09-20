@@ -11,6 +11,14 @@ interface AddCaptionsOptions {
   readonly backgroundColor?: string
 }
 
+// Legacy anchors for the plain-text FFmpeg fast-path (drawtext). These differ
+// from the Remotion caption anchors (CAPTION_EDGE_INSET {top:12%, bottom:18%})
+// used by every styled/kinetic/segmented caption and any `position_y`: bottom
+// here sits ~40 px off the frame edge (≈98%), not at 82%. Unifying the two needs
+// a characterization re-bless of the add-captions goldens (the y-position is a
+// measured decoded-output metric), so it is a deliberate follow-up rather than a
+// drive-by change. Only a bare plain-text subtitle reaches this path — a caller
+// who wants the exact/unified placement sets `position_y` (→ Remotion).
 const POSITION_Y: Record<string, string> = {
   bottom: "h-th-40",
   top: "40",

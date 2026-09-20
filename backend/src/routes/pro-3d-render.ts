@@ -74,9 +74,10 @@ import {
   dispatchPro3DRender,
   dispatchPro3DRenderQuote,
   scene3DCapabilities,
-  scene3DProAvailable,
+  scene3DProEngineReady,
   refuseDeniedScene3DNode,
 } from "../services/scene3d/scene3d-engine.js"
+import { USER_VIEWER } from "../lib/surface-deny.js"
 
 /** The node type / job identifier this route serves. */
 export const PRO3D_RENDER_JOB_TYPE = "pro-3d-render"
@@ -255,7 +256,10 @@ async function refusedBeforeDispatch(
 ): Promise<boolean> {
   // Engine availability, from the SAME capabilities document every surface
   // reads — so a menu can never contain an option the route refuses.
-  const capabilities = (await scene3DCapabilities()).pro
+  // Only `.engines` is read below, and no viewer affects it (the viewer decides
+  // `available` alone, which `refuseDeniedScene3DNode` already answered per
+  // user) — so ask as a user and skip the admin lookup.
+  const capabilities = (await scene3DCapabilities(USER_VIEWER)).pro
   const engine = body.engine ?? "blender-cloud"
   if (!capabilities.engines.includes(engine as (typeof capabilities.engines)[number])) {
     unavailable(reply, `The "${engine}" engine is unavailable on this instance.`)
@@ -313,8 +317,8 @@ export async function pro3DRenderRoutes(app: FastifyInstance) {
     if (!req.userId) {
       return reply.status(401).send({ error: { code: "unauthorized", message: "Authentication required" } })
     }
-    if (refuseDeniedScene3DNode("pro-3d-render", reply)) return
-    if (!scene3DProAvailable()) return unavailable(reply)
+    if (await refuseDeniedScene3DNode("pro-3d-render", req, reply)) return
+    if (!scene3DProEngineReady()) return unavailable(reply)
 
     const parsed = pro3DRenderQuoteBody.safeParse(req.body)
     if (!parsed.success) {
@@ -332,8 +336,8 @@ export async function pro3DRenderRoutes(app: FastifyInstance) {
     }
     // Readiness first: on an install without the engine every answer other
     // than "unavailable" would be a guess about a service that isn't there.
-    if (refuseDeniedScene3DNode("pro-3d-render", reply)) return
-    if (!scene3DProAvailable()) return unavailable(reply)
+    if (await refuseDeniedScene3DNode("pro-3d-render", req, reply)) return
+    if (!scene3DProEngineReady()) return unavailable(reply)
 
     const keyError = idempotencyKeyError(req)
     if (keyError) return invalid(reply, keyError)

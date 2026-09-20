@@ -22,20 +22,23 @@ import {
   type RunConfirmInfo,
 } from "./types";
 import { estimateRunCredits } from "./estimate-run-credits";
-import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, expandItemsWithRepeat, TRANSIENT_RUNTIME_KEYS, isExpandedClone, unwrapEditPlanOutput } from "@nodaro/shared"
+import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, planFanOut, TRANSIENT_RUNTIME_KEYS, isExpandedClone, unwrapEditPlanOutput } from "@nodaro/shared"
 import type { NodeExecutionStatus as SharedNodeExecutionStatus, NodeExecutionStateWire } from "@nodaro/shared"
 import { collapseExpandedClones } from "./execution-graph";
 import { shouldAbandonNode } from "./abandon-guard";
-import { getListInputForNode } from "./node-input-resolver";
+import { getListFanOutForNode } from "./node-input-resolver";
 import { executeNode, rejectAllManualEdits } from "./execute-node";
 import { executeNodeForList } from "./list-execution";
 import { cascadeAutoExecute } from "./auto-execute";
+import { ensureVideoLinksBeforeRun } from "./video-link-run-gate";
 import { buildVariantResults } from "./variant-results";
 // The restore poller shares the canvas loops' one flag writer. No cycle:
 // poll-job.ts imports nothing from this file.
 import { getJobStatusLeanForNode } from "./poll-job";
 import { sunoVariantFields } from "@/lib/suno-ids";
 import { tx } from "@/lib/i18n";
+import { isScrapeNodeType, scrapeResultPatch } from "@/components/nodes/scrape-result-recovery";
+import { applyWebScrapeFailure } from "@/components/nodes/web-scrape-run-state";
 import { resolveSceneCompletion } from "@/lib/scene3d/revisions";
 import { planRevisionId } from "@/lib/scene3d/plan-view";
 
@@ -140,6 +143,7 @@ const HISTORY_FIELDS: ReadonlyArray<string> = [
 
 const LIST_STATE_FIELDS: ReadonlyArray<string> = [
   "__listResults",
+  "__alignedListResults",
   "__listTotal",
   "__listCompleted",
   "__listInputs",
@@ -338,6 +342,10 @@ export async function handleRun(
     const st = useWorkflowStore.getState();
     const exec = liveExecutable(st.nodes);
     if (!(await confirmRunOrAbort(ctx, exec, st.nodes, st.edges, "all", true, opts?.skipConfirm))) return;
+    // After the confirm (Cancel stays a true no-op), before any mutation: this
+    // run executes on the server from the SAVED workflow, so a Video URL node
+    // must hold its file by the time the pre-run save below writes it.
+    if (!(await ensureVideoLinksBeforeRun(exec.map((n) => n.id), setIsRunning))) return;
   }
 
   rejectAllManualEdits();
@@ -496,17 +504,29 @@ export async function handleRunSingleNode(
   pollIntervalsRef: MutableRefObject<Set<ReturnType<typeof setInterval>>>,
   opts?: { skipConfirm?: boolean },
 ): Promise<void> {
-  const { nodes, edges } = useWorkflowStore.getState();
-  const node = nodes.find((n) => n.id === nodeId);
-  if (!node) return;
+  {
+    const st = useWorkflowStore.getState();
+    const asked = st.nodes.find((n) => n.id === nodeId);
+    if (!asked) return;
 
-  if (!isExecutableNode(node)) {
-    toast.error(tx("run.nodeTypeCannotRunIndividually"));
-    return;
+    if (!isExecutableNode(asked)) {
+      toast.error(tx("run.nodeTypeCannotRunIndividually"));
+      return;
+    }
+
+    // Confirm before any mutation when this single run is estimated >100 cr.
+    if (!(await confirmRunOrAbort(ctx, [asked], st.nodes, st.edges, "single", false, opts?.skipConfirm))) return;
+    // A linked video upstream that was never fetched is fetched now — the node
+    // would otherwise be handed a web page instead of a video file.
+    if (!(await ensureVideoLinksBeforeRun([nodeId], setIsRunning))) return;
   }
 
-  // Confirm before any mutation when this single run is estimated >100 cr.
-  if (!(await confirmRunOrAbort(ctx, [node], nodes, edges, "single", false, opts?.skipConfirm))) return;
+  // Read the graph only NOW. The confirm and the download above can each take
+  // minutes; the canvas may have been edited meanwhile, and running a snapshot
+  // taken before them would execute a node as it no longer is.
+  const { nodes } = useWorkflowStore.getState();
+  const node = nodes.find((n) => n.id === nodeId);
+  if (!node) return;
 
   // Capture dirtiness BEFORE the per-run resets / optimistic flip so a clean
   // editor skips the pre-Run save round-trip (see FIX 4).
@@ -541,8 +561,13 @@ export async function handleRunSingleNode(
 
   const { nodes: currentNodes, edges: currentEdges } =
     useWorkflowStore.getState();
-  const listItems = getListInputForNode(node, currentNodes, currentEdges);
-  const expanded = expandItemsWithRepeat(listItems, node.type ?? "", node.data as Record<string, unknown>);
+  // The plan pins every iteration to the ROW it reads and carries the handle
+  // the driving list is wired to (see @nodaro/shared fan-out-rows).
+  const expanded = planFanOut(
+    getListFanOutForNode(node, currentNodes, currentEdges),
+    node.type ?? "",
+    node.data as Record<string, unknown>,
+  );
 
   // One key per click of Run-on-this-node. Reused by all retries inside
   // this execution (network-level retry, browser fetch retry); fan-out
@@ -552,7 +577,7 @@ export async function handleRunSingleNode(
   ctx.idempotencyKey = generateIdempotencyKey();
 
   const execution = expanded
-    ? executeNodeForList(node, expanded, ctx)
+    ? executeNodeForList(node, expanded.items, ctx, expanded)
     : executeNode(node, ctx);
 
   execution
@@ -617,6 +642,7 @@ export async function handleRunFromHere(
     const downstreamIds = getDownstreamNodeIds(nodeId, st.edges);
     const exec = liveExecutable(st.nodes).filter((n) => downstreamIds.has(n.id));
     if (!(await confirmRunOrAbort(ctx, exec, st.nodes, st.edges, "from-here", false))) return;
+    if (!(await ensureVideoLinksBeforeRun(exec.map((n) => n.id), setIsRunning))) return;
   }
   rejectAllManualEdits();
   const { nodes, edges } = collapseExpandedClones();
@@ -710,6 +736,7 @@ export async function handleRunSelected(
     const st = useWorkflowStore.getState();
     const exec = liveExecutable(st.nodes).filter((n) => n.selected);
     if (!(await confirmRunOrAbort(ctx, exec, st.nodes, st.edges, "selected", false))) return;
+    if (!(await ensureVideoLinksBeforeRun(exec.map((n) => n.id), setIsRunning))) return;
   }
   rejectAllManualEdits();
   const { nodes } = collapseExpandedClones();
@@ -854,8 +881,12 @@ export function restorePollingForRunningJobs(
             ctx.untrackInterval(poll);
             const errMsg = job.error_message ?? tx("run.unknownError");
             updateNodeData(nodeId, {
-              executionStatus: "failed",
-              errorMessage: errMsg,
+              // A scrape card reads its state off `lastRunOutcome`, not the
+              // transient status — without the run-state patch a restored
+              // failure is a toast and then a card still showing the last success.
+              ...(isScrapeNodeType(nodeType)
+                ? applyWebScrapeFailure(errMsg)
+                : { executionStatus: "failed", errorMessage: errMsg }),
               currentJobId: undefined,
               currentJobProgress: undefined,
               jobAwaitingReview: undefined,
@@ -948,6 +979,21 @@ function applyRestoredJobCompletion(
       executionStatus: "completed",
       ...(json && typeof json === "object" ? { generatedJson: json } : {}),
       ...(report && typeof report === "object" ? { lastAuditReport: report } : {}),
+      currentJobId: undefined,
+      currentJobProgress: undefined,
+      jobAwaitingReview: undefined,
+    });
+    toast.success(tx("run.backgroundJobCompleted"));
+    return;
+  }
+
+  // Scrapers: same JSON-result gap, and the likeliest node to hit it — a scrape
+  // runs for minutes, so a reload mid-run is ordinary. The patch is the live
+  // run's own (scrapeResultPatch), so a restored result is indistinguishable
+  // from one that arrived with the tab open.
+  if (isScrapeNodeType(nodeType)) {
+    updateNodeData(nodeId, {
+      ...scrapeResultPatch(nodeType, job.output_data?.json, jobId),
       currentJobId: undefined,
       currentJobProgress: undefined,
       jobAwaitingReview: undefined,
@@ -1318,6 +1364,8 @@ interface NodeExecutionState {
     splitResults?: string[];
     combinedText?: string;
     listResults?: string[];
+    /** Row-aligned twin of listResults (Extract Field, List output). */
+    alignedListResults?: string[];
     /** Selector node `picked` output channel (selected items). */
     pickedResults?: string[];
     /** Selector node `rest` output channel (items NOT picked). */
@@ -1542,6 +1590,10 @@ function syncNodeStatesToStore(
           updates.__listTotal = state.output.listResults.length;
           updates.__listCompleted = state.output.listResults.length;
         }
+        // The row-aligned twin rides along, so a node run from the canvas AFTER a
+        // server-side run pairs by row exactly like that run did. Always written
+        // (undefined clears a stale one from an earlier run).
+        updates.__alignedListResults = state.output.alignedListResults;
         // Selector dual-channel mirror — orchestrator state carries
         // pickedResults/restResults but the SelectorNode UI reads from
         // node.data (`__pickedResults`/`__restResults` + the snapshot

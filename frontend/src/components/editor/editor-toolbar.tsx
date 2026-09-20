@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/tooltip"
 const FlowTemplatesDialog = lazy(() => import("./flow-templates-dialog").then(m => ({ default: m.FlowTemplatesDialog })))
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
+import { isSaveRefused } from "@/hooks/workflow-save-refusal"
 import { useProjectsStore } from "@/hooks/use-projects-store"
 import { useProjectDisplayName } from "@/lib/project-display-name"
 import {
@@ -82,6 +83,7 @@ export function EditorToolbar({ projectId, onSave, saving, onNavigate, activeTab
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName)
   const isDirty = useWorkflowStore((s) => s.isDirty)
   const isReadOnly = useWorkflowStore((s) => s.isReadOnly)
+  const saveRefused = useWorkflowStore(isSaveRefused)
   const saveStatus = useWorkflowStore((s) => s.saveStatus)
   const saveError = useWorkflowStore((s) => s.saveError)
   const workflowId = useWorkflowStore((s) => s.workflowId)
@@ -556,8 +558,11 @@ export function EditorToolbar({ projectId, onSave, saving, onNavigate, activeTab
 
         {/* Save Button with integrated state indicator. Hidden in read-only
             (Studio/shared) workflows — save is already a no-op via the store's
-            persistence guards, so this is cosmetic. */}
-        {!isReadOnly && (() => {
+            persistence guards, so this is cosmetic. Hidden too once the
+            server has refused this workflow's save: a red "Retry" that can
+            never succeed reads as a fault, and the canvas pill already says
+            what is true. */}
+        {!isReadOnly && !saveRefused && (() => {
           // Determine save button state
           const isSaving = saving || saveStatus === "saving"
           const isSaved = showSavedState && !isDirty

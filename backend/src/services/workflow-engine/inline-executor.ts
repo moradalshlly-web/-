@@ -3,7 +3,7 @@
  * These run synchronously in the orchestrator process.
  */
 
-import { ASPECT_RATIO_DIMENSIONS, resolveSeparator, evaluateJsonPath, stringifyPathResults, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, type JsonFilter, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, type FilterListCondition, type RouterConditionGroup, sortListItems, type SortType, type SortDirection, runSelector, resolveSelectorRefs, type SelectorConfig, spreadJsonArrayIfSingleton, zipMergeLists, resolveSourceThroughConnectedList, buildConditionVariables, VARIABLES_HANDLE_ID } from "@nodaro/shared"
+import { ASPECT_RATIO_DIMENSIONS, resolveSeparator, evaluateJsonPath, stringifyPathResults, alignedFieldList, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, type JsonFilter, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, type FilterListCondition, type RouterConditionGroup, sortListItems, type SortType, type SortDirection, runSelector, resolveSelectorRefs, type SelectorConfig, spreadJsonArrayIfSingleton, zipMergeLists, resolveSourceThroughConnectedList, buildConditionVariables, VARIABLES_HANDLE_ID } from "@nodaro/shared"
 
 // Re-export for tests and downstream consumers.
 export type { FilterListCondition }
@@ -124,7 +124,8 @@ export function executeSplitText(
 
 /**
  * Execute extract-field node: parse JSON from upstream, apply dot-path,
- * emit newline-joined list of values.
+ * emit newline-joined list of values. In List mode over an array it also emits
+ * the row-aligned twin of the list — see the `alignedListResults` note below.
  *
  * Input source precedence:
  *   1. `output.json` — already-structured input (web-scrape). Arrays auto-iterate.
@@ -189,6 +190,12 @@ export function executeExtractField(
     extractedText: joined,
     text: joined,
     listResults: outputType === "list" ? strings : undefined,
+    // The same list with ONE ENTRY PER ARRAY ELEMENT ("" where the element has no
+    // value), so two Extract Field lists cut from the same array stay row-aligned
+    // in a fan-out. A separate channel on purpose: `listResults` is the public
+    // list every item:N / range / Bundle / list node indexes, and must not grow
+    // holes (see @nodaro/shared fan-out-rows).
+    alignedListResults: outputType === "list" ? alignedFieldList(value, path) : undefined,
     json: outputType === "json" ? raw : undefined,
   }
 }

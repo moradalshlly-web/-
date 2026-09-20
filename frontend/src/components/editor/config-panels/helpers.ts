@@ -1,8 +1,9 @@
 import type { WorkflowNode, WorkflowEdge, FieldMappings } from "@/types/nodes"
 import type { SourceNodeInfo } from "./types"
-import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, editPlanSourceDurationSec, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
+import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, instagramScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
 import { videoAuditAnalysisWired } from "@/components/editor/workflow-editor/types"
 import { renderVideoCreditIdForNode } from "@/lib/render-video-plan"
+import { resolveEditPlanEstimateDurationSec } from "@/lib/edit-plan-estimate"
 import type { LlmFeature } from "@nodaro/shared"
 /** Every node type whose output is prose/text. Used to build the compatible
  *  source list for any text-shaped field so the MappableField dropdown is
@@ -368,6 +369,15 @@ export function getModelIdentifier(
     return metaAdsScrapeCreditIdFromNode(data)
   }
 
+  // Instagram: tiered on count × sources (+ analysis), like Meta Ads. It had no
+  // branch here, so it fell through to the bare node type — and the panel's Run
+  // button, the Execute total and the >100 cr confirm all quoted the flat
+  // "instagram-scrape" row while the route reserved the tiered one. Same builder
+  // as the backend estimator (ee/billing/credits.ts) and the guard.
+  if (nodeType === "instagram-scrape") {
+    return instagramScrapeCreditIdFromNode(data)
+  }
+
   if (nodeType === "add-captions") {
     const style = data.style as string | undefined
     if (isKineticCaptionStyle(style)) {
@@ -411,27 +421,19 @@ export function getModelIdentifier(
   }
 
   // Edit Plan: mode × tier × duration-bucket composite — the SAME id the reserve
-  // builds (payload-builder), so the run-level estimates (Execute badge, >100cr
-  // confirm dialog, precheck) hit the same seeded model-cost row. Falling through
+  // builds (payload-builder), so the run-level estimates (Execute badge,
+  // run-confirm dialog, precheck) hit the same seeded model-cost row. Falling through
   // to the bare "edit-plan" key priced EVERY run at the table MAX (1480) or, with
   // no NODE_CREDIT_COSTS entry, at the 1-credit placeholder — the documented
   // video-analysis under-quote trap (run fails mid-DAG after transcribe charged).
-  // Duration is the MASTER source's length read the SAME way as the reserve
-  // (editPlanSourceDurationSec — incl. the audio-master metadata lane); unknown →
-  // the tier's own ceiling bucket.
+  // Duration is the MASTER source's length via the ONE resolver the node's cost
+  // pill also uses (lib/edit-plan-estimate), so the pill and the run-level
+  // estimates cannot disagree. Unknown → the tier's own ceiling bucket — never a
+  // length borrowed from the wired transcript (see that module: this estimate
+  // gates the run, and the browser's transcript is the PREVIOUS run's). Callers
+  // MUST pass `nodes`; without them the master lane is blind.
   if (nodeType === "edit-plan") {
-    const cfg = (data.sourceConfig as Record<string, { role?: string }> | undefined) ?? {}
-    const order = (data.sourceOrder as string[] | undefined) ?? []
-    const srcIds = (edges ?? [])
-      .filter((e) => e.target === node.id && e.targetHandle === "sources")
-      .map((e) => e.source)
-    const ordered = order.length
-      ? [...order.filter((id) => srcIds.includes(id)), ...srcIds.filter((id) => !order.includes(id))]
-      : srcIds
-    const masterId = ordered.find((id) => cfg[id]?.role === "master-audio") ?? ordered[0]
-    const byId = new Map((nodes ?? []).map((n) => [n.id, n]))
-    const masterData = masterId ? (byId.get(masterId)?.data as Record<string, unknown> | undefined) : undefined
-    const durationSec = masterData ? editPlanSourceDurationSec(masterData) : undefined
+    const durationSec = resolveEditPlanEstimateDurationSec(node, nodes ?? [], edges ?? [])
     return buildEditPlanCreditId(asEditPlanMode(data.mode), asEditPlanTier(data.planTier), durationSec)
   }
 

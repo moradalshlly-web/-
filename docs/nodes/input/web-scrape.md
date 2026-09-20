@@ -38,7 +38,7 @@ The Web Scrape node retrieves data from external sources using configurable acto
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | Start URL | text | — | Address of the page or site root, as typed in a browser: `https://` is optional, so `pletor.ai` and `www.pletor.ai/products` both work. Use `{}` to inject upstream |
-| Crawl mode | select | `page` | `Single page` (1 CR) — one URL; `Site crawl, up to 20 pages` (5 CR) |
+| Crawl mode | select | `page` | `Single page` — one URL; `Site crawl, up to 20 pages` — follows internal links from the start URL. Each option shows its price |
 
 ### RSS fields
 
@@ -54,6 +54,8 @@ The Web Scrape node retrieves data from external sources using configurable acto
 | Profile or post URL | text | — | Address of the profile or post, with or without `https://` (`instagram.com/nike` works). Use `{}` to inject upstream |
 | Results limit | number | 10 | Maximum posts to return (1–20) |
 
+**Availability of the Instagram source.** This source is the same capability as the dedicated [Instagram](instagram-scrape.md) node, so it follows that node's availability: on a deployment where an admin has turned the Instagram node off (Admin → Availability), the Instagram source is withdrawn as well — it disappears from the Source dropdown and a run that uses it is refused with `node_not_available` (`web-scrape:instagram`). A node that was already set to it keeps showing it, tagged *not available*, until you pick another source. Web Scrape's other sources are unaffected.
+
 ## Results
 
 After a run, the node card peeks at the first few items and the settings panel's **Results** tab lists them all (with a Raw JSON view, copy and download). Every item links to its source — the search result's page, the feed item, the crawled page, the Instagram post, the TikTok video — and opens in a new tab, so you can judge a result before building on it. Only `http`/`https` addresses become links; anything else a feed returns is shown as text.
@@ -68,12 +70,25 @@ After a run, the node card peeks at the first few items and the settings panel's
 
 | SKU | Credits |
 |-----|---------|
-| Google Search | 3 CR |
-| Content Crawler — single page | 1 CR |
-| Content Crawler — site crawl | 5 CR |
-| Instagram | 1 CR |
-| TikTok | 1 CR |
-| RSS | 1 CR |
+| Google Search | 30 CR |
+| Content Crawler — single page | 10 CR |
+| Content Crawler — site crawl | 50 CR |
+| Instagram | 10 CR |
+| TikTok | 10 CR |
+| RSS | 10 CR |
+
+The Run button on the node, the Run button in the panel, the price beside each crawl mode and the Execute-workflow total all show the same figure — the one your account is charged for that run.
+
+A run that fails is refunded in full. A run that finds nothing is a completed run: it is charged, and the node keeps the last good result beside the empty outcome.
+
+## Long crawls and the API
+
+A site crawl follows up to 20 pages and routinely runs for several minutes — longer than the ~100-second limit on a single HTTP request. In the editor and in a workflow there is nothing to do: both ask for a job and wait for it, and the pages appear on the node when the crawl lands. Reopening a workflow after a crawl finished in the background shows its result too.
+
+A direct API caller chooses how the answer comes back:
+
+- **Job id first (use this for site crawls).** Send `"respondAsync": true` in the body. The route answers `{ "jobId": "…", "status": "pending" }` at once and finishes on the server; read the pages from the completed job's `output_data.json` (`GET /v1/jobs/:id`, or `client.jobs.get(jobId)` in the SDK).
+- **Held response (the default).** Without the flag the request stays open until the scrape is done and the result comes back in the response body as `{ "jobId": "…", "json": … }`. Right for a single page, a search or a feed. A crawl that outlasts the request limit is cut off on the way back even though the job completes and is charged — its result is still on the job.
 
 ## Common Use Cases
 

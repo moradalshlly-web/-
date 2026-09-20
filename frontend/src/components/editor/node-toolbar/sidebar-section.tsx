@@ -10,6 +10,7 @@ import { ChevronRight } from "lucide-react"
 import { NodaroMark, showNodaroMark } from "@/components/nodes/nodaro-exclusive-mark"
 import { cn } from "@/lib/utils"
 import { useLocalizeNodeLabel } from "@/lib/i18n/labels"
+import { HiddenFromUsersMark } from "@/components/nodes/hidden-from-users-mark"
 import { useAppDir } from "@/lib/locale-store"
 import { usePickerSectionLabel, usePickerTabLabel } from "@/lib/node-picker-i18n"
 import type { SidebarSection as Section } from "@/lib/node-picker-sections"
@@ -82,6 +83,7 @@ export function SidebarSection({ section, open, onToggle, onAdd }: SidebarSectio
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm text-[var(--npk-t1)]">{localizeNode(node.label)}</span>
                 {showNodaroMark(node.type) && <NodaroMark />}
+                <HiddenFromUsersMark type={node.type} />
               </button>
             ))}
           </div>

@@ -17,7 +17,7 @@ import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
  *  colour) — so the plan's `color` is honoured on both. */
 export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, animate,
 }) => {
   const frame = useCurrentFrame()
   const { fps, width } = useVideoConfig()
@@ -62,7 +62,10 @@ export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
             // ("Nore-prompting."). Constant padding = no layout shift as the
             // highlight moves.
             padding: `0 ${CAPTION_WORD_PAD_EM}em`,
-            transform: isActive
+            // animate:false freezes the active-word size hop (keeps the colour
+            // highlight); with highlight_color=color the whole held line is then
+            // pixel-static.
+            transform: isActive && animate !== false
               ? `scale(${activeWordScale(c.text, { fontFamily, fontWeight: fontWeight ?? 700, uppercase })})`
               : "scale(1)",
             display: "inline-block",

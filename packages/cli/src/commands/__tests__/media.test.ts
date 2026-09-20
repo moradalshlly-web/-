@@ -513,6 +513,25 @@ describe("media add-captions command", () => {
     expect(mocks.addCaptions.mock.calls[0][0]).not.toHaveProperty("uppercase")
   })
 
+  // animate defaults to true server-side; the flag is a tri-state like --uppercase
+  // (undefined unless passed), so --no-animate freezes motion and an untouched flag
+  // sends nothing.
+  it("--no-animate sends animate:false, --animate sends animate:true, and an untouched flag sends nothing", async () => {
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-an1" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "word-highlight", "--no-animate", "--json")
+    expect(mocks.addCaptions.mock.calls[0][0]).toMatchObject({ animate: false })
+
+    mocks.addCaptions.mockClear()
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-an2" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "word-highlight", "--animate", "--json")
+    expect(mocks.addCaptions.mock.calls[0][0]).toMatchObject({ animate: true })
+
+    mocks.addCaptions.mockClear()
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-an3" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "word-highlight", "--json")
+    expect(mocks.addCaptions.mock.calls[0][0]).not.toHaveProperty("animate")
+  })
+
   it("sends autoTranscribe:false and the transcribe provider when asked", async () => {
     mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-cap3" })
     await runCmd(

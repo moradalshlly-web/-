@@ -15,7 +15,7 @@ import {
   TEXT_SOURCE_TYPES,
 } from "./execution-graph.js"
 import {
-  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs, featuredInstagramOutputs, unwrapEditPlanOutput } from "@nodaro/shared"
+  pro3DRenderShotStills, COMPOSER_PLAN_MAP, COMPOSER_PLAN_FIELDS, extractAllGeneratedResults, splitGeneratedItems, aggregateByType, getOutputType, isAggregateableType, isCollectInEdge, parseGroupHandle, type AggregationBuckets, type Member, overlayVariantIdFromHandle, featuredMetaAdOutputs, featuredInstagramOutputs, unwrapEditPlanOutput, resolveVideoLinkOutput } from "@nodaro/shared"
 import type { SceneData, Transcript } from "@nodaro/shared"
 import { buildScenePrompt } from "@nodaro/prompts"
 export { extractVideoDurationFromNode } from "@nodaro/shared"
@@ -292,9 +292,10 @@ export function extractSourceNodeOutput(
     }
 
     case "youtube-video": {
-      const url =
-        (data.downloadedVideoUrl as string | undefined)?.trim() ||
-        (data.youtubeUrl as string | undefined)?.trim()
+      // One rule for both engines (`@nodaro/shared`): the downloaded file when
+      // it belongs to the node's CURRENT link, else the link itself — a direct
+      // file url is a legitimate value of the field and passes through.
+      const url = resolveVideoLinkOutput(data)
       return url ? { videoUrl: url } : undefined
     }
 

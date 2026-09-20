@@ -179,6 +179,56 @@ describe("resolveCaptionSegments — look cascade", () => {
   })
 })
 
+describe("resolveCaptionSegments — animate inheritance (seg.animate ?? defaults.animate)", () => {
+  const animateDefaults = (animate?: boolean): CaptionStyleDefaults => ({ ...DEFAULTS, animate })
+
+  it("a segment WITHOUT its own animate inherits the top-level default (true)", () => {
+    const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000 }], animateDefaults(true))
+    expect(seg!.animate).toBe(true)
+  })
+  it("a segment WITHOUT its own animate inherits the top-level default (false)", () => {
+    const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000 }], animateDefaults(false))
+    expect(seg!.animate).toBe(false)
+  })
+  it("a segment's OWN animate:false wins over a top-level default of true", () => {
+    const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000, animate: false }], animateDefaults(true))
+    expect(seg!.animate).toBe(false)
+  })
+  it("a segment's OWN animate:true wins over a top-level default of false", () => {
+    const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000, animate: true }], animateDefaults(false))
+    expect(seg!.animate).toBe(true)
+  })
+  it("stays undefined when neither the segment nor the top level sets it (?? does not invent a value)", () => {
+    const [seg] = resolveCaptionSegments(SHARED, [{ startMs: 0, endMs: 3000 }], animateDefaults(undefined))
+    expect(seg!.animate).toBeUndefined()
+  })
+
+  it("a resolved segment's animate:false survives the render-plan schema (the lever is not stripped)", () => {
+    // Zod strips unknown keys silently — if burnCaptionsSegmentSchema lacked `animate`,
+    // the resolver could carry it while the plan quietly dropped it and the render
+    // lost the lever. Parse a resolved segment through the plan and assert it lands.
+    const segments = resolveCaptionSegments([], [{ startMs: 0, endMs: 3000, text: "Hello there.", animate: false }], animateDefaults(true))
+    expect(segments[0]!.animate).toBe(false)
+    const plan = {
+      planType: "burn-captions" as const,
+      sourceVideo: "https://example.com/v.mp4",
+      captions: [] as Caption[],
+      style: "word-pop" as const,
+      position: "bottom" as const,
+      fontSize: 32,
+      color: "#ffffff",
+      segments,
+      fps: 30,
+      width: 1080,
+      height: 1920,
+      durationInFrames: 90,
+    }
+    const parsed = burnCaptionsPlanSchema.safeParse(plan)
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.segments?.[0]?.animate).toBe(false)
+  })
+})
+
 describe("resolveCaptionSegments — placement", () => {
   // positionY overrides position at render, so an INHERITED positionY must not
   // beat a placement the segment asked for itself.

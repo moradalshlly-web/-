@@ -49,7 +49,7 @@ import {
   type HandlerFn,
   type JobContext,
 } from "../shared.js"
-import { isKineticCaptionStyle, normalizeTranscript, remapTranscriptThroughEdl, resolveCaptionLook, transcribeLaneSupportsWordTimestamps, TRANSCRIBE_PROVIDERS, TRANSCRIBE_PROVIDER_CAPABILITIES, type Edl, type SupportedFontName, type Transcript, type CaptionLookId } from "@nodaro/shared"
+import { captionRoutesToRemotion, normalizeTranscript, remapTranscriptThroughEdl, resolveCaptionLevers, transcribeLaneSupportsWordTimestamps, TRANSCRIBE_PROVIDERS, TRANSCRIBE_PROVIDER_CAPABILITIES, type Edl, type SupportedFontName, type Transcript, type CaptionLookId } from "@nodaro/shared"
 import { attachAssetToCharacter, resolveAssetColumn } from "../../lib/character-auto-attach.js"
 import { DrainAbortError } from "../../lib/worker-drain.js"
 
@@ -582,6 +582,7 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
     highlightColor?: string
     uppercase?: boolean
     positionY?: number
+    animate?: boolean
     segments?: CaptionSegmentInput[]
   }
   const style = data.style ?? "subtitle"
@@ -589,23 +590,20 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
   const hasTranscript = data.transcript !== undefined && data.transcript !== null
   console.log(`[worker] add-captions ${ctx.jobId} style=${style}${hasSegments ? ` segments=${data.segments!.length}` : ""}${hasTranscript ? " transcript" : ""}`)
 
-  // DAG-path parity with the route's superRefine: a wired transcript is TIMED
-  // and only the kinetic (Remotion) path honours per-caption timing. The
-  // orchestrator bypasses the route, so guard the same combination here rather
-  // than let the transcript be silently dropped on the static subtitle path.
-  if (hasTranscript && !hasSegments && !isKineticCaptionStyle(style)) {
-    throw new Error(`a wired transcript needs a kinetic caption style; the "${style}" style ignores it`)
-  }
-
-  // Per-segment captions always render via Remotion (each segment its own style).
-  if (hasSegments || isKineticCaptionStyle(style)) {
+  // Renderer choice is the SHARED predicate (same one the route's credit id uses,
+  // so price and renderer never drift): a Remotion render for segments, a kinetic
+  // style, or a styled / timed / transcribed subtitle; the cheap FFmpeg drawtext
+  // burn only for a plain-text subtitle with no lever. A wired transcript on
+  // `subtitle` now routes to Remotion and renders as timed phrase lines — no
+  // silent-drop guard needed.
+  if (captionRoutesToRemotion(data)) {
     return dispatchKineticCaptions(job, ctx, data)
   }
   if (style !== "subtitle") {
     throw new Error(`Unknown add-captions style: ${style}`)
   }
 
-  // Static path (existing FFmpeg drawtext)
+  // Static path (existing FFmpeg drawtext) — plain-text subtitle only.
   if (!data.text) throw new Error("text is required for static subtitle style")
   const outputPath = await addCaptions({
     videoUrl: data.videoUrl,
@@ -643,6 +641,7 @@ async function dispatchKineticCaptions(
     highlightColor?: string
     uppercase?: boolean
     positionY?: number
+    animate?: boolean
     look?: CaptionLookId
     segments?: CaptionSegmentInput[]
   },
@@ -818,7 +817,10 @@ async function dispatchKineticCaptions(
     highlightColor: data.highlightColor,
     uppercase: data.uppercase,
   })
-  const topLevers = resolveCaptionLook(data.look, topExplicit, topFontSize)
+  // Bare `subtitle` (no look) → plain (explicit levers only); kinetic or a
+  // look-named subtitle → resolve the preset. Shared with the segment resolver
+  // and the frontend so the rule can't drift (resolveCaptionLevers).
+  const topLevers = resolveCaptionLevers(data.style, data.look, topExplicit, topFontSize)
 
   // Per-segment captions: resolve each segment to its own words + merged levers.
   // The composition renders these instead of the top-level captions/style.
@@ -829,6 +831,7 @@ async function dispatchKineticCaptions(
         positionY: data.positionY,
         fontSize: topFontSize,
         look: data.look,
+        animate: data.animate,
         explicit: topExplicit,
       })
     : undefined
@@ -876,10 +879,11 @@ async function dispatchKineticCaptions(
         planType: "burn-captions",
         sourceVideo: data.videoUrl,
         captions: planCaptions,
-        // The plan's top-level style must be kinetic. With segments it is ignored
-        // (the composition renders segments), so coerce a non-kinetic default to a
-        // valid placeholder rather than fail plan validation.
-        style: isKineticCaptionStyle(data.style) ? data.style : "word-pop",
+        // The plan accepts ANY caption style at top level now — a subtitle that
+        // routed here (styled / timed / transcribed) renders via the Remotion
+        // SubtitleOverlay. With segments the top-level style is ignored (the
+        // composition renders the segments).
+        style: data.style ?? "subtitle",
         position: data.position ?? "bottom",
         fontSize: topFontSize,
         // Resolved look levers (default look = outline unless the caller set one).
@@ -892,6 +896,7 @@ async function dispatchKineticCaptions(
         highlightColor: topLevers.highlightColor,
         uppercase: topLevers.uppercase,
         positionY: data.positionY,
+        animate: data.animate,
         ...(resolvedSegments ? { segments: resolvedSegments } : {}),
         fps,
         width,

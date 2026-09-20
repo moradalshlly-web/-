@@ -687,6 +687,336 @@ describe("useWorkflowPersistence — save", () => {
   })
 
   // -----------------------------------------------------------------------
+  // A REFUSED write is not a device conflict
+  //
+  // A platform admin can open anybody's workflow (the SELECT policy lets an
+  // admin read every row) and can save none of them from the browser (the
+  // UPDATE policy excludes admins on purpose). The refused PATCH matches zero
+  // rows exactly like a lost CAS does, and the editor used to report it as
+  // "updated on another device" — then, because the re-read `updated_at`
+  // equalled the cursor, autosave never paused and re-sent the whole graph
+  // every few seconds for as long as the tab stayed open.
+  // -----------------------------------------------------------------------
+
+  /** A 0-row UPDATE followed by a re-read that answers `current`. */
+  function setupZeroRowSave(
+    current: Record<string, unknown> | null,
+    opts: { holdUpdate?: Promise<void>; holdReread?: Promise<void> } = {},
+  ) {
+    const updateMaybeSingle = vi.fn().mockImplementation(async () => {
+      if (opts.holdUpdate) await opts.holdUpdate
+      return { data: null, error: null }
+    })
+    const updateSelect = vi.fn().mockReturnValue({ maybeSingle: updateMaybeSingle })
+    const updateAbortSignal = vi.fn().mockReturnValue({ select: updateSelect })
+    const eqToken = vi.fn().mockReturnValue({ select: updateSelect, abortSignal: updateAbortSignal })
+    const eqId = vi.fn().mockReturnValue({ eq: eqToken, select: updateSelect, abortSignal: updateAbortSignal })
+    const update = vi.fn().mockReturnValue({ eq: eqId })
+
+    const rereadMaybeSingle = vi.fn().mockImplementation(async () => {
+      if (opts.holdReread) await opts.holdReread
+      return { data: current, error: null }
+    })
+    const rereadEq = vi.fn().mockReturnValue({
+      maybeSingle: rereadMaybeSingle,
+      abortSignal: vi.fn().mockReturnValue({ maybeSingle: rereadMaybeSingle }),
+    })
+    const select = vi.fn().mockReturnValue({ eq: rereadEq })
+
+    mockSupabaseFrom.mockReturnValue({ update, select })
+    return { update, rereadMaybeSingle }
+  }
+
+  /** Everything the save path can say to the person, in one list. */
+  async function everythingSaid(): Promise<string[]> {
+    const { toast } = await import("sonner")
+    return [
+      ...mockSetSaveStatus.mock.calls.map((c) => String(c[1] ?? "")),
+      ...vi.mocked(toast.error).mock.calls.flatMap((c) => [
+        String(c[0]),
+        String((c[1] as { description?: unknown } | undefined)?.description ?? ""),
+      ]),
+    ]
+  }
+
+  it("a 0-row save on a row that did not move is reported as not-writable, never as another device", async () => {
+    resetStoreState({ workflowId: "w1", nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    setupZeroRowSave({ updated_at: "T20", version: 20 })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      saveResult = await result.current.save()
+    })
+
+    expect(saveResult).toEqual({ success: false, error: "not_writable" })
+    // The refusal is recorded against THIS workflow's id...
+    expect(mockStoreSetState).toHaveBeenCalledWith({ saveRefusedFor: "w1" })
+    // ...and the canvas is NOT frozen: read-only makes updateNodeData a no-op,
+    // which would drop the result of a run that is already in flight.
+    expect(mockStoreSetState).not.toHaveBeenCalledWith(expect.objectContaining({ isReadOnly: true }))
+    // The status LEAVES "saving". Stuck there, autosave never runs again and
+    // realtime skips every newer broadcast as this tab's own echo.
+    expect(mockSetSaveStatus).toHaveBeenLastCalledWith("error", expect.any(String))
+    // And nothing that was said claims another device wrote.
+    expect((await everythingSaid()).some((line) => /another device/i.test(line))).toBe(false)
+    // And the divergence marker is left alone — it belongs to real conflicts.
+    expect(mockSetRemoteUpdatedAt).not.toHaveBeenCalled()
+  })
+
+  it("a refused save is sent ONCE and announced ONCE — later saves never reach the network", async () => {
+    resetStoreState({ workflowId: "w1", nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    const { update } = setupZeroRowSave({ updated_at: "T20", version: 20 })
+    const { toast } = await import("sonner")
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    const outcomes: Array<{ success: boolean; error?: string }> = []
+    await act(async () => {
+      outcomes.push(await result.current.save())
+    })
+    mockSetSaveStatus.mockClear()
+    mockStoreSetState.mockClear()
+    await act(async () => {
+      // Still dirty (the edit was never stored), so autosave comes back —
+      // and so do the pre-Run save and the job-finished save.
+      outcomes.push(await result.current.save())
+      outcomes.push(await result.current.save())
+    })
+
+    // The bail touches nothing. A store write here would wake the autosave
+    // subscriber, which would call save() again: the loop, without the network.
+    expect(mockSetSaveStatus).not.toHaveBeenCalled()
+    expect(mockStoreSetState).not.toHaveBeenCalled()
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1)
+    // A save that kept nothing never calls itself a success.
+    expect(outcomes.map((o) => o.error)).toEqual(["not_writable", "not_writable", "not_writable"])
+  })
+
+  it("the same holds on the updated_at CAS, for a session that never learned a version", async () => {
+    resetStoreState({ workflowId: "w1", nodes: [makeNode("n1")], loadedVersion: null, loadedUpdatedAt: "T1" })
+    setupZeroRowSave({ updated_at: "T1" })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      saveResult = await result.current.save()
+    })
+
+    expect(saveResult!.error).toBe("not_writable")
+    expect(mockSetRemoteUpdatedAt).not.toHaveBeenCalled()
+  })
+
+  it("a version that really moved is still a device conflict", async () => {
+    resetStoreState({ workflowId: "w1", nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    setupZeroRowSave({ updated_at: "T21", version: 21 })
+    const { toast } = await import("sonner")
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      saveResult = await result.current.save()
+    })
+
+    expect(saveResult!.error).toBe("remote_conflict")
+    expect(mockSetRemoteUpdatedAt).toHaveBeenCalledWith("T21")
+    expect(mockSetSaveStatus).toHaveBeenCalledWith("error", "Workflow was updated on another device")
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+      "Workflow was updated on another device",
+      expect.objectContaining({ id: "workflow-remote-conflict" }),
+    )
+    expect(mockStoreSetState).not.toHaveBeenCalledWith(expect.objectContaining({ saveRefusedFor: expect.anything() }))
+  })
+
+  it("a refusal recorded for ANOTHER workflow never silences this one's saves", async () => {
+    // The state is keyed by id precisely so this cannot happen: a verdict that
+    // outlived its workflow must be inert, or the open canvas stops saving
+    // with nothing on screen to say so.
+    resetStoreState({ workflowId: "w2", saveRefusedFor: "w1", nodes: [makeNode("n1")] })
+    setupSupabaseUpdate(null, "2026-03-04T12:00:00Z")
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      saveResult = await result.current.save()
+    })
+
+    expect(saveResult!.success).toBe(true)
+    expect(mockApplySaveSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  // -----------------------------------------------------------------------
+  // A save's answer belongs to the workflow it was sent for
+  //
+  // A large graph takes seconds to upload. If the editor has opened another
+  // workflow by the time the answer lands, writing it into the store paints
+  // the OLD workflow's verdict over the new one: a miss shows "updated on
+  // another device" there and pauses its autosave; a success hands it the
+  // wrong CAS token, so its next save false-conflicts.
+  // -----------------------------------------------------------------------
+
+  it("drops a late MISS once the editor has moved to another workflow", async () => {
+    resetStoreState({ workflowId: "w1", nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    let release: () => void = () => {}
+    const holdUpdate = new Promise<void>((resolve) => { release = resolve })
+    setupZeroRowSave({ updated_at: "T20", version: 20 }, { holdUpdate })
+    const { toast } = await import("sonner")
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      const pending = result.current.save()
+      await Promise.resolve()
+      // The person opens another workflow while w1's upload is still out.
+      Object.assign(storeState, { workflowId: "w2", saveStatus: "idle" })
+      mockSetSaveStatus.mockClear()
+      release()
+      saveResult = await pending
+    })
+
+    expect(saveResult).toEqual({ success: false, error: "workflow_changed" })
+    expect(mockSetSaveStatus).not.toHaveBeenCalled()
+    expect(mockSetRemoteUpdatedAt).not.toHaveBeenCalled()
+    expect(mockStoreSetState).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
+  })
+
+  it("drops a MISS whose RE-READ is what landed late — the second wait is guarded too", async () => {
+    resetStoreState({ workflowId: "w1", nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    let release: () => void = () => {}
+    const holdReread = new Promise<void>((resolve) => { release = resolve })
+    const { rereadMaybeSingle } = setupZeroRowSave({ updated_at: "T20", version: 20 }, { holdReread })
+    const { toast } = await import("sonner")
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      const pending = result.current.save()
+      // Let the UPDATE answer (zero rows) and the re-read go out...
+      await vi.waitFor(() => expect(rereadMaybeSingle).toHaveBeenCalled())
+      // ...and only then does the person open another workflow.
+      Object.assign(storeState, { workflowId: "w2", saveStatus: "idle" })
+      mockSetSaveStatus.mockClear()
+      release()
+      saveResult = await pending
+    })
+
+    expect(saveResult).toEqual({ success: false, error: "workflow_changed" })
+    expect(mockSetSaveStatus).not.toHaveBeenCalled()
+    expect(mockStoreSetState).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
+  })
+
+  it("treats a RELOAD of the same workflow as having moved on — the cursor belongs to the new load", async () => {
+    resetStoreState({ workflowId: "w1", loadGeneration: 4, nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const maybeSingle = vi.fn().mockImplementation(async () => {
+      await held
+      return { data: { updated_at: "T21", version: 21 }, error: null }
+    })
+    const select = vi.fn().mockReturnValue({ maybeSingle })
+    const abortSignal = vi.fn().mockReturnValue({ select })
+    const eqVersion = vi.fn().mockReturnValue({ select, abortSignal })
+    const eqId = vi.fn().mockReturnValue({ select, eq: eqVersion, abortSignal })
+    mockSupabaseFrom.mockReturnValue({ update: vi.fn().mockReturnValue({ eq: eqId }) })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      const pending = result.current.save()
+      await Promise.resolve()
+      // Same id, new load: the toast's Reload button, mid-upload.
+      Object.assign(storeState, { loadGeneration: 5, saveStatus: "idle" })
+      release()
+      saveResult = await pending
+    })
+
+    expect(saveResult).toEqual({ success: true })
+    expect(mockApplySaveSuccess).not.toHaveBeenCalled()
+  })
+
+  it("keeps a late ERROR out of the store as well — the caller still hears it", async () => {
+    resetStoreState({ workflowId: "w1", nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const maybeSingle = vi.fn().mockImplementation(async () => {
+      await held
+      return { data: null, error: { message: "statement timeout" } }
+    })
+    const select = vi.fn().mockReturnValue({ maybeSingle })
+    const abortSignal = vi.fn().mockReturnValue({ select })
+    const eqVersion = vi.fn().mockReturnValue({ select, abortSignal })
+    const eqId = vi.fn().mockReturnValue({ select, eq: eqVersion, abortSignal })
+    mockSupabaseFrom.mockReturnValue({ update: vi.fn().mockReturnValue({ eq: eqId }) })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      const pending = result.current.save()
+      await Promise.resolve()
+      Object.assign(storeState, { workflowId: "w2", saveStatus: "idle" })
+      mockSetSaveStatus.mockClear()
+      release()
+      saveResult = await pending
+    })
+
+    expect(saveResult).toEqual({ success: false, error: "statement timeout" })
+    expect(mockSetSaveStatus).not.toHaveBeenCalled()
+  })
+
+  it("a MISS that lands after a same-id reload never marks the fresh load refused", async () => {
+    resetStoreState({ workflowId: "w1", loadGeneration: 4, nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    let release: () => void = () => {}
+    const holdUpdate = new Promise<void>((resolve) => { release = resolve })
+    setupZeroRowSave({ updated_at: "T20", version: 20 }, { holdUpdate })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      const pending = result.current.save()
+      await Promise.resolve()
+      Object.assign(storeState, { loadGeneration: 5, saveStatus: "idle" })
+      release()
+      saveResult = await pending
+    })
+
+    // The reloaded canvas finds out for itself on its own first save.
+    expect(saveResult).toEqual({ success: false, error: "workflow_changed" })
+    expect(mockStoreSetState).not.toHaveBeenCalled()
+  })
+
+  it("keeps a late SUCCESS out of the store — it must not hand w2 the CAS token of w1", async () => {
+    resetStoreState({ workflowId: "w1", nodes: [makeNode("n1")], loadedVersion: 20, loadedUpdatedAt: "T20" })
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const maybeSingle = vi.fn().mockImplementation(async () => {
+      await held
+      return { data: { updated_at: "T21", version: 21 }, error: null }
+    })
+    const select = vi.fn().mockReturnValue({ maybeSingle })
+    const abortSignal = vi.fn().mockReturnValue({ select })
+    const eqVersion = vi.fn().mockReturnValue({ select, abortSignal })
+    const eqId = vi.fn().mockReturnValue({ select, eq: eqVersion, abortSignal })
+    mockSupabaseFrom.mockReturnValue({ update: vi.fn().mockReturnValue({ eq: eqId }) })
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    let saveResult: { success: boolean; error?: string } | undefined
+    await act(async () => {
+      const pending = result.current.save()
+      await Promise.resolve()
+      Object.assign(storeState, { workflowId: "w2", saveStatus: "idle" })
+      release()
+      saveResult = await pending
+    })
+
+    // The write DID land on w1's row, and the caller is told so...
+    expect(saveResult).toEqual({ success: true })
+    // ...but w2's cursor, dirty flag and status never hear about it.
+    expect(mockApplySaveSuccess).not.toHaveBeenCalled()
+  })
+
+  // -----------------------------------------------------------------------
   // applySaveSuccess (batched post-save bookkeeping)
   // -----------------------------------------------------------------------
 
@@ -1098,6 +1428,123 @@ describe("useWorkflowPersistence — save", () => {
       expect(mockStoreSetState).toHaveBeenCalledWith(
         expect.objectContaining({ loadedVersion: 43 }),
       )
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  // The delta path is the one production actually takes, so the two rules
+  // above have to hold on it too.
+
+  /** An RPC whose answer is held until `release()`. */
+  function rpcHeld(rows: Array<{ ok: boolean; version: number | null; updated_at: string | null }>) {
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    mockSupabaseRpc.mockReturnValueOnce({
+      abortSignal: vi.fn().mockImplementation(async () => {
+        await held
+        return { data: rows, error: null }
+      }),
+    })
+    return () => release()
+  }
+
+  it("delta: a caller who may not write falls through to the full path and is told so — never 'another device'", async () => {
+    vi.stubEnv("VITE_DELTA_SAVES", "1")
+    try {
+      deltaState()
+      // apply_workflow_delta answers a refused caller exactly like a missing
+      // row: ok=false with no version. The full path is what tells them apart.
+      rpcResolves([{ ok: false, version: null, updated_at: null }])
+      const { update } = setupZeroRowSave({ updated_at: "2026-01-01T00:00:00Z", version: 41 })
+
+      const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+      let saveResult: { success: boolean; error?: string } | undefined
+      await act(async () => {
+        saveResult = await result.current.save()
+      })
+
+      expect(saveResult).toEqual({ success: false, error: "not_writable" })
+      expect(update).toHaveBeenCalledTimes(1)
+      expect(mockStoreSetState).toHaveBeenCalledWith({ saveRefusedFor: "w1" })
+      expect((await everythingSaid()).some((line) => /another device/i.test(line))).toBe(false)
+
+      // And the next save asks nobody — not the RPC either.
+      mockSupabaseRpc.mockClear()
+      await act(async () => {
+        await result.current.save()
+      })
+      expect(mockSupabaseRpc).not.toHaveBeenCalled()
+      expect(update).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("delta: a late success stays out of the store — no token, no SNAPSHOT of w1 handed to w2", async () => {
+    vi.stubEnv("VITE_DELTA_SAVES", "1")
+    try {
+      deltaState()
+      const release = rpcHeld([{ ok: true, version: 42, updated_at: "2026-06-12T02:00:00Z" }])
+
+      const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+      let saveResult: { success: boolean; error?: string } | undefined
+      await act(async () => {
+        const pending = result.current.save()
+        await Promise.resolve()
+        Object.assign(storeState, { workflowId: "w2", saveStatus: "idle" })
+        release()
+        saveResult = await pending
+      })
+
+      expect(saveResult).toEqual({ success: true })
+      expect(mockApplySaveSuccess).not.toHaveBeenCalled()
+      // Moved on is final: no second, full write for a workflow nobody is on.
+      expect(mockSupabaseFrom).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("delta: a late REBASE never writes w1's merged graph onto w2's canvas", async () => {
+    vi.stubEnv("VITE_DELTA_SAVES", "1")
+    try {
+      const { unchanged, edited } = deltaState()
+      rpcResolves([{ ok: false, version: 43, updated_at: "2026-06-12T02:01:00Z" }])
+      let release: () => void = () => {}
+      const held = new Promise<void>((resolve) => { release = resolve })
+      const freshMaybeSingle = vi.fn().mockImplementation(async () => {
+        await held
+        return {
+          data: {
+            nodes: [JSON.parse(JSON.stringify(unchanged)), JSON.parse(JSON.stringify(edited)), makeNode("r1")],
+            edges: [], settings: {}, name: "Test Workflow",
+            version: 43, updated_at: "2026-06-12T02:01:00Z",
+          },
+          error: null,
+        }
+      })
+      const freshEq = vi.fn().mockReturnValue({
+        maybeSingle: freshMaybeSingle,
+        abortSignal: vi.fn().mockReturnValue({ maybeSingle: freshMaybeSingle }),
+      })
+      mockSupabaseFrom.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: freshEq }) })
+
+      const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+      let saveResult: { success: boolean; error?: string } | undefined
+      await act(async () => {
+        const pending = result.current.save()
+        await vi.waitFor(() => expect(freshMaybeSingle).toHaveBeenCalled())
+        // w2 is open by the time the fresh copy of w1 arrives.
+        Object.assign(storeState, { workflowId: "w2", saveStatus: "idle" })
+        release()
+        saveResult = await pending
+      })
+
+      expect(saveResult).toEqual({ success: false, error: "workflow_changed" })
+      // No nodes, no edges, no token written — and no retry against w1.
+      expect(mockStoreSetState).not.toHaveBeenCalled()
+      expect(mockSupabaseRpc).toHaveBeenCalledTimes(1)
     } finally {
       vi.unstubAllEnvs()
     }

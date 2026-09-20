@@ -15,7 +15,7 @@ import { directionStyle, resolveDirection, rowDirectionFromCaptions } from "./te
  *  inner half bleed over the glyph (it has no solid fill to paint behind). */
 export const KaraokeOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, animate,
 }) => {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
@@ -39,7 +39,11 @@ export const KaraokeOverlay: React.FC<OverlayCommonProps> = ({
       direction: rowDirectionFromCaptions(captions),
     }}>
       {captions.map((c, i) => {
-        const t = interpolate(ms, [c.startMs, c.endMs], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+        // animate:false replaces the intra-word sweep with a discrete per-word
+        // fill (spoken once the word starts) — no per-frame motion.
+        const t = animate === false
+          ? (ms >= c.startMs ? 1 : 0)
+          : interpolate(ms, [c.startMs, c.endMs], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
         const hidden = (1 - t) * 100
         // Reveal from the reading edge: LTR clips the RIGHT away, RTL the LEFT.
         const dir = resolveDirection(c.text)

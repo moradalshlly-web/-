@@ -19,6 +19,7 @@ vi.mock("@/lib/config.js", () => ({
   isBusiness: () => true,
   isCloud: () => false,
   hasCredits: () => true,
+  hasAdmin: () => true,
 }))
 
 vi.mock("@/middleware/credit-guard.js", () => ({
@@ -27,6 +28,16 @@ vi.mock("@/middleware/credit-guard.js", () => ({
 }))
 
 vi.mock("@/lib/supabase.js", () => ({ supabase: { from: vi.fn() } }))
+// The admin switch cases (last block). Who is an admin is the shared check.
+const admins = vi.hoisted(() => ({ ids: new Set<string>() }))
+vi.mock("@/lib/admin-check.js", () => ({ checkIsAdmin: async (userId: string) => admins.ids.has(userId) }))
+vi.mock("@/lib/node-registry.js", () => ({
+  NODE_REGISTRY: [
+    { type: "text-to-speech", category: "ai-audio" },
+    { type: "voice-design", category: "ai-audio" },
+    { type: "voice-remix", category: "ai-audio" },
+  ],
+}))
 vi.mock("@/lib/insert-job.js", () => ({ insertJob: vi.fn().mockResolvedValue({ data: { id: "job-1" }, error: null }) }))
 // voice-design / voice-remix dispatch to BullMQ on the success path via
 // videoQueue.add(...). queue.js eagerly constructs a real IORedis-backed Queue
@@ -49,6 +60,10 @@ import { voiceCloneRoutes } from "../voice-clones.js"
 import { voiceDesignRoutes } from "../voice-design.js"
 import { voiceRemixRoutes } from "../voice-remix.js"
 import { __resetSurfaceProfileCacheForTests } from "../../lib/surface-profile.js"
+import {
+  __resetAvailabilityOverridesForTests,
+  __availabilityUniverseReadyForTests,
+} from "../../lib/availability-override.js"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 
@@ -155,6 +170,38 @@ describe("voice-creation routes: B1 nodes.deny (B4c) + the voice-clone retiremen
         payload: { text: "a".repeat(120), voiceDescription: "warm narrator", userId: USER },
       })
       expect(res.statusCode).not.toBe(403)
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// The admin switch (Admin → Availability) hides a node from USERS; an admin keeps it.
+describe("voice-creation routes: a node the admin switch withholds", () => {
+  const ADMIN = "00000000-0000-4000-8000-0000000000ad"
+  const LANES = [
+    ["voice-design", voiceDesignRoutes, "/v1/voice-design", { text: "a".repeat(120), voiceDescription: "warm narrator" }],
+    ["voice-remix", voiceRemixRoutes, "/v1/voice-remix", { text: "remix this", voiceDescription: "warm narrator" }],
+  ] as const
+
+  beforeEach(async () => {
+    await __availabilityUniverseReadyForTests()
+    admins.ids = new Set([ADMIN])
+    // Everything on except the two voice-creation nodes.
+    __resetAvailabilityOverridesForTests({ nodes: new Set(["text-to-speech"]) })
+  })
+  afterEach(() => __resetAvailabilityOverridesForTests())
+
+  it.each(LANES)("%s: a user is refused, an admin is not", async (_type, routes, url, body) => {
+    const app = await buildApp(routes)
+    try {
+      const asUser = await app.inject({ method: "POST", url, payload: { ...body, userId: USER } })
+      expect(asUser.statusCode).toBe(403)
+      expect(asUser.json().error.code).toBe("node_not_available")
+
+      const asAdmin = await app.inject({ method: "POST", url, payload: { ...body, userId: ADMIN } })
+      expect(asAdmin.statusCode).not.toBe(403)
+      expect(JSON.stringify(asAdmin.json())).not.toContain("node_not_available")
     } finally {
       await app.close()
     }

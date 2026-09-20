@@ -44,7 +44,7 @@ export async function getJobStatusLeanForNode(jobId: string, nodeId: string) {
 }
 
 /**
- * Poll a scrape job (instagram-scrape / meta-ads-scrape) to a terminal state and
+ * Poll a scrape job (web-scrape / meta-ads-scrape / instagram-scrape) to a terminal state and
  * return its `output_data`. Scrapes now respond with `{ jobId }` and finish
  * server-side — a real run outlasts the ~100s edge timeout, which would 524 a
  * held request — so the editor's single-node Run polls the job instead. Only

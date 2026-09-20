@@ -272,14 +272,18 @@ nodaro media download <url> [--max-height <px>] [--section <a-b>] [--watch] [--j
 nodaro media metadata <url> [--json]                     # probe duration/dimensions/title WITHOUT downloading
 nodaro media trim-video --video <url> --start <sec> --end <sec>|--keep-first <sec>|--keep-last <sec> [--watch] [--poll-interval <ms>] [--json]
 nodaro media trim-audio --video <url>|--audio <url> [--start <sec>] [--end <sec>] [--format mp3|wav|aac] [--watch] [--poll-interval <ms>] [--json]
-nodaro media add-captions <videoUrl> [--text <text>] [--captions-file <file.json>] [--style subtitle|word-highlight|karaoke|tiktok-words|word-pop|bouncy] [--look outline|clean] [--position bottom|top|center] [--position-y <pct>] [--font-size <px>] [--font-family <name>] [--font-weight <100-900>] [--color <c>] [--background-color <c>] [--stroke-color <c>] [--stroke-width <px>] [--highlight-color <c>] [--uppercase|--no-uppercase] [--no-auto-transcribe] [--transcribe-provider <lane>] [--segments-file <file.json>] [--watch] [--poll-interval <ms>] [--json]
-                                                         # burn captions in. `subtitle` is static (FFmpeg); the kinetic styles render via
-                                                         # Remotion and take the look levers (--look, --font-family, --font-weight, --stroke-*,
-                                                         # --highlight-color, --uppercase, --position-y), which the static style REJECTS. An unset --look renders as `outline`. --captions-file is a
-                                                         # JSON array of word-timed entries [{ text, startMs, endMs }] — one per WORD for the
-                                                         # kinetic styles, and an `audio transcribe` job's output_data.words drops in verbatim
-                                                         # (pair it with --no-auto-transcribe). --segments-file gives non-overlapping ranges
-                                                         # their own style/look/position.
+nodaro media add-captions <videoUrl> [--text <text>] [--captions-file <file.json>] [--style subtitle|word-highlight|karaoke|tiktok-words|word-pop|bouncy] [--look outline|clean] [--position bottom|top|center] [--position-y <pct>] [--font-size <px>] [--font-family <name>] [--font-weight <100-900>] [--color <c>] [--background-color <c>] [--stroke-color <c>] [--stroke-width <px>] [--highlight-color <c>] [--uppercase|--no-uppercase] [--animate|--no-animate] [--no-auto-transcribe] [--transcribe-provider <lane>] [--segments-file <file.json>] [--watch] [--poll-interval <ms>] [--json]
+                                                         # burn captions in. `subtitle` is static (FFmpeg drawtext); the kinetic styles render
+                                                         # via Remotion. The STYLING levers (--look, --font-family, --font-weight, --stroke-*,
+                                                         # --uppercase, --position-y) now ALSO style a `subtitle` — a styled subtitle renders via
+                                                         # Remotion and bills at the kinetic price; a bare plain-text subtitle stays on the cheap
+                                                         # path. Only --highlight-color and --animate are kinetic-only (rejected on subtitle).
+                                                         # --animate is on by default; --no-animate freezes the per-word motion (grouping +
+                                                         # highlight colour stay). On the kinetic styles an unset --look renders as `outline`.
+                                                         # --captions-file is a JSON array of word-timed entries [{ text, startMs, endMs }] — one
+                                                         # per WORD for the kinetic styles, and an `audio transcribe` job's output_data.words drops
+                                                         # in verbatim (pair it with --no-auto-transcribe). --segments-file gives non-overlapping
+                                                         # ranges their own style/look/position.
 nodaro media still-to-video --image <url> --audio <url> [--motion none|zoom-in|zoom-out|pan-left|pan-right|ken-burns] [--intensity <1-10>] [--resolution 720p|1080p|4K] [--aspect-ratio <W:H>] [--fps 24|30] [--fit cover|contain] [--pad-color <hex>] [--watch] [--poll-interval <ms>] [--json]
                                                          # one still + one audio → MP4, local FFmpeg, 0 credits. Length = the audio's length
                                                          # (no duration flag by design). --motion animates the still.

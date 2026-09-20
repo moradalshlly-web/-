@@ -31,6 +31,16 @@ This node executes inline (no job created, no credits charged).
 | `list` | Each match is a separate list item — supports `item:N`, fan-out, and List-aware nodes. |
 | `json` | Raw JSON value — use when feeding another Extract Field or a JSON-consuming node. |
 
+### Keeping fields paired
+
+To use two fields of the same JSON array together — for example `prompt` and `negative` from a list of concepts — add one Extract Field per field, both with **Output Type** `list`, and wire each into its own input of the downstream node (directly with both wires set to **Each**, or through two columns of a [List](../input/list.md)).
+
+When the lists are fanned out together they are paired **by array element**: run 3 gets element 3's `prompt` and element 3's `negative`. An element with no `negative` gives that run no negative; it does not shift the ones after it. A run is never started for an element that has no value at all, so a field that only some elements carry (a `videoUrl` that only some posts have) still fans out over exactly the values that exist.
+
+Addressing by position is unchanged: **Item N**, ranges and **Bundle** count only the values that exist, and the `text` output is still those values, one per line.
+
+If the upstream is an LLM, it must return **raw JSON** — no code fence and no sentence before or after it — or the node fails with "Input is not valid JSON".
+
 ## Inputs & Outputs
 
 **Inputs:** Any upstream node that emits JSON, a JSON string, or a list.

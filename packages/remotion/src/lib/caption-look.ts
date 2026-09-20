@@ -25,6 +25,12 @@ export interface CaptionLook {
   readonly uppercase?: boolean
   /** 0-100, % of composition height — a free vertical position. */
   readonly positionY?: number
+  /** Per-word MOTION switch (default true). false freezes the geometric
+   *  animation — word-highlight's active-word size hop, karaoke's sweep, the
+   *  tiktok/word-pop/bouncy springs — while keeping line grouping, holding and
+   *  the spoken-word highlight COLOUR. Set highlight_color=color to also flatten
+   *  the colour for a fully static line. Inert on the static `subtitle` style. */
+  readonly animate?: boolean
 }
 
 /** Where a caption block anchors: a top/bottom/positionY inset and the vertical

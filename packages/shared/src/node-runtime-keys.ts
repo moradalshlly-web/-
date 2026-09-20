@@ -41,6 +41,9 @@ export const EXECUTION_DATA_KEYS: ReadonlySet<string> = new Set([
   "__listTotal",
   "__listCompleted",
   "__listResults",
+  // Row-aligned twin of __listResults (Extract Field, List output) — read only
+  // by the fan-out so two lists cut from one array pair by row.
+  "__alignedListResults",
   // List fan-out window flag (abandon-guard exemption). Set/cleared by
   // executeNodeForList — purely execution-related, never user-edited.
   "__listRunning",
@@ -70,6 +73,10 @@ export const EXECUTION_DATA_KEYS: ReadonlySet<string> = new Set([
   "lastInputs",
   "lastMeta",
   "__upstreamCount",
+  // Video URL node — the download's live percent/phase, written on every
+  // progress tick (~2/s). Pure run-state; also in TRANSIENT_RUNTIME_KEYS below.
+  "downloadPercent",
+  "downloadPhase",
 ])
 
 /**
@@ -100,6 +107,12 @@ export const TRANSIENT_RUNTIME_KEYS: ReadonlySet<string> = new Set([
   "__listRunning",
   "_upstreamRefresh",
   "__upstreamCount",
+  // Video URL node download ticks. They used to dirty the workflow twice a
+  // second for the length of the download — the same phantom-save chain the
+  // job-progress keys above were moved here to stop. What SURVIVES a reload is
+  // `downloadStatus` + `downloadId`; the percent is re-read from the server.
+  "downloadPercent",
+  "downloadPhase",
 ])
 
 /**

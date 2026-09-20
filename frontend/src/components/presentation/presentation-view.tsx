@@ -382,7 +382,7 @@ export function PresentationView({ mode, isOwner, onExitFullscreen, onRun, onCan
 
       const finish = () => {
         const total = executableNodes.reduce((sum, node) => {
-          const modelId = getModelIdentifier(node, edges)
+          const modelId = getModelIdentifier(node, edges, effectiveNodes)
           const cached = getCachedCredits(modelId)
           const cost = cached !== undefined ? cached : estimateNodeCredits({ id: node.id, type: node.type, data: node.data as Record<string, unknown> }, edges)
           const multiplier = getFanOutMultiplier(node, effectiveNodes, edges)
@@ -395,7 +395,7 @@ export function PresentationView({ mode, isOwner, onExitFullscreen, onRun, onCan
         }
       }
 
-      const modelIds = [...new Set(executableNodes.map((n) => getModelIdentifier(n, edges)).filter(Boolean))]
+      const modelIds = [...new Set(executableNodes.map((n) => getModelIdentifier(n, edges, effectiveNodes)).filter(Boolean))]
       const uncached = modelIds.filter((m) => getCachedCredits(m) === undefined)
 
       if (uncached.length > 0) {

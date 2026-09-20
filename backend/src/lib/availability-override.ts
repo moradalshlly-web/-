@@ -123,6 +123,9 @@ let cache: OverrideCache = { nodes: null, models: null }
 let cacheLoadedAt = 0
 let everLoaded = false
 let inflight: Promise<void> | null = null
+/** When the last background load was KICKED (not when it landed) — the retry
+ *  throttle for a load that keeps failing or has never succeeded. */
+let lastKickAt = 0
 
 async function refresh(): Promise<void> {
   const { data, error } = await (await db()).from("availability_overrides").select("kind, enabled")
@@ -166,9 +169,26 @@ export function __awaitAvailabilityRefreshForTests(): Promise<void> {
 /**
  * SYNC read of the override for a kind (null = no override → factory). A
  * stale cache triggers a background refresh; the sync answer never blocks.
+ *
+ * SELF-HEALING FOR A PROCESS THAT NEVER BOOTED THE APP. Only app.ts used to call
+ * `loadAvailabilityOverrides()`, and the refresh below was gated on
+ * `everLoaded` — so the STANDALONE orchestrator (orchestrator.ts →
+ * payload-builder → isNodeDenied), which never builds the app, kept a null
+ * cache forever: the admin switch simply did not exist there, and since that
+ * process shares its queue with the API's in-process worker, whether a run
+ * honoured the switch was decided by which one picked it up. A never-loaded
+ * process now kicks the load on its first ask (orchestrator.ts also loads at
+ * boot, so the first execution already sees it). Skipped under Vitest, where
+ * the pristine never-loaded state must not reach for a database.
+ *
+ * Kicks are throttled to one per TTL, so a load that keeps failing is retried
+ * on the refresh cadence instead of on every predicate call.
  */
 export function availabilityOverride(kind: AvailabilityKind): ReadonlySet<string> | null {
-  if (everLoaded && Date.now() - cacheLoadedAt > CACHE_TTL_MS && !inflight) {
+  const now = Date.now()
+  const due = everLoaded ? now - cacheLoadedAt > CACHE_TTL_MS : !process.env.VITEST
+  if (due && !inflight && now - lastKickAt > CACHE_TTL_MS) {
+    lastKickAt = now
     void loadAvailabilityOverrides()
   }
   return cache[kind]
@@ -180,6 +200,7 @@ export function __resetAvailabilityOverridesForTests(next?: Partial<OverrideCach
   cache = { nodes: null, models: null, ...next }
   cacheLoadedAt = Date.now()
   everLoaded = next !== undefined
+  lastKickAt = 0
 }
 
 /**

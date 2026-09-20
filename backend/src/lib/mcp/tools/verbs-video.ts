@@ -966,7 +966,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
       description:
         "Burn captions into a video. Provide either video_url OR video_asset_id, plus captions data. Static styles (subtitle) accept `text`. Kinetic styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy) need word-timed `captions[]` OR set `auto_transcribe: true` (default) to transcribe the input video's audio.\n\n" +
         "TikTok/Reels look in one field: `look` picks a preset for the KINETIC styles — `outline` (heavy Montserrat 900, UPPERCASE, thick black outline, yellow spoken word — the CapCut/TikTok read) or `clean` (Inter, no outline/casing). **An UNSET `look` renders as `outline`** — that is the default kinetic look. Pass `look: \"clean\"` to turn the preset off and keep only your own explicit levers.\n\n" +
-        "The explicit look levers below OVERRIDE individual fields of the chosen look (they are ADDED to it, not replacements — e.g. with the default `outline`, setting only `highlight_color` keeps Montserrat/caps/outline and just recolours the spoken word). All are rejected on the static subtitle style and are free (no extra credits): `font_family` (any face in SUPPORTED_FONT_NAMES, e.g. Montserrat/Anton/Bebas Neue), `font_weight` (100-900 in 100s), `stroke_color` + `stroke_width` for the outline, `highlight_color` for the word being spoken (tiktok-words; also recolours the active word in word-highlight/karaoke), `uppercase`, and `position_y` (0-100 % of height) for a free vertical position — ~65 sits below the face and above the app's bottom UI.",
+        "The explicit levers below OVERRIDE individual fields of the chosen look (ADDED, not replacements — with `outline`, setting only `highlight_color` keeps Montserrat/caps/outline and just recolours the spoken word). `font_family`, `font_weight`, `stroke_color`+`stroke_width`, `uppercase` and `position_y` ALSO style the static `subtitle` (it renders via Remotion when you set one); only `highlight_color` and `animate` are kinetic-only. `animate: false` makes a kinetic style STATIC — keeps grouping + spoken-word highlight, drops the per-word motion (set `highlight_color`=`color` too for a fully still line). All free (no extra credits).",
       inputSchema: {
         text: z.string().min(1).optional(),
         captions: z.array(z.object({
@@ -993,13 +993,14 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         color: z.string().optional(),
         background_color: z.string().optional(),
         look: z.enum(CAPTION_LOOK_IDS).optional().describe("Kinetic styles only. Named look preset — `outline` (Montserrat 900, UPPERCASE, black outline, yellow spoken word) or `clean` (Inter, no outline/casing). UNSET = `outline` (the default). The explicit levers below override individual fields of it; pass `clean` to keep only your own levers."),
-        font_family: z.enum(SUPPORTED_FONT_NAMES).optional().describe("Kinetic styles only. Overrides the look's face. Any face from SUPPORTED_FONT_NAMES (e.g. Montserrat, Anton, Bebas Neue, Oswald, Poppins, Playfair Display; Rubik/Heebo/Cairo/Tajawal cover Hebrew/Arabic)."),
-        font_weight: z.number().int().min(100).max(900).multipleOf(100).optional().describe("Kinetic styles only. CSS numeric weight 100-900 (in 100s). Overrides the look's weight; the face must ship that weight or it renders at the nearest loaded one."),
-        stroke_color: z.string().optional().describe("Kinetic styles only. Outline colour (e.g. #000000). Needs stroke_width > 0."),
-        stroke_width: z.number().min(0).max(40).optional().describe("Kinetic styles only. Outline width in px (the TikTok/Reels black outline)."),
-        highlight_color: z.string().optional().describe("Kinetic styles only. The spoken/active word colour — token-by-token for tiktok-words; also recolours the active word in word-highlight/karaoke."),
-        uppercase: z.boolean().optional().describe("Kinetic styles only. Render captions in UPPERCASE."),
-        position_y: z.number().min(0).max(100).optional().describe("Kinetic styles only. Vertical position of the caption's CENTER as % of height; overrides `position`. ~65 sits below the face, above the app's bottom UI (100 would center the text on the bottom edge)."),
+        font_family: z.enum(SUPPORTED_FONT_NAMES).optional().describe("Overrides the look's face. Any face from SUPPORTED_FONT_NAMES (e.g. Montserrat, Anton, Bebas Neue, Oswald, Poppins; Rubik/Heebo/Cairo/Tajawal cover Hebrew/Arabic)."),
+        font_weight: z.number().int().min(100).max(900).multipleOf(100).optional().describe("CSS numeric weight 100-900 (in 100s). The face must ship that weight or it renders at the nearest loaded one."),
+        stroke_color: z.string().optional().describe("Outline colour (e.g. #000000). Needs stroke_width > 0."),
+        stroke_width: z.number().min(0).max(40).optional().describe("Outline width in px (the TikTok/Reels black outline)."),
+        highlight_color: z.string().optional().describe("Kinetic only. The spoken/active word colour — token-by-token for tiktok-words; also recolours the active word in word-highlight/karaoke."),
+        uppercase: z.boolean().optional().describe("Render captions in UPPERCASE."),
+        position_y: z.number().min(0).max(100).optional().describe("Vertical position of the caption block's CENTER as % of height; overrides `position`. ~65 sits below the face, above the app's bottom UI."),
+        animate: z.boolean().optional().describe("Kinetic only. false freezes per-word motion (keeps grouping + highlight; set highlight_color=color for fully static). Default true."),
         segments: z.array(z.object({
           start_ms: z.number().min(0),
           end_ms: z.number().min(0),
@@ -1016,6 +1017,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
           highlight_color: z.string().optional(),
           uppercase: z.boolean().optional(),
           position_y: z.number().min(0).max(100).optional(),
+          animate: z.boolean().optional(),
           text: z.string().min(1).optional(),
           captions: z.array(z.object({
             text: z.string(),
@@ -1087,6 +1089,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         highlightColor: args.highlight_color,
         uppercase: args.uppercase,
         positionY: args.position_y,
+        animate: args.animate,
         ...(args.segments
           ? {
               segments: args.segments.map((s) => ({
@@ -1105,6 +1108,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
                 highlightColor: s.highlight_color,
                 uppercase: s.uppercase,
                 positionY: s.position_y,
+                animate: s.animate,
                 text: s.text,
                 captions: s.captions,
               })),

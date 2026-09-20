@@ -56,7 +56,7 @@ vi.mock("@/lib/dynamic-origins.js", () => ({
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { downloadVideoRoutes } from "../download-video.js"
+import { downloadVideoRoutes, MAX_ACTIVE_DOWNLOADS_PER_USER } from "../download-video.js"
 import { downloadYouTubeVideo } from "../../providers/video/youtube-video.js"
 import { uploadFileWithKeyToR2, uploadBufferToR2 } from "../../lib/storage.js"
 import { supabase } from "../../lib/supabase.js"
@@ -248,6 +248,98 @@ describe("POST /v1/download-video — maxHeight", () => {
     const res = await post({ url: YT_URL })
     expect(res.statusCode).toBe(200)
     expect(await maxHeightSeenByProvider()).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests — requireAudio (the import's silent-video policy)
+// ---------------------------------------------------------------------------
+
+describe("POST /v1/download-video — requireAudio", () => {
+  async function requireAudioSeenByProvider(): Promise<boolean | undefined> {
+    await vi.waitFor(() => expect(downloadYouTubeVideo).toHaveBeenCalledTimes(1))
+    const seen = vi.mocked(downloadYouTubeVideo).mock.calls[0][0].requireAudio
+    await vi.waitFor(() => expect(updateStorageUsage).toHaveBeenCalled())
+    return seen
+  }
+
+  it("defaults to TRUE — every released client (Studio, Recast, the voice changer) sends nothing and must keep failing a silent import", async () => {
+    const res = await post({ url: YT_URL })
+    expect(res.statusCode).toBe(200)
+    expect(await requireAudioSeenByProvider()).toBe(true)
+  })
+
+  it("an explicit false reaches the provider — the editor's \"download it without sound\" retry", async () => {
+    const res = await post({ url: YT_URL, requireAudio: false })
+    expect(res.statusCode).toBe(200)
+    expect(await requireAudioSeenByProvider()).toBe(false)
+  })
+
+  it("400 when requireAudio is not a boolean — a truthy string must not switch the policy off", async () => {
+    const res = await post({ url: YT_URL, requireAudio: "false" })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe("validation_error")
+    expect(downloadYouTubeVideo).not.toHaveBeenCalled()
+  })
+})
+// ---------------------------------------------------------------------------
+// Tests — the per-account cap on running downloads
+// ---------------------------------------------------------------------------
+
+describe("POST /v1/download-video — running downloads per account", () => {
+  /** Providers that never finish until released — a download that is RUNNING. */
+  function hangingProvider() {
+    const releases: Array<() => void> = []
+    vi.mocked(downloadYouTubeVideo).mockImplementation(
+      (opts) =>
+        new Promise<void>((resolve) => {
+          releases.push(() => {
+            void fs.writeFile(opts.outPath, FAKE_VIDEO_BYTES).then(() => resolve())
+          })
+        }),
+    )
+    return releases
+  }
+
+  it("refuses the download past the cap with 429, and starts nothing for it", async () => {
+    const releases = hangingProvider()
+    for (let i = 0; i < MAX_ACTIVE_DOWNLOADS_PER_USER; i++) {
+      expect((await post({ url: YT_URL })).statusCode).toBe(200)
+    }
+    const refused = await post({ url: YT_URL })
+    expect(refused.statusCode).toBe(429)
+    expect(refused.json().error.code).toBe("too_many_downloads")
+    expect(downloadYouTubeVideo).toHaveBeenCalledTimes(MAX_ACTIVE_DOWNLOADS_PER_USER)
+
+    releases.forEach((release) => release())
+    await vi.waitFor(() => expect(updateStorageUsage).toHaveBeenCalledTimes(MAX_ACTIVE_DOWNLOADS_PER_USER))
+  })
+
+  it("counts per ACCOUNT — one person at the cap does not block another", async () => {
+    const releases = hangingProvider()
+    for (let i = 0; i < MAX_ACTIVE_DOWNLOADS_PER_USER; i++) await post({ url: YT_URL })
+    const other = await app.inject({
+      method: "POST",
+      url: "/v1/download-video",
+      payload: { userId: "00000000-0000-4000-8000-000000000002", url: YT_URL },
+    })
+    expect(other.statusCode).toBe(200)
+
+    releases.forEach((release) => release())
+    await vi.waitFor(() => expect(updateStorageUsage).toHaveBeenCalledTimes(MAX_ACTIVE_DOWNLOADS_PER_USER + 1))
+  })
+
+  it("a finished download frees its slot — the entry lingers for the progress stream but no longer counts", async () => {
+    const releases = hangingProvider()
+    for (let i = 0; i < MAX_ACTIVE_DOWNLOADS_PER_USER; i++) await post({ url: YT_URL })
+    expect((await post({ url: YT_URL })).statusCode).toBe(429)
+
+    releases[0]()
+    await vi.waitFor(() => expect(updateStorageUsage).toHaveBeenCalledTimes(1))
+    expect((await post({ url: YT_URL })).statusCode).toBe(200)
+
+    releases.forEach((release) => release())
+    await vi.waitFor(() => expect(updateStorageUsage).toHaveBeenCalledTimes(MAX_ACTIVE_DOWNLOADS_PER_USER + 1))
   })
 })
 

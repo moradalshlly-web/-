@@ -81,6 +81,7 @@ import { formatZodError } from "../lib/zod-error.js"
 import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js"
 import type { Scene3DJobPayload } from "../workers/handlers/scene3d.js"
 import { dispatchAdvancedScene3D, requestedScene3DEngine, scene3DCapabilities } from "../services/scene3d/scene3d-engine.js"
+import { viewerForNode } from "../lib/availability-viewer.js"
 
 export const SCENE3D_GENERATE_JOB_TYPE = "generate-3d-scene"
 export const SCENE3D_EDIT_JOB_TYPE = "edit-3d-scene"
@@ -357,7 +358,10 @@ export async function scene3DRoutes(app: FastifyInstance) {
   }
 
   app.get("/v1/3d-scene/capabilities", async (req, reply) => {
-    try { return await scene3DCapabilities() }
+    // `pro.available` is per viewer (an admin keeps a Pro node the admin switch
+    // hides from users), so the answer must never be shared-cacheable.
+    reply.header("Cache-Control", "private, no-store")
+    try { return await scene3DCapabilities(await viewerForNode("pro-3d-render", req.userId)) }
     catch (error) { return sendInternalError(reply, req, error, "Failed to read 3D capabilities") }
   })
 

@@ -42,6 +42,7 @@ import {
   sunoMashupApi,
   // misc job-producing
   webScrape,
+  metaAdsScrape,
   sendWebhookOutput,
   promoteToLibrary,
   // GET-shaped + apiRequest-helper paths
@@ -638,13 +639,13 @@ describe("sunoMashupApi", () => {
 })
 
 // ===========================================================================
-// webScrape — POST /v1/web-scrape (params passed through verbatim)
+// webScrape — POST /v1/web-scrape (params verbatim + the job-id-first flag)
 // ===========================================================================
 
 describe("webScrape", () => {
-  it("POSTs the params verbatim and returns { jobId, json }", async () => {
+  it("POSTs the params verbatim, asks for the job id first, and returns it", async () => {
     sessionWith("tok-scrape")
-    const mock = mockFetchJson({ jobId: "jsc", json: { items: [] } })
+    const mock = mockFetchJson({ jobId: "jsc", status: "pending" })
     vi.stubGlobal("fetch", mock)
 
     const result = await webScrape({
@@ -660,8 +661,31 @@ describe("webScrape", () => {
       actor: "apify-web-scraper",
       url: "http://example.com",
       mode: "page",
+      // Held open, a site crawl outlasts the ~100 s edge timeout: the browser
+      // got a 524 while the job finished server-side and was charged.
+      respondAsync: true,
     })
-    expect(result).toEqual({ jobId: "jsc", json: { items: [] } })
+    expect(result).toEqual({ jobId: "jsc", status: "pending" })
+  })
+})
+
+// ===========================================================================
+// metaAdsScrape — POST /v1/meta-ads-scrape (same job-id-first contract)
+// ===========================================================================
+
+describe("metaAdsScrape", () => {
+  it("asks for the job id first and returns it", async () => {
+    sessionWith("tok-ads")
+    const mock = mockFetchJson({ jobId: "jads", status: "pending" })
+    vi.stubGlobal("fetch", mock)
+
+    const result = await metaAdsScrape({ mode: "search", query: "nike" })
+
+    const [url, init] = lastCall(mock)
+    expect(url).toBe("/v1/meta-ads-scrape")
+    expect(init.method).toBe("POST")
+    expect(parseBody(mock)).toEqual({ mode: "search", query: "nike", respondAsync: true })
+    expect(result).toEqual({ jobId: "jads", status: "pending" })
   })
 })
 

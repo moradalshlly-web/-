@@ -3,10 +3,10 @@ import { hasCredits } from "../lib/config.js"
 import { supabase } from "../lib/supabase.js"
 import {
   isModelDenied,
-  isNodeDenied,
   deniedModelRejectionMessage,
   deniedNodeRejectionMessage,
 } from "../lib/surface-deny.js"
+import { deniedCapabilityForUser } from "../lib/availability-viewer.js"
 import { findForeignCatalogIdsInBody, foreignCatalogIdMessage } from "@nodaro/prompts"
 import {
   computeFingerprint,
@@ -172,11 +172,20 @@ export function creditGuard(
         })
       }
       const nodeType = (req.routeOptions?.url ?? "").replace(/^\/v1\//, "")
-      if (nodeType && isNodeDenied(nodeType)) {
+      // Per USER, not per credential: the admin switch hides a node from users,
+      // and an admin's run reaches this door three ways — their browser session,
+      // their API token, and the orchestrator's internal call, which carries only
+      // `body.userId`. The sync question is asked first, so a node that is not
+      // hidden costs no admin lookup. The BODY rides along because a route can
+      // host a capability another node governs: Web Scrape's Instagram source
+      // follows the Instagram node, and this guard is the one place every run
+      // of it passes (editor, SDK, orchestrator, a keyless install's relay).
+      const deniedCapability = nodeType ? await deniedCapabilityForUser(nodeType, req.body, req.userId) : undefined
+      if (deniedCapability) {
         return reply.code(403).send({
           error: {
             code: "node_not_available",
-            message: deniedNodeRejectionMessage([nodeType]),
+            message: deniedNodeRejectionMessage([deniedCapability]),
           },
         })
       }

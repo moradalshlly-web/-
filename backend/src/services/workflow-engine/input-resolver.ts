@@ -12,7 +12,7 @@ import type {
 } from "./types.js"
 import { extractSourceNodeOutput, extractSourceNodeOutputAsList, extractSavedNodeOutput, extractAllGeneratedResults, extractVideoDurationFromNode, getPrimaryOutput, ANALYSIS_PRODUCER_TYPES } from "./output-extractor.js"
 import {
-  pro3DRenderShotStills, extractGeneratedJsonAsList, splitGeneratedItems, resolveNodeRefs, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, SOCIAL_POST_NODE_TYPES, PARAMETER_NODE_TYPES, getParameterValue, FAN_OUT_EACH_TYPES, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, editPlanSourceDurationSec, extractReferencedLabels, canonicalVarName, REFERENCE_HANDLE_MAP, parseGroupHandle, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
+  pro3DRenderShotStills, extractGeneratedJsonAsList, splitGeneratedItems, resolveNodeRefs, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, SOCIAL_POST_NODE_TYPES, PARAMETER_NODE_TYPES, getParameterValue, FAN_OUT_EACH_TYPES, compactWithRows, liveRowColumn, resolveListFanOut, type FanOutCandidate, type ListFanOut, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, editPlanSourceDurationSec, extractReferencedLabels, canonicalVarName, REFERENCE_HANDLE_MAP, parseGroupHandle, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
 import { isSourceNode } from "./execution-graph.js"
 import { overlayHandleIndex } from "../../providers/image/overlay-contract.js"
 import { buildNodeRefMap } from "./payload-builder.js"
@@ -46,8 +46,24 @@ export function getNodeOutput(
   return undefined
 }
 
+/** An empty cell of a row-aligned list: the row has no value for this wire. */
+const isBlankCell = (v: unknown): boolean => typeof v !== "string" || v.trim().length === 0
+
+/** Does `sourceHandle` name a column of this List other than its first one? */
+function isNonFirstListColumn(node: SimpleNode, sourceHandle: string | null | undefined): boolean {
+  if (node.type !== "list" || !sourceHandle) return false
+  const columns = node.data.columns as Array<{ handleId: string }> | undefined
+  return Array.isArray(columns) && columns.findIndex((c) => c.handleId === sourceHandle) > 0
+}
+
 /**
  * Resolve all inputs for a target node from its upstream connected nodes.
+ *
+ * `listIterationIndex` is the ROW a fan-out iteration reads (`FanOutPlan.rows`),
+ * not its iteration number: with Repeat xN the copies of a row share it, and a
+ * row whose driving cell is empty keeps its number for the other wires. Every
+ * "each" wire contributes the value of THAT row; an empty cell contributes
+ * nothing — it never falls back to the list's first value.
  */
 export function resolveNodeInputs(
   targetNode: SimpleNode,
@@ -129,6 +145,9 @@ export function resolveNodeInputs(
 
     // Get output from node state or source node data
     let output: string | undefined
+    // Set when this wire's list HAS the current row and the cell is empty: the
+    // wire then contributes nothing for the row (no scalar fallback below).
+    let rowIsEmpty = false
     const state = nodeStates[sourceNode.id]
 
     const edgeData = edge.data as Record<string, unknown> | undefined
@@ -168,6 +187,10 @@ export function resolveNodeInputs(
         ?? state?.output?.listResults
         ?? extractAllGeneratedResults(sourceNode.data as Record<string, unknown>)
         ?? extractGeneratedJsonAsList(sourceNode.data as Record<string, unknown>)
+    // What a fan-out iteration indexes BY ROW: the row-aligned twin when the
+    // source publishes one (Extract Field), else the list itself. Addressing by
+    // position (item / item:N / range / Bundle) keeps using the public list above.
+    const rowAlignedResults = state?.output?.alignedListResults ?? effectiveListResults
 
     // Fan-in targets (collect): consume the entire upstream list as a single
     // `inputs.inputs` array regardless of edgeOutputMode — collect strategies
@@ -258,26 +281,26 @@ export function resolveNodeInputs(
           continue
         }
         output = filtered.join(", ")
-      } else if (edgeOutputMode === "each" && listIterationIndex !== undefined) {
-        const filtered = selectListItems(
-          effectiveListResults,
-          edgeData as SelectorFields | undefined,
-        )
-        if (filtered.length > 0) {
-          output = filtered[listIterationIndex] ?? filtered[filtered.length - 1]
-        }
       }
+      // ("each" is resolved by the fan-out block right below — ONE place for a
+      // hand-set Each and a default one, so the two cannot drift apart.)
     }
 
     // During fan-out: "each" mode edges from list sources should advance per iteration
-    if (!output && listIterationIndex != null && effectiveListResults && effectiveListResults.length > 0) {
+    if (!output && !rowIsEmpty && listIterationIndex != null && effectiveListResults && effectiveListResults.length > 0) {
       const effectiveMode = edgeOutputMode ?? (DEFAULT_EACH_TYPES.has(sourceNode.type) ? "each" : "last")
       if (effectiveMode === "each") {
         const filtered = selectListItems(
-          effectiveListResults,
+          rowAlignedResults ?? effectiveListResults,
           edgeData as SelectorFields | undefined,
         )
-        output = filtered[listIterationIndex]
+        // A list with fewer rows than the fan-out starts over from its first row —
+        // the same rule as a List column below and as the in-browser engine. (A
+        // hand-set Each used to repeat its LAST entry here and a default one fell
+        // back to the source's scalar output, so the two engines disagreed.)
+        const picked = filtered.length > 0 ? filtered[listIterationIndex % filtered.length] : undefined
+        if (filtered.length > 0 && isBlankCell(picked)) rowIsEmpty = true
+        else output = picked
       }
     }
 
@@ -288,7 +311,7 @@ export function resolveNodeInputs(
     // frontend node-input-resolver). Only the explicit `items` handle splits —
     // the default/`text` handle stays scalar and falls through to getNodeOutput
     // below (full generatedText with delimiters intact).
-    if (!output && sourceNode.type === "llm-chat" && effectiveSourceHandle === "items") {
+    if (!output && !rowIsEmpty && sourceNode.type === "llm-chat" && effectiveSourceHandle === "items") {
       const raw = resolveLlmChatItems(sourceNode, effectiveSourceHandle, nodeStates)
       if (raw && raw.length > 0) {
         const ranged = selectListItems(raw, edgeData as SelectorFields | undefined)
@@ -312,6 +335,9 @@ export function resolveNodeInputs(
       }
     }
 
+    // The row exists and this wire's cell is empty — nothing to route for it.
+    if (rowIsEmpty) continue
+
     if (!output) {
       // Loop/list column routing: resolve correct column value by sourceHandle
       // (matches frontend). Uses resolveListLoopColumnItems which recursively
@@ -330,18 +356,30 @@ export function resolveNodeInputs(
           triggerData,
           new Set(),
           nodeById,
+          // In a fan-out the column is read ROW-ALIGNED (empty cells kept).
+          listIterationIndex != null,
         )
         if (items && items.length > 0) {
           const filtered = selectListItems(items, edgeData as SelectorFields | undefined)
           if (filtered.length > 0) {
             if (listIterationIndex != null) {
-              output = filtered[listIterationIndex % filtered.length]
+              const picked = filtered[listIterationIndex % filtered.length]
+              if (isBlankCell(picked)) rowIsEmpty = true
+              else output = picked
             } else {
               output = filtered[0]
             }
           }
         }
       }
+
+      // The row's cell is empty — do NOT fall back to the column's first value.
+      if (rowIsEmpty) continue
+
+      // A wire from a table's second (third, …) column that resolved to nothing:
+      // that column holds no values. The scalar fallback below only knows the
+      // table's FIRST cell, so it would hand this wire the first column's value.
+      if (!output && isNonFirstListColumn(sourceNode, effectiveSourceHandle)) continue
 
       if (!output) {
         output = getNodeOutput(sourceNode, effectiveSourceHandle, nodeStates, triggerData, ctx)
@@ -616,9 +654,15 @@ function resolveListLoopColumnItems(
   // Threaded O(1) node index — built once by the top-level caller and reused
   // across recursion levels. Falls back to a local build for direct callers.
   nodeById: Map<string, SimpleNode> = new Map(allNodes.map((n) => [n.id, n] as const)),
+  // Fan-out callers pass true: the column comes back ROW-ALIGNED — an empty cell
+  // stays in place as "" instead of pulling the rows below it up, so two columns
+  // of one table (or two Extract Field lists) still pair by row. Every other
+  // caller keeps the compact "values that exist" list.
+  keepEmpty = false,
 ): string[] | undefined {
   if (visited.has(sourceNode.id)) return undefined
   visited.add(sourceNode.id)
+  const isValue = (v: unknown): v is string => typeof v === "string" && (keepEmpty || v.length > 0)
 
   const ctx = { nodes: allNodes, edges }
   const columns = sourceNode.data.columns as
@@ -671,6 +715,7 @@ function resolveListLoopColumnItems(
           triggerData,
           visited,
           nodeById,
+          keepEmpty,
         )
       } else if (upstreamNode.type === "selector") {
         // Selector emits picked/rest channels keyed by sourceHandle. Mirrors
@@ -683,14 +728,14 @@ function resolveListLoopColumnItems(
           ? (state?.output?.restResults ?? (data.restResults as string[] | undefined))
           : (state?.output?.pickedResults ?? (data.pickedResults as string[] | undefined))
         if (channel && channel.length > 0) {
-          upstreamVals = channel.filter((v): v is string => typeof v === "string" && v.length > 0)
+          upstreamVals = channel.filter(isValue)
         }
       } else {
         // Non-list upstream: prefer completed state's listResults (fan-out
         // output), fall back to the node's accumulated generatedResults.
         const state = nodeStates[upstreamNode.id]
         if (state?.output?.listResults && state.output.listResults.length > 0) {
-          upstreamVals = state.output.listResults.filter((v): v is string => typeof v === "string" && v.length > 0)
+          upstreamVals = (keepEmpty ? (state.output.alignedListResults ?? state.output.listResults) : state.output.listResults).filter(isValue)
         } else {
           const fromData = extractAllGeneratedResults(upstreamNode.data as Record<string, unknown>)
           if (fromData && fromData.length > 0) upstreamVals = fromData
@@ -720,10 +765,16 @@ function resolveListLoopColumnItems(
 
   // Manual mode: extract column values directly from rows.
   const rows = (sourceNode.data.rows as string[][] | undefined) ?? []
-  const items = rows.map((row) => row[colIndex]?.trim()).filter(Boolean) as string[]
-  if (items.length > 0) return items
+  const items = keepEmpty
+    ? liveRowColumn(rows, colIndex)
+    : (rows.map((row) => row[colIndex]?.trim()).filter(Boolean) as string[])
+  if (items.some((v) => v.length > 0)) return items
 
-  // Legacy items-string fallback.
+  // Legacy items-string fallback — FIRST column only. The legacy extractor reads
+  // a table's first column whatever handle is asked for, so for any other column
+  // it returned the WRONG column's values: a blank `negative` column wired to a
+  // node's negative input received the prompts. An empty column is empty.
+  if (colIndex > 0) return undefined
   return extractSourceNodeOutputAsList(sourceNode, triggerData, sourceHandle, ctx)
 }
 
@@ -739,6 +790,26 @@ export function getListInputForNode(
   allNodes: SimpleNode[],
   triggerData?: Record<string, unknown>,
 ): string[] | undefined {
+  return getListFanOutForNode(targetNode, edges, nodeStates, allNodes, triggerData)?.items
+}
+
+/**
+ * The fan-out a node receives: the driving items, the ROW each came from, and
+ * the handle the driving list is wired to (see `@nodaro/shared` fan-out-rows).
+ *
+ * Nothing here depends on the order the wires were drawn in: the list holding
+ * the most values sets the rows (same rule as the in-browser engine — both call
+ * the shared `resolveListFanOut`); among the lists that share its rows — two
+ * columns of one table — the one that feeds the prompt drives (its item is what
+ * becomes the per-row prompt), and a row runs when any of them has a value in it.
+ */
+export function getListFanOutForNode(
+  targetNode: SimpleNode,
+  edges: SimpleEdge[],
+  nodeStates: Record<string, NodeExecutionState>,
+  allNodes: SimpleNode[],
+  triggerData?: Record<string, unknown>,
+): ListFanOut | undefined {
   // Fan-in targets consume the upstream list — they are NOT fanned out themselves.
   // Returning undefined here keeps the orchestrator from creating one execution
   // per upstream item and lets resolveNodeInputs populate `inputs.inputs` instead.
@@ -756,6 +827,14 @@ export function getListInputForNode(
   const ctx = { nodes: allNodes, edges }
   const incomingEdges = edgesByTarget.get(targetNode.id) ?? []
 
+  // Every "each" list that could fan this node out, in wire order. A list
+  // qualifies on the values it HOLDS (>1), not on its row count — an empty cell
+  // is a row, but nothing runs for it.
+  const candidates: FanOutCandidate[] = []
+  const consider = (edge: SimpleEdge, aligned: readonly string[]): void => {
+    if (compactWithRows(aligned).items.length > 1) candidates.push({ targetHandle: edge.targetHandle, aligned })
+  }
+
   for (const edge of incomingEdges) {
     const sourceNode = nodeById.get(edge.source)
     if (!sourceNode) continue
@@ -770,7 +849,8 @@ export function getListInputForNode(
       const scenesList = (script?.scenes as Array<Record<string, unknown>>) ?? []
       if (scenesList.length > 1) {
         const items = scenesList.map((s) => (s.imagePrompt as string) ?? "")
-        return selectListItems(items, selectorArg)
+        consider(edge, selectListItems(items, selectorArg))
+        continue
       }
     }
 
@@ -787,10 +867,7 @@ export function getListInputForNode(
         continue
       }
       const raw = resolveLlmChatItems(sourceNode, edge.sourceHandle, nodeStates)
-      if (raw && raw.length > 0) {
-        const filtered = selectListItems(raw, selectorArg)
-        if (filtered.length > 1) return filtered
-      }
+      if (raw && raw.length > 0) consider(edge, selectListItems(raw, selectorArg))
       continue
     }
 
@@ -805,6 +882,7 @@ export function getListInputForNode(
     //    `resolveListLoopColumnItems` handles all three legacy loop modes:
     //    per-column `${handleId}_in` edges, the global `"in"` connected handle,
     //    and manual-mode column rows. See loop-list-fanout-parity.test.ts.
+    //    Row-aligned (keepEmpty): an empty cell is a hole, not a missing row.
     if (sourceNode.type === "list") {
       const items = resolveListLoopColumnItems(
         sourceNode,
@@ -815,11 +893,9 @@ export function getListInputForNode(
         triggerData,
         new Set(),
         nodeById,
+        true,
       )
-      if (items && items.length > 1) {
-        const filtered = selectListItems(items, selectorArg)
-        if (filtered.length > 1) return filtered
-      }
+      if (items && items.length > 1) consider(edge, selectListItems(items, selectorArg))
       continue
     }
 
@@ -827,8 +903,7 @@ export function getListInputForNode(
     if (sourceNode.type === "split-text") {
       const state = nodeStates[sourceNode.id]
       if (state?.output?.splitResults && state.output.splitResults.length > 1) {
-        const filtered = selectListItems(state.output.splitResults, selectorArg)
-        if (filtered.length > 1) return filtered
+        consider(edge, selectListItems(state.output.splitResults, selectorArg))
       }
       continue
     }
@@ -844,17 +919,17 @@ export function getListInputForNode(
       const channel = edge.sourceHandle === "rest"
         ? (state?.output?.restResults ?? (data.restResults as string[] | undefined))
         : (state?.output?.pickedResults ?? (data.pickedResults as string[] | undefined))
-      if (channel && channel.length > 1) {
-        const filtered = selectListItems(channel, selectorArg)
-        if (filtered.length > 1) return filtered
-      }
+      if (channel && channel.length > 1) consider(edge, selectListItems(channel, selectorArg))
       continue
     }
 
-    // 4. Any node with listResults from a prior fan-out execution
+    // 4. Any node with listResults from a prior fan-out execution — read through
+    //    its row-aligned twin when it publishes one (Extract Field), so its holes
+    //    keep the rows of a sibling list in place.
     if (state?.output?.listResults && state.output.listResults.length > 1) {
-      const filtered = selectListItems(state.output.listResults, selectorArg)
-      if (filtered.length > 1) return filtered
+      const before = candidates.length
+      consider(edge, selectListItems(state.output.alignedListResults ?? state.output.listResults, selectorArg))
+      if (candidates.length > before) continue
     }
 
     // 5. Fallback: accumulated generatedResults from multiple manual runs
@@ -862,17 +937,22 @@ export function getListInputForNode(
       sourceNode.data as Record<string, unknown>,
     )
     if (savedResults) {
-      const filtered = selectListItems(savedResults, selectorArg)
-      if (filtered.length > 1) return filtered
+      const before = candidates.length
+      consider(edge, selectListItems(savedResults, selectorArg))
+      if (candidates.length > before) continue
     }
 
     // 6. JSON array output (e.g. web-scrape generatedJson) — each element is one list item
     const jsonItems = extractGeneratedJsonAsList(sourceNode.data as Record<string, unknown>)
-    if (jsonItems) {
-      const filtered = selectListItems(jsonItems, selectorArg)
-      if (filtered.length > 1) return filtered
-    }
+    if (jsonItems) consider(edge, selectListItems(jsonItems, selectorArg))
   }
+
+  // The shared resolver picks the primary (the list holding the most values —
+  // this used to be "whichever wire came first", so the wire order decided how
+  // many times the node ran, and the editor's xN badge disagreed with the run)
+  // and settles it with the lists that share its rows.
+  const direct = resolveListFanOut(candidates, targetNode.type)
+  if (direct) return direct
 
   // Transitive fan-out: if a direct parent is a text-prompt whose own upstream
   // is a list-like node with "each" mode, resolve the text template per item.
@@ -928,7 +1008,12 @@ export function getListInputForNode(
         itemMap.set(listLabel, item)
         resolvedItems.push(resolveNodeRefs(sourceText, itemMap))
       }
-      if (resolvedItems.length > 1) return resolvedItems
+      // A per-item TEMPLATE, not a column: it has no holes and no siblings to
+      // stay aligned with, so its rows are simply 0..n-1. It drives through the
+      // text-prompt's own wire into the target.
+      if (resolvedItems.length > 1) {
+        return { items: resolvedItems, rowIndices: resolvedItems.map((_, i) => i), targetHandle: edge.targetHandle }
+      }
     }
   }
 

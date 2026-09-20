@@ -20,6 +20,16 @@ describe("media resource", () => {
     expect(out.downloadId).toBe("dl-1")
   })
 
+  it("downloadVideo() forwards requireAudio: false — the 'this clip really has no sound' opt-out", async () => {
+    const fetchMock = vi.fn().mockReturnValueOnce(mockOk({ downloadId: "dl-2" }))
+    const c = make(fetchMock)
+    await c.media.downloadVideo({ url: "https://www.instagram.com/reel/abc/", requireAudio: false })
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)).toEqual({
+      url: "https://www.instagram.com/reel/abc/",
+      requireAudio: false,
+    })
+  })
+
   it("saveToStorage() POSTs /v1/save-to-storage", async () => {
     const fetchMock = vi.fn().mockReturnValueOnce(mockOk({ jobId: "j1" }))
     const c = make(fetchMock)

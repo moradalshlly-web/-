@@ -8,6 +8,7 @@
 import { ChevronDown, SlidersHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useT } from "@/lib/i18n"
+import { HiddenFromUsersMark } from "@/components/nodes/hidden-from-users-mark"
 import { useLocalizeNodeLabel } from "@/lib/i18n/labels"
 import { usePickerSectionLabel } from "@/lib/node-picker-i18n"
 import { NodaroMark, showNodaroMark } from "@/components/nodes/nodaro-exclusive-mark"
@@ -113,6 +114,7 @@ export function PickerNodeRow({
         {localizeNode(node.label)}
       </span>
       {showNodaroMark(node.type) && <NodaroMark />}
+      <HiddenFromUsersMark type={node.type} />
       {badge && (
         <span className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] tracking-[0.5px] text-[var(--npk-dim)] bg-[var(--npk-chip)]">
           {badge}

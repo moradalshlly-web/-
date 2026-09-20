@@ -12,7 +12,7 @@ export interface TikTokPagesOverlayProps extends OverlayCommonProps {
 /** TikTok-style 1-4 word pages via @remotion/captions::createTikTokStyleCaptions. */
 export const TikTokPagesOverlay: React.FC<TikTokPagesOverlayProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, animate,
   combineTokensWithinMilliseconds = 1200,
 }) => {
   const frame = useCurrentFrame()
@@ -34,7 +34,8 @@ export const TikTokPagesOverlay: React.FC<TikTokPagesOverlayProps> = ({
   )
   const active = pages.find((p) => ms >= p.startMs && ms <= p.startMs + p.durationMs)
   if (!active) return null
-  const enterScale = spring({ frame: frame - (active.startMs / 1000) * fps, fps, config: { damping: 12, stiffness: 200 } })
+  // animate:false drops the per-page enter-zoom (pages still switch).
+  const enterScale = animate === false ? 1 : spring({ frame: frame - (active.startMs / 1000) * fps, fps, config: { damping: 12, stiffness: 200 } })
   // With a highlightColor the page is rendered token by token and only the word
   // being spoken changes colour — the CapCut/TikTok read. Without one the page
   // stays a single pre-joined string, exactly as before.

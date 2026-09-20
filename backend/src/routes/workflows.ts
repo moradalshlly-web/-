@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import { hasCredits, hasOrganizations } from "../lib/config.js"
 import { findCloudOnlyNodeTypes, cloudOnlyRejectionMessage } from "../lib/cloud-only-nodes.js"
-import { findDeniedNodeTypes, deniedNodeRejectionMessage } from "../lib/surface-deny.js"
+import { deniedNodeRejectionMessage } from "../lib/surface-deny.js"
+import { findDeniedNodeTypesForUser } from "../lib/availability-viewer.js"
 import { z } from "zod"
 import { stripExportContent, stripTransientRuntimeData, validateSubWorkflowRoutes, WORKFLOW_VISIBILITIES, type WorkflowExport } from "@nodaro/shared"
 import { publicWorkflowProjection } from "../lib/public-workflow-projection.js"
@@ -757,7 +758,7 @@ export async function workflowRoutes(app: FastifyInstance) {
     }
     // Deployment surface deny (B1) applies on every edition the gate is open for
     // (business+), so it sits beside the Cloud-only guard, not inside it.
-    const deniedNodes = findDeniedNodeTypes(body.nodes as ReadonlyArray<{ type?: unknown }> | undefined)
+    const deniedNodes = await findDeniedNodeTypesForUser(body.nodes as ReadonlyArray<{ type?: unknown }> | undefined, userId)
     if (deniedNodes.length > 0) {
       return validationError(reply, deniedNodeRejectionMessage(deniedNodes))
     }
@@ -952,7 +953,7 @@ export async function workflowRoutes(app: FastifyInstance) {
     }
     // Deployment surface deny (B1) applies on every edition the gate is open for
     // (business+), so it sits beside the Cloud-only guard, not inside it.
-    const deniedNodes = findDeniedNodeTypes(body.nodes as ReadonlyArray<{ type?: unknown }> | undefined)
+    const deniedNodes = await findDeniedNodeTypesForUser(body.nodes as ReadonlyArray<{ type?: unknown }> | undefined, userId)
     if (deniedNodes.length > 0) {
       return validationError(reply, deniedNodeRejectionMessage(deniedNodes))
     }
@@ -1287,7 +1288,7 @@ export async function workflowRoutes(app: FastifyInstance) {
     }
     // Deployment surface deny (B1) applies on every edition the gate is open for
     // (business+), so it sits beside the Cloud-only guard, not inside it.
-    const deniedNodes = findDeniedNodeTypes(body.nodes as ReadonlyArray<{ type?: unknown }> | undefined)
+    const deniedNodes = await findDeniedNodeTypesForUser(body.nodes as ReadonlyArray<{ type?: unknown }> | undefined, userId)
     if (deniedNodes.length > 0) {
       return validationError(reply, deniedNodeRejectionMessage(deniedNodes))
     }
@@ -1967,7 +1968,7 @@ export async function workflowRoutes(app: FastifyInstance) {
     }
     // Deployment surface deny (B1) applies on every edition the gate is open for
     // (business+), so it sits beside the Cloud-only guard, not inside it.
-    const deniedNodes = findDeniedNodeTypes((body as { nodes?: unknown }).nodes as ReadonlyArray<{ type?: unknown }> | undefined)
+    const deniedNodes = await findDeniedNodeTypesForUser((body as { nodes?: unknown }).nodes as ReadonlyArray<{ type?: unknown }> | undefined, userId)
     if (deniedNodes.length > 0) {
       return validationError(reply, deniedNodeRejectionMessage(deniedNodes))
     }

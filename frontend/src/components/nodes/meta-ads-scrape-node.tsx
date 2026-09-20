@@ -9,7 +9,7 @@ import { RunNodeButton } from "./run-node-button"
 import { EditableNodeLabel } from "./editable-node-label"
 import { HandleWithPopover } from "./handle-with-popover"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
-import { estimateNodeCredits } from "@/components/editor/workflow-editor/types"
+import { useScrapeNodeCredits } from "./use-scrape-node-credits"
 import { getVideoProxyUrl } from "@/lib/api"
 import { META_ADS_PLATFORMS, META_ADS_SCRAPE_DEFAULT_COUNT, metaAdsAdvertisersFrom, metaAdsNodeMode, splitMetaAdsPageUrls, type MetaAdsNodeMode } from "@nodaro/shared"
 import type { MetaAdsScrapeNodeData } from "@/types/nodes"
@@ -368,7 +368,7 @@ function MetaAdsScrapeNodeComponent({ id, data, selected }: NodeProps) {
   const selectNode = useWorkflowStore((s) => s.selectNode)
 
   const mode = metaAdsNodeMode(nodeData.mode)
-  const credits = estimateNodeCredits({ type: "meta-ads-scrape", data: nodeData })
+  const credits = useScrapeNodeCredits(id, "meta-ads-scrape", nodeData)
   const state = deriveMetaAdsScrapeCardState(nodeData)
   const running = state.kind === "running"
   const hasAge = state.kind !== "never-ran" && !running && "at" in state && state.at !== undefined

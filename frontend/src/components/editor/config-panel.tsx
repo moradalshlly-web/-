@@ -332,7 +332,7 @@ function NodeTypeConfig({ nodeType, nodeData, configProps, updateNodeData, onExp
     case "upload-video": return <UploadVideoConfig {...configProps} />
     case "upload-audio": return <UploadAudioConfig {...configProps} />
     case "rss-feed": return <RSSFeedConfig {...configProps} />
-    case "youtube-video": return <YouTubeVideoConfig {...configProps} />
+    case "youtube-video": return <YouTubeVideoConfig {...configProps} nodeId={selectedNodeId} />
     case "web-scrape": return <WebScrapeConfig {...configProps} />
     case "meta-ads-scrape": return <MetaAdsScrapeConfig {...configProps} />
     case "instagram-scrape": return <InstagramScrapeConfig {...configProps} />
@@ -1142,7 +1142,7 @@ export function ConfigPanel() {
                 {!isReadOnly && GENERATE_BUTTON_TYPES.has(nodeType) && (
                   <GenerateButton
                     onClick={() => runSingleNode?.(selectedNode.id)}
-                    modelIdentifier={getModelIdentifier(selectedNode, edges)}
+                    modelIdentifier={getModelIdentifier(selectedNode, edges, nodes)}
                     userId={userId ?? ""}
                     label={t("configPanel.runThisNode")}
                     isRunning={nodeData.executionStatus === "running"}
