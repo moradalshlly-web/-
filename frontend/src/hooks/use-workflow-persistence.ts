@@ -68,6 +68,8 @@ interface NodeExecutionState {
     splitResults?: string[]
     combinedText?: string
     listResults?: string[]
+    /** Row-aligned twin of listResults (Extract Field, List output). */
+    alignedListResults?: string[]
     plan?: Record<string, unknown>
     changeSummary?: string
     /** Fan-in (reduce / Choose Best) aggregated value + strategy meta. */
@@ -420,6 +422,9 @@ function applyBackendExecutionState(
             data.activeResultIndex = 0
           }
           data.__listResults = state.output.listResults
+          // The row-aligned twin rides along (a list of URLs cut by Extract Field
+          // lands here too), so a canvas run after a reload still pairs by row.
+          data.__alignedListResults = state.output.alignedListResults
           data.__listTotal = state.output.listResults!.length
           data.__listCompleted = state.output.listResults!.length
         } else {
@@ -544,6 +549,8 @@ function applyCompletedExecutionResults(
       }
       // Sync fan-out metadata so downstream item:N resolution works
       newData.__listResults = state.output.listResults
+      // …and its row-aligned twin (see the first sync site above).
+      newData.__alignedListResults = state.output.alignedListResults
       newData.__listTotal = state.output.listResults!.length
       newData.__listCompleted = state.output.listResults!.length
     } else if (outputUrl) {

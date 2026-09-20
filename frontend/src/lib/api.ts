@@ -7110,6 +7110,8 @@ interface ExecutionNodeState {
     splitResults?: string[]
     combinedText?: string
     listResults?: string[]
+    /** Row-aligned twin of listResults (Extract Field, List output) — read only by the fan-out. */
+    alignedListResults?: string[]
   }
   error?: string
 }

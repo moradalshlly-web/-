@@ -442,6 +442,18 @@ export type {
 
 export { REPEATABLE_NODE_TYPES, REPEAT_PLACEHOLDER, PROVIDER_PLACEHOLDER_PREFIX, encodeProviderItem, decodeProviderItem, getEffectiveRepeatCount, expandItemsWithRepeat } from "./repeat-types.js"
 
+export {
+  NON_PROMPT_TEXT_LANES,
+  fanOutTextFeedsPrompt,
+  isFanOutUrlItem,
+  compactWithRows,
+  liveRowColumn,
+  resolveListFanOut,
+  planFanOut,
+  alignedFieldList,
+} from "./fan-out-rows.js"
+export type { FanOutCandidate, ListFanOut, FanOutPlan } from "./fan-out-rows.js"
+
 export { settledWithLimit } from "./settled-with-limit.js"
 
 

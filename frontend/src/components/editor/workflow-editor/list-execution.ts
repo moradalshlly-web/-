@@ -9,17 +9,26 @@ import { TIER_PARALLELISM } from "@/lib/pricing-data";
 import { hasCredits } from "@/lib/edition";
 import { executeNode } from "./execute-node";
 import type { ExecutionContext } from "./types";
-import { REPEAT_PLACEHOLDER, decodeProviderItem, settledWithLimit } from "@nodaro/shared"
+import { REPEAT_PLACEHOLDER, decodeProviderItem, settledWithLimit, fanOutTextFeedsPrompt, isFanOutUrlItem, type FanOutPlan } from "@nodaro/shared"
 import { setSuppressToasts, RUN_START_RESET } from "./poll-job";
 
 /**
  * Execute a node once for each item in the list. Results are accumulated
  * and stored as __listResults on the node for later clone expansion.
+ *
+ * `fanOut` is the rest of the plan (`planFanOut`): the ROW every iteration
+ * reads its inputs on, and the handle the driving list is wired to. A text list
+ * that drives through a handle the resolver routes elsewhere (`negative`,
+ * `system-prompt`) is NOT a prompt — the per-row resolution already delivered
+ * it to its own input, and passing it as the prompt override too generated
+ * every image FROM the negative text. Omitted (repeat-only / provider-only /
+ * direct callers) = the item is a prompt and the row is the iteration, as before.
  */
 export async function executeNodeForList(
   node: WorkflowNode,
   items: string[],
   ctx: ExecutionContext,
+  fanOut?: Pick<FanOutPlan, "rows" | "targetHandle">,
 ): Promise<void> {
   const MAX_PARALLEL_ITERATIONS = hasCredits()
     ? (TIER_PARALLELISM[getCachedTier()] ?? TIER_PARALLELISM.free)
@@ -64,13 +73,11 @@ export async function executeNodeForList(
     if (!freshNode) throw new Error("Node removed");
 
     const providerOverride = decodeProviderItem(item);
-    const isRepeat = providerOverride !== undefined || item === REPEAT_PLACEHOLDER;
-    const isUrl =
-      !isRepeat &&
-      (item.startsWith("http") ||
-        /\.(png|jpg|jpeg|webp|gif|mp4|mov|webm|mp3|wav|ogg)(\?|$)/i.test(
-          item,
-        ));
+    // An empty driving cell (a row another column keeps alive) overrides nothing.
+    const isRepeat = providerOverride !== undefined || item === REPEAT_PLACEHOLDER || item.trim().length === 0;
+    const isUrl = !isRepeat && isFanOutUrlItem(item);
+    const isPrompt = !isRepeat && !isUrl && (!fanOut || fanOutTextFeedsPrompt(node.type, fanOut.targetHandle));
+    const listRowIndex = fanOut?.rows[i];
 
     // For provider-fanout iterations, swap data.provider for this run only.
     // The clone is shallow on data; the original store node is untouched.
@@ -78,15 +85,17 @@ export async function executeNodeForList(
       ? { ...freshNode, data: { ...freshNode.data, provider: providerOverride } }
       : freshNode;
 
-    // executeNode now returns the output string directly
-    const result = await executeNode(
-      iterationNode,
-      ctx,
-      isRepeat ? undefined : isUrl ? undefined : item,
-      isRepeat ? undefined : isUrl ? item : undefined,
-      i,
-      runId,
-    );
+    // executeNode now returns the output string directly. `i` stays the
+    // iteration's identity; the inputs are resolved on the iteration's ROW,
+    // passed as its own argument (NOT on ctx — ctx flows into everything the
+    // node executes, e.g. the children of a Sub-Workflow, and the row must not).
+    // Without a row (repeat-only / provider-only runs, direct callers) the call
+    // is exactly what it has always been.
+    const prompt = isPrompt ? item : undefined;
+    const mediaUrl = isUrl ? item : undefined;
+    const result = await (listRowIndex === undefined
+      ? executeNode(iterationNode, ctx, prompt, mediaUrl, i, runId)
+      : executeNode(iterationNode, ctx, prompt, mediaUrl, i, runId, undefined, listRowIndex));
 
     completedCount++;
     useWorkflowStore.getState().updateNodeData(node.id, {

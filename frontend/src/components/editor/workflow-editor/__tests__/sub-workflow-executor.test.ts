@@ -59,6 +59,7 @@ vi.mock("../execute-node", () => ({
 
 vi.mock("../node-input-resolver", () => ({
   getListInputForNode: vi.fn(() => null),
+  getListFanOutForNode: vi.fn(() => undefined),
 }))
 
 vi.mock("../list-execution", () => ({

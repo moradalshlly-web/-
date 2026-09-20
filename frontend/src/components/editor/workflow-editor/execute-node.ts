@@ -111,7 +111,7 @@ import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, spli
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
-  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
+  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, alignedFieldList, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
 import { applyPromptAffixes, buildSeedanceVideoEditPrompt, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
@@ -1111,9 +1111,14 @@ export function executeNode(
   listIterationIndex?: number,
   runId?: string,
   authoredOverride?: Record<string, unknown>,
+  /** The ROW a list fan-out iteration resolves its inputs on (`FanOutPlan.rows`).
+   *  Not the iteration number: with Repeat xN the copies of a row share it. An
+   *  ARGUMENT on purpose, never part of `ctx` — ctx flows into everything this
+   *  node executes (a Sub-Workflow's children), and the row must stop here. */
+  listRowIndex?: number,
 ): Promise<string> {
   try {
-    return executeNodeCore(node, ctx, overridePrompt, overrideMediaUrl, listIterationIndex, runId, authoredOverride);
+    return executeNodeCore(node, ctx, overridePrompt, overrideMediaUrl, listIterationIndex, runId, authoredOverride, listRowIndex);
   } catch (err) {
     return Promise.reject(err);
   }
@@ -1127,10 +1132,15 @@ function executeNodeCore(
   listIterationIndex?: number,
   runId?: string,
   authoredOverride?: Record<string, unknown>,
+  listRowIndex?: number,
 ): Promise<string> {
   assertCanvasExecutionAllowed([node]);
   const { nodes, edges } = useWorkflowStore.getState();
-  const inputs = resolveNodeInputs(node, nodes, edges, listIterationIndex);
+  // Inputs are resolved on the iteration's ROW (`listRowIndex`, from the fan-out
+  // plan); `listIterationIndex` stays the iteration's identity — the idempotency
+  // key below. They differ under Repeat xN and empty cells. Outside a list-
+  // driven fan-out there is no row and the iteration number stands.
+  const inputs = resolveNodeInputs(node, nodes, edges, listRowIndex ?? listIterationIndex);
 
   // Per-call idempotency key. ctx.idempotencyKey is set by the click handler
   // (handleRunSingleNode / handleRun*) to one UUID per click intent. For
@@ -2232,7 +2242,8 @@ function executeNodeCore(
     // field-mapping block above ran, so a mapping-injected value in
     // `syntheticNode.data` doesn't re-qualify as "authored" inside the inner
     // call (see the comment on `authoredData`'s declaration).
-    return executeNode(syntheticNode, ctx, overridePrompt, overrideMediaUrl, listIterationIndex, runId, authoredData);
+    // Same node, re-typed: it keeps the row it is running on.
+    return executeNode(syntheticNode, ctx, overridePrompt, overrideMediaUrl, listIterationIndex, runId, authoredData, listRowIndex);
   }
 
   // Generate Video Pro — Seedance-2-family multi-segment stitch (Task 13).
@@ -8847,6 +8858,12 @@ function executeNodeCore(
       extractedText: joined,
       executionStatus: "completed",
       __listResults: outputType === "list" ? strings : undefined,
+      // The same list with ONE ENTRY PER ARRAY ELEMENT ("" where the element has
+      // no value), so two Extract Field lists cut from the same array stay row-
+      // aligned in a fan-out. A separate channel on purpose: __listResults is the
+      // public list every item:N / range / Bundle / list node indexes, and must
+      // not grow holes. Mirrors backend executeExtractField.
+      __alignedListResults: outputType === "list" ? alignedFieldList(value ?? null, path) : undefined,
       generatedJson: outputType === "json" ? raw : undefined,
     });
     return Promise.resolve(joined);

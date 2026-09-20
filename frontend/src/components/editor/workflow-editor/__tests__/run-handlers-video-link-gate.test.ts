@@ -60,7 +60,10 @@ vi.mock("../execution-graph", () => ({
   getEffectivelySkippedIds: vi.fn(() => new Set()),
   collapseExpandedClones: (...args: unknown[]) => mockCollapseExpandedClones(...args),
 }))
-vi.mock("../node-input-resolver", () => ({ getListInputForNode: vi.fn(() => null) }))
+vi.mock("../node-input-resolver", () => ({
+  getListInputForNode: vi.fn(() => null),
+  getListFanOutForNode: vi.fn(() => undefined),
+}))
 vi.mock("../execute-node", () => ({
   executeNode: (...args: unknown[]) => mockExecuteNode(...args),
   rejectAllManualEdits: vi.fn(),

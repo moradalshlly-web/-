@@ -70,6 +70,14 @@ export interface NodeOutput {
   paramOutputs?: Record<string, string>
   /** Accumulated results from fan-out (list/loop/split-text) execution */
   listResults?: string[]
+  /**
+   * The same list ROW-ALIGNED with the array it was cut from: one entry per
+   * element, "" where the element has no value (Extract Field, List output).
+   * Read ONLY by the fan-out, so two lists cut from one array pair by row.
+   * `listResults` stays the public list — the values that exist — which is what
+   * item / item:N / range / Bundle and every list node index.
+   */
+  alignedListResults?: string[]
   /** Selector node `picked` output channel (selected items). */
   pickedResults?: string[]
   /** Selector node `rest` output channel (items NOT picked). */

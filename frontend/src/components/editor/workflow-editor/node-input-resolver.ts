@@ -2,7 +2,7 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store";
 import { proShotStills } from "@/lib/scene3d/pro-media-result";
 import { readSunoIds } from "@/lib/suno-ids";
 import { getParameterPromptHint } from "@nodaro/prompts"
-import { DYNAMIC_PRODUCER_TYPES, DEFAULT_CHARACTER_FACET, PARAMETER_NODE_TYPES, getParameterValue, OBJECT_PICKER_NODE_TYPES, parseGroupHandle, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, editPlanSourceDurationSec, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, FAN_OUT_EACH_TYPES, extractAllGeneratedResults, extractGeneratedJsonAsList, splitGeneratedItems, SOCIAL_POST_NODE_TYPES, resolveSourceThroughConnectedList, VARIABLES_HANDLE_ID, extractReferencedLabels, canonicalVarName, characterMentionSlug, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
+import { DYNAMIC_PRODUCER_TYPES, DEFAULT_CHARACTER_FACET, PARAMETER_NODE_TYPES, getParameterValue, OBJECT_PICKER_NODE_TYPES, parseGroupHandle, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES, editPlanSourceDurationSec, resolveIndex, selectListItems, type SelectorFields, splitByLoopDelimiter, FAN_OUT_EACH_TYPES, compactWithRows, liveRowColumn, resolveListFanOut, type FanOutCandidate, type ListFanOut, extractAllGeneratedResults, extractGeneratedJsonAsList, splitGeneratedItems, SOCIAL_POST_NODE_TYPES, resolveSourceThroughConnectedList, VARIABLES_HANDLE_ID, extractReferencedLabels, canonicalVarName, characterMentionSlug, SUNO_TRACK_SOURCE_TYPES } from "@nodaro/shared"
 import type { EntityKind, ConnectedReference } from "@nodaro/shared"
 import { buildNodeRefMap, resolveTextRefs } from "@/lib/node-refs";
 import type {
@@ -342,9 +342,15 @@ export function resolveEdgeValuesForTableColumn(
   const selector = ed as SelectorFields | undefined;
   const outputMode = (ed?.outputMode as string | undefined) ?? "each";
 
+  // Each / Bundle SHOW rows, so they read row-aligned like the run does (an empty
+  // cell sits in ITS row). Item / Selected pick ONE value by position and keep
+  // indexing the compact list — the same list the run indexes for them.
+  const showsRows = outputMode === "each" || outputMode === "all";
   const allOutputs = upstream.type === "list"
-    ? resolveLoopColumnValues(upstream, edge.sourceHandle ?? undefined, edges, nodes)
-    : (extractNodeOutputAsList(upstream as WorkflowNode, edge.sourceHandle ?? undefined) ?? []);
+    ? resolveLoopColumnValues(upstream, edge.sourceHandle ?? undefined, edges, nodes, showsRows)
+    : ((showsRows ? alignedListOf(upstream) : undefined)
+        ?? extractNodeOutputAsList(upstream as WorkflowNode, edge.sourceHandle ?? undefined)
+        ?? []);
 
   // Already-structured upstreams (loop/list/split-text/json-process/etc.) emit
   // logical items — downstream consumers must NOT re-chop them by the target
@@ -394,6 +400,14 @@ export function resolveEdgeValuesForTableColumn(
   return splitByLoopDelimiter(single, columns);
 }
 
+/** The row-aligned twin a source publishes beside its list (Extract Field, List
+ *  output): one entry per array element, "" where the element has no value. Read
+ *  ONLY by fan-out paths; addressing by position keeps using the public list. */
+function alignedListOf(node: { data: Record<string, unknown> }): string[] | undefined {
+  const aligned = node.data.__alignedListResults;
+  return Array.isArray(aligned) && aligned.length > 0 ? (aligned as string[]) : undefined;
+}
+
 /**
  * Resolve a list of values flowing through `edge` from `upstreamNode`, applying
  * the edge's selector filter. Recurses into upstream loop/list so chained
@@ -405,6 +419,7 @@ function resolveUpstreamWithEdgeFilter(
   edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; data?: unknown }>,
   nodes: ReadonlyArray<{ id: string; type?: string; data: Record<string, unknown> }>,
   splitColumns: ReadonlyArray<{ id: string; handleId: string; type?: string; splitDelimiter?: string }> | undefined,
+  keepEmpty = false,
 ): string[] | undefined {
   const edgeData = edge.data as Record<string, unknown> | undefined;
   const selector = edgeData as SelectorFields | undefined;
@@ -449,9 +464,11 @@ function resolveUpstreamWithEdgeFilter(
       edge.sourceHandle ?? undefined,
       edges,
       nodes,
+      keepEmpty,
     );
   } else {
-    const raw = extractNodeOutputAsList(upstreamNode, edge.sourceHandle ?? undefined);
+    const raw = (keepEmpty ? alignedListOf(upstreamNode) : undefined)
+      ?? extractNodeOutputAsList(upstreamNode, edge.sourceHandle ?? undefined);
     // Already-structured sources produce logical items — preserve them even
     // when there's a single item, so downstream doesn't re-split by newline.
     // Matches resolveEdgeValuesForTableColumn. The Generate Text `items` handle
@@ -472,12 +489,18 @@ function resolveUpstreamWithEdgeFilter(
   return undefined;
 }
 
-/** Resolve raw values for a loop column: per-column connected edge -> legacy "in" edge -> manual rows. */
+/** Resolve raw values for a loop column: per-column connected edge -> legacy "in" edge -> manual rows.
+ *
+ *  `keepEmpty` (fan-out callers) returns the column ROW-ALIGNED: an empty cell
+ *  stays in place as "" instead of pulling the rows below it up, so two columns
+ *  of one table still pair by row. A row that is blank in EVERY column is not a
+ *  row. Every other caller keeps the compact "values that exist" list. */
 export function resolveLoopColumnValues(
   loopNode: { id: string; data: Record<string, unknown> },
   sourceHandle: string | undefined,
   edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; data?: unknown }>,
   nodes: ReadonlyArray<{ id: string; type?: string; data: Record<string, unknown> }>,
+  keepEmpty = false,
 ): string[] {
   const loopData = loopNode.data as LoopNodeData;
   const cols = loopData.columns ?? [];
@@ -499,6 +522,7 @@ export function resolveLoopColumnValues(
           edges,
           nodes,
           loopData.columns,
+          keepEmpty,
         );
         if (result) return result;
       }
@@ -525,6 +549,10 @@ export function resolveLoopColumnValues(
 
   // 3. Manual rows (only when a column was matched)
   if (colIndex >= 0) {
+    if (keepEmpty) {
+      const aligned = liveRowColumn(loopData.rows ?? [], colIndex);
+      return aligned.some((v) => v.length > 0) ? aligned : [];
+    }
     return (loopData.rows ?? []).map((row) => row[colIndex]).filter((v) => v?.trim());
   }
 
@@ -924,20 +952,34 @@ export function extractNodeOutputAsList(
 }
 
 /**
- * Check if a node receives list input from any "each" source.
- *
- * Returns a placeholder array whose length = MAX across all "each" sources.
- * During fan-out, resolveNodeInputs(listIterationIndex) resolves each source
- * independently using modulo-wrap for shorter sources.
- *
- * The placeholder values (REPEAT_PLACEHOLDER) signal executeNodeForList to
- * skip overridePrompt/overrideMediaUrl and rely on resolveNodeInputs.
+ * Check if a node receives list input from any "each" source — the driving
+ * items only (what every count / badge / legacy caller reads). See
+ * `getListFanOutForNode` for the rows and the driving handle.
  */
 export function getListInputForNode(
   node: WorkflowNode,
   nodes: WorkflowNode[],
   edges: WorkflowEdge[],
 ): string[] | undefined {
+  return getListFanOutForNode(node, nodes, edges)?.items;
+}
+
+/**
+ * The fan-out a node receives: the driving items, the ROW each came from, and
+ * the handle the driving list is wired to (see `@nodaro/shared` fan-out-rows).
+ *
+ * The LONGEST "each" source is the primary (unchanged — shorter sources of
+ * another length keep wrapping around per iteration). Nothing depends on the
+ * order the wires were drawn in: among the lists that share the primary's rows —
+ * two columns of one table — the one that feeds the prompt drives (its item is
+ * what becomes the per-row prompt), and a row runs when any of them has a value
+ * in it. Mirrors backend input-resolver.ts.
+ */
+export function getListFanOutForNode(
+  node: WorkflowNode,
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+): ListFanOut | undefined {
   // Fan-in targets (reduce) consume the upstream list — they are NOT fanned
   // out themselves. Returning undefined here prevents executeNodeForList from
   // running N redundant POST /v1/reduce calls (each charging credits) when a
@@ -946,9 +988,14 @@ export function getListInputForNode(
   if (FAN_IN_NODE_TYPES.has(node.type ?? "")) return undefined;
 
   const incomingEdges = edges.filter((e) => e.target === node.id && e.targetHandle !== VARIABLES_HANDLE_ID);
-  let maxLen = 0;
-  /** The longest concrete item list (used when only one source contributes). */
-  let longestItems: string[] | undefined;
+
+  // Every "each" list that could fan this node out, in wire order. A list
+  // qualifies on the values it HOLDS (>1), not on its row count — an empty cell
+  // is a row, but nothing runs for it.
+  const candidates: FanOutCandidate[] = [];
+  const consider = (edge: WorkflowEdge, aligned: readonly string[]): void => {
+    if (compactWithRows(aligned).items.length > 1) candidates.push({ targetHandle: edge.targetHandle, aligned });
+  };
 
   for (const edge of incomingEdges) {
     const sourceNode = nodes.find((n) => n.id === edge.source);
@@ -960,8 +1007,7 @@ export function getListInputForNode(
       const activeScript = getActiveScriptFromData(sd);
       const scenesList = (activeScript?.scenes as Array<Record<string, unknown>>) ?? [];
       if (scenesList.length > 1) {
-        const items = scenesList.map((s) => (s.imagePrompt as string) ?? "");
-        if (items.length > maxLen) { maxLen = items.length; longestItems = items; }
+        consider(edge, scenesList.map((s) => (s.imagePrompt as string) ?? ""));
         continue;
       }
     }
@@ -980,27 +1026,22 @@ export function getListInputForNode(
         continue;
       }
       const raw = extractNodeOutputAsList(sourceNode, "items");
-      if (raw && raw.length > 0) {
-        const items = selectListItems(raw, edgeData as SelectorFields | undefined);
-        if (items.length > 1) {
-          if (items.length > maxLen) { maxLen = items.length; longestItems = items; }
-        }
-      }
+      if (raw && raw.length > 0) consider(edge, selectListItems(raw, edgeData as SelectorFields | undefined));
       continue;
     }
 
     if (sourceNode.type === "list") {
       const edgeData = edge.data as Record<string, unknown> | undefined;
       const loopEdgeMode = edgeData?.outputMode as string | undefined;
-      // Only fan-out for "each" mode (default for list) — item/last/all produce single values
-      if (loopEdgeMode === "item" || loopEdgeMode === "last" || loopEdgeMode?.startsWith("item:")) {
+      // Only fan-out for "each" mode (default for list) — item/last/all produce single values.
+      // ("all" was missing from this gate: a Bundle wire ran the node once per row
+      // here, while the backend — which gates on `!== "each"` — ran it once.)
+      if (loopEdgeMode === "item" || loopEdgeMode === "last" || loopEdgeMode === "all" || loopEdgeMode?.startsWith("item:")) {
         continue;
       }
-      const raw = resolveLoopColumnValues(sourceNode, edge.sourceHandle ?? undefined, edges, nodes);
-      const items = selectListItems(raw, edgeData as SelectorFields | undefined);
-      if (items.length > 1) {
-        if (items.length > maxLen) { maxLen = items.length; longestItems = items; }
-      }
+      // Row-aligned (keepEmpty): an empty cell is a hole, not a missing row.
+      const raw = resolveLoopColumnValues(sourceNode, edge.sourceHandle ?? undefined, edges, nodes, true);
+      consider(edge, selectListItems(raw, edgeData as SelectorFields | undefined));
       continue;
     }
 
@@ -1010,23 +1051,23 @@ export function getListInputForNode(
     if (outputMode !== "each") continue;
 
     const edgeData = edge.data as Record<string, unknown> | undefined;
-    // Pass sourceHandle so selector's picked vs rest channel is honored.
-    const rawList = extractNodeOutputAsList(sourceNode, edge.sourceHandle ?? undefined);
+    // Pass sourceHandle so selector's picked vs rest channel is honored. A source
+    // that publishes a row-aligned twin (Extract Field) is read through it, so
+    // its holes keep the rows of a sibling list in place.
+    const rawList = alignedListOf(sourceNode) ?? extractNodeOutputAsList(sourceNode, edge.sourceHandle ?? undefined);
     if (!rawList || rawList.length < 1) continue;
-    const listOutput = selectListItems(rawList, edgeData as SelectorFields | undefined);
-    if (listOutput.length > 1) {
-      if (listOutput.length > maxLen) { maxLen = listOutput.length; longestItems = listOutput; }
-    }
+    consider(edge, selectListItems(rawList, edgeData as SelectorFields | undefined));
   }
 
-  if (maxLen > 1 && longestItems) {
-    // If only one source matched, return its items for backward compat
-    // If multiple sources matched, return REPEAT placeholders so each
-    // iteration resolves all inputs via resolveNodeInputs(i)
-    return longestItems;
-  }
+  // The shared resolver picks the primary (the list holding the most values,
+  // first among equals) and settles it with the lists that share its rows, so
+  // the wire order decides neither which list supplies the prompt nor which
+  // rows run — and the backend orchestrator applies the very same rule.
+  const direct = resolveListFanOut(candidates, node.type);
+  if (direct) return direct;
 
   // Transitive fan-out: text-prompt whose upstream is a list-like node
+  let longest: ListFanOut | undefined;
   for (const edge of incomingEdges) {
     const sourceNode = nodes.find((n) => n.id === edge.source);
     if (!sourceNode || sourceNode.type !== "text-prompt") continue;
@@ -1059,11 +1100,16 @@ export function getListInputForNode(
         itemMap.set(listLabel, item);
         resolvedItems.push(resolveTextRefs(sourceText, itemMap) || sourceText);
       }
-      if (resolvedItems.length > maxLen) { maxLen = resolvedItems.length; longestItems = resolvedItems; }
+      // A per-item TEMPLATE, not a column: no holes and no siblings to stay
+      // aligned with, so its rows are simply 0..n-1. It drives through the
+      // text-prompt's own wire into the target.
+      if (resolvedItems.length > (longest?.items.length ?? 1)) {
+        longest = { items: resolvedItems, rowIndices: resolvedItems.map((_, i) => i), targetHandle: edge.targetHandle };
+      }
     }
   }
 
-  return maxLen > 1 && longestItems ? longestItems : undefined;
+  return longest;
 }
 
 /** Extract the active GeneratedScript from generate-script node data. */
@@ -1118,6 +1164,17 @@ function deduplicateLocations(scenes: Array<Record<string, unknown>>): Array<{ n
   return Array.from(seen.values());
 }
 
+/** An empty cell of a row-aligned list: the row has no value for this wire. */
+const isBlankCell = (v: unknown): boolean => typeof v !== "string" || v.trim().length === 0;
+
+/**
+ * `listIterationIndex` is the ROW a fan-out iteration reads (`FanOutPlan.rows`),
+ * not its iteration number: with Repeat xN the copies of a row share it, and a
+ * row whose driving cell is empty keeps its number for the other wires. Every
+ * "each" wire contributes the value of THAT row; an empty cell contributes
+ * nothing — it never falls back to the list's first value. Mirrors backend
+ * input-resolver.ts.
+ */
 export function resolveNodeInputs(
   node: WorkflowNode,
   nodes: WorkflowNode[],
@@ -1229,6 +1286,9 @@ export function resolveNodeInputs(
     }
 
     let output: string | undefined;
+    // Set when this wire's list HAS the current row and the cell is empty: the
+    // wire then contributes nothing for the row (no scalar fallback below).
+    let rowIsEmpty = false;
     if (edgeMode && srcListResults && srcListResults.length > 0) {
       if (edgeMode === "item") {
         // Structured item mode: use resolveIndex on itemIndex expression
@@ -1306,16 +1366,15 @@ export function resolveNodeInputs(
           continue;
         }
         output = filteredSrc.join(", ");
-      } else if (edgeMode === "each" && listIterationIndex !== undefined) {
-        const edgeData = srcEdge.data as Record<string, unknown> | undefined;
-        const filteredSrc = selectListItems(srcListResults, edgeData as SelectorFields | undefined);
-        if (filteredSrc.length > 0) {
-          output = filteredSrc[listIterationIndex % filteredSrc.length];
-        }
       }
+      // ("each" is resolved per ROW further down — ONE place for a hand-set Each
+      // and a default one. It used to be resolved here from `srcListResults`,
+      // which only knows a List's FIRST column, so a hand-set Each on a second-
+      // column wire read the wrong column.)
     }
     if (!output && src.type === "list") {
-      const raw = resolveLoopColumnValues(src, resolvedSourceHandle ?? undefined, edges, nodes);
+      // In a fan-out the column is read ROW-ALIGNED (empty cells kept).
+      const raw = resolveLoopColumnValues(src, resolvedSourceHandle ?? undefined, edges, nodes, listIterationIndex !== undefined);
       const edgeData = srcEdge.data as Record<string, unknown> | undefined;
       const ranged = selectListItems(raw, edgeData as SelectorFields | undefined);
       if (ranged.length > 0) {
@@ -1331,12 +1390,15 @@ export function resolveNodeInputs(
           picked = ranged[ranged.length - 1];
         } else if (listIterationIndex !== undefined) {
           picked = ranged[listIterationIndex % ranged.length];
+          // The row's cell is empty — do NOT fall back to the column's first value.
+          if (isBlankCell(picked)) rowIsEmpty = true;
         } else {
           picked = ranged[0];
         }
         if (picked) output = picked.trim();
       }
     }
+    if (rowIsEmpty) continue;
     // Generate Text (llm-chat) `items` handle: the ===NEXT===-split list is a
     // fan-out source exactly like loop/list. Resolve the per-iteration value
     // from splitGeneratedItems(generatedText), honoring the edge's item/last/
@@ -1370,16 +1432,20 @@ export function resolveNodeInputs(
     }
 
     // During fan-out: resolve per-iteration values from non-loop list sources
-    if (!output && listIterationIndex != null) {
+    if (!output && listIterationIndex != null && src.type !== "list") {
       if (srcListResults && srcListResults.length > 0) {
         const effectiveMode = edgeMode ?? (DEFAULT_EACH_TYPES.has(src.type ?? "") ? "each" : "last");
         if (effectiveMode === "each") {
           const edgeData = srcEdge.data as Record<string, unknown> | undefined;
-          const filtered = selectListItems(srcListResults, edgeData as SelectorFields | undefined);
-          output = filtered.length > 0 ? filtered[listIterationIndex % filtered.length] : undefined;
+          // Indexed BY ROW: the row-aligned twin when the source publishes one.
+          const filtered = selectListItems(alignedListOf(src) ?? srcListResults, edgeData as SelectorFields | undefined);
+          const picked = filtered.length > 0 ? filtered[listIterationIndex % filtered.length] : undefined;
+          if (filtered.length > 0 && isBlankCell(picked)) rowIsEmpty = true;
+          else output = picked;
         }
       }
     }
+    if (rowIsEmpty) continue;
 
     if (!output) {
       output = extractNodeOutput(src, resolvedSourceHandle ?? undefined);

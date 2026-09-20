@@ -145,6 +145,12 @@ vi.mock("../execution-graph", () => ({
 vi.mock("../node-input-resolver", () => ({
   getListInputForNode: (...args: unknown[]) =>
     mockGetListInputForNode(...args),
+  // The run path asks for the whole fan-out (items + rows + driving handle);
+  // derive it from the same stub so every existing case keeps its meaning.
+  getListFanOutForNode: (...args: unknown[]) => {
+    const items = mockGetListInputForNode(...args) as string[] | null | undefined
+    return items ? { items, rowIndices: items.map((_, i) => i), targetHandle: "prompt" } : undefined
+  },
 }))
 
 vi.mock("../execute-node", () => ({
@@ -467,10 +473,13 @@ describe("handleRunSingleNode", () => {
     )
 
     await vi.waitFor(() => {
+      // …with the rest of the plan: the row each iteration reads, and the
+      // handle the driving list is wired to.
       expect(mockExecuteNodeForList).toHaveBeenCalledWith(
         node,
         listItems,
         ctx,
+        expect.objectContaining({ rows: [0, 1, 2], targetHandle: "prompt" }),
       )
     })
   })

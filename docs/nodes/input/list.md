@@ -33,6 +33,22 @@ Each row is one iteration. The item/row counter shows the total number of entrie
 - Single-column mode: each item is emitted in turn to downstream nodes
 - Multi-column mode: per-column outputs (`col_<id>`) — each column's value is available as a separate output per iteration
 
+## How rows pair up
+
+When two or more columns feed the **same** downstream node (for example a `prompt` column into a Generate Image node's `prompt` input and a `negative` column into its `negative` input), the node runs once per **row** and every input gets the value from **that row**:
+
+- **Row 3 always stays row 3.** An empty cell is simply empty for its row — that input gets nothing for that run. It does not pull the rows below it up.
+- **A row runs when any of its cells has a value.** A row that is empty in every column is ignored (so the blank row at the bottom of the table never adds a run).
+- **The order you connected the wires in does not matter.** The column wired to the node's prompt input is the one that supplies the prompt, whichever wire you drew first. A column wired to `negative` (or another side input such as `system-prompt`) is never used as the prompt.
+- **Repeat ×N repeats the row.** With Repeat set to 2 on the downstream node, each row runs twice with that same row's values.
+- The table on the canvas shows the rows exactly as they will run, including the empty cells.
+
+A per-row prompt **replaces** the prompt typed on the downstream node (it is not appended to it) — also when another list, such as a column of images, feeds the same node. For a row whose prompt cell is empty, the typed prompt is used.
+
+Lists with a **different number of rows** are not paired row-to-row: the one holding more values sets the number of runs, and the shorter one starts over from its first row when it runs out. This does not depend on which wire was connected first either. The same goes for two columns of one table when only one of the wires has a range or item filter on it — the filter changes that wire's row count.
+
+Only a wire in **Each** mode runs the node once per row. A wire set to **Bundle** hands the whole list over in a single run.
+
 ## Best Practices
 
 - Keep single-column list items consistent in format for predictable downstream behavior

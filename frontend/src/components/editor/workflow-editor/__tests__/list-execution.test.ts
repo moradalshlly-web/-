@@ -444,3 +444,69 @@ describe("expandLoopResults", () => {
     }))
   })
 })
+
+// ---------------------------------------------------------------------------
+// The driving list is applied to the input it is WIRED to, on the row it came from
+// ---------------------------------------------------------------------------
+
+describe("executeNodeForList — fan-out plan (handle + rows)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockNodes = [makeNode()]
+    mockExecuteNode.mockResolvedValue(undefined)
+    mockExtractNodeOutput.mockReturnValue("out.png")
+  })
+
+  const run = (items: string[], plan: { rows: Array<number | undefined>; targetHandle: string | null | undefined }) =>
+    executeNodeForList(mockNodes[0] as unknown as WorkflowNode, items, makeCtx(), plan)
+
+  it("a list that drives through the prompt handle still overrides the prompt", async () => {
+    await run(["p1", "p2"], { rows: [0, 1], targetHandle: "prompt" })
+    expect(mockExecuteNode.mock.calls.map((c) => c[2])).toEqual(["p1", "p2"])
+  })
+
+  it("a list that drives through `negative` is NOT written into the prompt", async () => {
+    await run(["avoid blur", "avoid text"], { rows: [0, 1], targetHandle: "negative" })
+    expect(mockExecuteNode).toHaveBeenCalledTimes(2)
+    for (const call of mockExecuteNode.mock.calls) {
+      expect(call[2]).toBeUndefined()
+      expect(call[3]).toBeUndefined()
+    }
+  })
+
+  it("each iteration resolves its inputs on ITS row, while keeping its own iteration number", async () => {
+    // rows [0, 0, 2, 2] = two rows (1 and 3 of the table) x repeat 2.
+    const ctx = makeCtx()
+    await executeNodeForList(mockNodes[0] as unknown as WorkflowNode, ["p1", "p1", "p3", "p3"], ctx, {
+      rows: [0, 0, 2, 2],
+      targetHandle: "prompt",
+    })
+    const calls = mockExecuteNode.mock.calls
+    // Identity (idempotency key, result slot) stays the iteration number…
+    expect(calls.map((c) => c[4])).toEqual([0, 1, 2, 3])
+    // …the inputs are read from the row, passed as its own argument.
+    expect(calls.map((c) => c[7])).toEqual([0, 0, 2, 2])
+  })
+
+  it("the row NEVER rides on the context — ctx reaches everything the node executes (a Sub-Workflow's children)", async () => {
+    const ctx = makeCtx()
+    await executeNodeForList(mockNodes[0] as unknown as WorkflowNode, ["p1", "p3"], ctx, { rows: [0, 2], targetHandle: "prompt" })
+    for (const call of mockExecuteNode.mock.calls) {
+      expect(call[1]).toBe(ctx)
+      expect(Object.keys(call[1] as object)).not.toContain("listRowIndex")
+    }
+  })
+
+  it("an empty driving cell (a row another column keeps alive) overrides nothing", async () => {
+    await run(["p1", "", "p3"], { rows: [0, 1, 2], targetHandle: "prompt" })
+    expect(mockExecuteNode.mock.calls.map((c) => c[2])).toEqual(["p1", undefined, "p3"])
+    expect(mockExecuteNode.mock.calls.map((c) => c[7])).toEqual([0, 1, 2])
+  })
+
+  it("without a plan nothing changes (repeat-only / provider-only / direct callers)", async () => {
+    await executeNodeForList(mockNodes[0] as unknown as WorkflowNode, ["my prompt"], makeCtx())
+    const call = mockExecuteNode.mock.calls[0]
+    expect(call[2]).toBe("my prompt")
+    expect(call[7]).toBeUndefined()
+  })
+})

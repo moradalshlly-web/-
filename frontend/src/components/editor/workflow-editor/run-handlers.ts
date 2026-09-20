@@ -22,11 +22,11 @@ import {
   type RunConfirmInfo,
 } from "./types";
 import { estimateRunCredits } from "./estimate-run-credits";
-import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, expandItemsWithRepeat, TRANSIENT_RUNTIME_KEYS, isExpandedClone, unwrapEditPlanOutput } from "@nodaro/shared"
+import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, planFanOut, TRANSIENT_RUNTIME_KEYS, isExpandedClone, unwrapEditPlanOutput } from "@nodaro/shared"
 import type { NodeExecutionStatus as SharedNodeExecutionStatus, NodeExecutionStateWire } from "@nodaro/shared"
 import { collapseExpandedClones } from "./execution-graph";
 import { shouldAbandonNode } from "./abandon-guard";
-import { getListInputForNode } from "./node-input-resolver";
+import { getListFanOutForNode } from "./node-input-resolver";
 import { executeNode, rejectAllManualEdits } from "./execute-node";
 import { executeNodeForList } from "./list-execution";
 import { cascadeAutoExecute } from "./auto-execute";
@@ -143,6 +143,7 @@ const HISTORY_FIELDS: ReadonlyArray<string> = [
 
 const LIST_STATE_FIELDS: ReadonlyArray<string> = [
   "__listResults",
+  "__alignedListResults",
   "__listTotal",
   "__listCompleted",
   "__listInputs",
@@ -560,8 +561,13 @@ export async function handleRunSingleNode(
 
   const { nodes: currentNodes, edges: currentEdges } =
     useWorkflowStore.getState();
-  const listItems = getListInputForNode(node, currentNodes, currentEdges);
-  const expanded = expandItemsWithRepeat(listItems, node.type ?? "", node.data as Record<string, unknown>);
+  // The plan pins every iteration to the ROW it reads and carries the handle
+  // the driving list is wired to (see @nodaro/shared fan-out-rows).
+  const expanded = planFanOut(
+    getListFanOutForNode(node, currentNodes, currentEdges),
+    node.type ?? "",
+    node.data as Record<string, unknown>,
+  );
 
   // One key per click of Run-on-this-node. Reused by all retries inside
   // this execution (network-level retry, browser fetch retry); fan-out
@@ -571,7 +577,7 @@ export async function handleRunSingleNode(
   ctx.idempotencyKey = generateIdempotencyKey();
 
   const execution = expanded
-    ? executeNodeForList(node, expanded, ctx)
+    ? executeNodeForList(node, expanded.items, ctx, expanded)
     : executeNode(node, ctx);
 
   execution
@@ -1358,6 +1364,8 @@ interface NodeExecutionState {
     splitResults?: string[];
     combinedText?: string;
     listResults?: string[];
+    /** Row-aligned twin of listResults (Extract Field, List output). */
+    alignedListResults?: string[];
     /** Selector node `picked` output channel (selected items). */
     pickedResults?: string[];
     /** Selector node `rest` output channel (items NOT picked). */
@@ -1582,6 +1590,10 @@ function syncNodeStatesToStore(
           updates.__listTotal = state.output.listResults.length;
           updates.__listCompleted = state.output.listResults.length;
         }
+        // The row-aligned twin rides along, so a node run from the canvas AFTER a
+        // server-side run pairs by row exactly like that run did. Always written
+        // (undefined clears a stale one from an earlier run).
+        updates.__alignedListResults = state.output.alignedListResults;
         // Selector dual-channel mirror — orchestrator state carries
         // pickedResults/restResults but the SelectorNode UI reads from
         // node.data (`__pickedResults`/`__restResults` + the snapshot

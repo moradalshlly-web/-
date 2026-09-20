@@ -885,6 +885,7 @@ export function buildDuplicatedNodeData(
   delete d.__listTotal
   delete d.__listCompleted
   delete d.__listResults
+  delete d.__alignedListResults
   delete d.subWorkflowProgress
   // Clear "owns DB row X" pointers so the clone creates its own entity row on
   // first save. Otherwise editing/deleting the clone mutates the original's
