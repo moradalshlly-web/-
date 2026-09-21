@@ -300,6 +300,7 @@ export {
   getNodeResult,
   getNodeLabel,
   getInputFieldSchema,
+  mergeNodeInputOverrides,
   flattenItems,
   migrateToItems,
   validateNoNestedGroups,

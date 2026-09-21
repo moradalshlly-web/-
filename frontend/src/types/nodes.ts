@@ -515,6 +515,14 @@ export type ReferenceAudioData = {
   videoDuration: string
   extractedAudioUrl: string
   extractionStatus: "idle" | "extracting" | "ready" | "failed"
+  /** The length of the media at `extractedAudioUrl`, measured by the worker at
+   *  extraction, stamped with the url it was measured from (`mediaUrl`). Written
+   *  by `referenceAudioMediaPatch` in the same patch as the url; and because
+   *  `editPlanSourceDurationSec` trusts the length only while `mediaUrl` still
+   *  equals the node's media, no other writer can make it stale. Absent = unknown
+   *  (a direct link, an upload, or a node saved before this existed) — Edit Plan
+   *  then quotes its ceiling bucket. */
+  metadata?: { durationSeconds?: number; mediaUrl?: string }
 }
 
 // --- Parameter Node Data ---

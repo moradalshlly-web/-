@@ -46,8 +46,6 @@ Because the plan is just data, an agent or you can decide *what* the edit is; th
 
 ## Credit Cost
 
-> **Provisional pricing.** The numbers below are placeholders and will be finalized at launch. The Run button always shows the live estimate at the current rate.
-
 Edit Plan is priced **per source-minute × tier**, plus a flat component for the extra per-clip work in Clips mode. The source duration is rounded up to a bucket (15 / 30 / 60 / 90 / 120 / 180 minutes) — the credit id carries that bucket.
 
 - **Per source-minute (by tier):** economy `2`, standard `4`, premium `8` credits per minute.
@@ -61,6 +59,16 @@ Edit Plan is priced **per source-minute × tier**, plus a flat component for the
 | Clips · premium · 90-min episode | 90 min | `8 × 90 + 40` | 760 |
 
 The reserve is taken from the recording's own duration; on Nodaro Cloud the exact amount is settled against your account.
+
+### What the estimate shows before you run
+
+The cost on the node, the **Run** button and the run-confirm dialog is an **estimate**, bucketed on the length of the **master source** — the source with the *master audio* role, otherwise the first source in the node's order. It reads that source's own recorded length:
+
+- **Uploaded audio or video, and generated video** carry their length, so the estimate lands on the real bucket.
+- **A YouTube link extracted through [Reference Audio](../input/reference-audio.md)** records the extracted file's length at extraction, so it lands on the real bucket too.
+- **A source with no recorded length** — a direct audio link, or a Reference Audio node extracted before lengths were recorded — estimates at the **largest bucket (180 minutes)**. Re-extracting a YouTube source records its length.
+
+The estimate never borrows a length from the wired transcript: a transcript on the canvas is from the *previous* run, and after you swap in a longer episode it would under-quote the new one. When the length is unknown the estimate deliberately over-quotes instead — it is what the balance check before a run compares against, so a run is refused up front rather than failing partway after earlier nodes were charged. Whatever the estimate showed, what you are **charged is always checked against the recording's real duration**: the server measures the master itself before it reserves, and a run whose master cannot be measured is refused and refunded rather than charged on a guess.
 
 ## Common Use Cases
 

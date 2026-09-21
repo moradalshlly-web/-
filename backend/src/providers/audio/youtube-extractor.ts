@@ -5,6 +5,7 @@ import { promises as fs } from "node:fs"
 import { uploadFileToR2 } from "../../lib/storage.js"
 import { YOUTUBE_HOSTS, hostnameMatchesAllowlist } from "../../lib/url-validator.js"
 import { resolveAttemptChain } from "../video/yt-proxy.js"
+import { probeMediaDuration } from "../video/ffmpeg-utils.js"
 import {
   runThroughClientLadder,
   spawnYtDlpDownload,
@@ -51,6 +52,24 @@ export function buildYtAudioExtractionArgs(url: string, outputPath: string, prox
  * JS runtime ever lands in the image.
  */
 export async function extractYouTubeAudio(youtubeUrl: string): Promise<string> {
+  return (await extractYouTubeAudioWithMeta(youtubeUrl)).url
+}
+
+/** The extracted audio plus its measured length. */
+export interface ExtractedYouTubeAudio {
+  readonly url: string
+  /** Seconds, probed from the LOCAL file before upload (free — no second
+   *  download). Best-effort: absent when the probe fails, never a guess. */
+  readonly durationSeconds?: number
+}
+
+/**
+ * {@link extractYouTubeAudio} plus the file's length. The length is what lets a
+ * URL-sourced master carry a real duration on its node: without it every
+ * duration-bucketed consumer (Edit Plan's credit estimate first among them)
+ * quotes its CEILING for a YouTube source, refusing runs the user can afford.
+ */
+export async function extractYouTubeAudioWithMeta(youtubeUrl: string): Promise<ExtractedYouTubeAudio> {
   // SSRF gate, same as the video lane's in-function check: the worker calls
   // this directly and yt-dlp does its own DNS+HTTP (bypassing safeFetch), so
   // the allowlist here is defense-in-depth beyond the route's Zod.
@@ -97,13 +116,24 @@ export async function extractYouTubeAudio(youtubeUrl: string): Promise<string> {
 
     console.log(`[youtube-extractor] Downloaded to: ${outputPath}`)
 
+    // Probe while the file is still local. A failed probe must never fail an
+    // extraction that succeeded — the length is an optimisation for estimates,
+    // the audio is the deliverable.
+    let durationSeconds: number | undefined
+    try {
+      durationSeconds = await probeMediaDuration(outputPath)
+    } catch (err) {
+      const firstLine = (err instanceof Error ? err.message : String(err)).split("\n")[0]
+      console.warn(`[youtube-extractor] duration probe failed (continuing without it): ${firstLine}`)
+    }
+
     const r2Url = await uploadFileToR2(outputPath, `yt-extract-${outputId}`, "audio")
 
     await fs.unlink(outputPath).catch(() => {})
 
     console.log(`[youtube-extractor] Uploaded to R2: ${r2Url}`)
 
-    return r2Url
+    return durationSeconds !== undefined ? { url: r2Url, durationSeconds } : { url: r2Url }
   } catch (err) {
     await fs.unlink(outputPath).catch(() => {})
     const message = err instanceof Error ? err.message : "Failed to extract YouTube audio"

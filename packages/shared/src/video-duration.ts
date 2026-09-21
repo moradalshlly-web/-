@@ -29,7 +29,9 @@ export function extractVideoDurationFromNode(
  *  `upload-audio` (and URL-imported audio) write their length to
  *  `metadata.durationSeconds` ONLY — never `generatedResults[].duration` /
  *  `data.duration` — so a podcast's audio master would otherwise resolve to
- *  undefined and reserve the 180-minute ceiling (a ~6× overbill).
+ *  undefined and reserve the 180-minute ceiling (a ~6× overbill). A
+ *  `reference-audio` node records its extracted file's length in the same field,
+ *  stamped with `metadata.mediaUrl` (see the binding check below).
  *
  *  Deliberately a NEW function, not a change to `extractVideoDurationFromNode`,
  *  so no other node's duration read shifts — this fallback is edit-plan-scoped. */
@@ -38,7 +40,18 @@ export function editPlanSourceDurationSec(
 ): number | undefined {
   const fromVideo = extractVideoDurationFromNode(data)
   if (fromVideo !== undefined) return fromVideo
-  const meta = data?.metadata as { durationSeconds?: unknown } | undefined
+  const meta = data?.metadata as { durationSeconds?: unknown; mediaUrl?: unknown } | undefined
+  // A length stamped with the media it was measured from is trusted ONLY while
+  // that media is still the node's. This is the read-side invariant that makes a
+  // stale length impossible whoever changed the url — a copilot patch, an MCP
+  // workflow-JSON write, an import, a run-time input override, or code not yet
+  // written: a mismatch reads as "unknown", and every caller then falls to its
+  // safe side (the transcript clock, the reserve-time probe, the ceiling bucket)
+  // instead of under-bucketing a longer file. An UNSTAMPED length (upload-audio,
+  // nodes saved before the stamp existed) is trusted as it always was.
+  if (typeof meta?.mediaUrl === "string" && meta.mediaUrl !== data?.extractedAudioUrl && meta.mediaUrl !== data?.url) {
+    return undefined
+  }
   const d = meta?.durationSeconds
   return typeof d === "number" && Number.isFinite(d) && d > 0 ? d : undefined
 }

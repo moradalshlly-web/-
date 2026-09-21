@@ -1232,3 +1232,70 @@ describe("legacy presentationVisible rules for a media producer", () => {
     expect(getOutputNodes(nodes, [mkEdge("txt", "gv")])).toEqual([])
   })
 })
+
+
+// ---------------------------------------------------------------------------
+// mergeNodeInputOverrides — media-bound `metadata` must not outlive its media
+// ---------------------------------------------------------------------------
+import { mergeNodeInputOverrides, INPUT_FIELD_MAP } from "../presentation-utils"
+
+describe("mergeNodeInputOverrides", () => {
+  const saved = {
+    label: "Episode",
+    extractedAudioUrl: "https://cdn/publisher-10min.mp3",
+    extractionStatus: "ready",
+    metadata: { durationSeconds: 600 },
+  }
+
+  it("drops the saved metadata when an override SWAPS the node's media", () => {
+    const merged = mergeNodeInputOverrides("reference-audio", saved, {
+      extractedAudioUrl: "https://cdn/caller-60min.mp3",
+    })
+    expect(merged.extractedAudioUrl).toBe("https://cdn/caller-60min.mp3")
+    expect("metadata" in merged).toBe(false)
+    // …and nothing else is touched.
+    expect(merged.label).toBe("Episode")
+    expect(merged.extractionStatus).toBe("ready")
+  })
+
+  it("keeps the metadata when the override leaves the media alone", () => {
+    expect(mergeNodeInputOverrides("reference-audio", saved, { label: "Renamed" }).metadata).toEqual({ durationSeconds: 600 })
+    // Same url re-sent (an app run that did not change this input) is not a swap.
+    expect(
+      mergeNodeInputOverrides("reference-audio", saved, { extractedAudioUrl: saved.extractedAudioUrl }).metadata,
+    ).toEqual({ durationSeconds: 600 })
+  })
+
+  it("an override that brings its OWN metadata wins (the caller measured the new media)", () => {
+    const merged = mergeNodeInputOverrides("reference-audio", saved, {
+      extractedAudioUrl: "https://cdn/caller-60min.mp3",
+      metadata: { durationSeconds: 3600 },
+    })
+    expect(merged.metadata).toEqual({ durationSeconds: 3600 })
+  })
+
+  it("is schema-driven: every media input node in INPUT_FIELD_MAP is covered, no list to remember", () => {
+    const mediaTypes = Object.entries(INPUT_FIELD_MAP).filter(([, f]) => /-url$/.test(f.type))
+    expect(mediaTypes.length).toBeGreaterThanOrEqual(4) // upload-image/video/audio + reference-audio
+    for (const [nodeType, field] of mediaTypes) {
+      const data = { [field.key]: "https://cdn/old", metadata: { durationSeconds: 600, width: 1920 } }
+      const merged = mergeNodeInputOverrides(nodeType, data, { [field.key]: "https://cdn/new" })
+      expect("metadata" in merged, `${nodeType} kept stale metadata`).toBe(false)
+    }
+  })
+
+  it("never touches metadata on a non-media input node, or an unknown type", () => {
+    const data = { text: "a", metadata: { note: "mine" } }
+    expect(mergeNodeInputOverrides("text-prompt", data, { text: "b" }).metadata).toEqual({ note: "mine" })
+    expect(mergeNodeInputOverrides(undefined, data, { text: "b" }).metadata).toEqual({ note: "mine" })
+    expect(mergeNodeInputOverrides("not-a-node", data, { text: "b" }).metadata).toEqual({ note: "mine" })
+  })
+
+  it("does not mutate its inputs", () => {
+    const data = { ...saved }
+    const overrides = { extractedAudioUrl: "https://cdn/new.mp3" }
+    mergeNodeInputOverrides("reference-audio", data, overrides)
+    expect(data.metadata).toEqual({ durationSeconds: 600 })
+    expect(overrides).toEqual({ extractedAudioUrl: "https://cdn/new.mp3" })
+  })
+})

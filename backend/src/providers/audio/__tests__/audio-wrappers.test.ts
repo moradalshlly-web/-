@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
   const uploadFileToR2 = vi.fn()
   const fsAccess = vi.fn()
   const fsUnlink = vi.fn()
+  const probeMediaDuration = vi.fn()
   const speechToText = vi.fn()
   const directStt = vi.fn()
   const fastWhisperToCaptions = vi.fn(() => [])
@@ -36,7 +37,7 @@ const mocks = vi.hoisted(() => {
   return {
     directStt,
     replicateRun, predictionsCreate, replicateWait, extractCost,
-    spawnYtDlp, uploadFileToR2, fsAccess, fsUnlink,
+    spawnYtDlp, uploadFileToR2, fsAccess, fsUnlink, probeMediaDuration,
     speechToText, fastWhisperToCaptions, whisperToCaptions,
   }
 })
@@ -73,6 +74,14 @@ vi.mock("@/lib/storage.js", () => ({
   uploadFileToR2: mocks.uploadFileToR2,
 }))
 
+// The extractor probes the downloaded file's length before upload. Only the
+// probe is stubbed (it would shell out to ffprobe against a file the mocked
+// spawn never wrote); the rest of ffmpeg-utils stays REAL.
+vi.mock("../../video/ffmpeg-utils.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../video/ffmpeg-utils.js")>()
+  return { ...actual, probeMediaDuration: mocks.probeMediaDuration }
+})
+
 // Real fs except the two calls under test — youtube-video.ts (imported for
 // real above) resolves the yt-dlp binary with existsSync at module load.
 vi.mock("node:fs", async (importOriginal) => {
@@ -102,7 +111,7 @@ vi.mock("@/lib/config.js", () => ({
 // Imports under test (after mocks)
 // ---------------------------------------------------------------------------
 
-import { extractYouTubeAudio } from "../youtube-extractor.js"
+import { extractYouTubeAudio, extractYouTubeAudioWithMeta } from "../youtube-extractor.js"
 import { textToAudio } from "../text-to-audio.js"
 import { generateMusic } from "../generate-music.js"
 import { transcribe } from "../transcribe.js"
@@ -114,12 +123,53 @@ beforeEach(() => {
   mocks.fsUnlink.mockResolvedValue(undefined)
   mocks.uploadFileToR2.mockResolvedValue("https://r2/uploaded.mp3")
   mocks.spawnYtDlp.mockResolvedValue(undefined)
+  mocks.probeMediaDuration.mockResolvedValue(3564.2)
   mocks.extractCost.mockReturnValue(0.001)
 })
 
 // ===========================================================================
 // 1) youtube-extractor.ts
 // ===========================================================================
+
+describe("extractYouTubeAudioWithMeta", () => {
+  // The length is what lets a URL-sourced master carry a real duration on its
+  // node; without it every duration-bucketed consumer quotes its ceiling.
+  it("returns the R2 url plus the length probed from the LOCAL file", async () => {
+    mocks.uploadFileToR2.mockResolvedValueOnce("https://r2/yt-extract-abc.mp3")
+
+    const out = await extractYouTubeAudioWithMeta("https://youtube.com/watch?v=xyz")
+
+    expect(out).toEqual({ url: "https://r2/yt-extract-abc.mp3", durationSeconds: 3564.2 })
+    // Probed the temp file — not the uploaded url (that would be a second download).
+    const probed = mocks.probeMediaDuration.mock.calls[0]![0] as string
+    expect(probed).toMatch(/yt-extract-.*\.mp3$/)
+    expect(probed.startsWith("http")).toBe(false)
+  })
+
+  it("probes BEFORE the temp file is deleted", async () => {
+    await extractYouTubeAudioWithMeta("https://youtube.com/watch?v=xyz")
+    const probeOrder = mocks.probeMediaDuration.mock.invocationCallOrder[0]!
+    const unlinkOrder = mocks.fsUnlink.mock.invocationCallOrder[0]!
+    expect(probeOrder).toBeLessThan(unlinkOrder)
+  })
+
+  it("a failed probe never fails the extraction — the url comes back without a length", async () => {
+    mocks.probeMediaDuration.mockRejectedValueOnce(new Error("ffprobe exited 1"))
+    mocks.uploadFileToR2.mockResolvedValueOnce("https://r2/yt-extract-abc.mp3")
+
+    const out = await extractYouTubeAudioWithMeta("https://youtube.com/watch?v=xyz")
+
+    expect(out).toEqual({ url: "https://r2/yt-extract-abc.mp3" })
+    expect("durationSeconds" in out).toBe(false)
+    expect(mocks.uploadFileToR2).toHaveBeenCalledOnce()
+  })
+
+  it("does not probe when the download failed", async () => {
+    mocks.spawnYtDlp.mockRejectedValue(new Error("download failed"))
+    await expect(extractYouTubeAudioWithMeta("https://youtube.com/watch?v=bad")).rejects.toThrow()
+    expect(mocks.probeMediaDuration).not.toHaveBeenCalled()
+  })
+})
 
 describe("extractYouTubeAudio", () => {
   it("downloads via the shared hardened spawn, uploads to R2, and returns the R2 URL", async () => {

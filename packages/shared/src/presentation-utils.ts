@@ -400,6 +400,48 @@ export function getInputFieldSchema(nodeType: string): InputFieldSchema | undefi
   return INPUT_FIELD_MAP[nodeType]
 }
 
+const MEDIA_INPUT_FIELD_TYPES: ReadonlySet<InputFieldSchema["type"]> = new Set([
+  "image-url",
+  "video-url",
+  "audio-url",
+])
+
+/**
+ * Shallow-merge run-time input overrides (a published app's inputs, an API-token
+ * run, MCP `run_app` / `run_workflow` inputs, a wired component handle) over a
+ * node's SAVED data — the one merge every such lane must use.
+ *
+ * `metadata` holds facts measured FROM the node's media (its length, its
+ * dimensions). When an override swaps that media — the node's primary input
+ * field is a media url (`INPUT_FIELD_MAP`) and the override changes it — the
+ * snapshot's facts describe a file that is no longer there, so they are dropped
+ * unless the override supplies its own. Left behind, a publisher's
+ * `metadata.durationSeconds` outranks the run's own transcript as Edit Plan's
+ * duration basis and under-buckets a caller's longer episode: an estimate that
+ * passes the balance precheck for a run the reserve then refuses.
+ *
+ * Schema-driven on purpose: a new media input node is covered by its
+ * `INPUT_FIELD_MAP` row, with no list to remember here.
+ */
+export function mergeNodeInputOverrides(
+  nodeType: string | undefined,
+  data: Record<string, unknown>,
+  overrides: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...data, ...overrides }
+  const schema = nodeType ? INPUT_FIELD_MAP[nodeType] : undefined
+  if (
+    schema &&
+    MEDIA_INPUT_FIELD_TYPES.has(schema.type) &&
+    schema.key in overrides &&
+    overrides[schema.key] !== data[schema.key] &&
+    !("metadata" in overrides)
+  ) {
+    delete merged.metadata
+  }
+  return merged
+}
+
 // ---------------------------------------------------------------------------
 // Migration & validation helpers (PresentationItem)
 // ---------------------------------------------------------------------------
