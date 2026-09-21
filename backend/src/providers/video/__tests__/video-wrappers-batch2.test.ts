@@ -305,22 +305,19 @@ describe("addCaptions", () => {
     expect(vf).toContain("line1\\nline2")
   })
 
-  // The plain-text FFmpeg fast-path keeps its LEGACY fixed pixel offsets
-  // (h-th-40 / y=40). Unifying them with the Remotion CAPTION_EDGE_INSET
-  // ({top:12%, bottom:18%}) is a deliberate follow-up — the y-position is a
-  // characterization golden, so the change needs a re-bless (see the comment on
-  // add-captions.ts POSITION_Y). A caller wanting the unified anchor sets
-  // position_y (→ Remotion).
-  it("default position bottom uses the legacy h-th-40 offset", async () => {
+  // The FFmpeg drawtext anchors are unified with the Remotion CAPTION_EDGE_INSET
+  // ({top: 12%, bottom: 18%}) so `position` means the same on both engines — the
+  // old fixed h-th-40 / y=40 pixel offsets are gone (see add-captions.ts POSITION_Y).
+  it("default position bottom uses the 18% bottom inset (h-h*0.18-th)", async () => {
     await addCaptions({ videoUrl: "u", text: "x" })
     const vf = ffargs()[ffargs().indexOf("-vf") + 1]
-    expect(vf).toContain("y=h-th-40")
+    expect(vf).toContain("y=h-h*0.18-th")
   })
 
-  it("position top uses the legacy y=40 offset", async () => {
+  it("position top uses the 12% top inset (h*0.12)", async () => {
     await addCaptions({ videoUrl: "u", text: "x", position: "top" })
     const vf = ffargs()[ffargs().indexOf("-vf") + 1]
-    expect(vf).toContain("y=40")
+    expect(vf).toContain("y=h*0.12")
   })
 
   it("position center uses (h-th)/2", async () => {
