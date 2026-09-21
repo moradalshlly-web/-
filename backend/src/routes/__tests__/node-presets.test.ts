@@ -28,6 +28,7 @@ vi.mock("@/lib/config.js", () => ({
 
 import { nodePresetRoutes } from "../node-presets.js"
 import { supabase } from "../../lib/supabase.js"
+import { __resetSurfaceProfileCacheForTests } from "../../lib/surface-profile.js"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 
@@ -238,6 +239,24 @@ describe("node-presets routes", () => {
     await app.register(nodePresetRoutes)
     const res = await app.inject({ method: "GET", url: "/v1/node-presets/factory" })
     expect(res.statusCode).toBe(400)
+  })
+
+  it("withholds factory presets when the deployment disables them", async () => {
+    const previous = process.env.NODARO_SURFACE_PROFILE
+    process.env.NODARO_SURFACE_PROFILE = JSON.stringify({ catalogs: { required: true, factoryPresets: false } })
+    __resetSurfaceProfileCacheForTests()
+    try {
+      const app = buildApp()
+      await app.register(nodePresetRoutes)
+      const res = await app.inject({ method: "GET", url: "/v1/node-presets/factory?nodeType=person" })
+      expect(res.statusCode).toBe(200)
+      expect(res.json().data).toEqual([])
+      await app.close()
+    } finally {
+      if (previous === undefined) delete process.env.NODARO_SURFACE_PROFILE
+      else process.env.NODARO_SURFACE_PROFILE = previous
+      __resetSurfaceProfileCacheForTests()
+    }
   })
 
   // ── Favorites ────────────────────────────────────────────────────────────

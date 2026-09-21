@@ -1,3 +1,4 @@
+import { runtimeSurfaceProfile } from "../surface-profile.js"
 import { z } from "zod"
 import { extractPresetData } from "@nodaro/shared"
 import { getFactoryPresets } from "@nodaro/prompts"
@@ -35,6 +36,7 @@ const recastFactories = [
 ].map(p => ({ ...p, group: "Render", groupKind: "functional" as const }))
 
 export function presetCatalog(nodeType: string) {
+  if (runtimeSurfaceProfile().catalogs?.factoryPresets === false) return []
   return nodeType === "recast-render" ? recastFactories : getFactoryPresets(nodeType)
 }
 

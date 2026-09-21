@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
@@ -124,6 +124,25 @@ async function openLibraryTab() {
 beforeEach(() => {
   vi.clearAllMocks()
   ioCallbacks.length = 0
+})
+
+afterEach(() => { delete window.__NODARO_RUNTIME__ })
+
+it("male-only deployment hides stale female labels, library results and gender filters", async () => {
+  window.__NODARO_RUNTIME__ = { surface: { voice: { allowedGenders: ["male"] } } }
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  render(<QueryClientProvider client={qc}>
+    <VoiceBrowser value="Rachel" valueLabel="Rachel" onSelect={vi.fn()} showCustomVoices triggerAriaLabel="Open voice picker" />
+  </QueryClientProvider>)
+  expect(screen.queryByText("Rachel")).not.toBeInTheDocument()
+  await openLibraryTab()
+  await waitFor(() => expect(mockSearchVoiceLibrary).toHaveBeenCalled())
+  expect(screen.queryByText("Lib Voice 0")).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Female" })).not.toBeInTheDocument()
+  expect(screen.queryByText(translate("en", "cfgext.voiceTabMyVoices"))).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText(translate("en", "cfgext.voiceTabPremade")))
+  expect(await screen.findByText("Premade 0")).toBeInTheDocument()
+  expect(screen.queryByText("Rachel")).not.toBeInTheDocument()
 })
 
 describe("VoiceBrowser — Voice Library infinite scroll", () => {

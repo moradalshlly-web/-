@@ -6,7 +6,7 @@
  * drift apart across the fleet. (The client apps carry the same file; their
  * Flow entry tracks the platform origin they're built against.)
  */
-import { surfaceSiblings } from "./surface-selectors"
+import { surfaceSiblings, surfacePlatformLinks } from "./surface-selectors"
 import type { SurfaceSibling } from "./surface-profile"
 
 export type NodaroAppId = "flow" | "studio" | "person" | "voice" | "recast"
@@ -33,5 +33,5 @@ export const NODARO_APPS: readonly NodaroApp[] = [
  */
 export function otherNodaroApps(current: NodaroAppId): readonly SurfaceSibling[] {
   const codeDefault = NODARO_APPS.filter((app) => app.id !== current).map((a) => ({ label: a.label, url: a.href }))
-  return surfaceSiblings(codeDefault)
+  return surfaceSiblings(surfacePlatformLinks() ? codeDefault : [])
 }

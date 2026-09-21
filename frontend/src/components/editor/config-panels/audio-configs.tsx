@@ -1,4 +1,5 @@
 "use client"
+import { surfaceVoiceGenderAllowed } from "@/lib/surface-selectors"
 
 import { useMemo, useCallback, useEffect } from "react"
 import { findUpstreamSunoIds, type UpstreamSunoIds } from "@/lib/suno-ids"
@@ -219,7 +220,7 @@ export function TextToSpeechConfig({ data, onUpdate, sources, fieldMappings, onM
       <div>
         <Label>{t("field.voice")}</Label>
         <VoiceBrowser
-          value={data.voiceId || "Rachel"}
+          value={data.voiceId || (surfaceVoiceGenderAllowed("female") ? "Rachel" : "")}
           valueLabel={data.voiceDisplayName || data.voiceLabel}
           onSelect={(id, name, voiceType, providerMeta) => {
             if (voiceType === "custom" || voiceType === "library") {
@@ -550,8 +551,8 @@ export function SunoGenerateConfig({ data, onUpdate, sources, fieldMappings, onM
           <SelectTrigger aria-label={t("audiocfg.vocalGenderOptional")}><SelectValue placeholder={t("audiocfg.phAuto")} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="auto">{t("audiocfg.phAuto")}</SelectItem>
-            <SelectItem value="male">{t("audiocfg.male")}</SelectItem>
-            <SelectItem value="female">{t("audiocfg.female")}</SelectItem>
+            {surfaceVoiceGenderAllowed("male") && <SelectItem value="male">{t("audiocfg.male")}</SelectItem>}
+            {surfaceVoiceGenderAllowed("female") && <SelectItem value="female">{t("audiocfg.female")}</SelectItem>}
           </SelectContent>
         </Select>
       </MappableField>
@@ -708,8 +709,8 @@ export function SunoCoverConfig({ data, onUpdate, sources, fieldMappings, onMapF
           <SelectTrigger aria-label={t("audiocfg.vocalGenderOptional")}><SelectValue placeholder={t("audiocfg.phAuto")} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="auto">{t("audiocfg.phAuto")}</SelectItem>
-            <SelectItem value="male">{t("audiocfg.male")}</SelectItem>
-            <SelectItem value="female">{t("audiocfg.female")}</SelectItem>
+            {surfaceVoiceGenderAllowed("male") && <SelectItem value="male">{t("audiocfg.male")}</SelectItem>}
+            {surfaceVoiceGenderAllowed("female") && <SelectItem value="female">{t("audiocfg.female")}</SelectItem>}
           </SelectContent>
         </Select>
       </MappableField>
@@ -1145,8 +1146,8 @@ export function SunoMashupConfig({ data, onUpdate, sources, fieldMappings, onMap
           <SelectTrigger aria-label={t("audiocfg.vocalGender")}><SelectValue placeholder={t("audiocfg.phAuto")} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="auto">{t("audiocfg.phAuto")}</SelectItem>
-            <SelectItem value="male">{t("audiocfg.male")}</SelectItem>
-            <SelectItem value="female">{t("audiocfg.female")}</SelectItem>
+            {surfaceVoiceGenderAllowed("male") && <SelectItem value="male">{t("audiocfg.male")}</SelectItem>}
+            {surfaceVoiceGenderAllowed("female") && <SelectItem value="female">{t("audiocfg.female")}</SelectItem>}
           </SelectContent>
         </Select>
       </MappableField>
@@ -1409,8 +1410,8 @@ export function SunoUploadExtendConfig({ data, onUpdate, sources, fieldMappings,
           <SelectTrigger aria-label={t("audiocfg.vocalGender")}><SelectValue placeholder={t("audiocfg.phAuto")} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="auto">{t("audiocfg.phAuto")}</SelectItem>
-            <SelectItem value="male">{t("audiocfg.male")}</SelectItem>
-            <SelectItem value="female">{t("audiocfg.female")}</SelectItem>
+            {surfaceVoiceGenderAllowed("male") && <SelectItem value="male">{t("audiocfg.male")}</SelectItem>}
+            {surfaceVoiceGenderAllowed("female") && <SelectItem value="female">{t("audiocfg.female")}</SelectItem>}
           </SelectContent>
         </Select>
       </MappableField>
@@ -2157,7 +2158,7 @@ export function VoiceChangerConfig({ data, onUpdate, nodeRefs }: ConfigProps<Voi
       <div>
         <Label>{t("field.voice")}</Label>
         <VoiceBrowser
-          value={data.voiceId || "Rachel"}
+          value={data.voiceId || (surfaceVoiceGenderAllowed("female") ? "Rachel" : "")}
           valueLabel={data.voiceLabel}
           onSelect={(id, name, voiceType) => {
             if (voiceType === "custom" || voiceType === "library") {

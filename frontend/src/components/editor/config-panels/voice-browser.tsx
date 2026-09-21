@@ -1,3 +1,4 @@
+import { surfaceVoiceGenderAllowed } from "@/lib/surface-selectors"
 import { useLocalizeOptionLabel } from "@/lib/i18n/labels"
 import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import { ChevronDown, Play, Pause, Search, Loader2, Trash2, SlidersHorizontal, Info } from "lucide-react"
@@ -292,7 +293,7 @@ export function VoiceBrowser({ value, valueLabel, onSelect, compact, showCustomV
   // the FULL library (a filter change starts a fresh query at page 0), so the
   // loaded window is always a prefix of the correctly-filtered result set.
   const libraryVoices = useMemo(
-    () => libraryData?.pages.flatMap((p) => p.voices) ?? [],
+    () => libraryData?.pages.flatMap((p) => p.voices).filter((v) => surfaceVoiceGenderAllowed(v.gender)) ?? [],
     [libraryData],
   )
 
@@ -354,14 +355,16 @@ export function VoiceBrowser({ value, valueLabel, onSelect, compact, showCustomV
     }
   }, [])
 
-  const displayLabel = valueLabel || value || t("cfgext.voiceSelectVoice")
+  const displayLabel = surfaceVoiceGenderAllowed(undefined)
+    ? valueLabel || value || t("cfgext.voiceSelectVoice")
+    : [...allPremade, ...libraryVoices].find((v) => (v.voice_id === value || v.name === value) && surfaceVoiceGenderAllowed(v.gender))?.name || t("cfgext.voiceSelectVoice")
 
   // "My Voices" lists the clones a user made BEFORE voice cloning was retired
   // (2026-09-15) — there is no way to add one any more, so the tab exists only
   // while the user still has at least one. Hidden until the list is known to be
   // non-empty (an appearing tab is calmer than one that vanishes mid-load).
   const { data: existingClones } = useVoiceClones(showCustomVoices)
-  const hasCustomVoices = showCustomVoices && (existingClones?.length ?? 0) > 0
+  const hasCustomVoices = surfaceVoiceGenderAllowed(undefined) && showCustomVoices && (existingClones?.length ?? 0) > 0
   useEffect(() => {
     if (tab === "my-voices" && !hasCustomVoices) setTab("library")
   }, [tab, hasCustomVoices])
@@ -438,7 +441,7 @@ export function VoiceBrowser({ value, valueLabel, onSelect, compact, showCustomV
             {/* Filters */}
             <div className="flex items-center gap-2">
               <div className="flex gap-1">
-                {GENDER_FILTERS.map((g) => (
+                {GENDER_FILTERS.filter((g) => g === "All" || surfaceVoiceGenderAllowed(g)).map((g) => (
                   <button
                     key={g}
                     type="button"
@@ -537,7 +540,7 @@ export function VoiceBrowser({ value, valueLabel, onSelect, compact, showCustomV
             {/* Gender chips + Sort */}
             <div className="flex items-center gap-2">
               <div className="flex gap-1 flex-1">
-                {GENDER_FILTERS.map((g) => (
+                {GENDER_FILTERS.filter((g) => g === "All" || surfaceVoiceGenderAllowed(g)).map((g) => (
                   <button
                     key={g}
                     type="button"

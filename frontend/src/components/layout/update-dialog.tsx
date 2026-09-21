@@ -1,5 +1,6 @@
 "use client"
 
+import { surfacePlatformLinks } from "@/lib/surface-selectors"
 import { useState } from "react"
 import { ArrowUp, Check, X } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
@@ -106,7 +107,7 @@ export function UpdateDialog({
   readonly mode?: "upgrade" | "whats-new" | "current"
 }) {
   const [backedUp, setBackedUp] = useState(false)
-  if (!info.latest) return null
+  if (!surfacePlatformLinks() || !info.latest) return null
   const latest = info.latest
   const upgrade = mode === "upgrade"
   const isMajor = upgrade && V(latest.version).split(".")[0] !== V(info.current).split(".")[0]

@@ -70,9 +70,9 @@ describe("what's-new dialog — click-only", () => {
 // on hasCredits() (a billing question) — self-host lost the affordance the
 // moment it was up to date, while /v1/version had already fetched the notes.
 describe("version indicator — edition-agnostic", () => {
-  it("is not gated on hasCredits(); it shows whenever a release is known", () => {
+  it("is not gated on hasCredits(); deployments may opt out of platform links", () => {
     expect(source).not.toMatch(/whatsNewMode\s*=\s*hasCredits\(\)/)
-    expect(source).toMatch(/const showVersionIndicator = Boolean\(updateInfo\?\.latest\)/)
+    expect(source).toMatch(/const showVersionIndicator = surfacePlatformLinks\(\) && Boolean\(updateInfo\?\.latest\)/)
   })
 
   it("the dialog mode is derived from the install's state, with a 'current' mode for an up-to-date self-host", () => {

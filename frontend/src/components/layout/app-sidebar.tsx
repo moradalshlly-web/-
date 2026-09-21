@@ -60,7 +60,7 @@ const OrgSwitcherSection = hasOrganizations()
   ? lazy(() => import("@/ee/components/org/org-switcher-section").then((m) => ({ default: m.OrgSwitcherSection })))
   : null
 import { otherNodaroApps } from "@/lib/nodaro-apps"
-import { surfaceNavHidden, surfaceTabs, surfaceBillingSelfServe, surfaceSidebarCreditCardHidden } from "@/lib/surface-selectors"
+import { surfaceNavHidden, surfaceTabs, surfaceBillingSelfServe, surfaceSidebarCreditCardHidden, surfaceBrandName, surfacePlatformLinks } from "@/lib/surface-selectors"
 import { creditUnits, creditUnitLabel } from "@/lib/credit-units"
 import { spendableCredits, type BalanceWithAllowance, type CreditAllowance } from "@/lib/spendable-credits"
 import { useBillingSurface } from "@/hooks/use-billing-surface"
@@ -74,11 +74,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSidebar, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_EXPANDED_WIDTH } from "./sidebar-context"
-
-/** The rest of the Nodaro family, one hop away — the canonical fleet order
- *  minus Flow (see `nodaro-apps.ts`). All open in NEW tabs: the logo must
- *  never navigate a mid-edit user away. */
-const NODARO_SURFACES = otherNodaroApps("flow")
 
 const STORAGE_KEY = "nodaro-sidebar-collapsed"
 
@@ -346,6 +341,8 @@ export function AppSidebar({
   // Self-serve purchase off (a prepaid instance): the credit card is a plain
   // readout — no hop to /billing — and the Pricing/Billing entries are withheld.
   const selfServe = surfaceBillingSelfServe()
+  const brandName = surfaceBrandName()
+  const siblingApps = otherNodaroApps("flow")
   const [mounted, setMounted] = useState(false)
   const updateInfo = useUpdateCheck()
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
@@ -405,7 +402,7 @@ export function AppSidebar({
   }, [latestVersion])
   // Clickable whenever a release is known; plain text only while the check
   // has not answered or is off (NODARO_UPDATE_CHECK=off — air-gapped installs).
-  const showVersionIndicator = Boolean(updateInfo?.latest)
+  const showVersionIndicator = surfacePlatformLinks() && Boolean(updateInfo?.latest)
   const [initializedFromStorage, setInitializedFromStorage] = useState(false)
   const { data: pendingReportsCount = 0 } = useGalleryReportCount()
 
@@ -476,8 +473,8 @@ export function AppSidebar({
               the Projects nav item right below, so no navigation is lost. */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              aria-label={t("nav.openNodaroApp")}
-              title={t("nav.nodaroApps")}
+              aria-label={brandName === "Nodaro" ? t("nav.openNodaroApp") : t("nav.openMenu")}
+              title={brandName === "Nodaro" ? t("nav.nodaroApps") : brandName}
               className={cn(
                 "flex items-center gap-2 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded",
                 isCollapsed ? "justify-center w-full" : "ms-1",
@@ -490,9 +487,9 @@ export function AppSidebar({
               )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-56">
-              <DropdownMenuLabel>Nodaro</DropdownMenuLabel>
+              <DropdownMenuLabel>{brandName}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {NODARO_SURFACES.map((surface) => (
+              {siblingApps.map((surface) => (
                 <DropdownMenuItem key={surface.url} asChild className="px-3">
                   <a href={surface.url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="size-4" />

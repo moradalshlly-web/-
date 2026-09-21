@@ -7,7 +7,6 @@ import { ContinueTab } from "@/components/dashboard/home/continue-tab"
 import { ExploreTab } from "@/components/dashboard/home/explore-tab"
 import { HomeHeader } from "@/components/dashboard/home/home-header"
 import {
-  EXPLORE_SECTION_KEYS,
   HOME_PANEL_ID,
   MINIAPPS_KEY,
   STATISTICS_KEY,
@@ -21,7 +20,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { useCreateWorkflow } from "@/hooks/use-create-workflow"
 import type { MyWorkflow } from "@/hooks/queries/use-my-workflows-queries"
 import { useT } from "@/lib/i18n"
-import { surfaceNavHidden, surfaceTabs } from "@/lib/surface-selectors"
+import { surfaceNavHidden, surfaceTabs, surfaceTemplatesVisible } from "@/lib/surface-selectors"
 
 const VIEW_ALL_STORAGE_KEY = "nodaro-admin-view-all-projects"
 const NO_USERS: ReadonlyArray<UserFilterUser> = []
@@ -78,7 +77,7 @@ export default function ProjectsPage() {
   // (the sidebar's Projects item) does not remount this page, so seeded state
   // would keep the old tab open. The last tab is deliberately not restored from
   // storage for the same reason — Projects must always land on Continue.
-  const exploreVisible = surfaceTabs(EXPLORE_SECTION_KEYS).length > 0
+  const exploreVisible = surfaceTemplatesVisible() || surfaceTabs(["tutorials"]).length > 0
   const resolution = resolveHomeTab(searchParams.get("tab"), {
     exploreVisible,
     // Same two gates as the sidebar's MiniApps entry.

@@ -40,6 +40,19 @@ describe("composePickerCatalogs — pure", () => {
     expect(out[0].options!.map((o: PickerOption) => o.id)).toEqual(["forest", "beach", "shul"])
   })
 
+  it("denies auxiliary dimensions on single catalogs and replaces a removed default", () => {
+    const hybrid: PickerCatalog = { ...base[0], defaultValue: "beach", dimensions: [
+      { field: "speed", label: "Speed", options: [{ id: "fast", label: "Fast", term: "fast", promptHint: "fast" }] },
+    ] }
+    const [out] = composePickerCatalogs([hybrid], [{ id: "curation", catalogId: "setting", mode: "deny", denyIds: ["beach", "fast"] }])
+    expect(out.options?.map((o) => o.id)).toEqual(["forest"])
+    expect(out.dimensions?.[0].options).toEqual([])
+    expect(out.defaultValue).toBe("forest")
+    expect(hybrid.dimensions?.[0].options).toHaveLength(1)
+    const [empty] = composePickerCatalogs([hybrid], [{ id: "empty", catalogId: "setting", mode: "deny", denyIds: ["forest", "beach", "fast"] }])
+    expect(empty.defaultValue).toBeUndefined()
+  })
+
   it("replace swaps the catalog wholesale for its catalogId", () => {
     const vendored: PickerCatalogInput = { nodeType: "setting", label: "Setting", catalogId: "setting", kind: "single",
       valueField: "setting", options: [{ id: "forest", label: "Forest", promptHint: "in a forest", term: "forest" }] }

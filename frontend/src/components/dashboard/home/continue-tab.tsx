@@ -14,7 +14,7 @@ import type { UserFilterUser } from "@/components/user-filter"
 import type { MyWorkflow } from "@/hooks/queries/use-my-workflows-queries"
 import { useProjectsStore } from "@/hooks/use-projects-store"
 import { useT } from "@/lib/i18n"
-import { surfaceTabs } from "@/lib/surface-selectors"
+import { surfaceTabs, surfacePlatformLinks } from "@/lib/surface-selectors"
 import { SectionTitle, SegmentedControl, ThemeSwitch, type SegmentOption } from "./home-section"
 import { NODARO_APPS_KEY } from "./home-tabs"
 import { WelcomeOfferBannerSlot } from "./welcome-offer-banner-slot"
@@ -100,7 +100,7 @@ export function ContinueTab({
   }
   const options: readonly SegmentOption<WorkspaceTab>[] = visibleTabs.map((value) => ({ value, label: labels[value] }))
 
-  const showApps = surfaceTabs([NODARO_APPS_KEY]).length > 0
+  const showApps = surfacePlatformLinks() && surfaceTabs([NODARO_APPS_KEY]).length > 0
   const searchPlaceholder =
     activeTab === "projects"
       ? showAll

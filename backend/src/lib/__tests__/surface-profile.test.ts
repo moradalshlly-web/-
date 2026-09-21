@@ -457,3 +457,20 @@ describe("billing — the allowance keys (Track A / WS0): defaultAllowanceUnits 
     expect(parsed.billing).toEqual({ costTab: "inherit", sidebarCard: "inherit", selfServe: false, unitLabel: "קרדיטים", unitRate: 2000 })
   })
 })
+
+
+it("round-trips hidden platform links without losing the deployment brand", () => {
+  expect(parseSurfaceProfile(JSON.stringify({ brand: { productName: "Acme", platformLinks: false } })).brand)
+    .toEqual({ productName: "Acme", platformLinks: false })
+  expect(parseSurfaceProfile(JSON.stringify({ brand: { productName: "Acme", platformLinks: "invalid" } })).brand)
+    .toEqual({ productName: "Acme", platformLinks: false })
+  expect(parseSurfaceProfile("{}").brand.platformLinks).toBeUndefined()
+})
+
+it("preserves required catalogs and disabled factory presets, with safe malformed values", () => {
+  expect(parseSurfaceProfile("{}").catalogs).toEqual({ required: false, factoryPresets: true })
+  expect(parseSurfaceProfile(JSON.stringify({ catalogs: { required: true, factoryPresets: false } })).catalogs)
+    .toEqual({ required: true, factoryPresets: false })
+  expect(parseSurfaceProfile(JSON.stringify({ catalogs: { required: "invalid", factoryPresets: "invalid" } })).catalogs)
+    .toEqual({ required: true, factoryPresets: false })
+})

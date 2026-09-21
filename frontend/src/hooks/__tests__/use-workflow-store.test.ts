@@ -29,6 +29,7 @@ vi.mock("@xyflow/react", () => ({
 
 import { useWorkflowStore, EXECUTION_DATA_KEYS, buildDuplicatedNodeData } from "../use-workflow-store"
 import * as undoFlags from "../undo-flags"
+import { registerCatalogPack, resetCatalogPacks } from "@nodaro/prompts"
 
 function resetStore() {
   useWorkflowStore.setState({
@@ -71,6 +72,18 @@ describe("useWorkflowStore", () => {
   })
 
   describe("addNode", () => {
+    it("creates a Person with an offered default on a curated deployment", () => {
+      window.__NODARO_RUNTIME__ = { surface: { catalogs: { required: true, factoryPresets: false } } }
+      registerCatalogPack({ id: "male-default-test", catalogId: "person", mode: "deny", denyIds: ["stylish-influencer"] })
+      try {
+        useWorkflowStore.getState().addNode("person", { x: 0, y: 0 })
+        expect(useWorkflowStore.getState().nodes[0].data.type).toBe("man")
+      } finally {
+        delete window.__NODARO_RUNTIME__
+        resetCatalogPacks()
+      }
+    })
+
     it("creates Video Pro with the selected defaults while keeping explicit overrides", () => {
       useWorkflowStore.getState().addNode("generate-video-pro", { x: 0, y: 0 })
       expect(useWorkflowStore.getState().nodes[0].data).toMatchObject({

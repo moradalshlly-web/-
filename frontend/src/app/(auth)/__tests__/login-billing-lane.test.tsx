@@ -131,3 +131,17 @@ describe("mainline is untouched (R2)", () => {
     expect(passwordField(container)).toBeNull()
   })
 })
+
+
+describe("deployment legal footer", () => {
+  it("hides platform policies while preserving SSO", async () => {
+    window.__NODARO_RUNTIME__ = { surface: { brand: { productName: "Acme", platformLinks: false }, auth: { methods: ["sso"] } } }
+    const { container } = renderAt("/login")
+    await waitFor(() => expect(screen.getByRole("button", { name: /Acme|Single sign-on/ })).toBeTruthy())
+    expect(container.querySelectorAll('a[href*="nodaro.ai"]')).toHaveLength(0)
+  })
+  it("retains platform policies by default", () => {
+    const { container } = renderAt("/login")
+    expect(container.querySelector('a[href="https://nodaro.ai/terms"]')).toBeInTheDocument()
+  })
+})

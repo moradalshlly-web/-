@@ -72,6 +72,7 @@ const TutorialsTabModal = lazy(() => import("@/components/dashboard/tutorials-ta
 import type { ComponentSelection } from "./component-marketplace-modal"
 import { SelectionActionBar } from "./selection-action-bar"
 import { FocusModeNav } from "./focus-mode-nav"
+import { surfaceTemplatesVisible } from "@/lib/surface-selectors"
 import { EmptyCanvasState } from "./empty-canvas-state"
 import { CanvasCopilotPlanning } from "./canvas-copilot-planning"
 import { emptyCanvasSurface } from "./empty-canvas-surface"
@@ -2882,7 +2883,7 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
       )}
 
       {/* Templates — full dashboard surface as an in-editor dialog (no navigation) */}
-      {templatesModalOpen && (
+      {surfaceTemplatesVisible() && templatesModalOpen && (
         <Dialog open={templatesModalOpen} onOpenChange={(o) => !o && setTemplatesModalOpen(false)}>
           <DialogContent className="w-[92vw] sm:max-w-5xl h-[88vh] overflow-y-auto p-0">
             <DialogHeader className="sr-only">
@@ -3068,7 +3069,7 @@ export function WorkflowCanvas({ sidebarVisible, onToggleSidebar }: WorkflowCanv
             onOpenInputPanel={handleOpenInputPanel}
             onOpenMyLibrary={handleOpenAssetLibrary}
             onOpenMediaLibrary={handleOpenMediaLibrary}
-            onOpenTemplates={() => setTemplatesModalOpen(true)}
+            onOpenTemplates={surfaceTemplatesVisible() ? () => setTemplatesModalOpen(true) : undefined}
             onOpenTutorials={() => setTutorialsModalOpen(true)}
           />
         )}

@@ -52,3 +52,12 @@ describe("otherNodaroApps — surface siblings override", () => {
     expect(otherNodaroApps("flow")).toEqual([{ label: "Acme Chat", url: "https://chat.example" }])
   })
 })
+
+
+it("hides the default fleet but preserves explicit deployment siblings", () => {
+  window.__NODARO_RUNTIME__ = { surface: { brand: { productName: "Acme", platformLinks: false } } }
+  expect(otherNodaroApps("flow")).toEqual([])
+  window.__NODARO_RUNTIME__.surface!.siblings = { apps: [{ label: "Acme", url: "https://example.com" }] }
+  expect(otherNodaroApps("flow")).toEqual([{ label: "Acme", url: "https://example.com" }])
+  delete window.__NODARO_RUNTIME__
+})

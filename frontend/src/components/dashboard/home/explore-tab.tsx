@@ -1,4 +1,4 @@
-import { surfaceTabs } from "@/lib/surface-selectors"
+import { surfaceTabs, surfaceTemplatesVisible } from "@/lib/surface-selectors"
 import { LevelUpSection } from "./level-up-section"
 import { TemplateUseCasesSection } from "./template-use-cases-section"
 import { YourPathSection } from "./your-path-section"
@@ -10,7 +10,7 @@ import { YourPathSection } from "./your-path-section"
  * theme switch.
  */
 export function ExploreTab() {
-  const showTemplates = surfaceTabs(["templates"] as const).length > 0
+  const showTemplates = surfaceTemplatesVisible()
   const showTutorials = surfaceTabs(["tutorials"] as const).length > 0
 
   return (

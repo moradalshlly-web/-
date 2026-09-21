@@ -47,11 +47,12 @@ export interface SurfaceProfile {
   models: { deny: string[]; allow: string[] }
   auth: { methods: AuthMethod[]; ssoLabel?: string }
   siblings: { apps: SurfaceSibling[] }
-  brand: { productName: string; description?: string; wordmark?: string }
+  brand: { productName: string; description?: string; wordmark?: string; platformLinks?: boolean }
   locale: { default?: string; picker: boolean }
   outputs: { allowPublic: boolean }
   voice: { allowedGenders: string[] } // B4c — [] = all genders allowed (narrowing only)
   billing: SurfaceBilling
+  catalogs?: { required: boolean; factoryPresets: boolean }
   catalogPolicy?: unknown
 }
 
@@ -64,6 +65,7 @@ export const SURFACE_PROFILE_DEFAULT: SurfaceProfile = {
   auth: { methods: [] },
   siblings: { apps: [] },
   brand: { productName: "Nodaro" },
+  catalogs: { required: false, factoryPresets: true },
   locale: { picker: true },
   outputs: { allowPublic: true },
   voice: { allowedGenders: [] },
@@ -91,6 +93,7 @@ export function runtimeSurfaceProfile(): SurfaceProfile {
     outputs: { ...d.outputs, ...o.outputs },
     voice: { ...d.voice, ...o.voice },
     billing: { ...d.billing, ...o.billing },
+    catalogs: { required: false, factoryPresets: true, ...d.catalogs, ...o.catalogs },
     catalogPolicy: o.catalogPolicy ?? d.catalogPolicy,
   }
 }

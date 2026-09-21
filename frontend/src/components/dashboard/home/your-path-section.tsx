@@ -7,7 +7,7 @@ import { useMyWorkflows } from "@/hooks/queries/use-my-workflows-queries"
 import { getMyApps } from "@/lib/api"
 import { isMultiUser } from "@/lib/edition"
 import { useT, type MessageKey } from "@/lib/i18n"
-import { surfaceNavHidden } from "@/lib/surface-selectors"
+import { surfaceNavHidden, surfacePlatformLinks } from "@/lib/surface-selectors"
 import { cn } from "@/lib/utils"
 import { SectionTitle } from "./home-section"
 import { HOME_OUTLINE_BUTTON, HOME_QUIET_LINK } from "./home-ui"
@@ -108,7 +108,7 @@ export function YourPathSection() {
           </ol>
         </div>
 
-        <div className="flex items-center justify-between gap-5 rounded-[14px] border border-[var(--home-line-2)] bg-[var(--home-card)] p-[22px]">
+        {surfacePlatformLinks() && <div className="flex items-center justify-between gap-5 rounded-[14px] border border-[var(--home-line-2)] bg-[var(--home-card)] p-[22px]">
           <div className="min-w-0">
             <div className="text-xl font-bold text-[var(--home-strong)]">{t("home.docs.title")}</div>
             <p className="mt-1.5 max-w-[320px] text-pretty text-[13px] text-[var(--home-muted)]">{t("home.docs.body")}</p>
@@ -127,7 +127,7 @@ export function YourPathSection() {
           >
             <BookOpen className="size-6 text-[var(--home-dim)]" />
           </div>
-        </div>
+        </div>}
       </div>
     </section>
   )

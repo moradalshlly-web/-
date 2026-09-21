@@ -82,7 +82,7 @@ export const MusicMoodPicker = memo(function MusicMoodPicker({
           matches(e.id, e.label, e.description, query),
         ),
       })),
-    [matches, query],
+    [SECTIONS, matches, query],
   )
 
   const anyVisible = filtered.some((s) => s.entries.length > 0)

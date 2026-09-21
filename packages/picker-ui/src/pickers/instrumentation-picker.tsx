@@ -68,19 +68,19 @@ export const InstrumentationPicker = memo(function InstrumentationPicker({
         description: e.description,
         group: e.category,
       }))
-  }, [matches, query])
+  }, [INSTRUMENTS, matches, query])
 
   const filteredProduction = useMemo(
     () => PRODUCTION_STYLES.filter((e) => matches(e.id, e.label, e.description, query)),
-    [matches, query],
+    [PRODUCTION_STYLES, matches, query],
   )
   const filteredVocal = useMemo(
     () => VOCAL_PRESENCE.filter((e) => matches(e.id, e.label, e.description, query)),
-    [matches, query],
+    [VOCAL_PRESENCE, matches, query],
   )
   const filteredSingingStyles = useMemo(
     () => SINGING_STYLES.filter((e) => matches(e.id, e.label, e.description, query)),
-    [matches, query],
+    [SINGING_STYLES, matches, query],
   )
 
   const instrumentIds = pickIds(value.instruments)

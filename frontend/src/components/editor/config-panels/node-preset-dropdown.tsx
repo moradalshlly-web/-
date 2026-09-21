@@ -1,3 +1,5 @@
+import { curatedNodeDefaults } from "@/lib/curated-node-defaults"
+import { surfaceFactoryPresets } from "@/lib/surface-selectors"
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
 import { Check, ChevronDown, ChevronRight, Download, Folder, FolderOpen, Layers, Plus, RotateCcw, Settings2, Star, Trash2, Upload } from "lucide-react"
 import { buildNodePresetExport, extractPresetData, parseNodePresetExport, presetApplyClearKeys, presetDataMatches } from "@nodaro/shared"
@@ -153,7 +155,7 @@ function PresetDropdownInner({ nodeId, nodeType, data, updateNodeData, variant, 
   // as a scannable list of category headers; user folders default expanded.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => {
     const init = new Set<string>()
-    for (const g of groupFactoryPresets(getFactoryPresets(nodeType))) {
+    for (const g of groupFactoryPresets((surfaceFactoryPresets() ? getFactoryPresets(nodeType) : []))) {
       if (g.group !== null && g.groupKind === "folder") init.add(`factory:${g.key}`)
     }
     return init
@@ -169,7 +171,7 @@ function PresetDropdownInner({ nodeId, nodeType, data, updateNodeData, variant, 
 
   const factory = useMemo<MergedPreset[]>(
     () =>
-      getFactoryPresets(nodeType ?? "").map((p: FactoryPreset) => ({
+      (surfaceFactoryPresets() ? getFactoryPresets(nodeType ?? "") : []).map((p: FactoryPreset) => ({
         source: "factory" as const,
         id: p.id,
         name: p.name,
@@ -330,7 +332,7 @@ function PresetDropdownInner({ nodeId, nodeType, data, updateNodeData, variant, 
       return
     }
     const defaultData = NODE_DEF_MAP.get(nodeType)?.defaultData as Record<string, unknown> | undefined
-    updateNodeData(nodeId, buildResetToDefaultData(data, defaultData))
+    updateNodeData(nodeId, curatedNodeDefaults(nodeType, buildResetToDefaultData(data, defaultData)))
     toast.success(t("preset.wasReset"))
   }
 
