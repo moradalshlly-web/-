@@ -14,6 +14,7 @@ import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { isBillingContext, shouldRefuseDegradedRunFor, type BillingContext } from "../lib/billing-context.js"
 import { billingPairColumns } from "../lib/insert-job.js"
+import { describeLockedOverrides, findLockedOverrides } from "../lib/input-override-lock.js"
 
 
 const bodySchema = z.object({
@@ -98,6 +99,19 @@ export async function componentExecuteRoutes(app: FastifyInstance) {
     const componentMetadata = appRow.component_metadata as ComponentMetadata | null
     if (!componentMetadata) {
       return reply.status(400).send({ error: { code: "invalid_component", message: "Component metadata missing" } })
+    }
+
+    // The caller's override map runs the component author's snapshot; it may
+    // not re-point an outbound node inside it (issue #1555). Refused before
+    // the wrapper job exists; the orchestrator's merge refuses too.
+    const lockedOverrides = findLockedOverrides(
+      (appRow.snapshot_nodes as ReadonlyArray<{ id: string; type?: string }> | null) ?? [],
+      inputOverrides,
+    )
+    if (lockedOverrides.length > 0) {
+      return reply.status(400).send({
+        error: { code: "locked_field", message: describeLockedOverrides(lockedOverrides) },
+      })
     }
 
     // P14: on the DIRECT lane (no forwarded parent context) a DEGRADED

@@ -456,6 +456,7 @@ All errors have shape `{ "error": { "code": "...", "message": "..." } }`.
 | HTTP | Code | Cause | Action |
 |---|---|---|---|
 | 400 | `validation_error` | Bad `inputOverrides` shape, value not in `allowedValues`, malformed slug | Fix the request body |
+| 400 | `locked_field` | An `inputOverrides` entry names a destination on an outbound node (a Webhook Output's `url`, a publisher's account, a scraper's target) | Remove it — where the app sends to or fetches from is decided by the app itself |
 | 401 | `unauthorized` | Missing/expired/revoked token | Re-mint or re-authorize |
 | 402 | `insufficient_app_credits` | Token's account is out of credits | Top up credits or switch plan |
 | 403 | `insufficient_scope` (with `missingScope` field) | OAuth token doesn't have required scope | Re-do `/oauth/authorize` with broader scopes |

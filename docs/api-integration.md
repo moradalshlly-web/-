@@ -116,6 +116,25 @@ are applied OVER the flat `inputs`, per node and per field, so `inputOverrides`
 wins on any field both set and reaches fields no app input exposes (such as
 `promptPrefix`; see [Prompt pre & post text](./prompt-pre-post-text.md)).
 
+One class of field is refused on every run path (`/v1/app/:slug/run`,
+`/v1/workflows/:id/run`, `/v1/present/:token/run`, `/v1/component/execute`,
+`/v1/api/run`): a **destination on an outbound node**. Outbound nodes are
+Webhook Output, the social publishers, and the fetchers (Web Scrape, Meta Ads,
+Instagram Scrape, RSS Feed, Telegram Channel Feed, and the Video URL node). On
+those nodes an override may not touch any `*Url` field, `target` / `targets` /
+`query` / `channel` / `chatId` / `connectionId` / `credentialId` / `platform` /
+`webhook` / `endpoint` / `host` / `privacy`, or the `actor` / `mode` selectors
+that decide which destination field a fetcher reads — nested inside an object
+or a `fieldMappings` entry included, and whether the value is a new address or
+an empty one (blanking a destination makes the node read its upstream text
+instead). Where a workflow sends to or fetches from is decided by the workflow
+itself, not by a run request; an override that names one is rejected with
+`400 locked_field` before anything runs. The error names at most ten offending
+fields (and counts the rest); an override nested more than 32 levels deep on
+such a node is refused outright. Ordinary fields on those nodes (a caption, a
+limit) and media `url` fields on input nodes (uploads, reference audio) stay
+overridable.
+
 | Method | Path | Purpose |
 |---|---|---|
 | `GET`  | `/v1/api/workflows` | List workflows your token can run. Supports `?limit=` and `?cursor=` pagination. |

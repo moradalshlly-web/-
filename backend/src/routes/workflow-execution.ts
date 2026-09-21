@@ -33,6 +33,7 @@ import { insertWithIdempotencyKey } from "../lib/idempotent-insert.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { MIN_IDEMPOTENCY_KEY_LENGTH } from "../lib/dedup-fingerprint.js"
 import { resolvePrimaryInputField } from "../lib/mcp/extract-app-inputs.js"
+import { describeLockedOverrides, findLockedOverrides } from "../lib/input-override-lock.js"
 import { migrateLegacyNodeType } from "../services/workflow-engine/normalize-node-types.js"
 import { accessAtLeast, canRunWorkflow, workflowAccessFromRow } from "../lib/workflow-access.js"
 import { toAccessRow } from "../lib/workflow-route-access.js"
@@ -329,6 +330,19 @@ export async function workflowExecutionRoutes(app: FastifyInstance) {
       body.inputOverrides,
       (workflow.nodes as ReadonlyArray<{ id: string; type?: string; data?: Record<string, unknown> }>) ?? [],
     )
+
+    // A run request may not re-point an outbound node (issue #1555). The merge
+    // in the orchestrator refuses too; answering here spares the caller a
+    // failed execution row.
+    const lockedOverrides = findLockedOverrides(
+      (workflow.nodes as ReadonlyArray<{ id: string; type?: string }> | null) ?? [],
+      inputOverrides,
+    )
+    if (lockedOverrides.length > 0) {
+      return reply.status(400).send({
+        error: { code: "locked_field", message: describeLockedOverrides(lockedOverrides) },
+      })
+    }
 
     // Check for an execution THIS CALLER already has running (best-effort fast
     // path; the DB UNIQUE constraint on (user_id, idempotency_key) is the

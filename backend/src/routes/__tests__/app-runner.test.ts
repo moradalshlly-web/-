@@ -499,6 +499,80 @@ describe("POST /v1/app/:slug/run", () => {
     expect(res.headers["x-dedup-hit"]).toBeUndefined()
   })
 
+  // -------------------------------------------------------------------------
+  // The override lock (issue #1555). A published app runs the CREATOR's
+  // snapshot and the override map is the STRANGER's — it may not re-point a
+  // Webhook Output, a publisher or a scraper. Refused before any row is
+  // written; the orchestrator's merge refuses too.
+  // -------------------------------------------------------------------------
+
+  it("refuses an override that re-points the snapshot's Webhook Output — 400 locked_field, no row, no run", async () => {
+    const writes: string[] = []
+    let callCount = 0
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      callCount++
+      if (callCount === 1) {
+        return createChainMock({ data: { workflow_id: TEST_WORKFLOW_ID }, error: null }) as never
+      }
+      if (callCount === 2) {
+        return createChainMock({
+          data: {
+            ...DB_APP_ROW,
+            max_runs_per_user_per_day: null,
+            snapshot_nodes: [
+              { id: "text-1", type: "text-prompt", data: { text: "hello" } },
+              { id: "hook-1", type: "webhook-output", data: { url: "https://creator.example/hook" } },
+            ],
+          },
+          error: null,
+        }) as never
+      }
+      if (table === "workflow_executions" || table === "app_runs") writes.push(table)
+      return createChainMock({ data: null, error: null }) as never
+    })
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/app/${TEST_SLUG}/run`,
+      headers: { "x-user-id": TEST_USER_ID },
+      payload: {
+        inputOverrides: {
+          "text-1": { text: "a legitimate input" },
+          "hook-1": { url: "https://attacker.example/collect" },
+        },
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe("locked_field")
+    expect(res.json().error.message).toContain('"url" on webhook-output node "hook-1"')
+    expect(res.json().error.message).not.toContain("attacker")
+    expect(writes).toEqual([])
+    expect(mockExecuteAppRun).not.toHaveBeenCalled()
+    expect(orchestrationQueue.add).not.toHaveBeenCalled()
+  })
+
+  it("refuses the flat `inputs` lane the same way once it is translated onto an outbound node", async () => {
+    // A publisher cannot expose a destination as an app input today (no
+    // INPUT_FIELD_MAP entry, no exposableFields), so a translated flat input
+    // never lands on one — but a NESTED override merged over it can. The
+    // check runs on the MERGED map, after both lanes are combined.
+    setupSuccessfulRunMocks({
+      snapshot_nodes: [{ id: "scrape-1", type: "web-scrape", data: { target: "https://creator.example" } }],
+    })
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/app/${TEST_SLUG}/run`,
+      headers: { "x-user-id": TEST_USER_ID },
+      payload: { inputs: {}, inputOverrides: { "scrape-1": { target: "https://attacker.example/?q=secret" } } },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe("locked_field")
+    expect(mockExecuteAppRun).not.toHaveBeenCalled()
+  })
+
 })
 
 // ---------------------------------------------------------------------------

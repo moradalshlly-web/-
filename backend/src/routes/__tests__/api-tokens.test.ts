@@ -707,3 +707,76 @@ describe("POST /v1/api/run — token runs are PERSONAL-ONLY (P9 doctrine, enforc
     expect(mockOrchestrationQueueAdd).not.toHaveBeenCalled()
   })
 })
+
+describe("POST /v1/api/run — the override lock (issue #1555)", () => {
+  const WORKFLOW_ID = "00000000-0000-4000-8000-000000000042"
+
+  function mockTokenRunWithGraph(nodes: Array<{ id: string; type: string; data: Record<string, unknown> }>) {
+    mockResolveToken.mockResolvedValue({
+      id: TEST_TOKEN_ID,
+      userId: TEST_USER_ID,
+      workflowIds: [],
+      rateLimit: 60,
+      tokenHash: "th-run-lock",
+      workspaceId: null,
+    })
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      const chain: Record<string, unknown> = {}
+      for (const m of ["select", "eq", "in", "is", "order", "limit", "lt", "insert"]) {
+        chain[m] = vi.fn().mockReturnValue(chain)
+      }
+      chain.single = vi.fn().mockResolvedValue(
+        table === "workflows"
+          ? { data: { id: WORKFLOW_ID, nodes }, error: null }
+          : { data: { id: "00000000-0000-4000-8000-0000000000e1" }, error: null },
+      )
+      chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
+      return chain as never
+    })
+  }
+
+  it("refuses an input that re-points a Webhook Output — by node id or by label — 400 locked_field, nothing enqueued", async () => {
+    mockTokenRunWithGraph([
+      { id: "hook-1", type: "webhook-output", data: { label: "Deliver", url: "https://mine.example/hook" } },
+    ])
+
+    const byId = await app.inject({
+      method: "POST",
+      url: "/v1/api/run",
+      headers: { authorization: "Bearer ndr_test_token" },
+      payload: { workflowId: WORKFLOW_ID, inputs: { "hook-1": { url: "https://attacker.example/collect" } } },
+    })
+    expect(byId.statusCode).toBe(400)
+    expect(byId.json().error.code).toBe("locked_field")
+    expect(byId.json().error.message).toContain('"url" on webhook-output node "hook-1"')
+    expect(byId.json().error.message).not.toContain("attacker")
+
+    // The token lane also resolves inputs by node LABEL — same lock.
+    const byLabel = await app.inject({
+      method: "POST",
+      url: "/v1/api/run",
+      headers: { authorization: "Bearer ndr_test_token" },
+      payload: { workflowId: WORKFLOW_ID, inputs: { Deliver: { url: "https://attacker.example/collect" } } },
+    })
+    expect(byLabel.statusCode).toBe(400)
+    expect(byLabel.json().error.code).toBe("locked_field")
+    expect(mockOrchestrationQueueAdd).not.toHaveBeenCalled()
+  })
+
+  it("still accepts an ordinary input on an input node", async () => {
+    mockTokenRunWithGraph([{ id: "text-1", type: "text-prompt", data: { label: "Prompt", text: "" } }])
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/api/run",
+      headers: { authorization: "Bearer ndr_test_token" },
+      payload: { workflowId: WORKFLOW_ID, inputs: { Prompt: { text: "a cat" } } },
+    })
+    expect(res.statusCode).not.toBe(400)
+    expect(mockOrchestrationQueueAdd).toHaveBeenCalledWith(
+      "workflow-execution",
+      expect.objectContaining({ inputOverrides: { "text-1": { text: "a cat" } } }),
+      expect.anything(),
+    )
+  })
+})

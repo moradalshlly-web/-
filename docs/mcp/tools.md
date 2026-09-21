@@ -1332,7 +1332,9 @@ available input keys and their types.
 Run a published app by slug. `inputs` is a FLAT object keyed by the schema
 input keys (from `get_app_inputs`). Returns an `execution_id`.
 `inputOverrides` (advanced) sets raw node fields such as `promptPrefix` /
-`promptSuffix` per run.
+`promptSuffix` per run. It cannot set a destination on an outbound node (a
+Webhook Output's `url`, a publisher's account, a scraper's target) — the run is
+refused with `400 locked_field`.
 
 **Input:** `slug`, `inputs?`, `inputOverrides?`, `client_request_id?` (retry token — reuse it when retrying after a timeout so the run is not started or charged twice)
 

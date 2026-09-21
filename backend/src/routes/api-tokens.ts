@@ -33,6 +33,7 @@ import { normalizeLegacyNodeTypes } from "../services/workflow-engine/normalize-
 import { getInputNodes, getOutputNodes, getOutputType, getNodeLabel, getInputFieldSchema, flattenItems, migrateToItems } from "@nodaro/shared"
 import type { PresentationItem, GenericNode, GenericEdge } from "@nodaro/shared"
 import { formatZodError } from "../lib/zod-error.js"
+import { describeLockedOverrides, findLockedOverrides } from "../lib/input-override-lock.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { deletedNothing, sendNotFound } from "../lib/scoped-delete.js"
 
@@ -758,6 +759,15 @@ export async function apiTokenRoutes(app: FastifyInstance) {
       const inputOverrides = inputs
         ? resolveInputOverrides(inputs, nodes)
         : undefined
+
+      // A token run may not re-point an outbound node (issue #1555). The
+      // orchestrator's merge refuses too.
+      const lockedOverrides = findLockedOverrides(nodes, inputOverrides)
+      if (lockedOverrides.length > 0) {
+        return reply.status(400).send({
+          error: { code: "locked_field", message: describeLockedOverrides(lockedOverrides) },
+        })
+      }
 
       // Create execution
       const { data: execution, error: execError } = await supabase

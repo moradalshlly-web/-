@@ -17,82 +17,20 @@
  *      RECURSIVELY. A nested `data.probedVideo.url` is a destination too.
  */
 
-/** Node types whose executor reads a destination (URL / account / channel) from node data. */
-export const DENIED_NODE_TYPES: ReadonlySet<string> = new Set([
-  // Inline executor: POSTs every upstream output to `data.url`.
-  "webhook-output",
-  // Social publishers: post under the user's connected accounts.
-  "x-post",
-  "telegram-post",
-  "linkedin-post",
-  "facebook-post",
-  "instagram-post",
-  "tiktok-post",
-  "youtube-upload",
-  "publish-social",
-  // Outbound FETCHERS: the request goes to a host the node data names, so the
-  // query string is an exfiltration channel even though nothing is "posted".
-  "web-scrape",
-  "meta-ads-scrape",
-  "instagram-scrape",
-  "rss-feed",
-  "telegram-channel-feed",
-  "youtube-video",
-])
+// The vocabulary itself — which node types are outbound, which keys name a
+// destination — lives in core (`lib/outbound-node-lock.ts`) because the
+// run-request override lock (`lib/input-override-lock.ts`, issue #1555) shares
+// it and core may not import `ee/`. Re-exported here so the copilot's callers
+// and the derivation test keep one import. The one copilot-only exception to
+// the field lock is `isUserProvidedLink` below.
+import {
+  DENIED_NODE_TYPES,
+  SOCIAL_PUBLISHER_TYPES,
+  isLockedField,
+  isPlainObject,
+} from "../../../lib/outbound-node-lock.js"
 
-/**
- * The publishers, as a named subset.
- *
- * These are the ONLY denied types a user can lift, and only for their own
- * thread: they post under an account the user already connected, so the harm
- * ceiling is unwanted content on their own timeline. `webhook-output` and the
- * outbound fetchers stay denied for everyone, always — those name an arbitrary
- * host in node data, which is exfiltration, not embarrassment.
- *
- * A subset rather than a shrunken `DENIED_NODE_TYPES`, because that set is
- * DERIVED from the orchestrator's executor by a test: removing a member would
- * mean a genuinely outbound node had stopped being covered.
- */
-export const SOCIAL_PUBLISHER_TYPES: ReadonlySet<string> = new Set([
-  "x-post",
-  "telegram-post",
-  "linkedin-post",
-  "facebook-post",
-  "instagram-post",
-  "tiktok-post",
-  "youtube-upload",
-  "publish-social",
-])
-
-/** Named destination fields that do not end in "url". */
-const NAMED_DESTINATION_FIELDS: ReadonlySet<string> = new Set([
-  "target",
-  "query",
-  "channel",
-  "chatId",
-  "connectionId",
-  "platform",
-  "webhook",
-  "endpoint",
-  "host",
-  // Not a destination — a DISCLOSURE control, and locked for the same reason.
-  // Publishing nodes default to `private`, and once the copilot can author one
-  // the difference between a draft the user reviews and a post the world sees
-  // is this single word. It authors the scaffold; who can see the result stays
-  // the user's decision, on the canvas.
-  "privacy",
-])
-
-/**
- * A field the model may not introduce or change. Media reaches a node through
- * an edge, a saved entity or the user's upload — never through a value the
- * model INVENTED. Pattern-matched rather than listed: the engine reads ~38
- * distinct `*Url` keys, and a hand-kept list was already missing most of them.
- * The one exception is `isUserProvidedLink` below.
- */
-export function isLockedField(key: string): boolean {
-  return /urls?$/i.test(key) || NAMED_DESTINATION_FIELDS.has(key)
-}
+export { DENIED_NODE_TYPES, SOCIAL_PUBLISHER_TYPES, isLockedField }
 
 /**
  * The ONE exception to the field lock: a link the USER themselves pasted into
@@ -138,10 +76,6 @@ export function isDeniedNodeType(type: unknown, opts?: { allowPublishing?: boole
   if (typeof type !== "string") return false
   if (!DENIED_NODE_TYPES.has(type)) return false
   return !(opts?.allowPublishing && SOCIAL_PUBLISHER_TYPES.has(type))
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 /**

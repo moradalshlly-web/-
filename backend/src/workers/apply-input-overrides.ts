@@ -14,6 +14,7 @@
  */
 
 import { locationMentionSlug, mergeNodeInputOverrides } from "@nodaro/shared"
+import { assertNoLockedOverrides } from "../lib/input-override-lock.js"
 import { coerceListItemsOverrideToRows } from "../services/workflow-engine/output-extractor.js"
 import { LOCATION_VARIANT_BUCKETS } from "../services/workflow-engine/payload-builder.js"
 
@@ -60,12 +61,19 @@ interface OverridableNode {
  * For every node with an override map: shallow-merge over `node.data`, then clear
  * stale generated* results from the snapshot so the user's fresh input wins over
  * a cached result, apply location-variant + list-items coercions, and write back.
+ *
+ * Refuses FIRST, before touching any node: an override may not re-point an
+ * outbound node (issue #1555 — `lib/input-override-lock.ts`). This is the one
+ * merge every run lane shares, so the lock here covers an entry point that
+ * forgot its own 400; the throw leaves the graph untouched and the
+ * orchestrator's outer catch fails the execution with the message.
  */
 export function applyInputOverridesToNodes(
   nodes: OverridableNode[],
   inputOverrides: Record<string, Record<string, unknown>> | undefined,
 ): void {
   if (!inputOverrides) return
+  assertNoLockedOverrides(nodes, inputOverrides)
   for (const node of nodes) {
     const overrides = inputOverrides[node.id]
     if (!overrides) continue

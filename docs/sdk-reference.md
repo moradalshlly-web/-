@@ -3254,7 +3254,10 @@ names. Returns `{ executionId, status, runId? }` — poll via
 `opts.inputOverrides` is the advanced escape hatch: nested
 `{ nodeId: { field: value } }` raw node data for THIS run, which reaches fields
 the app does not expose to its end users — such as
-[`promptPrefix` / `promptSuffix`](./prompt-pre-post-text.md).
+[`promptPrefix` / `promptSuffix`](./prompt-pre-post-text.md). It cannot set a
+destination on an outbound node (a Webhook Output's `url`, a publisher's
+account, a scraper's target) — that is rejected with `400 locked_field`; see
+[API integration](./api-integration.md).
 
 ```ts
 const { executionId } = await client.apps.run("pro-headshot", { photo: url })
