@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { authorizeExternalReservation, externalWalletActive } from "../billing/external-wallet.js"
 import { mapReserveError, type MappedReserveError } from "../../lib/reserve-errors.js"
 // Track A: the step-8 enforcement flip. False on any deployment with no
 // `billing.payerAccount`, and false until the overlay sets
@@ -272,6 +273,25 @@ export async function reservePipelineCredits(
   if (!usageLogId) {
     return { ok: false, reason: "insufficient_credits" }
   }
+  const wallet = externalWalletActive()
+  if (wallet) {
+    // Persist recovery's owner link before any external money is held. A lost
+    // pipeline pointer must not become a successfully authorized orphan.
+    const saved = await args.supabase.from("pipelines").update({ reservation_usage_log_id: usageLogId as string })
+      .eq("id", args.pipelineId).eq("user_id", args.userId).select("id").maybeSingle()
+    if (saved.error || !saved.data) {
+      // billing-payer-ok: the reservation records the resolved payer; refund by usage ID restores that same pool.
+      await args.supabase.rpc("refund_credits", { p_usage_log_id: usageLogId })
+      return { ok: false, reason: "rpc_error", detail: "Pipeline reservation could not be persisted" }
+    }
+  }
+  if (args.credits > 0) {
+    try { await authorizeExternalReservation(usageLogId, args.userId) }
+    catch (error) {
+      const mapped = mapReserveError(error)
+      return { ok: false, reason: mapped?.code ?? "rpc_error", detail: mapped?.message ?? "Shared wallet authorization failed" }
+    }
+  }
   // Reserve succeeded — balance dropped; auto-recharge check (fire-and-
   // forget, never blocks the pipeline). Covers the direct-RPC reserve lane
   // the CreditsService hook can't see (audit F2.2). NEVER for a workspace
@@ -284,7 +304,7 @@ export async function reservePipelineCredits(
   // attribution is written in the same transaction as the debit instead of by
   // a second statement that could fail alone.
   // Persist for later refund.
-  const { error: updateError } = await args.supabase
+  const { error: updateError } = wallet ? { error: null } : await args.supabase
     .from("pipelines")
     .update({ reservation_usage_log_id: usageLogId as string })
     .eq("id", args.pipelineId)

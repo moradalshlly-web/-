@@ -28,7 +28,7 @@ export interface MappedReserveError {
   // rejected request. Translating it to a 402 would tell a user to go buy
   // something that cannot help them; it is the operator's fault, so it gets a
   // fault status — with a stable code, so the log line is still greppable.
-  status: 402 | 403 | 404 | 409 | 500
+  status: 402 | 403 | 404 | 409 | 500 | 503
   // ONE platform vocabulary (P14.3 review): "not a member" is not_a_member
   // everywhere (orgs-context rung 1, api-tokens, MCP — and the frontend's
   // stale-workspace self-heal keys on exactly that code), and
@@ -43,10 +43,14 @@ export interface MappedReserveError {
     | "workspace_not_found"
     | "user_allowance_exceeded"
     | "allowance_unconfigured"
+    | "external_wallet_denied"
+    | "external_wallet_unavailable"
   message: string
 }
 
 const RESERVE_PREFIX_MAP: Readonly<Record<string, MappedReserveError>> = {
+  EXTERNAL_WALLET_DENIED: { status: 402, code: "external_wallet_denied", message: "The shared wallet could not authorize this generation." },
+  EXTERNAL_WALLET_UNAVAILABLE: { status: 503, code: "external_wallet_unavailable", message: "The shared wallet is unavailable. Please try again." },
   BUDGET_EXCEEDED: {
     status: 402,
     code: "budget_exceeded",

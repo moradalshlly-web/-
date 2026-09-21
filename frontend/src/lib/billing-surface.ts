@@ -84,4 +84,5 @@ export interface BillingAccount {
    *  Already in the display unit, like every other figure here. `null` =
    *  unavailable → em dash; absent = the provider has no such concept. */
   allocated?: number | null
+  balanceSource?: "external_wallet"
 }

@@ -3,6 +3,8 @@ import type { BillingProvider, Charge, AccountSummary, UsageCategory } from "../
 import { supabase } from "../../lib/supabase.js"
 import { deploymentPayerActive } from "../../lib/deployment-payer.js"
 import { allowanceFor } from "./deployment-allowance-service.js"
+import { externalWalletActive, externalWalletBalance } from "./external-wallet.js"
+import { usageAmount } from "./usage-amount.js"
 
 /** Display-only bucketing of a usage_logs `action` (a model identifier) into
  *  the /usage breakdown's categories. ORDER MATTERS: "image-to-video" is
@@ -38,7 +40,7 @@ async function deploymentConsumptionAccount(userId: string): Promise<AccountSumm
   const CAP = 5000
   const { data, error } = await supabase
     .from("usage_logs")
-    .select("action, credits_used, status")
+    .select("action, credits_used, credits_charged, status")
     .eq("on_behalf_of", userId)
     .in("status", ["reserved", "committed"]) // refunded rows are not consumption
     .gte("created_at", periodStart.toISOString())
@@ -48,7 +50,7 @@ async function deploymentConsumptionAccount(userId: string): Promise<AccountSumm
     console.error("[nodaro-cloud-provider] consumption read failed:", error.message)
     return null
   }
-  const rows = (data ?? []) as ReadonlyArray<{ action: string | null; credits_used: number | null }>
+  const rows = (data ?? []) as ReadonlyArray<{ action: string | null; credits_used: number | null; credits_charged?: number | null; status?: string | null }>
   if (rows.length === CAP) {
     console.warn(`[nodaro-cloud-provider] consumption for ${userId} hit the ${CAP}-row cap — figures under-report`)
   }
@@ -57,7 +59,7 @@ async function deploymentConsumptionAccount(userId: string): Promise<AccountSumm
     const key = usageCategoryOf(r.action ?? "")
     const agg = byKey.get(key) ?? { count: 0, amount: 0 }
     agg.count += 1
-    agg.amount += r.credits_used ?? 0
+    agg.amount += usageAmount(r) ?? 0
     byKey.set(key, agg)
   }
   const byCategory: UsageCategory[] = [...byKey.entries()].map(([category, agg]) => ({
@@ -73,7 +75,9 @@ async function deploymentConsumptionAccount(userId: string): Promise<AccountSumm
   // breakdown, which came back fine. `allowanceFor` is also the only place the
   // D7 no-row rule lives, so a user who has never generated gets the default
   // here rather than a manufactured 0.
-  const allowance = await allowanceFor(userId)
+  const wallet = externalWalletActive()
+  const sharedBalance = wallet ? await externalWalletBalance(userId) : null
+  const allowance = wallet ? null : await allowanceFor(userId)
   return {
     plan: "",
     // Before a payer, this function is never reached at all, and these stay
@@ -81,8 +85,8 @@ async function deploymentConsumptionAccount(userId: string): Promise<AccountSumm
     // from rollout step 2: the allowance is VISIBLE whether or not enforcement
     // has been flipped on (the ruling in deployment-allowance-service.ts), so
     // /usage stops showing two em dashes at step 5 rather than step 8.
-    balance: allowance ? allowance.remaining : null,
-    allocated: allowance ? allowance.granted : null,
+    balance: wallet ? sharedBalance : allowance ? allowance.remaining : null,
+    ...(wallet ? { balanceSource: "external_wallet" as const } : { allocated: allowance ? allowance.granted : null }),
     dailyAllowance: null,
     unit: "credits",
     periodStart: periodStart.toISOString(),

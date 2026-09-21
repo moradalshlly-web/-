@@ -16,6 +16,14 @@ const MAINLINE = false
 const PAYER = true
 
 describe("sidebarCreditFigures", () => {
+  it("shows the shared wallet without the local allowance or subscription split", () => {
+    expect(sidebarCreditFigures({ total: 1500, allowance: { granted: 4000, remaining: 3000 }, externalWallet: { available: 23 } }, PAYER))
+      .toEqual({ headline: 23, allowance: null, external: true, unavailable: false })
+  })
+  it("marks an unavailable shared balance for an em dash instead of a frozen local grant", () => {
+    expect(sidebarCreditFigures({ total: 1500, externalWallet: { available: null } }, PAYER))
+      .toMatchObject({ external: true, unavailable: true, allowance: null })
+  })
   it("prefers the allowance's remaining over the frozen grant", () => {
     const f = sidebarCreditFigures({ total: 1500, allowance: { granted: 400_000, remaining: 399_000 } }, PAYER)
     expect(f.headline).toBe(399_000)

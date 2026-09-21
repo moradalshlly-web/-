@@ -1213,6 +1213,8 @@ describe("GET /usage", () => {
       status: "committed",
       credits: 4,
       units: 8_000,
+      reservedCredits: 4,
+      chargedCredits: 4,
       requester: { id: U1, email: "dana@example.com", name: "Dana", ssoSubject: "usr_dana" },
     })
     // The pool's own runs are attributed to the account that made them, so a
@@ -1221,6 +1223,14 @@ describe("GET /usage", () => {
     // NEVER an aggregate: the caller sums.
     expect(body.total).toBeUndefined()
     expect(body.credits).toBeUndefined()
+  })
+
+  it("reports settled charges and refunds instead of reservation ceilings", async () => {
+    const rows = usageRows().map(row => row.status === "committed" ? { ...row, credits_charged: 1 } : row)
+    tableResults.set("usage_logs:list", { data: rows, error: null })
+    const res = await app.inject({ method: "GET", url: "/v1/deployment-billing/usage", headers: AS_KEY })
+    expect(res.json().data[0]).toMatchObject({ credits: 1, units: 2000, reservedCredits: 4, chargedCredits: 1 })
+    expect(res.json().data[2]).toMatchObject({ status: "refunded", credits: 0, units: 0, reservedCredits: 1, chargedCredits: 0 })
   })
 
   it("scopes to the pool, orders newest-first on a stable tiebreak, and windows on created_at", async () => {
@@ -1480,6 +1490,22 @@ describe("GET /pricing", () => {
     expect(second.statusCode).toBe(304)
     expect(second.body).toBe("")
     expect(second.headers.etag).toBe(etag)
+  })
+
+  it("includes LLM operation prices and explicit denomination without a bare-model lookup", async () => {
+    payerDeployment({}, { allow: ["claude-haiku-4.5"] })
+    h.getModelCreditCost.mockImplementation(async (id: string) => {
+      if (id === "claude-haiku-4.5") throw new h.PriceNotConfiguredError(id)
+      return 7
+    })
+    const res = await app.inject({ method: "GET", url: "/v1/deployment-billing/pricing", headers: AS_KEY })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.missing).toEqual([])
+    expect(body.data[0]).toMatchObject({ creditCost: 7, units: 14000, pricingBasis: "llm-chat-default-settings" })
+    expect(body.data[0].pricing).toContainEqual(expect.objectContaining({ operation: "ai-writer", credits: 7, units: 14000 }))
+    expect(body.denomination).toMatchObject({ credit: "nodaro_credit", displayUnitsPerCredit: 2000 })
+    expect(body.purchaseOptions[0]).toMatchObject({ amount: 10, currency: "USD", credits: 3300 })
   })
 
   it("?since= returns only the rows changed after it — an empty list means nothing changed", async () => {

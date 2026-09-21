@@ -3,6 +3,7 @@ import { logFfmpegVersion } from "./providers/video/ffmpeg-utils.js"
 import { beginWorkerDrain, inFlightDrainDeadlineMs } from "./lib/worker-drain.js"
 import { createWorkerShutdown } from "./lib/worker-shutdown.js"
 import { loadOverlay } from "./lib/overlay/load.js"
+import { initializeExternalWallet } from "./lib/external-wallet.js"
 import { registerMainlinePromptPolicies } from "./lib/prompt-policies/index.js"
 
 process.on("unhandledRejection", (err) => {
@@ -17,6 +18,7 @@ process.on("uncaughtException", (err) => {
 // packs) before the worker starts consuming jobs — the seams are per-process
 // singletons. No-op + byte-identical when NODARO_OVERLAY_PACKAGE is unset.
 await loadOverlay()
+await initializeExternalWallet(true)
 
 // Mainline prompt policies run AFTER the overlay's (registration order):
 // the minor-age floor is a platform safety invariant, not deployment content.
