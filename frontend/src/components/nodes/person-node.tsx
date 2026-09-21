@@ -1,4 +1,5 @@
 "use client"
+import { useCatalogPacksVersion } from "@/lib/picker-ui"
 
 import { useT } from "@/lib/i18n"
 import { memo } from "react"
@@ -24,7 +25,7 @@ function collectEnabled(data: PersonData): EnabledEntry[] {
   const enabled: EnabledEntry[] = []
   for (const dimension of PERSON_DIMENSION_ORDER) {
     const field = PERSON_FIELD_BY_DIMENSION[dimension]
-    const ids = pickIds(data[field])
+    const ids = pickIds(data[field]).filter((entryId) => getPerson(entryId) !== undefined)
     if (ids.length === 0) continue
     enabled.push({ dimension, entryId: ids[0], entryIds: ids })
   }
@@ -33,6 +34,7 @@ function collectEnabled(data: PersonData): EnabledEntry[] {
 
 function PersonNodeComponent({ id, data, selected }: NodeProps) {
   const t = useT()
+  useCatalogPacksVersion()
   const nodeData = data as PersonData
   const enabled = collectEnabled(nodeData)
   const maxItemsPerRow = Math.max(1, Math.min(4, nodeData.maxItemsPerRow ?? 2))

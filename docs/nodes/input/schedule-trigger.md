@@ -38,6 +38,32 @@ Examples:
 
 ## Inputs & Outputs
 
+## Activation
+
+**Saving the workflow is what schedules it.** Every save projects the graph's
+trigger nodes onto the server's schedule registry: a configured Schedule
+Trigger node starts firing, a change to its interval or timezone takes effect,
+and deleting the node stops it. Nothing else to press.
+
+This works however the workflow was written — the editor, the API, the SDK,
+`import`, or MCP — so a workflow you created programmatically is scheduled the
+moment it is saved with a configured node.
+
+Two details worth knowing:
+
+- **A half-configured node is not scheduled.** Pick *Custom cron* but leave the
+  expression empty and nothing is registered, deliberately — a schedule never
+  starts on a guess. Fill it in and save again.
+- **Schedules you created by hand** against `POST /v1/workflow-triggers` are
+  left alone: they are not managed by any node, so no save will change or
+  remove them.
+
+Inspect what a workflow currently has with
+`GET /v1/workflows/<id>/triggers`, and pause or resume one with
+`PATCH /v1/workflow-triggers/<id>` (`{ "isActive": false }`). A later save
+re-activates a paused node-managed schedule, since the graph is the source of
+truth — remove the node to stop it for good.
+
 **Inputs:** None (this is a trigger node)
 
 **Outputs:**

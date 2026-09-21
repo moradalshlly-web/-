@@ -2,6 +2,7 @@ import { hasCredits } from "./config.js"
 import { applyDisplayUnit } from "./billing-display-unit.js"
 import { runtimeSurfaceProfile } from "./surface-profile.js"
 import { deploymentPayerActive } from "./deployment-payer.js"
+import { initializeExternalWallet } from "./external-wallet.js"
 
 /**
  * Billing adapter seam (B2). An external system meters and charges; Nodaro
@@ -91,6 +92,7 @@ export interface UsageCategory {
 }
 
 export interface AccountSummary {
+  balanceSource?: "external_wallet"
   /** "unknown" is a real answer and survives to the screen — never re-derived. */
   plan: string
   balance: number | null
@@ -216,6 +218,7 @@ export function billingSurface(): BillingSurface {
  * loader (§7.2), NOT here.
  */
 export async function registerNodaroCloudBillingProvider(): Promise<void> {
+  await initializeExternalWallet()
   if (!hasCredits()) return
   const impl = await import("../ee/billing/nodaro-cloud-provider.js")
   setBillingProvider(impl.nodaroCloudBillingProvider)

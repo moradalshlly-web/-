@@ -13,7 +13,7 @@
  * truth, no copied logic to drift).
  */
 
-import { locationMentionSlug } from "@nodaro/shared"
+import { locationMentionSlug, mergeNodeInputOverrides } from "@nodaro/shared"
 import { coerceListItemsOverrideToRows } from "../services/workflow-engine/output-extractor.js"
 import { LOCATION_VARIANT_BUCKETS } from "../services/workflow-engine/payload-builder.js"
 
@@ -69,7 +69,10 @@ export function applyInputOverridesToNodes(
   for (const node of nodes) {
     const overrides = inputOverrides[node.id]
     if (!overrides) continue
-    const cleaned = { ...node.data, ...overrides }
+    // The shared merge — NOT a bare spread: it also drops the snapshot's
+    // media-bound `metadata` when the override swaps the node's media, so a
+    // publisher's recorded length can't describe a caller's different file.
+    const cleaned = mergeNodeInputOverrides(node.type, node.data, overrides)
     delete cleaned.generatedResults
     delete cleaned.activeResultIndex
     delete cleaned.generatedImageUrl

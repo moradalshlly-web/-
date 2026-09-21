@@ -115,11 +115,12 @@ export interface SurfaceProfile {
   models: { deny: string[]; allow: string[] }
   auth: { methods: AuthMethod[]; ssoLabel?: string }
   siblings: { apps: SurfaceSibling[] }
-  brand: { productName: string; description?: string; wordmark?: string }
+  brand: { productName: string; description?: string; wordmark?: string; platformLinks?: boolean }
   locale: { default?: string; picker: boolean }
   outputs: { allowPublic: boolean }
   voice: { allowedGenders: string[] } // B4c — [] = all genders allowed (narrowing only)
   billing: SurfaceBilling
+  catalogs?: { required: boolean; factoryPresets: boolean }
   catalogPolicy?: unknown // B4 (Phase 4) — carried opaque; validated loosely, never read here
 }
 
@@ -132,6 +133,7 @@ export const SURFACE_PROFILE_DEFAULT: SurfaceProfile = {
   auth: { methods: [] },
   siblings: { apps: [] },
   brand: { productName: "Nodaro" },
+  catalogs: { required: false, factoryPresets: true },
   locale: { picker: true },
   outputs: { allowPublic: true },
   voice: { allowedGenders: [] },
@@ -332,8 +334,9 @@ export const SurfaceProfileSchema: z.ZodType<SurfaceProfile> = z.object({
     .object({ apps: z.array(z.object({ label: z.string(), url: z.string() })).catch([]) })
     .catch({ apps: [] }),
   brand: z
-    .object({ productName: z.string().min(1), description: z.string().optional(), wordmark: z.string().optional() })
+    .object({ productName: z.string().min(1), description: z.string().optional(), wordmark: z.string().optional(), platformLinks: z.boolean().optional().catch(false) })
     .catch({ productName: "Nodaro" }),
+  catalogs: z.object({ required: z.boolean().catch(true), factoryPresets: z.boolean().catch(false) }).catch({ required: true, factoryPresets: false }).optional(),
   locale: z.object({ default: z.string().optional(), picker: z.boolean() }).catch({ picker: true }),
   outputs: z.object({ allowPublic: lenientPublicFlag }).catch({ allowPublic: true }),
   voice: z.object({ allowedGenders: stringArray() }).catch({ allowedGenders: [] }),
@@ -371,6 +374,7 @@ function mergeOverDefault(override: Partial<SurfaceProfile>): SurfaceProfile {
     outputs: { ...d.outputs, ...override.outputs },
     voice: { ...d.voice, ...override.voice },
     billing: { ...d.billing, ...override.billing },
+    catalogs: { required: false, factoryPresets: true, ...d.catalogs, ...override.catalogs },
     catalogPolicy: override.catalogPolicy ?? d.catalogPolicy,
   }
 }

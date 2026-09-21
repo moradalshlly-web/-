@@ -24,6 +24,7 @@ import { welcomeClaimOptions } from "../billing/welcome-offer-claim-options.js"
 import { getWelcomeOfferConfig } from "../lib/welcome-offer-config.js"
 import { allowanceEnforcementActive, deploymentPayerActive, deploymentPayerId } from "../../lib/deployment-payer.js"
 import { allowanceFor } from "../billing/deployment-allowance-service.js"
+import { externalWalletActive, externalWalletBalance } from "../billing/external-wallet.js"
 import { refusePayerBalanceToProgrammaticCaller } from "../lib/payer-balance-guard.js"
 
 /**
@@ -226,7 +227,7 @@ export async function creditsRoutes(app: FastifyInstance) {
     // so the payer's own session warms an entry an app_token would be handed.
     if (refusePayerBalanceToProgrammaticCaller(req, reply)) return reply
 
-    const cached = getCachedBalance(userId)
+    const cached = externalWalletActive() ? null : getCachedBalance(userId)
     if (cached) {
       return { data: cached }
     }
@@ -287,7 +288,8 @@ export async function creditsRoutes(app: FastifyInstance) {
       // .allowances` is stripped from /config.js by design, so this field is
       // the browser's ONLY way to tell a displayed allowance from an enforced
       // one; display surfaces ignore it and keep rendering the figures.
-      const allowance = dep ? await allowanceFor(userId) : null
+      const wallet = dep && externalWalletActive()
+      const allowance = dep && !wallet ? await allowanceFor(userId) : null
       // ONE null, TWO causes — and only the route can tell them apart, because
       // only here is the payer's identity beside the requester's. The payer's
       // own null is CORRECT (D13) and silent; anybody else's means the figure
@@ -298,12 +300,13 @@ export async function creditsRoutes(app: FastifyInstance) {
       // exactly like one running normally, for the 15 s of every cached
       // balance. The wire shape does not grow a field to say so — the browser
       // has no use for one — so the log is where it is said.
-      if (dep && allowance === null && userId !== deploymentPayerId()) {
+      if (dep && !wallet && allowance === null && userId !== deploymentPayerId()) {
         console.error("[credits] allowance unavailable under a deployment payer — sending null for user", userId)
       }
       const payload = dep
         ? {
             ...data,
+            ...(wallet ? { externalWallet: { available: await externalWalletBalance(userId) } } : {}),
             allowance: allowance
               ? {
                   granted: allowance.granted,

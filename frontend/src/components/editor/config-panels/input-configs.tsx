@@ -40,7 +40,7 @@ import { CachedImage } from "@/components/ui/cached-image"
 import { toast } from "sonner"
 import { spliceDelimitedRows, NO_SPLIT_DELIMITER } from "@nodaro/shared"
 import { uploadAudio, fetchYouTubeOEmbed } from "@/lib/api"
-import { runYouTubeAudioExtraction } from "@/lib/youtube-audio-extraction"
+import { runYouTubeAudioExtraction, referenceAudioMediaPatch } from "@/lib/youtube-audio-extraction"
 import { setVideoLinkUrl } from "@/lib/video-link-ingest"
 import { VideoLinkStatus } from "@/components/nodes/video-link-status"
 import {
@@ -1252,8 +1252,8 @@ export function ReferenceAudioConfig({ data, onUpdate }: ConfigProps<ReferenceAu
     setExtracting(true)
     onUpdate({ extractionStatus: "extracting" })
     try {
-      const audioUrl = await runYouTubeAudioExtraction(url)
-      onUpdate({ extractedAudioUrl: audioUrl, extractionStatus: "ready" })
+      const { audioUrl, durationSeconds } = await runYouTubeAudioExtraction(url)
+      onUpdate(referenceAudioMediaPatch(audioUrl, durationSeconds))
     } catch {
       onUpdate({ extractionStatus: "failed" })
     } finally {
@@ -1266,7 +1266,7 @@ export function ReferenceAudioConfig({ data, onUpdate }: ConfigProps<ReferenceAu
     onUpdate({ extractionStatus: "extracting" })
     try {
       const result = await uploadAudio(file)
-      onUpdate({ uploadedFileUrl: result.url, extractedAudioUrl: result.url, extractionStatus: "ready" })
+      onUpdate({ uploadedFileUrl: result.url, ...referenceAudioMediaPatch(result.url) })
     } catch {
       onUpdate({ extractionStatus: "failed" })
     } finally {
@@ -1277,7 +1277,7 @@ export function ReferenceAudioConfig({ data, onUpdate }: ConfigProps<ReferenceAu
   const handleDirectUrlSet = useCallback(() => {
     const url = data.directUrl?.trim()
     if (url) {
-      onUpdate({ extractedAudioUrl: url, extractionStatus: "ready" })
+      onUpdate(referenceAudioMediaPatch(url))
     }
   }, [data.directUrl, onUpdate])
 
@@ -1287,7 +1287,7 @@ export function ReferenceAudioConfig({ data, onUpdate }: ConfigProps<ReferenceAu
         <Label>{t("inputcfg.source")}</Label>
         <Select
           value={data.sourceType || "youtube"}
-          onValueChange={(v) => onUpdate({ sourceType: v as ReferenceAudioData["sourceType"], extractedAudioUrl: "", extractionStatus: "idle", videoTitle: "", videoThumbnail: "" })}
+          onValueChange={(v) => onUpdate({ sourceType: v as ReferenceAudioData["sourceType"], ...referenceAudioMediaPatch(""), videoTitle: "", videoThumbnail: "" })}
         >
           <SelectTrigger aria-label={t("inputcfg.sourceType")}><SelectValue /></SelectTrigger>
           <SelectContent>

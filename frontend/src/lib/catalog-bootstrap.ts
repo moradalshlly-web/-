@@ -1,3 +1,4 @@
+import { surfaceCatalogsRequired } from "./surface-selectors"
 import { PICKER_CATALOGS, PEOPLE, registerCatalogPack, resetCatalogPacks, type PickerCatalogInput } from "@nodaro/prompts"
 
 /**
@@ -19,10 +20,13 @@ import { PICKER_CATALOGS, PEOPLE, registerCatalogPack, resetCatalogPacks, type P
  * On a curated deployment the fetch usually lands before the user has opened
  * a config panel at all.
  *
- * SAFETY DOES NOT DEPEND ON THIS. The server refuses any id the deployment
+ * With `catalogs.required`, bundled choices are withheld synchronously before
+ * first paint and remain unavailable on a missing/incomplete response.
+ *
+ * SERVER ENFORCEMENT ALSO APPLIES. The server refuses any id the deployment
  * does not offer at every run lane (packages/prompts catalog-id-guard). This
- * is the display truth; that is the wall. So the bootstrap fails OPEN on a
- * network error or a timeout and logs loudly.
+ * is the display truth; that is the wall. Only deployments that do not require
+ * curation fall back to bundled choices after a network error.
  *
  * `curated: false` arrives WITHOUT a body (the route omits the projection
  * when it has nothing to say), so a deployment with no packs pays a few
@@ -45,6 +49,12 @@ let registeredVersion: number | null = null
 const KNOWN = new Set(PICKER_CATALOGS.map((c) => c.catalogId))
 
 export function applyServerCatalogs(payload: CatalogsResponse): number {
+  if (surfaceCatalogsRequired()) {
+    const catalogs = Array.isArray(payload.data) ? payload.data as PickerCatalogInput[] : []
+    if (!payload.curated || ![...KNOWN].every((id) => catalogs.some((c) => c?.catalogId === id))) {
+      throw new Error("The deployment requires a complete curated catalog response")
+    }
+  }
   if (!payload.curated) return 0
   const list = Array.isArray(payload.data) ? (payload.data as PickerCatalogInput[]) : []
   // Idempotent under StrictMode / HMR / a later refetch: a duplicate pack id
@@ -98,23 +108,37 @@ function registerPersonFromWire(cat: PickerCatalogInput): void {
   if (dimensions.length) registerCatalogPack({ id: "wire:person:extend", catalogId: "person", mode: "extend", dimensions })
 }
 
+/** Deny before the first await so the first paint cannot show stock options. */
+function withholdBundledCatalogs(): void {
+  resetCatalogPacks()
+  for (const cat of PICKER_CATALOGS) {
+    registerCatalogPack({
+      id: `pending:${cat.catalogId}`, catalogId: cat.catalogId, mode: "deny",
+      denyIds: [...(cat.options ?? []), ...(cat.dimensions ?? []).flatMap((d) => d.options)].map((o) => o.id),
+    })
+  }
+}
+
 export function bootstrapCatalogs(opts: { timeoutMs?: number } = {}): Promise<void> {
   if (bootstrapped) return bootstrapped
+  const required = surfaceCatalogsRequired()
+  if (required) withholdBundledCatalogs()
   const timeoutMs = opts.timeoutMs ?? 6000
   bootstrapped = (async () => {
     const ctl = new AbortController()
     const timer = setTimeout(() => ctl.abort(), timeoutMs)
     try {
-      const res = await fetch("/v1/catalogs?detail=full", { signal: ctl.signal })
+      const res = await fetch("/v1/catalogs?detail=full", { signal: ctl.signal, ...(required ? { cache: "no-store" as const } : {}) })
       if (!res.ok) {
-        console.error(`[catalog-bootstrap] GET /v1/catalogs → ${res.status}; pickers will show the bundled catalogs until reload`)
+        console.error(`[catalog-bootstrap] GET /v1/catalogs → ${res.status}; ${required ? "curated pickers remain unavailable" : "using bundled catalogs"}`)
         return
       }
       const payload = (await res.json()) as CatalogsResponse
       const n = applyServerCatalogs(payload)
       if (n > 0) console.info(`[catalog-bootstrap] ${n} curated catalog(s) registered (packs=${payload.packs ?? "?"}, v${payload.version ?? "?"})`)
     } catch (err) {
-      console.error("[catalog-bootstrap] failed — pickers will show the bundled catalogs until reload:", (err as Error).message)
+      if (required) withholdBundledCatalogs()
+      console.error(`[catalog-bootstrap] failed — ${required ? "curated pickers remain unavailable" : "using bundled catalogs"}:`, (err as Error).message)
     } finally {
       clearTimeout(timer)
     }

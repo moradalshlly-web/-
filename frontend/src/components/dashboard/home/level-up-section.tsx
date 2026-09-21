@@ -18,6 +18,7 @@ import {
   useToggleTemplateFavoriteMutation,
 } from "@/hooks/queries/use-template-marketplace-queries"
 import { useUpdateCheck, type UpdateInfo } from "@/hooks/use-update-check"
+import { surfacePlatformLinks } from "@/lib/surface-selectors"
 import { isCloud } from "@/lib/edition"
 import { useT } from "@/lib/i18n"
 import type { FlowTutorialItem, VideoTutorialItem } from "@/lib/api"
@@ -106,7 +107,7 @@ export function LevelUpSection({ withThemeSwitch }: { readonly withThemeSwitch: 
           onChange={setMode}
           options={[
             { value: "tutorials", label: t("home.tutorials.filter") },
-            { value: "releases", label: t("home.tutorials.releaseNotes") },
+            ...(surfacePlatformLinks() ? [{ value: "releases" as const, label: t("home.tutorials.releaseNotes") }] : []),
           ]}
         />
         {mode === "tutorials" && tutorials.length > 0 && (

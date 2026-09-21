@@ -2,6 +2,7 @@ import { usdToCredits } from "@nodaro/shared"
 import { trySettleManagedJob } from "./managed-job-settlement.js"
 import { supabase } from "../../lib/supabase.js"
 import { ReserveRpcError, reservePrefixOf } from "../../lib/reserve-errors.js"
+import { authorizeExternalReservation, deliverExternalWalletSettlements, externalWalletActive } from "./external-wallet.js"
 // Track A. `allowanceEnforcementActive()` is the step-8 flip (an active payer
 // AND `billing.allowances === "enforce"`); `deploymentPayerActive()` gates the
 // settlement-lane cache invalidation so mainline issues no extra read. Both
@@ -286,6 +287,7 @@ export interface UserBalance {
    *  until it is true — while a client that only DISPLAYS the allowance ignores
    *  it. */
   allowance?: { granted: number; remaining: number; enforced: boolean } | null
+  externalWallet?: { available: number | null }
 }
 
 export interface ReserveResult {
@@ -2672,6 +2674,7 @@ export class CreditsService {
       }
       // The SQL boundary already persisted the job pointer and debit ledger.
       // Returning here prevents the legacy post-RPC writes from duplicating it.
+      if (pricing.creditCost > 0) await authorizeExternalReservation(result.usageLogId, userId)
       if (dep) await invalidateRequesterBalance(userId)
       if (!result.replayed && !options.skipAutoRecharge && !ws && !dep) void attemptAutoRecharge(userId)
       return { usageLogId: result.usageLogId, creditsReserved: pricing.creditCost, watermark: result.watermark }
@@ -2680,8 +2683,11 @@ export class CreditsService {
 
     if (!usageLogId) {
       console.error("[credits] reserve_credits returned null usage log ID")
+      if (externalWalletActive()) throw new Error("External wallet requires a durable local reservation")
       return { usageLogId: "log-failed", creditsReserved: pricing.creditCost, watermark }
     }
+
+    await authorizeExternalReservation(usageLogId, userId)
 
     // The post-hoc `on_behalf_of` UPDATE that used to live here is GONE (D5).
     // Migration 382's `reserve_credits` names the column in its OWN insert, so
@@ -2781,7 +2787,7 @@ export class CreditsService {
     if (creditsDisabled() || usageLogId === "self-hosted-skip") return false
     const requester = await settlementRequester(usageLogId)
     try { return await trySettleManagedJob(usageLogId) }
-    finally { await invalidateRequesterBalance(requester) }
+    finally { await invalidateRequesterBalance(requester); void deliverExternalWalletSettlements(usageLogId) }
   }
 
   /**
@@ -2799,6 +2805,7 @@ export class CreditsService {
       await CreditsService.settleCommit(usageLogId, actualCredits)
     } finally {
       await invalidateRequesterBalance(requester)
+      void deliverExternalWalletSettlements(usageLogId)
     }
   }
 
@@ -2831,7 +2838,7 @@ export class CreditsService {
       .select("workspace_id, metadata, on_behalf_of")
       .eq("id", usageLogId)
       .maybeSingle()
-    if (payerRow?.workspace_id) {
+    if (payerRow?.workspace_id || payerRow?.metadata?.external_wallet === true) {
       console.error(
         `[credits] commit fallback REFUSED for workspace-paid usage log ${usageLogId} — row left reserved for RPC retry`,
       )
@@ -2885,6 +2892,7 @@ export class CreditsService {
       await CreditsService.settleRefund(usageLogId)
     } finally {
       await invalidateRequesterBalance(requester)
+      void deliverExternalWalletSettlements(usageLogId)
     }
   }
 
@@ -2919,7 +2927,7 @@ export class CreditsService {
     // money into the member's personal topup pool — and flipping the status
     // would strand the workspace's reserved headroom unreconcilably. Leave
     // the row reserved and loud; only the RPC can settle a workspace payer.
-    if ((usageLog as { workspace_id?: string | null }).workspace_id) {
+    if ((usageLog as { workspace_id?: string | null }).workspace_id || usageLog.metadata?.external_wallet === true) {
       console.error(
         `[credits] refund fallback REFUSED for workspace-paid usage log ${usageLogId} — row left reserved for RPC retry`,
       )

@@ -46,13 +46,16 @@ describe("PersonConfig round-trip — facial-geometry fields", () => {
   itRich("a picked eye-spacing option is reflected back as selected (the new field round-trips)", () => {
     render(<Harness />)
     // "Wide-set" is the eye-spacing → eye-wide-set option (label is unique to this dim).
-    const tile = () => screen.getByRole("radio", { name: /^Wide-set$/i })
-    expect(tile()).toHaveAttribute("aria-checked", "false")
+    // Locate the unique visible label once. Recomputing accessible names for
+    // every radio in this full catalog three times can exceed the CI budget.
+    const tile = screen.getByText(/^Wide-set$/i).closest('[role="radio"]')!
+    expect(tile).toHaveAttribute("role", "radio")
+    expect(tile).toHaveAttribute("aria-checked", "false")
 
-    fireEvent.click(tile())
+    fireEvent.click(tile)
 
     // PersonConfig MUST forward data.eyeSpacing back into the picker's value.
     // If its value whitelist drops the new field, the tile never shows selected.
-    expect(tile()).toHaveAttribute("aria-checked", "true")
+    expect(tile).toHaveAttribute("aria-checked", "true")
   })
 })

@@ -125,8 +125,13 @@ function applyExtend(c: PickerCatalog, pack: CatalogPack): PickerCatalog {
 
 function applyDeny(c: PickerCatalog, denyIds: readonly string[]): PickerCatalog {
   const deny = new Set(denyIds)
-  if (c.kind === "single") return { ...c, options: (c.options ?? []).filter((o) => !deny.has(o.id)) }
-  return { ...c, dimensions: (c.dimensions ?? []).map((d) => ({ ...d, options: d.options.filter((o) => !deny.has(o.id)) })) }
+  // Single-value catalogs can also declare auxiliary dimensions (e.g.
+  // transition duration or motion speed). Those are curated too.
+  return {
+    ...c,
+    options: c.options?.filter((o) => !deny.has(o.id)),
+    dimensions: c.dimensions?.map((d) => ({ ...d, options: d.options.filter((o) => !deny.has(o.id)) })),
+  }
 }
 
 export function composePickerCatalogs(
@@ -144,6 +149,12 @@ export function composePickerCatalogs(
       if (pack.mode === "replace" && pack.catalog) out = cloneCatalog(pack.catalog)
       else if (pack.mode === "extend") out = applyExtend(out, pack)
       else if (pack.mode === "deny") out = applyDeny(out, pack.denyIds ?? [])
+    }
+    if (activePacks.some((p) => p.catalogId === c.catalogId) && out.defaultValue) {
+      const options = [...(out.options ?? []), ...(out.dimensions ?? []).flatMap((d) => d.options)]
+      if (!options.some((o) => o.id === out.defaultValue)) {
+        out = { ...out, defaultValue: out.options?.[0]?.id }
+      }
     }
     return out
   })

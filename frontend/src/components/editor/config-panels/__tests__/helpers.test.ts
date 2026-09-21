@@ -8,7 +8,7 @@ import {
   getModelIdentifier,
   buildCreditModelIdentifier,
 } from "../helpers"
-import { sunoCreditType, SUNO_SELECT_OPERATIONS, SUNO_MODELS, applyDefaultVideoSelection, buildVideoCreditModelIdentifier } from "@nodaro/shared"
+import { sunoCreditType, SUNO_SELECT_OPERATIONS, SUNO_MODELS, applyDefaultVideoSelection, buildVideoCreditModelIdentifier, mergeNodeInputOverrides } from "@nodaro/shared"
 import type { SourceNodeInfo } from "../types"
 import type { WorkflowNode, WorkflowEdge } from "@/types/nodes"
 
@@ -334,6 +334,46 @@ describe("getModelIdentifier", () => {
       { id: "e2", source: "tr", sourceHandle: "json", target: "ep", targetHandle: "transcript" },
     ] as WorkflowEdge[]
     expect(getModelIdentifier(editPlan, edges, [editPlan, urlMaster, transcribe])).toBe("edit-plan:tighten:standard:180m")
+  })
+
+  // …and this is how that URL master gets out of the ceiling: the extraction
+  // worker measures the file and the length is written ON the master node, in the
+  // same patch as its media (referenceAudioMediaPatch), so it can never go stale.
+  it("edit-plan with a URL master that recorded its extracted length quotes the real bucket", () => {
+    const editPlan = makeNode({ id: "ep", type: "edit-plan", data: { label: "EP", mode: "tighten", planTier: "standard" } as any })
+    const urlMaster = makeNode({
+      id: "ref", type: "reference-audio",
+      data: { label: "Episode", sourceType: "youtube", youtubeUrl: "https://youtu.be/x", extractedAudioUrl: "https://cdn/a.mp3", extractionStatus: "ready", metadata: { durationSeconds: 59.4 * 60, mediaUrl: "https://cdn/a.mp3" } } as any,
+    })
+    const edges = [{ id: "e1", source: "ref", target: "ep", targetHandle: "sources" }] as WorkflowEdge[]
+    expect(getModelIdentifier(editPlan, edges, [editPlan, urlMaster])).toBe("edit-plan:tighten:standard:60m")
+  })
+
+  // The same node after an agent replaced its audio with a shallow patch (copilot
+  // `patchNodes`, MCP update_workflow_json): `metadata` rode along, but its stamp
+  // no longer matches the media, so the length reads as unknown — ceiling, never
+  // last episode's 12 minutes against a 3-hour file.
+  it("edit-plan: a URL master whose audio was swapped under a stale stamped length quotes the ceiling", () => {
+    const editPlan = makeNode({ id: "ep", type: "edit-plan", data: { label: "EP", mode: "tighten", planTier: "standard" } as any })
+    const urlMaster = makeNode({
+      id: "ref", type: "reference-audio",
+      data: { label: "Episode", extractedAudioUrl: "https://host/ep42-3h.mp3", extractionStatus: "ready", metadata: { durationSeconds: 720, mediaUrl: "https://cdn/ep41.mp3" } } as any,
+    })
+    const edges = [{ id: "e1", source: "ref", target: "ep", targetHandle: "sources" }] as WorkflowEdge[]
+    expect(getModelIdentifier(editPlan, edges, [editPlan, urlMaster])).toBe("edit-plan:tighten:standard:180m")
+  })
+
+  // An app run that swaps the master's audio must NOT bucket on the publisher's
+  // recorded length: the presentation estimate merges run inputs through
+  // mergeNodeInputOverrides, which drops the media-bound metadata with the media.
+  it("edit-plan: after a run input swaps the URL master's audio, the estimate is the ceiling again", () => {
+    const editPlan = makeNode({ id: "ep", type: "edit-plan", data: { label: "EP", mode: "tighten", planTier: "standard" } as any })
+    const saved = { label: "Episode", sourceType: "youtube", extractedAudioUrl: "https://cdn/publisher-10min.mp3", extractionStatus: "ready", metadata: { durationSeconds: 600 } }
+    const swapped = mergeNodeInputOverrides("reference-audio", saved, { extractedAudioUrl: "https://cdn/caller-60min.mp3" })
+    const urlMaster = makeNode({ id: "ref", type: "reference-audio", data: swapped as any })
+    const edges = [{ id: "e1", source: "ref", target: "ep", targetHandle: "sources" }] as WorkflowEdge[]
+    // Publisher's 10 min would have quoted :15m — a 4x under-quote of the caller's hour.
+    expect(getModelIdentifier(editPlan, edges, [editPlan, urlMaster])).toBe("edit-plan:tighten:standard:180m")
   })
 
   // The config panel's Run button and the presentation view used to call this

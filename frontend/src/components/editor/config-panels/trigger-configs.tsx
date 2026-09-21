@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select"
 import { useT, tx } from "@/lib/i18n"
 import { useLocalizeNodeLabel } from "@/lib/i18n/labels"
-import type { WebhookParam, TelegramTriggerData, TelegramChannelFeedData } from "@/types/nodes"
+import type { WebhookParam, ScheduleTriggerData, TelegramTriggerData, TelegramChannelFeedData } from "@/types/nodes"
 import type { ConfigProps } from "./types"
 import { useSocialConnections } from "./social-configs"
 
@@ -162,13 +162,12 @@ export function WebhookTriggerConfig({ data, onUpdate }: ConfigProps<WebhookTrig
 
 // ── Schedule Trigger ───────────────────────────────────────────
 
-interface ScheduleTriggerData {
-  cronExpression?: string
-  interval?: string
-  timezone?: string
-  maxExecutions?: number
-  label?: string
-}
+// ScheduleTriggerData comes from @/types/nodes on purpose. A local copy used
+// to shadow it here, and because it spelled the expression `cronExpression`
+// while the canonical type, the node card and `workflow_triggers.config` all
+// say `cron`, the panel wrote a field nothing downstream ever read — a custom
+// schedule vanished on save with no error. Importing the one type makes that
+// drift a compile error instead of silence.
 
 // A function, not a const: a module-level table built at import time would
 // freeze the labels to whatever locale booted first.
@@ -189,12 +188,19 @@ export function ScheduleTriggerConfig({ data, onUpdate }: ConfigProps<ScheduleTr
     currentInterval !== "" && !INTERVAL_OPTIONS().some((o) => o.value === currentInterval)
   )
   const selectValue = isCustom ? "custom" : currentInterval || ""
+  const cronValue = (data.cron as string | undefined) || (data.cronExpression as string | undefined) || ""
 
+  // The expression is written to `cron` — the name ScheduleTriggerData, the
+  // node card and `workflow_triggers.config` all use. This panel used to write
+  // it to `cronExpression`, which nothing downstream ever read, so a custom
+  // schedule was silently dropped on save. Old graphs still carrying
+  // `cronExpression` keep working: the backend normaliser reads it as a
+  // fallback (see lib/workflow-trigger-sync.ts).
   const handleIntervalChange = (value: string) => {
     if (value === "custom") {
-      onUpdate({ interval: "custom", cronExpression: data.cronExpression || "" })
+      onUpdate({ interval: "custom", cron: cronValue })
     } else {
-      onUpdate({ interval: value, cronExpression: value })
+      onUpdate({ interval: value, cron: value })
     }
   }
 
@@ -221,8 +227,8 @@ export function ScheduleTriggerConfig({ data, onUpdate }: ConfigProps<ScheduleTr
           <Label htmlFor="cron-expression">{t("cfgext.trigCronExpression")}</Label>
           <Input
             id="cron-expression"
-            value={data.cronExpression || ""}
-            onChange={(e) => onUpdate({ cronExpression: e.target.value })}
+            value={cronValue}
+            onChange={(e) => onUpdate({ cron: e.target.value })}
             placeholder="*/5 * * * *"
             className="font-mono text-sm"
           />

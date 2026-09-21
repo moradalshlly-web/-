@@ -6278,6 +6278,7 @@ export interface UserBalance {
    * that turns it into a gate figure or a displayed one.
    */
   allowance?: CreditAllowance | null
+  externalWallet?: { available: number | null }
 }
 
 /** Starts the $0 payment-method step that activates a withheld free grant. */

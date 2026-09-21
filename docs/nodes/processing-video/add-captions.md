@@ -164,7 +164,7 @@ Per-segment captions render through the animated engine, so they bill at the kin
 
 ### Position Options
 
-`position` anchors the caption **block**, and a named slot anchors the edge nearest the frame edge — so a block that wraps to more than one line grows *inward* and never clips off-screen. This is the authoritative mapping for the **Remotion render** — every kinetic style, any styled/timed `subtitle`, per-segment captions, and **any `position_y`**:
+`position` anchors the caption **block**, and a named slot anchors the edge nearest the frame edge — so a block that wraps to more than one line grows *inward* and never clips off-screen. This is the authoritative mapping, and it is **identical on both render paths** — the FFmpeg plain-text `subtitle` burn and the Remotion render (every kinetic style, any styled/timed `subtitle`, per-segment captions) — so a caption sits in the same place whichever engine draws it:
 
 | Value | Where the block sits |
 |-------|----------------------|
@@ -174,8 +174,6 @@ Per-segment captions render through the animated engine, so they bill at the kin
 | `position_y: N` | The block's **CENTRE** at **N %** of the height, overriding `position`. It is the centre, not an edge — `position_y: 85` puts the **centre** at 85 %, so the block's bottom hangs below that |
 
 **Worked example.** On a 1920-tall frame, `position_y: 83.5` puts the block **centre** at ~1603 px (0.835 × 1920); a single line at the default `font_size` then has its bottom edge near ~1620 px — well below centre but still clear of the very bottom.
-
-> **Plain-text `subtitle` fast-path exception.** A bare `subtitle` with only `text` (no styling lever and no `position_y`) renders through the cheaper FFmpeg `drawtext` burn, whose named slots use a **legacy** anchor: `bottom` sits ~40 px off the very bottom edge (≈ 98 %) and `top` ~40 px from the top. To get the mapping above (or any exact placement) on a subtitle, set `position_y` — that routes it through Remotion. Unifying the two anchors is a planned follow-up.
 
 ## Inputs & Outputs
 

@@ -593,6 +593,13 @@ If you need scheduled triggers (cron-like) without an external system,
 use the Schedule Trigger node instead — Nodaro polls the schedule
 internally every 60 seconds.
 
+Both node types register on **save**, whichever way the workflow was
+written (editor, API, SDK, import, MCP). Inspect a workflow's triggers with
+`GET /v1/workflows/<id>/triggers`; pause or resume one with
+`PATCH /v1/workflow-triggers/<id>`. Triggers you create directly with
+`POST /v1/workflow-triggers` are not managed by any node, so saving the
+workflow never changes or removes them.
+
 ## 7. Rate limits
 
 Per-token, in-memory bucket:

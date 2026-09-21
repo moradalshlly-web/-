@@ -78,11 +78,11 @@ export const MusicGenrePicker = memo(function MusicGenrePicker({
         description: g.description,
         group: g.category,
       }))
-  }, [matches, query])
+  }, [MUSIC_GENRES, matches, query])
 
   const filteredEras = useMemo<ReadonlyArray<MusicEra>>(
     () => MUSIC_ERAS.filter((e) => matches(e.id, e.label, e.description, query)),
-    [matches, query],
+    [MUSIC_ERAS, matches, query],
   )
 
   const singleGenreId = genreIds.length === 1 ? genreIds[0] : undefined

@@ -1,3 +1,4 @@
+import { curatedNodeDefaults } from "@/lib/curated-node-defaults"
 import { create } from "zustand"
 import {
   applyNodeChanges,
@@ -1416,7 +1417,7 @@ export const useWorkflowStore = create<WorkflowState>((rawSet, get) => {
       adminDefaults,
       userId: getCachedUserId(),
     })
-    const nodeData = { ...resolvedDefaults, ...initialData }
+    const nodeData = { ...curatedNodeDefaults(type, resolvedDefaults), ...initialData }
 
     // Parameter nodes: seed displayMode from the user's per-device preference
     // so a new node opens in whatever mode (picks/prompt/both) they last used.

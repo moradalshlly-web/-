@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
   const mockKieAudioProvider = vi.fn().mockImplementation(function () { return mockKieAudioProviderInstance })
   const mockTranscribe = vi.fn()
   const mockExtractYouTubeAudio = vi.fn()
+  const mockExtractYouTubeAudioWithMeta = vi.fn()
   const mockUploadToR2 = vi.fn().mockResolvedValue("https://r2.example.com/audio/job-1.mp3")
   const mockUploadBufferToR2 = vi.fn().mockResolvedValue("https://r2.example.com/audio/job-1.mp3")
   const mockDirectElevenLabsTTS = vi.fn().mockResolvedValue(Buffer.from("fake-audio"))
@@ -67,6 +68,7 @@ const mocks = vi.hoisted(() => {
     mockKieAudioProviderInstance,
     mockTranscribe,
     mockExtractYouTubeAudio,
+    mockExtractYouTubeAudioWithMeta,
     mockUploadToR2,
     mockUploadBufferToR2,
     mockDirectElevenLabsTTS,
@@ -130,7 +132,10 @@ vi.mock("@/providers/elevenlabs/voice-remix.js", () => ({ remixVoice: mocks.mock
 vi.mock("@/providers/elevenlabs/voice-design.js", () => ({ designVoice: mocks.mockDesignVoice }))
 vi.mock("@/providers/elevenlabs/forced-alignment.js", () => ({ forcedAlignment: mocks.mockForcedAlignment }))
 vi.mock("@/providers/audio/transcribe.js", () => ({ transcribe: mocks.mockTranscribe }))
-vi.mock("@/providers/audio/youtube-extractor.js", () => ({ extractYouTubeAudio: mocks.mockExtractYouTubeAudio }))
+vi.mock("@/providers/audio/youtube-extractor.js", () => ({
+  extractYouTubeAudio: mocks.mockExtractYouTubeAudio,
+  extractYouTubeAudioWithMeta: mocks.mockExtractYouTubeAudioWithMeta,
+}))
 vi.mock("../../../lib/job-finalize.js", () => ({ finalizeJobWithMedia: mocks.mockFinalizeJobWithMedia }))
 vi.mock("../../shared.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../shared.js")>()
@@ -197,6 +202,7 @@ beforeEach(() => {
   mocks.mockDirectElevenLabsDialogue.mockResolvedValue(Buffer.from("fake-dialogue"))
   mocks.mockTranscribe.mockResolvedValue({ text: "Hello world", language: "en", segments: [] })
   mocks.mockExtractYouTubeAudio.mockResolvedValue("https://example.com/yt-audio.mp3")
+  mocks.mockExtractYouTubeAudioWithMeta.mockResolvedValue({ url: "https://example.com/yt-audio.mp3", durationSeconds: 3564.2 })
   mocks.mockShouldSaveJobResult.mockResolvedValue(true)
   // Defaults for voice-changer video-mode deps (overridden per-test).
   mocks.mockUploadToR2.mockResolvedValue("https://r2.example.com/audio/job-1.mp3")
@@ -589,11 +595,22 @@ describe("extract-youtube-audio handler", () => {
     const job = makeJob("extract-youtube-audio", { youtubeUrl: "https://youtube.com/watch?v=abc" })
     await handler(job as never, makeCtx())
 
-    expect(mocks.mockExtractYouTubeAudio).toHaveBeenCalledWith("https://youtube.com/watch?v=abc")
-    // extract-youtube-audio outputs raw audioUrl — keeps direct markJobCompleted (not via finalize)
+    expect(mocks.mockExtractYouTubeAudioWithMeta).toHaveBeenCalledWith("https://youtube.com/watch?v=abc")
+    // extract-youtube-audio outputs raw audioUrl — keeps direct markJobCompleted (not via finalize).
+    // The length rides beside it so the caller can record it ON the node.
     expect(mocks.mockMarkJobCompleted).toHaveBeenCalledWith("job-1", expect.objectContaining({
-      output_data: { audioUrl: "https://example.com/yt-audio.mp3" },
+      output_data: { audioUrl: "https://example.com/yt-audio.mp3", durationSeconds: 3564.2 },
     }))
+  })
+
+  it("omits durationSeconds entirely when the probe produced none (never a null/undefined key)", async () => {
+    mocks.mockExtractYouTubeAudioWithMeta.mockResolvedValueOnce({ url: "https://example.com/yt-audio.mp3" })
+    const job = makeJob("extract-youtube-audio", { youtubeUrl: "https://youtube.com/watch?v=abc" })
+    await handler(job as never, makeCtx())
+
+    const payload = mocks.mockMarkJobCompleted.mock.calls.at(-1)![1] as { output_data: Record<string, unknown> }
+    expect(payload.output_data).toEqual({ audioUrl: "https://example.com/yt-audio.mp3" })
+    expect("durationSeconds" in payload.output_data).toBe(false)
   })
 })
 

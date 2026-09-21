@@ -31,6 +31,7 @@ import {
   useUpdateApiTokenMutation,
   useDeleteApiTokenMutation,
 } from "@/hooks/queries/use-api-tokens-queries"
+import { surfacePlatformLinks } from "@/lib/surface-selectors"
 import { useT } from "@/lib/i18n"
 
 export default function ApiSettingsPage() {
@@ -234,26 +235,26 @@ export default function ApiSettingsPage() {
         <div className="mt-6 pt-4 border-t">
           <h3 className="text-sm font-semibold mb-2">{t("apiTok.buildWith")}</h3>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>
+            {surfacePlatformLinks() && <li>
               <a className="text-primary hover:underline" href="https://www.npmjs.com/package/@nodaro/sdk" target="_blank" rel="noreferrer">TypeScript SDK — @nodaro/sdk</a>
               <span> {t("apiTok.sdkDesc")}</span>
-            </li>
-            <li>
+            </li>}
+            {surfacePlatformLinks() && <li>
               <a className="text-primary hover:underline" href="https://www.npmjs.com/package/@nodaro/cli" target="_blank" rel="noreferrer">CLI — @nodaro/cli</a>
               <span> {t("apiTok.cliDesc")}</span>
-            </li>
+            </li>}
             <li>
               <a className="text-primary hover:underline" href={`${window.location.origin}/v1/openapi.json`} target="_blank" rel="noreferrer">{t("apiTok.openapiLink")}</a>
               <span> {t("apiTok.openapiDesc")}</span>
             </li>
-            <li>
+            {surfacePlatformLinks() && <li>
               <a className="text-primary hover:underline" href="https://nodaroai.github.io/app.nodaro.ai/api-integration.html" target="_blank" rel="noreferrer">{t("apiTok.guideLink")}</a>
               <span> {t("apiTok.guideDesc")}</span>
-            </li>
-            <li>
+            </li>}
+            {surfacePlatformLinks() && <li>
               <a className="text-primary hover:underline" href="https://nodaroai.github.io/app.nodaro.ai/mcp/" target="_blank" rel="noreferrer">{t("apiTok.mcpLink")}</a>
               <span> {t("apiTok.mcpDesc")}</span>
-            </li>
+            </li>}
           </ul>
         </div>
       </div>

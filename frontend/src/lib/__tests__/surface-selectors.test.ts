@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest"
 import {
   surfaceNavHidden,
+  surfaceTemplatesVisible,
+  surfacePlatformLinks,
   surfaceTabs,
   surfaceSiblings,
   surfaceBrandName,
@@ -134,5 +136,18 @@ describe("brand wordmark — tile+text lockup opt-in", () => {
     expect(surfaceBrandWordmark()).toBe("Studio")
     window.__NODARO_RUNTIME__ = { surface: { brand: { productName: "Acme Studio", wordmark: "   " } } }
     expect(surfaceBrandWordmark()).toBeUndefined()
+  })
+})
+
+
+describe("deployment discovery gates", () => {
+  it("defaults to platform links and templates, and honors both ways to hide templates", () => {
+    expect(surfacePlatformLinks()).toBe(true)
+    expect(surfaceTemplatesVisible()).toBe(true)
+    window.__NODARO_RUNTIME__ = { surface: { brand: { productName: "Acme", platformLinks: false }, nav: { hide: ["templates"] } } }
+    expect(surfacePlatformLinks()).toBe(false)
+    expect(surfaceTemplatesVisible()).toBe(false)
+    window.__NODARO_RUNTIME__ = { surface: { dashboard: { tabs: ["tutorials"] } } }
+    expect(surfaceTemplatesVisible()).toBe(false)
   })
 })

@@ -60,7 +60,7 @@ const OrgSwitcherSection = hasOrganizations()
   ? lazy(() => import("@/ee/components/org/org-switcher-section").then((m) => ({ default: m.OrgSwitcherSection })))
   : null
 import { otherNodaroApps } from "@/lib/nodaro-apps"
-import { surfaceNavHidden, surfaceTabs, surfaceBillingSelfServe, surfaceSidebarCreditCardHidden } from "@/lib/surface-selectors"
+import { surfaceNavHidden, surfaceTabs, surfaceBillingSelfServe, surfaceSidebarCreditCardHidden, surfaceBrandName, surfacePlatformLinks } from "@/lib/surface-selectors"
 import { creditUnits, creditUnitLabel } from "@/lib/credit-units"
 import { spendableCredits, type BalanceWithAllowance, type CreditAllowance } from "@/lib/spendable-credits"
 import { useBillingSurface } from "@/hooks/use-billing-surface"
@@ -74,11 +74,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSidebar, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_EXPANDED_WIDTH } from "./sidebar-context"
-
-/** The rest of the Nodaro family, one hop away — the canonical fleet order
- *  minus Flow (see `nodaro-apps.ts`). All open in NEW tabs: the logo must
- *  never navigate a mid-edit user away. */
-const NODARO_SURFACES = otherNodaroApps("flow")
 
 const STORAGE_KEY = "nodaro-sidebar-collapsed"
 
@@ -243,6 +238,8 @@ interface AppSidebarProps {
  * Everything here is RAW credits; `creditUnits` converts at render.
  */
 export interface SidebarCreditFigures {
+  readonly external?: boolean
+  readonly unavailable?: boolean
   /** The headline figure, raw credits. */
   readonly headline: number
   /** Non-null only when a per-user allowance applies. */
@@ -260,7 +257,8 @@ export function sidebarCreditFigures(
   // refuses, and passing the flag is what keeps that a decision rather than an
   // omission.
   const { displayFigure, allowance } = spendableCredits(balance, deploymentPayer)
-  return { headline: displayFigure, allowance }
+  return { headline: displayFigure, allowance,
+    ...(balance.externalWallet ? { external: true, unavailable: balance.externalWallet.available === null } : {}) }
 }
 
 function CreditRow({
@@ -343,6 +341,8 @@ export function AppSidebar({
   // Self-serve purchase off (a prepaid instance): the credit card is a plain
   // readout — no hop to /billing — and the Pricing/Billing entries are withheld.
   const selfServe = surfaceBillingSelfServe()
+  const brandName = surfaceBrandName()
+  const siblingApps = otherNodaroApps("flow")
   const [mounted, setMounted] = useState(false)
   const updateInfo = useUpdateCheck()
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
@@ -402,7 +402,7 @@ export function AppSidebar({
   }, [latestVersion])
   // Clickable whenever a release is known; plain text only while the check
   // has not answered or is off (NODARO_UPDATE_CHECK=off — air-gapped installs).
-  const showVersionIndicator = Boolean(updateInfo?.latest)
+  const showVersionIndicator = surfacePlatformLinks() && Boolean(updateInfo?.latest)
   const [initializedFromStorage, setInitializedFromStorage] = useState(false)
   const { data: pendingReportsCount = 0 } = useGalleryReportCount()
 
@@ -473,8 +473,8 @@ export function AppSidebar({
               the Projects nav item right below, so no navigation is lost. */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              aria-label={t("nav.openNodaroApp")}
-              title={t("nav.nodaroApps")}
+              aria-label={brandName === "Nodaro" ? t("nav.openNodaroApp") : t("nav.openMenu")}
+              title={brandName === "Nodaro" ? t("nav.nodaroApps") : brandName}
               className={cn(
                 "flex items-center gap-2 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded",
                 isCollapsed ? "justify-center w-full" : "ms-1",
@@ -487,9 +487,9 @@ export function AppSidebar({
               )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-56">
-              <DropdownMenuLabel>Nodaro</DropdownMenuLabel>
+              <DropdownMenuLabel>{brandName}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {NODARO_SURFACES.map((surface) => (
+              {siblingApps.map((surface) => (
                 <DropdownMenuItem key={surface.url} asChild className="px-3">
                   <a href={surface.url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="size-4" />
@@ -547,12 +547,12 @@ export function AppSidebar({
                     }}
                   >
                     <span className="font-mono" style={{ fontSize: 12, fontWeight: 700, color: "var(--blg-t1)" }}>
-                      {creditUnits(creditFigures.headline) >= 1000
+                      {creditFigures.unavailable ? "—" : creditUnits(creditFigures.headline) >= 1000
                         ? `${(creditUnits(creditFigures.headline) / 1000).toFixed(1).replace(/\.0$/, "")}K`
                         : creditUnits(creditFigures.headline)}
                     </span>
                     <span className="flex flex-col gap-[3px] w-full px-1">
-                      {creditFigures.allowance ? (
+                      {creditFigures.external ? null : creditFigures.allowance ? (
                         // One pot, one bar: the subscription/top-up split is a
                         // personal-wallet shape and has no meaning against an
                         // allocation the operator granted.
@@ -594,8 +594,8 @@ export function AppSidebar({
                   side={isRtl ? "left" : "right"}
                   className="bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-700"
                 >
-                  <p>{t("nav.creditsLeft", { n: creditUnits(creditFigures.headline) })}</p>
-                  {creditFigures.allowance ? (
+                  <p>{creditFigures.unavailable ? "—" : t("nav.creditsLeft", { n: creditUnits(creditFigures.headline) })}</p>
+                  {creditFigures.external ? null : creditFigures.allowance ? (
                     // The pair is one interpolated key, never a bare "X / Y":
                     // the operands invert under RTL and the line then lies.
                     <p className="text-zinc-500 dark:text-zinc-400">
@@ -672,7 +672,7 @@ export function AppSidebar({
                         color: "var(--blg-t1)",
                       }}
                     >
-                      {creditUnits(creditFigures.headline).toLocaleString()}
+                      {creditFigures.unavailable ? "—" : creditUnits(creditFigures.headline).toLocaleString()}
                     </span>
                     <span style={{ fontSize: 13, color: "var(--blg-t2-dim)" }}>{creditUnitLabel(t("nav.credits"))}</span>
                   </div>
@@ -683,7 +683,7 @@ export function AppSidebar({
                       card. Colours stay on the --blg-* tokens rather than the
                       mock's literals so both themes follow. */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
-                    {creditFigures.allowance ? (
+                    {creditFigures.external ? null : creditFigures.allowance ? (
                       // One row, because there is one pot. The bar tracks what
                       // is LEFT of the grant; the headline above already shows
                       // the remaining figure, so this row names the total it

@@ -110,3 +110,40 @@ describe("applyLocationVariantOverride", () => {
     expect(data.sourceImageUrl).toBeUndefined()
   })
 })
+
+
+// A published app / API-token / MCP run swaps an input node's media by overriding
+// its url field. `metadata` was measured FROM the publisher's media — left behind
+// it describes a file that is no longer there, and a stale
+// `metadata.durationSeconds` outranks the run's own transcript as Edit Plan's
+// reserve basis (under-bucketing a caller's longer episode).
+describe("applyInputOverridesToNodes — media-bound metadata", () => {
+  it("drops a reference-audio node's recorded length when the run swaps its audio", () => {
+    const nodes = [{
+      id: "ref", type: "reference-audio",
+      data: { extractedAudioUrl: "https://cdn/publisher-10min.mp3", extractionStatus: "ready", metadata: { durationSeconds: 600 } },
+    }]
+    applyInputOverridesToNodes(nodes, { ref: { extractedAudioUrl: "https://cdn/caller-60min.mp3" } })
+    expect(nodes[0].data.extractedAudioUrl).toBe("https://cdn/caller-60min.mp3")
+    expect("metadata" in nodes[0].data).toBe(false)
+  })
+
+  it("covers upload-audio / upload-video the same way (their `url` field)", () => {
+    const nodes = [
+      { id: "a", type: "upload-audio", data: { url: "https://cdn/old.mp3", metadata: { durationSeconds: 600 } } },
+      { id: "v", type: "upload-video", data: { url: "https://cdn/old.mp4", metadata: { durationSeconds: 90 } } },
+    ]
+    applyInputOverridesToNodes(nodes, { a: { url: "https://cdn/new.mp3" }, v: { url: "https://cdn/new.mp4" } })
+    expect("metadata" in nodes[0].data).toBe(false)
+    expect("metadata" in nodes[1].data).toBe(false)
+  })
+
+  it("keeps the recorded length for a run that does not change the media", () => {
+    const nodes = [{
+      id: "ref", type: "reference-audio",
+      data: { extractedAudioUrl: "https://cdn/ep.mp3", metadata: { durationSeconds: 600 } },
+    }]
+    applyInputOverridesToNodes(nodes, { ref: { label: "Renamed" } })
+    expect(nodes[0].data.metadata).toEqual({ durationSeconds: 600 })
+  })
+})

@@ -80,12 +80,12 @@ export const VoiceCharacterPicker = memo(function VoiceCharacterPicker({
           matches(e.id, e.label, e.description, query),
         ),
       })),
-    [matches, query],
+    [SINGLE_SECTIONS, matches, query],
   )
 
   const filteredLanguages = useMemo(
     () => VOICE_LANGUAGES.filter((e) => matches(e.id, e.label, e.description, query)),
-    [matches, query],
+    [VOICE_LANGUAGES, matches, query],
   )
 
   const languageIds = pickIds(value.language)

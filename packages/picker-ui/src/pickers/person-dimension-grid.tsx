@@ -1,7 +1,7 @@
 "use client"
 
 import { useId, useMemo, useState, type JSX } from "react"
-import { getRegisteredPeople, getRegisteredPersonFieldByDimension, getRegisteredPersonDimensionLabels, PERSON_FIELD_BY_DIMENSION, getPersonDimensionLimit, isMinorAge, type Person, type PersonDimension, type PersonValue } from "@nodaro/prompts"
+import { getPerson, getRegisteredPeople, getRegisteredPersonFieldByDimension, getRegisteredPersonDimensionLabels, PERSON_FIELD_BY_DIMENSION, getPersonDimensionLimit, isMinorAge, type Person, type PersonDimension, type PersonValue } from "@nodaro/prompts"
 
 // The precise per-dimension field-name union (a key of PersonValue for every
 // BASE dimension). Pack dimensions add new fields outside this union at run
@@ -331,7 +331,7 @@ export function usePersonDimension(
 ): UsePersonDimensionResult {
   const field = getRegisteredPersonFieldByDimension()[dimension] as PersonFieldName
   const raw = value[field]
-  const selectedIds = pickIds(raw)
+  const selectedIds = pickIds(raw).filter((id) => getPerson(id) !== undefined)
   const maxSelected = getPersonDimensionLimit(dimension)
   const multi = maxSelected > 1
   const isMultiData = Array.isArray(raw)

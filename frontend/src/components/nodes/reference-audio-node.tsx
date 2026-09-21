@@ -9,7 +9,7 @@ import { HandleWithPopover, HANDLE_COLORS, TEXT_HANDLE_COLOR } from "./handle-wi
 import { CachedImage } from "@/components/ui/cached-image"
 import { useFullResolution } from "@/hooks/use-full-resolution"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
-import { runYouTubeAudioExtraction } from "@/lib/youtube-audio-extraction"
+import { runYouTubeAudioExtraction, referenceAudioMediaPatch } from "@/lib/youtube-audio-extraction"
 import type { ReferenceAudioData } from "@/types/nodes"
 
 const HANDLES = [
@@ -40,7 +40,7 @@ function ReferenceAudioNodeComponent({ id, data, selected }: NodeProps) {
     if (hasAudio || status !== "idle") return
     // A direct file link needs no job — the panel's Set button just copies it.
     if (sourceType === "url" && directUrl) {
-      updateNodeData(id, { extractedAudioUrl: directUrl, extractionStatus: "ready" })
+      updateNodeData(id, referenceAudioMediaPatch(directUrl))
       return
     }
     if (sourceType !== "youtube" || !youtubeUrl) return
@@ -48,7 +48,7 @@ function ReferenceAudioNodeComponent({ id, data, selected }: NodeProps) {
     extractingRef.current = true
     updateNodeData(id, { extractionStatus: "extracting" })
     void runYouTubeAudioExtraction(youtubeUrl)
-      .then((audioUrl) => updateNodeData(id, { extractedAudioUrl: audioUrl, extractionStatus: "ready" }))
+      .then(({ audioUrl, durationSeconds }) => updateNodeData(id, referenceAudioMediaPatch(audioUrl, durationSeconds)))
       .catch(() => updateNodeData(id, { extractionStatus: "failed" }))
       .finally(() => {
         extractingRef.current = false

@@ -784,6 +784,23 @@ row exists to point at — so the reuse guarantee is a result-gate one; a repeat
 request is a repeated decision.) `JOB_HOLD_TTL_HOURS` bounds how long a hold may
 wait. Design note: [`docs/design/job-policy-seam.md`](design/job-policy-seam.md).
 
+Set `brand.platformLinks: false` to hide platform-owned legal, documentation,
+release-note and product-promotion links. Explicit `siblings.apps` links remain
+available; the app menu uses `brand.productName`. Omitted = stock links remain.
+The template gallery respects both `nav.hide: ["templates"]` and the
+`dashboard.tabs` whitelist, including its canvas shortcut and direct page.
+
+For deployments that require reviewed picker content, set
+`catalogs: { "required": true, "factoryPresets": false }`. The browser withholds
+bundled choices until it receives the complete curated catalog response and
+keeps them unavailable if that request fails. New-node defaults and factory
+resets use offered values, and removed Person selections are omitted from
+summaries. `factoryPresets: false` hides bundled presets in the editor and API;
+user presets remain available. The server also rejects excluded catalog IDs
+from imported or previously saved workflows. Voice gender restrictions apply
+to picker filters and cached results as well as server results; restricted
+deployments do not show unverified bundled voice placeholders.
+
 Brand **assets** (favicon, logos) are overridden by a Docker static-asset layer,
 not this JSON.
 
@@ -1286,3 +1303,7 @@ the administrative credentials; each runner receives only a single-use job
 identity and exits after one job. Deploying the pool does not enable CI routing.
 Railway test runners restore npm downloads from the hosted preparation cache
 without saving a second copy. Cache misses still use a clean `npm ci`.
+
+## External customer wallets
+
+Cloud deployments with a designated billing payer can use an [external shared wallet](external-wallet.md) for customer authorization, settlement and balance display.

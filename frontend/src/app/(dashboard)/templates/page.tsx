@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react"
 import { lazyWithRetry } from "@/lib/lazy-with-retry"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useSearchParams } from "react-router-dom"
+import { Navigate, useSearchParams } from "react-router-dom"
 import { LayoutTemplate } from "lucide-react"
 import { toast } from "sonner"
 import { useT, type MessageKey } from "@/lib/i18n"
+import { surfaceTemplatesVisible } from "@/lib/surface-selectors"
 import { hasCredits } from "@/lib/edition"
 import { browseTemplates, getMyTemplates, updateTemplate, deleteTemplate, type WorkflowTemplate } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
@@ -56,6 +57,10 @@ const SORT_CONTROL: readonly TemplateSort[] = ["popular", "newest", "cheapest"]
 const CARD_GRID = "grid grid-cols-[repeat(auto-fill,minmax(max(285px,calc((100%_-_80px)/6)),1fr))] gap-4"
 
 export default function TemplatesPage() {
+  return surfaceTemplatesVisible() ? <TemplatesContent /> : <Navigate to="/projects" replace />
+}
+
+function TemplatesContent() {
   const t = useT()
   const { user } = useAuth()
   const qc = useQueryClient()

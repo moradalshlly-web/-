@@ -48,7 +48,7 @@ import {
 import { EXECUTABLE_TYPES, estimateNodeCredits, isExecutableNode, getFanOutMultiplier } from "@/components/editor/workflow-editor/types"
 import { getModelIdentifier } from "@/components/editor/config-panels/helpers"
 import { getCachedCredits, prefetchModelCredits } from "@/ee/hooks/use-model-credits"
-import { isExpandedClone, calculateMonetizedCost, getItemSortId } from "@nodaro/shared"
+import { isExpandedClone, calculateMonetizedCost, getItemSortId, mergeNodeInputOverrides } from "@nodaro/shared"
 import type { PresentationItem, ExposableField } from "@nodaro/shared"
 import { shareWorkflow } from "@/lib/api"
 import { createClient } from "@/lib/supabase"
@@ -375,7 +375,12 @@ export function PresentationView({ mode, isOwner, onExitFullscreen, onRun, onCan
       const effectiveNodes = inputValues
         ? nodes.map((n) => {
             const vals = inputValues[n.id]
-            return vals ? { ...n, data: { ...n.data, ...vals } } : n
+            // The shared merge, not a bare spread: a swapped media input also
+            // drops the saved media-bound `metadata`, so this estimate (which the
+            // run precheck gates on) can't bucket on the publisher's length.
+            return vals
+              ? { ...n, data: mergeNodeInputOverrides(n.type, n.data as Record<string, unknown>, vals as Record<string, unknown>) as typeof n.data }
+              : n
           })
         : nodes
       const executableNodes = effectiveNodes.filter((n) => isExecutableNode(n) && !isExpandedClone(n))

@@ -18,7 +18,7 @@ import { ReplicateAudioSeparationProvider } from "../../providers/replicate/audi
 import { transcribe, type TranscribeProvider } from "../../providers/audio/transcribe.js"
 import { buildTranscriptFromOutput } from "../../providers/audio/transcript-normalize.js"
 import type { Caption } from "@remotion/captions"
-import { extractYouTubeAudio } from "../../providers/audio/youtube-extractor.js"
+import { extractYouTubeAudio, extractYouTubeAudioWithMeta } from "../../providers/audio/youtube-extractor.js"
 import { voiceChangerFromUrl, directVoiceChanger } from "../../providers/elevenlabs/voice-changer.js"
 import { extractAudioTrack } from "../../providers/video/extract-audio-track.js"
 import { mergeVideoAudio } from "../../providers/video/merge-video-audio.js"
@@ -337,15 +337,19 @@ const handleTranscribe: HandlerFn = async function handleTranscribe(job, ctx) {
 const handleExtractYoutubeAudio: HandlerFn = async function handleExtractYoutubeAudio(job, ctx) {
   const { youtubeUrl } = job.data as { jobId: string; youtubeUrl: string }
   console.log(`[worker] extract-youtube-audio ${ctx.jobId}`)
-  const audioUrl = await withProgressRamp(
+  const { url: audioUrl, durationSeconds } = await withProgressRamp(
     job,
     ctx.jobId,
     { start: 5, cap: 80 },
-    () => extractYouTubeAudio(youtubeUrl),
+    () => extractYouTubeAudioWithMeta(youtubeUrl),
   )
   await setJobProgress(job, ctx.jobId, 100)
   if (!await shouldSaveJobResult(ctx.jobId)) return
-  const ok = await markJobCompleted(ctx.jobId, { output_data: { audioUrl } })
+  // `durationSeconds` rides beside the url so the caller can record the length
+  // ON the node that holds this audio — bound to its media by construction.
+  const ok = await markJobCompleted(ctx.jobId, {
+    output_data: durationSeconds !== undefined ? { audioUrl, durationSeconds } : { audioUrl },
+  })
   if (!ok) return
   await commitJobCredits(ctx.usageLogId, ctx.jobId)
   console.log(`[worker] Job ${ctx.jobId} completed: ${audioUrl}`)

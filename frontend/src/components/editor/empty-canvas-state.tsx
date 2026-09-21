@@ -70,7 +70,7 @@ export interface EmptyCanvasStateProps {
   readonly onOpenInputPanel: () => void;
   readonly onOpenMyLibrary: () => void;
   readonly onOpenMediaLibrary: () => void;
-  readonly onOpenTemplates: () => void;
+  readonly onOpenTemplates?: () => void;
   readonly onOpenTutorials: () => void;
 }
 
@@ -174,10 +174,10 @@ export function EmptyCanvasState({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button type="button" className={PILL_CLASS} onClick={onOpenTemplates}>
+          {onOpenTemplates && <button type="button" className={PILL_CLASS} onClick={onOpenTemplates}>
             <LayoutGrid className="h-3.5 w-3.5" />
             {t("canvas.templates")}
-          </button>
+          </button>}
           <button type="button" className={PILL_CLASS} onClick={onOpenTutorials}>
             <GraduationCap className="h-3.5 w-3.5" />
             {t("canvas.tutorials")}

@@ -1,3 +1,4 @@
+import { surfaceVoiceGenderAllowed } from "@/lib/surface-selectors"
 import { useQuery, useInfiniteQuery, keepPreviousData } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/query-keys"
 import { getVoices, searchVoiceLibrary, type ElevenLabsVoice, type VoiceLibraryParams, type VoicesResponse } from "@/lib/api"
@@ -35,7 +36,8 @@ export function useVoices() {
     queryFn: getVoices,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    placeholderData: { voices: PLACEHOLDER_VOICES },
+    placeholderData: { voices: surfaceVoiceGenderAllowed(undefined) ? PLACEHOLDER_VOICES : [] },
+    select: (data) => ({ ...data, voices: data.voices.filter((v) => surfaceVoiceGenderAllowed(v.gender)) }),
   })
 }
 

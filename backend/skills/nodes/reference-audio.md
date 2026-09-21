@@ -1,7 +1,7 @@
 ---
 node_type: reference-audio
-generated_at: 2026-08-15T21:55:05.759Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T18:20:26.342Z
+generated_from: b40e2db40
 ---
 
 # Reference Audio
@@ -24,6 +24,9 @@ generated_from: 150c80ac9
 - `videoDuration: string`
 - `extractedAudioUrl: string`
 - `extractionStatus: "idle" | "extracting" | "ready" | "failed"`
+
+**Optional data fields:**
+- `metadata?: { durationSeconds?: number; mediaUrl?: string }`
 
 **Default data:**
 ```json

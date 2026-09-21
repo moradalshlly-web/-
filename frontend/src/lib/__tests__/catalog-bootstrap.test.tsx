@@ -8,9 +8,10 @@
  *   - a catalog this bundle does not know is skipped, never thrown on.
  */
 import { afterEach, describe, expect, it } from "vitest"
-import { render, act } from "@testing-library/react"
+import { render, act, screen } from "@testing-library/react"
 import { SETTINGS, getPickerCatalog, resetCatalogPacks } from "@nodaro/prompts"
 import { useCuratedEntries, getParameterPickerMeta } from "@/lib/picker-ui"
+import { VoiceCharacterPicker } from "@nodaro/picker-ui"
 import { applyServerCatalogs, __resetCatalogBootstrapForTests } from "../catalog-bootstrap"
 
 afterEach(() => __resetCatalogBootstrapForTests())
@@ -23,6 +24,17 @@ function curatedSettingsPayload() {
 }
 
 describe("applyServerCatalogs", () => {
+  it("updates an already mounted voice picker when curated choices arrive", () => {
+    const base = getPickerCatalog("voice-character")!
+    render(<VoiceCharacterPicker value={{}} onChange={() => {}} />)
+    expect(screen.getByRole("radio", { name: "Female" })).toBeInTheDocument()
+    act(() => { applyServerCatalogs({ curated: true, data: [{ ...base, dimensions: base.dimensions?.map((d) => ({ ...d, options: [] })) }] }) })
+    expect(screen.queryByRole("radio", { name: "Female" })).not.toBeInTheDocument()
+    act(() => { applyServerCatalogs({ curated: true, data: [{ ...base, dimensions: base.dimensions?.map((d) => ({ ...d, options: d.options.filter((o) => o.id === "male") })) }] }) })
+    expect(screen.getByRole("radio", { name: "Male" })).toBeInTheDocument()
+    expect(screen.queryByRole("radio", { name: "Female" })).not.toBeInTheDocument()
+  })
+
   it("curated: false registers nothing — the picker keeps the bundled list by identity", () => {
     expect(applyServerCatalogs({ curated: false, data: [] })).toBe(0)
     let seen: readonly unknown[] = []

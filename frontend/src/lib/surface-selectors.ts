@@ -39,6 +39,16 @@ export function surfaceSiblings(codeDefault: readonly SurfaceSibling[]): readonl
   return s.length ? s : codeDefault
 }
 
+/** Platform-owned marketing, legal, docs and release links; deployments may hide them. */
+export function surfacePlatformLinks(): boolean {
+  return runtimeSurfaceProfile().brand.platformLinks !== false
+}
+
+/** All entry points to the workflow template gallery share this gate. */
+export function surfaceTemplatesVisible(): boolean {
+  return !surfaceNavHidden("templates") && surfaceTabs(["templates"]).length > 0
+}
+
 export function surfaceBrandName(): string {
   return runtimeSurfaceProfile().brand.productName
 }
@@ -195,4 +205,20 @@ export function isDeploymentPayer(
   probe: DeploymentPayerProbe,
 ): boolean {
   return deploymentPayer === true && probe === "payer"
+}
+
+
+/** Curated installs never expose bundled catalogs while fetching their reviewed set. */
+export function surfaceCatalogsRequired(): boolean {
+  return runtimeSurfaceProfile().catalogs?.required === true
+}
+
+export function surfaceFactoryPresets(): boolean {
+  return runtimeSurfaceProfile().catalogs?.factoryPresets !== false
+}
+
+
+export function surfaceVoiceGenderAllowed(gender: string | undefined): boolean {
+  const allowed = runtimeSurfaceProfile().voice.allowedGenders
+  return allowed.length === 0 || allowed.some((g) => g.toLowerCase() === gender?.toLowerCase())
 }

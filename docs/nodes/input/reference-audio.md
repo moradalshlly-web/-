@@ -52,3 +52,4 @@ The Reference Audio node provides audio from multiple sources: extract from a Yo
 - Extraction status shows: ready → extracting → complete (or failed)
 - If YouTube extraction fails, try the direct URL method with an alternative source
 - The audio preview player appears automatically after successful extraction
+- A YouTube extraction also records the **length** of the extracted audio on the node. [Edit Plan](../processing-video/edit-plan.md) uses it for its cost estimate when this node is the master source; without it Edit Plan estimates at its largest bucket (180 minutes). A node extracted before lengths were recorded picks one up the next time you extract. Uploads and direct links do not record a length.
