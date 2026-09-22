@@ -299,10 +299,14 @@ describe("addCaptions", () => {
     expect(vf).not.toContain("Don't")
   })
 
-  it("converts newlines to FFmpeg \\n escape", async () => {
+  // A newline reaches drawtext AS a newline: the argv has no shell, and the
+  // two-character `\n` this used to pin is un-escaped by the filtergraph
+  // parser to a bare `n` ("line1nline2" burned in as one glued line).
+  it("passes a newline through as a real line break, never as the two characters \\n", async () => {
     await addCaptions({ videoUrl: "u", text: "line1\nline2" })
     const vf = ffargs()[ffargs().indexOf("-vf") + 1]
-    expect(vf).toContain("line1\\nline2")
+    expect(vf).toContain("line1\nline2")
+    expect(vf).not.toContain("line1\\nline2")
   })
 
   // The FFmpeg drawtext anchors are unified with the Remotion CAPTION_EDGE_INSET
