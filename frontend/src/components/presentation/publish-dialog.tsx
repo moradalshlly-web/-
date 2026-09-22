@@ -21,7 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { publishApp, getAppByWorkflow } from "@/lib/api"
+import { publishApp, getAppByWorkflow, CredentialUnboundError, type UnboundCredentialUse } from "@/lib/api"
+import { CredentialLockDialog } from "./credential-lock-dialog"
 import { getNodeResult, getOutputType } from "@/lib/presentation-utils"
 import type { PresentationSettings, PresentationViewMode } from "@/hooks/use-workflow-store"
 import { VIEW_MODES, ALL_VIEW_MODES } from "./view-mode-selector"
@@ -69,6 +70,7 @@ export function PublishDialog({ workflowId, presentationSettings, updatePresenta
   const [publishSlug, setPublishSlug] = useState("")
   const [publishDesc, setPublishDesc] = useState("")
   const [publishing, setPublishing] = useState(false)
+  const [unboundUses, setUnboundUses] = useState<ReadonlyArray<UnboundCredentialUse> | null>(null)
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null)
   const [publishCopied, setPublishCopied] = useState(false)
   const [thumbnailNodeId, setThumbnailNodeId] = useState<string>("__none__")
@@ -399,6 +401,18 @@ export function PublishDialog({ workflowId, presentationSettings, updatePresenta
       setPublishedSlug(result.slug)
       toast.success(publishType === "component" ? t("pubDialog.componentPublished") : t("pubDialog.appPublished"))
     } catch (err) {
+      // The publish / share gate (409 credential_unbound): a Webhook Output
+      // still sends with a plain or missing credential. Offer the one-click
+      // lock, then publish again.
+      if (err instanceof CredentialUnboundError) {
+        if (err.details.length === 0) {
+          // Refused, but nothing named to lock: say so rather than do nothing.
+          toast.error(err.message)
+          return
+        }
+        setUnboundUses(err.details)
+        return
+      }
       toast.error(err instanceof Error ? err.message : t("pubDialog.publishFailed"))
     } finally {
       setPublishing(false)
@@ -481,6 +495,7 @@ export function PublishDialog({ workflowId, presentationSettings, updatePresenta
   }, [])
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
@@ -950,5 +965,11 @@ export function PublishDialog({ workflowId, presentationSettings, updatePresenta
         </div>
       </DialogContent>
     </Dialog>
+    <CredentialLockDialog
+      uses={unboundUses}
+      onLocked={() => { setUnboundUses(null); void handlePublish() }}
+      onClose={() => setUnboundUses(null)}
+    />
+    </>
   )
 }

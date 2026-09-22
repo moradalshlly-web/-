@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/select"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { getWorkflowAccess, isNotFoundError, shareWorkflow, unshareWorkflow } from "@/lib/api"
+import { getWorkflowAccess, isNotFoundError, shareWorkflow, unshareWorkflow, CredentialUnboundError, type UnboundCredentialUse } from "@/lib/api"
+import { CredentialLockDialog } from "./credential-lock-dialog"
 import { CollaboratorsPanel } from "./collaborators-panel"
 import type { PresentationSettings, PresentationViewMode } from "@/hooks/use-workflow-store"
 import { VIEW_MODES, ALL_VIEW_MODES } from "./view-mode-selector"
@@ -36,6 +37,7 @@ interface ShareDialogProps {
 export function ShareDialog({ workflowId, presentationSettings, updatePresentationSettings, nodes }: ShareDialogProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [unboundUses, setUnboundUses] = useState<ReadonlyArray<UnboundCredentialUse> | null>(null)
   const [shareToken, setShareToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -62,6 +64,17 @@ export function ShareDialog({ workflowId, presentationSettings, updatePresentati
       const result = await shareWorkflow(workflowId)
       setShareToken(result.shareToken)
     } catch (err) {
+      // The gate (409 credential_unbound): lock the credential(s) to the
+      // node's address, then share again.
+      if (err instanceof CredentialUnboundError) {
+        if (err.details.length === 0) {
+          // Refused, but nothing named to lock: say so rather than do nothing.
+          toast.error(err.message)
+          return
+        }
+        setUnboundUses(err.details)
+        return
+      }
       toast.error(err instanceof Error ? err.message : "Failed to share")
     } finally {
       setLoading(false)
@@ -140,6 +153,7 @@ export function ShareDialog({ workflowId, presentationSettings, updatePresentati
   const showCompareSettings = showSettings && allowedSet.has("compare")
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
@@ -316,5 +330,11 @@ export function ShareDialog({ workflowId, presentationSettings, updatePresentati
         </div>
       </DialogContent>
     </Dialog>
+    <CredentialLockDialog
+      uses={unboundUses}
+      onLocked={() => { setUnboundUses(null); void handleShare() }}
+      onClose={() => setUnboundUses(null)}
+    />
+    </>
   )
 }

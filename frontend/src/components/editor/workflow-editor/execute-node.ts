@@ -9158,6 +9158,10 @@ function executeNodeCore(
     const whData = node.data as Record<string, unknown>;
     const url = (whData.url as string)?.trim();
     const params = (whData.params as Array<{ id: string; name: string; type: string }>) ?? [];
+    // A stored credential rides as its id; the server resolves it for the
+    // workflow owner and answers a body-less receipt (plan D7 / D10).
+    const credentialId =
+      typeof whData.credentialId === "string" && whData.credentialId.trim() ? whData.credentialId.trim() : undefined;
 
     if (!url) {
       updateNodeData(node.id, { executionStatus: "failed", errorMessage: "No webhook URL configured" });
@@ -9188,7 +9192,7 @@ function executeNodeCore(
 
     updateNodeData(node.id, { ...RUN_START_RESET });
     return import("@/lib/api").then(({ sendWebhookOutput }) =>
-      sendWebhookOutput({ url, payload }).then(
+      sendWebhookOutput({ url, payload, ...(credentialId ? { credentialId } : {}) }).then(
         (result) => {
           updateNodeData(node.id, {
             executionStatus: "completed",

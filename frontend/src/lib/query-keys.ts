@@ -202,6 +202,12 @@ export const queryKeys = {
     list: () => ["api-tokens", "list"] as const,
   },
 
+  // Stored HTTP credentials (Webhook Output)
+  httpCredentials: {
+    all: ["http-credentials"] as const,
+    list: () => ["http-credentials", "list"] as const,
+  },
+
   // Developer Apps (OAuth)
   developerApps: {
     all: ["developer-apps"] as const,
