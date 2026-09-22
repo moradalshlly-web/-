@@ -383,9 +383,12 @@ export function chunkRenderTimeoutMs(segs: readonly EdlSegment[]): number {
   return Math.max(CHUNK_RENDER_TIMEOUT_FLOOR_MS, Math.ceil(chunkOutputSec(segs) * CHUNK_RENDER_SECS_PER_OUTPUT_SEC) * 1000)
 }
 
-/** Per referenced source, run in sequence before the first chunk: one fetch at
- *  `downloadFile`'s ceiling, then `hasAudioStream` (an ffprobe at its ceiling). */
-export const APPLY_EDL_PER_SOURCE_PREP_MS = DOWNLOAD_TIMEOUT_MS + FFPROBE_TIMEOUT_MS
+/** Per referenced source, run in sequence before the first chunk: one fetch
+ *  (`downloadFile`'s ceiling), then `hasAudioStream` (one ffprobe), then
+ *  `probeStreamEnds` — its stream listing (one ffprobe) plus up to two per-track
+ *  packet scans, each with the default ffmpeg watchdog. */
+export const APPLY_EDL_PER_SOURCE_PREP_MS =
+  DOWNLOAD_TIMEOUT_MS + 2 * FFPROBE_TIMEOUT_MS + 2 * DEFAULT_FFMPEG_TIMEOUT_MS
 
 /** Once per VIDEO render, before the first chunk: the picture-canvas probes —
  *  resolution, then fps, each run across every video source in parallel, each

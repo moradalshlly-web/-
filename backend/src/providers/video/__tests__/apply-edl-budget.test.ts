@@ -52,8 +52,8 @@ describe("resolveChunks — the one chunk plan the render and its budget share",
 })
 
 describe("the prep terms are the ceilings of the steps they name", () => {
-  it("per source: one fetch + the audio-stream probe; once per render: the resolution and fps probes", () => {
-    expect(APPLY_EDL_PER_SOURCE_PREP_MS).toBe(DOWNLOAD_TIMEOUT_MS + FFPROBE_TIMEOUT_MS)
+  it("per source: one fetch + the audio-stream probe + probeStreamEnds (listing + 2 packet scans); once per render: the resolution and fps probes", () => {
+    expect(APPLY_EDL_PER_SOURCE_PREP_MS).toBe(DOWNLOAD_TIMEOUT_MS + 2 * FFPROBE_TIMEOUT_MS + 2 * DEFAULT_FFMPEG_TIMEOUT_MS)
     expect(APPLY_EDL_CANVAS_PROBE_MS).toBe(2 * FFPROBE_TIMEOUT_MS)
   })
 })
