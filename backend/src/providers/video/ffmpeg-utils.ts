@@ -16,7 +16,7 @@ export async function downloadFile(url: string, dest: string, opts: { maxBytes?:
   // sourceUrl into ffmpeg. Without DNS-aware SSRF protection, a hostname
   // resolving to an internal IP would have the response processed and the
   // result uploaded to R2 (read-oracle). See backend/src/lib/safe-fetch.ts.
-  const response = await safeFetch(url, { timeoutMs: 120_000 })
+  const response = await safeFetch(url, { timeoutMs: DOWNLOAD_TIMEOUT_MS })
   if (!response.ok) {
     // Cloudflare can negative-cache a 404 per-edge for 40-55min on freshly
     // finalized media (incidents 2026-06-10/12). When the URL is OUR public
@@ -107,9 +107,20 @@ export async function withFfmpegSlot<T>(fn: () => Promise<T>, signal?: AbortSign
 }
 
 // Hard ceiling so a hung ffmpeg can't hold its slot forever and starve the
-// FIFO queue. Must stay below the BullMQ lockDuration (15 min) to avoid
-// re-dispatches piling on the same slot.
-const DEFAULT_FFMPEG_TIMEOUT_MS = 10 * 60 * 1000
+// FIFO queue. (It once had to stay below a 15-min BullMQ lockDuration; the
+// video worker's lock is 5 min now and BullMQ renews it while the processor
+// runs, so the lock no longer constrains this.) Exported so a handler that
+// budgets its own liveness (`HandlerFn.livenessBudgetMs`) can count the
+// spawns it makes at the default ceiling with the same number.
+export const DEFAULT_FFMPEG_TIMEOUT_MS = 10 * 60 * 1000
+
+/** Wall-clock ceiling `downloadFile` gives one fetch (safeFetch's timeout).
+ *  NOT a bound on the R2-origin 404 fallback inside it, which goes through the
+ *  storage client — that client has no request timeout. */
+export const DOWNLOAD_TIMEOUT_MS = 120_000
+
+/** Wall-clock ceiling of one `runFfprobe` call (its execFile watchdog). */
+export const FFPROBE_TIMEOUT_MS = 120_000
 
 /**
  * How much of ffmpeg's output a failure message carries.
@@ -330,7 +341,7 @@ export function runFfprobe(args: readonly string[]): Promise<string> {
     // a stalled edge/socket would otherwise hang the worker indefinitely —
     // there is no BullMQ-side rescue for a live-but-stuck handler. 120s
     // matches the safeFetch download timeout.
-    execFile("ffprobe", args as string[], { maxBuffer: 5 * 1024 * 1024, timeout: 120_000 }, (error, stdout, stderr) => {
+    execFile("ffprobe", args as string[], { maxBuffer: 5 * 1024 * 1024, timeout: FFPROBE_TIMEOUT_MS }, (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`ffprobe failed: ${stderr || error.message}`))
       } else {

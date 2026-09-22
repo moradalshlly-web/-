@@ -355,9 +355,9 @@ describe("finalizeExclusiveCloudOutput — per-type output adaptation", () => {
 /**
  * Relay provenance on the EXCLUSIVE-NODE lane (spec §8.2, migration 383).
  *
- * The fourth relay lane, and the one carrying the most money: these five types
- * are the most expensive generations a self-host can run, and every one of them
- * is billed at the FAR end. `finalizeExclusiveCloudOutput` is the only place
+ * The fourth relay lane, and the one carrying the most money: the exclusive
+ * types are the most expensive generations a self-host can run, and every one
+ * of them is billed at the FAR end. `finalizeExclusiveCloudOutput` is the only place
  * that holds both halves — this instance's job id and the finished cloud job —
  * so each of its four completion sites must land `relay_job_id` /
  * `relay_credits` on the row. Without them a self-host has nothing to bill its

@@ -34,6 +34,9 @@ import {
   createWorkDir,
   cleanupWorkDir,
   COMBINE_DELIVERY_CRF,
+  DEFAULT_FFMPEG_TIMEOUT_MS,
+  DOWNLOAD_TIMEOUT_MS,
+  FFPROBE_TIMEOUT_MS,
 } from "./ffmpeg-utils.js"
 import { DeterministicJobError } from "../../lib/deterministic-job-error.js"
 import { pickTargetResolution, pickTargetFps } from "./combine-videos.js"
@@ -63,8 +66,14 @@ export interface ApplyEdlResult {
   readonly durationMs: number
 }
 
-const DEFAULT_MAX_SEGMENTS_PER_CHUNK = 100
-const DEFAULT_CHUNK_THRESHOLD = 200
+export const DEFAULT_MAX_SEGMENTS_PER_CHUNK = 100
+export const DEFAULT_CHUNK_THRESHOLD = 200
+
+/** ffmpeg kill budget per chunk: this many seconds of wall clock per second of
+ *  output, with `CHUNK_RENDER_TIMEOUT_FLOOR_MS` as the floor — a hung encode
+ *  is killed by its own spawn, not by anything watching from outside. */
+export const CHUNK_RENDER_SECS_PER_OUTPUT_SEC = 6
+export const CHUNK_RENDER_TIMEOUT_FLOOR_MS = 20 * 60_000
 
 const secs = (ms: number): number => ms / 1000
 const offsetOf = (s: EdlSource | undefined): number => s?.offsetMs ?? 0
@@ -347,16 +356,93 @@ async function renderSlice(
   }
 
   // Explicit longer timeout: the default 10-min per-spawn would kill a long
-  // chunk. Budget = 6× the chunk's output seconds, floor 20 min.
-  const chunkOutSec = durs.reduce((a, b, i) => a + b - (i > 0 ? boundaryOverlapSecs(segs[i], segs[i - 1]) : 0), 0)
-  const timeoutMs = Math.max(20 * 60_000, Math.ceil(chunkOutSec * 6) * 1000)
-  await runFfmpeg(args, timeoutMs)
+  // chunk. The handler's liveness budget (`applyEdlRenderBudgetMs`) is summed
+  // from this same per-chunk figure, so "hung" means one thing to both.
+  await runFfmpeg(args, chunkRenderTimeoutMs(segs))
+}
+
+/** The chunk plan a render uses: ONE pass at or below the threshold, else
+ *  slices closed at hard cuts. The render and its liveness budget both call
+ *  this, so they cannot disagree about how many chunks there are. */
+export function resolveChunks(
+  segs: readonly EdlSegment[],
+  options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> = {},
+): EdlSegment[][] {
+  const maxPerChunk = options.maxSegmentsPerChunk ?? DEFAULT_MAX_SEGMENTS_PER_CHUNK
+  const threshold = options.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD
+  return segs.length > threshold ? planChunks(segs, maxPerChunk) : [segs as EdlSegment[]]
+}
+
+/** The output seconds one chunk renders (D17: crossfade overlaps subtracted). */
+function chunkOutputSec(segs: readonly EdlSegment[]): number {
+  return segs.reduce((acc, s, i) => acc + secs(s.outMs - s.inMs) - (i > 0 ? boundaryOverlapSecs(segs[i], segs[i - 1]) : 0), 0)
+}
+
+/** The ffmpeg kill budget `renderSlice` gives one chunk. */
+export function chunkRenderTimeoutMs(segs: readonly EdlSegment[]): number {
+  return Math.max(CHUNK_RENDER_TIMEOUT_FLOOR_MS, Math.ceil(chunkOutputSec(segs) * CHUNK_RENDER_SECS_PER_OUTPUT_SEC) * 1000)
+}
+
+/** Per referenced source, run in sequence before the first chunk: one fetch
+ *  (`downloadFile`'s ceiling), then `hasAudioStream` (one ffprobe), then
+ *  `probeStreamEnds` — its stream listing (one ffprobe) plus up to two per-track
+ *  packet scans, each with the default ffmpeg watchdog. */
+export const APPLY_EDL_PER_SOURCE_PREP_MS =
+  DOWNLOAD_TIMEOUT_MS + 2 * FFPROBE_TIMEOUT_MS + 2 * DEFAULT_FFMPEG_TIMEOUT_MS
+
+/** Once per VIDEO render, before the first chunk: the picture-canvas probes —
+ *  resolution, then fps, each run across every video source in parallel, each
+ *  at the ffprobe ceiling. An audio-only render skips them. */
+export const APPLY_EDL_CANVAS_PROBE_MS = 2 * FFPROBE_TIMEOUT_MS
+
+/** The sources `applyEdl` downloads for this output — the picture source of
+ *  each segment for a video render, and each segment's sound source
+ *  (`audioSourceId`) always. The one read set the render and its budget share. */
+export function referencedSourceIds(edl: Edl, output: "video" | "audio"): Set<string> {
+  const masterAudioId = edl.sources.find((s) => s.role === "master-audio")?.id
+  const referenced = new Set<string>()
+  for (const seg of edl.segments) {
+    if (output === "video" && seg.video) referenced.add(seg.video)
+    const aId = audioSourceId(edl, seg, masterAudioId)
+    if (aId) referenced.add(aId)
+  }
+  return referenced
+}
+
+/**
+ * The handler's liveness budget (`HandlerFn.livenessBudgetMs`): the sum of the
+ * kill budgets of every BOUNDED step `applyEdl` runs for this EDL and output,
+ * in the order it runs them — each referenced source's fetch + audio probe
+ * (`referencedSourceIds`, the same read set the render uses), the canvas
+ * probes (video only), every chunk's ffmpeg budget (`chunkRenderTimeoutMs`,
+ * over `resolveChunks` — the same plan the render uses), and the final
+ * stream-copy concat at the default ceiling when there is more than one chunk.
+ * One number decides "hung" for the heartbeat and for those steps.
+ *
+ * NOT in the sum, because they have no ceiling of their own to add: time
+ * WAITING for an ffmpeg slot, and storage I/O (the R2 client has no request
+ * timeout — chunk checkpoints, the 404-fallback download, and the deliverable
+ * upload after the render). Those ride in the slack between a real render and
+ * its kill budgets, plus the 30 minutes after the last beat; see the wrapper
+ * doc (`workers/pre-task-heartbeat.ts`).
+ */
+export function applyEdlRenderBudgetMs(
+  edl: Edl,
+  options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> & { readonly output?: "video" | "audio" } = {},
+): number {
+  const output = options.output === "audio" ? "audio" : "video"
+  const chunks = resolveChunks(edl.segments, options)
+  const render = chunks.reduce((acc, chunk) => acc + chunkRenderTimeoutMs(chunk), 0)
+  const prep = referencedSourceIds(edl, output).size * APPLY_EDL_PER_SOURCE_PREP_MS
+    + (output === "video" ? APPLY_EDL_CANVAS_PROBE_MS : 0)
+  const concat = chunks.length > 1 ? DEFAULT_FFMPEG_TIMEOUT_MS : 0
+  return render + prep + concat
 }
 
 /** Split the timeline into contiguous slices closed ONLY at hard-cut boundaries
  *  (index i is a cut when segment i has no time-consuming transition). A run of
  *  xfaded segments stays whole even if it overshoots `maxPerChunk`. */
-function planChunks(segs: readonly EdlSegment[], maxPerChunk: number): EdlSegment[][] {
+export function planChunks(segs: readonly EdlSegment[], maxPerChunk: number): EdlSegment[][] {
   const chunks: EdlSegment[][] = []
   let current: EdlSegment[] = []
   for (let i = 0; i < segs.length; i++) {
@@ -373,8 +459,6 @@ function planChunks(segs: readonly EdlSegment[], maxPerChunk: number): EdlSegmen
 
 export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult> {
   const { edl, output, quality, jobId, jobUserId, onProgress, checkpoint = true } = options
-  const maxPerChunk = options.maxSegmentsPerChunk ?? DEFAULT_MAX_SEGMENTS_PER_CHUNK
-  const threshold = options.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD
   const wantVideo = output === "video"
   const workDir = await createWorkDir("apply-edl")
   const ext = wantVideo ? "mp4" : "m4a"
@@ -383,12 +467,7 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
     // Which sources do we actually touch? Download each ONCE.
     const masterAudio = edl.sources.find((s) => s.role === "master-audio")
     const masterAudioId = masterAudio?.id
-    const referenced = new Set<string>()
-    for (const seg of edl.segments) {
-      if (wantVideo && seg.video) referenced.add(seg.video)
-      const aId = audioSourceId(edl, seg, masterAudioId)
-      if (aId) referenced.add(aId)
-    }
+    const referenced = referencedSourceIds(edl, output)
 
     const sourcePaths = new Map<string, string>()
     const audioPresent = new Map<string, boolean>()
@@ -452,9 +531,7 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       fps = videoPaths.length > 0 ? await pickTargetFps(videoPaths) : 30
     }
 
-    const chunks = edl.segments.length > threshold
-      ? planChunks(edl.segments, maxPerChunk)
-      : [edl.segments as EdlSegment[]]
+    const chunks = resolveChunks(edl.segments, options)
 
     const chunkPaths: string[] = []
     const checkpointKeys: string[] = []

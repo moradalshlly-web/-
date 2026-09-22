@@ -11,8 +11,8 @@
  * fires `onTaskCreated(prediction.id)` between `predictions.create` and
  * `replicate.wait` to persist `provider_task_id` for cron lookup. If the
  * worker crashes BEFORE the create call, the worker's pre-task sentinel
- * (`provider_kind = "pre-task"`, set in video-worker.ts:148) takes over at
- * the 30-min sync-sweep threshold.
+ * (`provider_kind = "pre-task"`, stamped on every row at pickup in
+ * `video-worker.ts`) takes over at the 30-min sync-sweep threshold.
  *
  * Single-version-per-row contract: the route inserts ONE jobs row per
  * version in a multi-version batch (versions=1..4). Each BullMQ task here
@@ -95,8 +95,8 @@ const handleVideoSfx: HandlerFn = async function handleVideoSfx(job, ctx) {
   // Persist provider_kind + provider_task_id (the prediction.id) the
   // moment Replicate gives us a prediction. If the worker crashes during
   // `replicate.wait`, the reconcile cron's 20-min sweep recovers the row.
-  // The pre-task sentinel written by video-worker.ts:148 covers the
-  // crash window BEFORE this callback fires.
+  // The pre-task sentinel the pickup in `video-worker.ts` stamps on every
+  // row covers the crash window BEFORE this callback fires.
   const onTaskCreated = makeOnTaskCreated(ctx.jobId, "replicate-prediction")
 
   // Wrap the Replicate call in a progress ramp so the widget bar moves

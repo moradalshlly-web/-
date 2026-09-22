@@ -1,11 +1,13 @@
 /**
- * The host-side `pre-task` heartbeat that keeps a live private-plugin run from
- * being failed + refunded by the reconcile sweep (staging Pro 3D Render job
- * 99ede351, failed at minute 31 while its worker was still running).
+ * The host-side `pre-task` heartbeat that keeps a live run from being failed +
+ * refunded by the reconcile sweep (staging Pro 3D Render job 99ede351, failed
+ * at minute 31 while its worker was still running).
  *
  * The end-to-end half — a real cron tick against a row the beats keep fresh —
  * lives in `lib/reconcile/__tests__/pre-task-liveness.test.ts`; that the video
- * worker wraps every loader-contributed handler lives in `video-worker.test.ts`.
+ * worker wraps EVERY handler it dispatches, core and plugin alike, lives in
+ * `video-worker.test.ts` (beats counted through the processor) and
+ * `video-worker-heartbeat-wiring.test.ts` (the dispatch-site wrap is present).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -16,7 +18,7 @@ import {
   PRE_TASK_HEARTBEAT_MAX_MS,
   PRE_TASK_HEARTBEAT_MS,
   withPreTaskHeartbeat,
-  withPreTaskHeartbeats,
+  effectiveHeartbeatMaxMs,
 } from "../pre-task-heartbeat.js"
 import { STALE_THRESHOLD_MS, isSyncKind } from "../../lib/reconcile/types.js"
 import { NODE_TIMEOUT_MS } from "../../services/workflow-engine/types.js"
@@ -46,6 +48,44 @@ describe("withPreTaskHeartbeat", () => {
     const beats = refresh.mock.calls.length
     await vi.advanceTimersByTimeAsync(30 * MIN)
     expect(refresh.mock.calls.length).toBe(beats)
+  })
+
+  it("honours a handler's own budget: beats continue past the default cap and stop at `maxMs`", async () => {
+    const budget = PRE_TASK_HEARTBEAT_MAX_MS + 4 * 60 * MIN
+    const run = withPreTaskHeartbeat(async () => { await sleep(budget + 60 * MIN) }, { maxMs: budget })({}, { jobId: "job-1" })
+
+    await vi.advanceTimersByTimeAsync(PRE_TASK_HEARTBEAT_MAX_MS + 60 * MIN)
+    expect(refresh.mock.calls.length).toBeGreaterThan(PRE_TASK_HEARTBEAT_MAX_MS / PRE_TASK_HEARTBEAT_MS)
+
+    await vi.advanceTimersByTimeAsync(3 * 60 * MIN) // → the declared budget
+    const atBudget = refresh.mock.calls.length
+    expect(atBudget).toBeGreaterThanOrEqual(budget / PRE_TASK_HEARTBEAT_MS - 1)
+
+    await vi.advanceTimersByTimeAsync(THRESHOLD + PRE_TASK_HEARTBEAT_MS)
+    expect(refresh.mock.calls.length).toBe(atBudget)
+
+    await vi.advanceTimersByTimeAsync(60 * MIN)
+    await run
+  })
+
+  // A declared budget can only EXTEND the default: storage I/O sits outside
+  // every budget, so a shorter cap would only take slack away from a live run,
+  // and a non-finite one would switch the hung backstop off.
+  it("a declared budget only extends the default — shorter, zero, negative, NaN and Infinity all keep the default cap", async () => {
+    for (const bad of [10 * MIN, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined]) {
+      expect(effectiveHeartbeatMaxMs(bad), String(bad)).toBe(PRE_TASK_HEARTBEAT_MAX_MS)
+    }
+    expect(effectiveHeartbeatMaxMs(PRE_TASK_HEARTBEAT_MAX_MS + 1)).toBe(PRE_TASK_HEARTBEAT_MAX_MS + 1)
+
+    // Through the wrapper: a 10-minute budget still beats to the DEFAULT cap, then stops.
+    const run = withPreTaskHeartbeat(async () => { await sleep(PRE_TASK_HEARTBEAT_MAX_MS + 60 * MIN) }, { maxMs: 10 * MIN })({}, { jobId: "job-1" })
+    await vi.advanceTimersByTimeAsync(PRE_TASK_HEARTBEAT_MAX_MS)
+    const atCap = refresh.mock.calls.length
+    expect(atCap).toBeGreaterThanOrEqual(PRE_TASK_HEARTBEAT_MAX_MS / PRE_TASK_HEARTBEAT_MS - 1)
+    await vi.advanceTimersByTimeAsync(THRESHOLD + PRE_TASK_HEARTBEAT_MS)
+    expect(refresh.mock.calls.length).toBe(atCap)
+    await vi.advanceTimersByTimeAsync(60 * MIN)
+    await run
   })
 
   it("no gap between beats across a 35-minute run comes anywhere near the sweep threshold", async () => {
@@ -112,26 +152,6 @@ describe("withPreTaskHeartbeat", () => {
   })
 })
 
-describe("withPreTaskHeartbeats — the loader's map", () => {
-  it("wraps every entry it is given, with keys and results preserved", async () => {
-    const seen: string[] = []
-    const handlers = {
-      "pro-3d-render": vi.fn(async (_job: unknown, ctx: { jobId: string }) => { seen.push(ctx.jobId); await sleep(2 * MIN) }),
-      "a-plugin-job-type-nobody-listed": vi.fn(async (_job: unknown, ctx: { jobId: string }) => { seen.push(ctx.jobId); await sleep(2 * MIN) }),
-    }
-    const wrapped = withPreTaskHeartbeats(handlers)
-    expect(Object.keys(wrapped)).toEqual(Object.keys(handlers))
-
-    const runs = Object.values(wrapped).map((handler, i) => handler({}, { jobId: `job-${i}` }))
-    await vi.advanceTimersByTimeAsync(2 * MIN)
-    await Promise.all(runs)
-
-    expect(seen).toEqual(["job-0", "job-1"])
-    expect(refresh).toHaveBeenCalledWith("job-0")
-    expect(refresh).toHaveBeenCalledWith("job-1")
-  })
-})
-
 describe("liveness budget", () => {
   it("pre-task is a sync kind: its sweep fails + refunds, so a live run's only protection is a fresh stamp", () => {
     expect(isSyncKind("pre-task")).toBe(true)
@@ -141,7 +161,12 @@ describe("liveness budget", () => {
     expect(2 * PRE_TASK_HEARTBEAT_MS).toBeLessThan(THRESHOLD)
   })
 
-  it("the cap outlasts the threshold (or it would re-open the gap) and is the orchestrator's own per-node ceiling", () => {
+  // The DEFAULT cap is the orchestrator's own per-node ceiling — a DAG node
+  // must not lose its beats before the orchestrator gives up on it. Today's
+  // handlers that declare no budget fit inside it by an empirical margin, not a
+  // derived bound. A handler that runs longer declares its own budget
+  // (`maxMs`) — the cap never stretches for it.
+  it("the default cap outlasts the threshold (or it would re-open the gap) and is the orchestrator's own per-node ceiling", () => {
     expect(PRE_TASK_HEARTBEAT_MAX_MS).toBeGreaterThan(THRESHOLD)
     expect(PRE_TASK_HEARTBEAT_MAX_MS).toBe(NODE_TIMEOUT_MS)
   })

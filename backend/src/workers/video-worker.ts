@@ -37,7 +37,7 @@ import { scene3dHandlers } from "./handlers/scene3d.js"
 import { buildStatsKey, upsertExecutionStats } from "../services/execution-stats.js"
 import { tryInlineReconcile } from "./inline-reconcile.js"
 import { loadPrivatePlugins } from "../lib/private-plugins/load.js"
-import { withPreTaskHeartbeats } from "./pre-task-heartbeat.js"
+import { withPreTaskHeartbeat } from "./pre-task-heartbeat.js"
 import { signScene3DDeliveryUrlsForProvider } from "../services/scene3d-artifacts/delivery-provider-access.js"
 
 /** How far back into the queue a drain-interrupted job is moved (ms) — a
@@ -80,20 +80,17 @@ const allHandlers: Record<string, HandlerFn> = {
 // 4b: the exclusive-node RELAY handlers, self-hosted editions only. Merged
 // BEFORE privatePluginHandlers so that on cloud (where the loader returns
 // real handlers) the plugin implementations win the keys unconditionally —
-// on community the plugin map is empty and the relay serves the five types.
+// on community the plugin map is empty and the relay serves every exclusive type.
 if (!hasCredits()) {
   const { nodaroExclusiveRelayHandlers } = await import("./handlers/nodaro-exclusive-relay.js")
   Object.assign(allHandlers, nodaroExclusiveRelayHandlers)
 }
 const { handlers: privatePluginHandlers, engines } = await loadPrivatePlugins({})
 Object.assign(allHandlers, createSurroundHandlers(engines.surround))
-// Every plugin-contributed handler beats the `pre-task` sentinel while it runs
-// (`pre-task-heartbeat.ts`): the pickup below stamps it on every row, the
-// reconcile cron fails + refunds a row whose stamp is 30 minutes old, and a
-// plugin run can legitimately take longer (staging Pro 3D Render job 99ede351
-// was failed at minute 31 with its worker still running). Wrapping the loader's
-// map — not naming types — covers every plugin job type, present and future.
-Object.assign(allHandlers, withPreTaskHeartbeats(privatePluginHandlers))
+Object.assign(allHandlers, privatePluginHandlers)
+// Liveness is applied where a handler is RUN, not where the map is built — see
+// the dispatch site in the processor below (`withPreTaskHeartbeat`), so no
+// merge order and no later `Object.assign` can leave a job type out.
 // `engines.smartCut` (2026-07-24): the combine-videos boundary matcher —
 // the cut-point algorithms moved private, so `combineVideos` (and the
 // gvp/evp stitches that reach it through the plugin toolkit, which run in
@@ -219,9 +216,14 @@ export function createVideoWorker() {
         // its first `onTaskCreated`. If the handler crashes between this
         // UPDATE and createKieTask (R2 download OOM, unhandled rejection in
         // preprocessing, segfault, etc.), the sync-sweep marks failed +
-        // refunds reserved credits at the 30-min threshold. The real handler
-        // overwrites both fields via `makeOnTaskCreated` once it has a
-        // taskId, so the pre-task sentinel survives only on crash.
+        // refunds reserved credits at the 30-min threshold. An ASYNC-provider
+        // handler overwrites both fields via `makeOnTaskCreated` /
+        // `markProviderCallStart` once it has a task id, so for it the
+        // sentinel survives only on crash. A SYNC handler (every ffmpeg job,
+        // apply-edl, TTS, the plugin renders) keeps the sentinel for its WHOLE
+        // run — the dispatch-site heartbeat below keeps it fresh up to its cap,
+        // so the 30-min sweep is the backstop for a dead or hung worker; the
+        // residuals no cap bounds are stated in `pre-task-heartbeat.ts`.
         const nowIso = new Date().toISOString()
         // A1 (audit 2026-06-10): CAS on live statuses + abort on 0 rows.
         // Queue removal on cancel is best-effort (BullMQ ids are auto-
@@ -308,10 +310,29 @@ export function createVideoWorker() {
           jobUserId,
         )
 
-        const handler = allHandlers[job.name]
-        if (!handler) {
+        const found = allHandlers[job.name]
+        if (!found) {
           throw new Error(`Unknown job type: ${job.name}`)
         }
+        // Every handler this worker runs beats the `pre-task` sentinel while it
+        // runs (`pre-task-heartbeat.ts`): the pickup above stamps it on every
+        // row, and the reconcile cron fails + refunds a row whose stamp is 30
+        // minutes old — while a run can legitimately take longer (staging Pro
+        // 3D Render job 99ede351 was failed at minute 31 with its worker still
+        // running; an hour-long multicam apply-edl render is a core ffmpeg job
+        // with the same exposure). Wrapping HERE, at the one place a handler is
+        // dispatched — not the plugin map, not the final map, not a list of
+        // types — covers every job type present and future by construction: a
+        // handler merged later still runs wrapped, because THIS is the only
+        // lookup (pinned by __tests__/video-worker-heartbeat-wiring.test.ts).
+        // A short handler never beats (the first tick is a minute out); one that
+        // replaced or cleared the sentinel is a CAS no-op; beats stop at a cap
+        // so a hung handler still ages into the sweep. The cap is the
+        // orchestrator's per-node ceiling unless the handler declares its own
+        // budget (`livenessBudgetMs` — apply-edl sums the kill budgets of its
+        // bounded steps), so "hung" means one thing to the heartbeat and to
+        // those steps.
+        const handler = withPreTaskHeartbeat(found, { maxMs: found.livenessBudgetMs?.(job) })
 
         // Bind a cancellation context so provider poll loops abort the moment
         // the user cancels — instead of polling the upstream job to completion.
