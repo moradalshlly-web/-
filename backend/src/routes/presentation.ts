@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabase.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { orchestrationQueue } from "../lib/orchestration-queue.js"
 import { describeLockedOverrides, findLockedOverrides } from "../lib/input-override-lock.js"
+import { sendCredentialUnbound, unboundCredentialUsesFor } from "../lib/credential-gate.js"
 import { personalPayer, shouldRefuseDegradedRun } from "../lib/billing-context.js"
 import { billingPairColumns } from "../lib/insert-job.js"
 import type { WorkflowExecutionJob } from "../services/workflow-engine/types.js"
@@ -86,7 +87,7 @@ export async function presentationRoutes(app: FastifyInstance) {
     // Verify ownership
     const { data: workflow, error: wfError } = await supabase
       .from("workflows")
-      .select("id, user_id, share_token")
+      .select("id, user_id, share_token, nodes, edges")
       .eq("id", workflowId)
       .eq("user_id", req.userId)
       .single()
@@ -96,6 +97,17 @@ export async function presentationRoutes(app: FastifyInstance) {
         error: { code: "not_found", message: "Workflow not found" },
       })
     }
+
+    // Share-for-run lets viewers run the LIVE graph: a Webhook Output that
+    // sends with a stored credential must be locked to its address first
+    // (plan D3). Checked before the existing-token shortcut too — the
+    // credential may have been attached after the workflow was first shared.
+    const unboundUses = await unboundCredentialUsesFor(
+      workflow.nodes as Array<{ id: string; type?: string; data?: Record<string, unknown> }> | null,
+      req.userId,
+      workflow.edges as Array<{ target?: unknown; targetHandle?: unknown }> | null,
+    )
+    if (unboundUses.length > 0) return sendCredentialUnbound(reply, unboundUses)
 
     // If already shared, return existing token
     if (workflow.share_token) {

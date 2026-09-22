@@ -109,9 +109,8 @@ export const RUN_RESULT_EXTRA_KEYS: readonly string[] = [
   "savedUrl",
   "platformPostId",
   "platformPostUrl",
-  "webhookSuccess",
-  "webhookStatusCode",
-  "webhookResponseBody",
+  // (webhookSuccess / webhookStatusCode / webhookResponseBody live in
+  // EXECUTION_DATA_KEYS since the HTTP-credentials work — cleared from there.)
   // Provider ids stamped beside a result. Downstream extend / upscale nodes read
   // them off THIS node, so an id without its media would point at nothing.
   "sunoTrackId",

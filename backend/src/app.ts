@@ -251,6 +251,7 @@ import { switchXRoutes } from "./routes/switchx.js"
 import { cinematicAvatarRoutes } from "./routes/cinematic-avatar.js"
 import { socialMediaFormatRoutes } from "./routes/social-media-format.js"
 import { webhookOutputRoutes } from "./routes/webhook-output.js"
+import { httpCredentialRoutes } from "./routes/http-credentials.js"
 import { presentationRoutes } from "./routes/presentation.js"
 import { apiTokenRoutes } from "./routes/api-tokens.js"
 import { metaCallbackRoutes } from "./routes/meta-callbacks.js"
@@ -701,6 +702,9 @@ export async function buildApp() {
   await app.register(cinematicAvatarRoutes)
   await app.register(socialMediaFormatRoutes)
   await app.register(webhookOutputRoutes)
+  // Stored credentials for Webhook Output — core (self-hosters need them too),
+  // browser-session only inside the route.
+  await app.register(httpCredentialRoutes)
   await app.register(presentationRoutes)
   await app.register(apiTokenRoutes)
   await app.register(socialAuthRoutes)

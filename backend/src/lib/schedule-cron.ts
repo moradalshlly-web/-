@@ -51,6 +51,14 @@ export function stopScheduleCron(): void {
 // Core cron check
 // ---------------------------------------------------------------------------
 
+let provenanceWarned = false
+/** Once per process: the flag read failing every minute is one fact, not sixty log lines an hour. */
+function warnProvenanceUnreadableOnce(reason: string): void {
+  if (provenanceWarned) return
+  provenanceWarned = true
+  console.warn(`[schedule-cron] workflow_triggers.owner_initiated unreadable (${reason}) — schedules run as not owner-initiated until migration 436 is on this database`)
+}
+
 export async function checkScheduledTriggers(): Promise<void> {
   // Fetch active schedule triggers
   const { data: triggers, error } = await supabase
@@ -168,12 +176,37 @@ export async function checkScheduledTriggers(): Promise<void> {
         })
         .eq("id", trigger.id)
 
+      // Whether this schedule's runs count as the workflow OWNER'S OWN — the
+      // only lane a PLAIN stored credential may travel on (plan D3) — is a
+      // stored fact about the trigger, decided at POST /v1/workflow-triggers
+      // (browser session AND owner) and writable only by the backend
+      // (migration 436). Never re-derived here: uuid equality would say
+      // "owner" for a token-created schedule too. Today nothing in the app
+      // creates schedules through that route (the editor's Schedule Trigger
+      // node is projected from the graph, which never sets the flag), so in
+      // practice a schedule does not carry a plain credential — the docs say
+      // so. Read best-effort: on a database the column has not reached yet
+      // this fails closed and the schedule still fires.
+      let ownerInitiated = false
+      try {
+        const { data: provenance, error: provenanceError } = await supabase
+          .from("workflow_triggers")
+          .select("owner_initiated")
+          .eq("id", trigger.id)
+          .maybeSingle()
+        if (provenanceError) warnProvenanceUnreadableOnce(provenanceError.message)
+        ownerInitiated = provenance?.owner_initiated === true
+      } catch (err) {
+        warnProvenanceUnreadableOnce(err instanceof Error ? err.message : String(err))
+      }
+
       // Enqueue orchestration (payer resolved above, before the row).
       const jobData: WorkflowExecutionJob = {
         executionId: execution.id,
         workflowId: trigger.workflow_id,
         userId: trigger.user_id,
         triggerType: "schedule",
+        ownerInitiated,
         triggerData: {
           timestamp: now.toISOString(),
           last_triggered_at: previousLastTriggeredAt,

@@ -458,6 +458,10 @@ export async function workflowExecutionRoutes(app: FastifyInstance) {
       workflowId,
       userId: req.userId,
       triggerType: "manual",
+      // A PLAIN stored credential travels only on the owner's own run from
+      // the app: a personal API token or an OAuth app token also sets
+      // req.userId to the owner, so the token kind is part of the answer.
+      ownerInitiated: req.authKind === "jwt" && req.userId === (workflow.user_id as string | null),
       nodeIds,
       webFreeMode: await resolveWebSurfaceFlag(req),
       billingContext,

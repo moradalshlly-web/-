@@ -40,6 +40,12 @@ vi.mock("@/ee/billing/credits.js", () => ({
   estimateWorkflowCredits: vi.fn().mockResolvedValue(0),
 }))
 
+const { findUnboundMock } = vi.hoisted(() => ({ findUnboundMock: vi.fn() }))
+vi.mock("@/lib/http-credentials.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/http-credentials.js")>()),
+  findUnboundCredentialUses: findUnboundMock,
+}))
+
 import { presentationRoutes } from "../presentation.js"
 import { supabase } from "../../lib/supabase.js"
 
@@ -68,7 +74,7 @@ function mockSharedWorkflow(nodes: Array<{ id: string; type: string; data: Recor
           id: WORKFLOW_ID,
           user_id: OWNER_ID,
           nodes,
-          edges: [],
+          edges: [{ source: "t1", target: "hook-1", targetHandle: "field-url" }],
           settings: {},
           is_presentation_enabled: true,
         },
@@ -147,5 +153,53 @@ describe("POST /v1/present/:token/run — the override lock (issue #1555)", () =
       }),
       expect.objectContaining({ jobId: EXEC_ID }),
     )
+  })
+})
+
+describe("POST /v1/workflows/:id/share — the credential gate (plan D3)", () => {
+  const CRED = "00000000-0000-4000-8000-0000000000c1"
+
+  function mockOwnedWorkflow(nodes: Array<{ id: string; type: string; data: Record<string, unknown> }>, shareToken: string | null) {
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === "workflows") {
+        return chainResolving({ data: { id: WORKFLOW_ID, user_id: OWNER_ID, share_token: shareToken, nodes, edges: [{ source: "t1", target: "hook-1", targetHandle: "field-url" }] }, error: null }) as never
+      }
+      return chainResolving({ data: null, error: null }) as never
+    })
+  }
+
+  beforeEach(() => findUnboundMock.mockReset())
+
+  it("refuses to share a workflow whose Webhook Output sends with a PLAIN credential — 409 credential_unbound naming the node and its url", async () => {
+    const nodes = [{ id: "hook-1", type: "webhook-output", data: { url: "https://mine.example/hook", credentialId: CRED } }]
+    mockOwnedWorkflow(nodes, null)
+    findUnboundMock.mockResolvedValue([
+      { nodeId: "hook-1", nodeLabel: "Webhook Output", credentialId: CRED, nodeUrl: "https://mine.example/hook", kind: "plain", credentialName: "Grok bot" },
+    ])
+
+    const res = await app.inject({ method: "POST", url: `/v1/workflows/${WORKFLOW_ID}/share`, headers: { "x-user-id": OWNER_ID } })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error.code).toBe("credential_unbound")
+    expect(res.json().error.details).toEqual([expect.objectContaining({ nodeId: "hook-1", credentialId: CRED, nodeUrl: "https://mine.example/hook", kind: "plain" })])
+    // The stored edges travel with the nodes (a mapped URL is not judged).
+    expect(findUnboundMock).toHaveBeenCalledWith(nodes, OWNER_ID, [{ source: "t1", target: "hook-1", targetHandle: "field-url" }])
+  })
+
+  it("re-checks an ALREADY shared workflow too — the credential may have been attached after the first share", async () => {
+    mockOwnedWorkflow([{ id: "hook-1", type: "webhook-output", data: { url: "https://mine.example/hook", credentialId: CRED } }], "existing-token")
+    findUnboundMock.mockResolvedValue([
+      { nodeId: "hook-1", nodeLabel: "Webhook Output", credentialId: CRED, nodeUrl: "https://mine.example/hook", kind: "plain", credentialName: null },
+    ])
+    const res = await app.inject({ method: "POST", url: `/v1/workflows/${WORKFLOW_ID}/share`, headers: { "x-user-id": OWNER_ID } })
+    expect(res.statusCode).toBe(409)
+  })
+
+  it("shares as before when every credentialed webhook is bound — and never asks the vault when none is credentialed", async () => {
+    mockOwnedWorkflow([{ id: "t1", type: "text-prompt", data: {} }], "existing-token")
+    const res = await app.inject({ method: "POST", url: `/v1/workflows/${WORKFLOW_ID}/share`, headers: { "x-user-id": OWNER_ID } })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().shareToken).toBe("existing-token")
+    expect(findUnboundMock).not.toHaveBeenCalled()
   })
 })

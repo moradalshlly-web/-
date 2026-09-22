@@ -36,6 +36,7 @@
  *   boundary; safeFetch catches DNS-based attacks at request time.
  */
 import { Agent, fetch as undiciFetch, type RequestInit as UndiciRequestInit } from "undici"
+import { matchesCredentialBinding, type CredentialBinding } from "./credential-binding.js"
 import { lookup as dnsLookup } from "node:dns"
 import { isIP } from "node:net"
 import { isConfiguredStorageUrl } from "./own-storage-url.js"
@@ -237,6 +238,19 @@ const safeAgent = new Agent({
 export interface SafeFetchInit extends Omit<UndiciRequestInit, "dispatcher"> {
   /** Per-request abort timeout in ms. Applied in addition to `signal` if provided. Default 30s. */
   timeoutMs?: number
+  /**
+   * Credential headers for THIS request — a stored HTTP credential resolved
+   * by `lib/http-credentials.ts`. Pass auth through HERE and never through
+   * `headers`: the request is refused unless the first hop is https and (when
+   * bound) inside the binding; on a redirect a bound credential is never
+   * re-sent outside its binding (the request fails instead of following), and
+   * a plain one is dropped — by its own header name, not only the fixed list
+   * — once a hop leaves the initial origin. Own-storage targets are refused
+   * outright: a webhook is never own storage.
+   */
+  credentialHeaders?: Record<string, string>
+  /** Where `credentialHeaders` may travel (`bound_url` + `bound_match`). Absent = a plain credential. */
+  credentialBinding?: CredentialBinding
 }
 
 /**
@@ -291,9 +305,17 @@ export function assertSafeRedirectTarget(rawUrl: string): void {
  *  credentialed caller from silently leaking them to an attacker-controlled 302. */
 const CREDENTIAL_HEADERS = ["authorization", "cookie", "proxy-authorization"] as const
 
-function stripCredentialHeaders(headers: SafeFetchInit["headers"]): Headers {
+function stripCredentialHeaders(headers: SafeFetchInit["headers"], extraNames: readonly string[] = []): Headers {
   const out = new Headers(headers as HeadersInit)
   for (const h of CREDENTIAL_HEADERS) out.delete(h)
+  for (const h of extraNames) out.delete(h)
+  return out
+}
+
+/** The caller's headers with the credential headers laid over them (a credential wins a name clash). */
+function withCredentialHeaders(headers: SafeFetchInit["headers"], credentialHeaders: Record<string, string>): Headers {
+  const out = new Headers(headers as HeadersInit)
+  for (const [name, value] of Object.entries(credentialHeaders)) out.set(name, value)
   return out
 }
 
@@ -331,9 +353,25 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
   const outer = init.signal
   const signal = outer ? AbortSignal.any([outer as AbortSignal, timer]) : timer
 
-  // Drop our own option, and NEVER let a caller override redirect handling —
-  // safe redirect following is the whole point of this function.
-  const { timeoutMs: _t, redirect: _r, ...forward } = init
+  // Drop our own options, and NEVER let a caller override redirect handling —
+  // safe redirect following is the whole point of this function. The credential
+  // lane is destructured too: it must not reach undici as an unknown option.
+  const { timeoutMs: _t, redirect: _r, credentialHeaders, credentialBinding, ...forward } = init
+
+  // The credential lane's first-hop rules — before any connection is opened.
+  const credentialNames = credentialHeaders ? Object.keys(credentialHeaders) : []
+  const credentialed = credentialNames.length > 0
+  if (credentialed) {
+    if (ownStorage) {
+      throw new Error("safeFetch: blocked — a credential is never sent to this install's own storage")
+    }
+    if (parsed.protocol !== "https:") {
+      throw new Error("safeFetch: blocked — a credential is only sent over https")
+    }
+    if (credentialBinding && !matchesCredentialBinding(url, credentialBinding)) {
+      throw new Error("safeFetch: blocked — the destination is outside the address this credential is locked to")
+    }
+  }
 
   // Own-storage refuses redirects outright; the subtree exemption can't be
   // parlayed into a fetch off the subtree.
@@ -352,7 +390,9 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
   // assertSafeRedirectTarget). Verified: undici's redirect:"manual" returns the
   // real 3xx response with a readable Location header (it does NOT opaque it).
   const initialOrigin = parsed.origin
-  let hopHeaders = forward.headers
+  let hopHeaders: SafeFetchInit["headers"] = credentialed
+    ? withCredentialHeaders(forward.headers, credentialHeaders!)
+    : forward.headers
   let credentialsStripped = false
   let currentUrl = url
   for (let hop = 0; ; hop++) {
@@ -372,9 +412,17 @@ export async function safeFetch(url: string, init: SafeFetchInit = {}): Promise<
       // Free the socket before the next hop; a redirect body is never surfaced.
       await (response.body as ReadableStream | null)?.cancel().catch(() => {})
       const next = new URL(location, currentUrl)
-      // Drop credential headers once a hop leaves the initial origin.
+      // A BOUND credential is never re-sent outside its binding: the request
+      // fails here rather than following bare (plan D6, "never a bare
+      // unauthenticated POST" applied to hop 2).
+      if (credentialed && credentialBinding && !credentialsStripped && !matchesCredentialBinding(next.toString(), credentialBinding)) {
+        throw new Error("safeFetch: blocked — a redirect left the address this credential is locked to")
+      }
+      // Drop credential headers — the fixed list AND the credential's own
+      // header name — once a hop leaves the initial origin. Runs whether or
+      // not the caller passed `headers` of its own.
       if (!credentialsStripped && hopHeaders && next.origin !== initialOrigin) {
-        hopHeaders = stripCredentialHeaders(hopHeaders)
+        hopHeaders = stripCredentialHeaders(hopHeaders, credentialNames)
         credentialsStripped = true
       }
       currentUrl = next.toString()

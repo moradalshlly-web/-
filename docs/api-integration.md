@@ -91,10 +91,45 @@ and the per-feature routes (jobs, workflows, projects, etc.).
 
 A few surfaces are deliberately app-only and reject API tokens and OAuth
 app tokens with `403 in_app_only` — currently the
-[Workflow Copilot](./features/workflow-copilot.md) (`/v1/copilot/*`) and
-the admin panel's message-a-user send. They exist for the Nodaro web
-app's own session, not as an integration surface. To build workflows
-programmatically, use MCP or the SDK.
+[Workflow Copilot](./features/workflow-copilot.md) (`/v1/copilot/*`),
+the admin panel's message-a-user send, and the stored HTTP credentials
+behind Webhook Output (`/v1/http-credentials`, below). They exist for the
+Nodaro web app's own session, not as an integration surface. To build
+workflows programmatically, use MCP or the SDK.
+
+### HTTP credentials (Webhook Output)
+
+A Webhook Output node can send with a stored credential — a header name and a
+secret saved once under Integrations, referenced from the node by id
+(`credentialId`). The secret never appears in workflow JSON, an export or a
+template, and no response of these routes ever returns it.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET`    | `/v1/http-credentials` | List your credentials: `{ id, name, authKind, headerName, boundUrl, boundMatch, createdAt, updatedAt }` — never the secret. |
+| `POST`   | `/v1/http-credentials` | Create: `{ name, headerName, secret, boundUrl?, boundMatch? }`. `headerName` is letters / digits / dashes and may not be a framing header (`Host`, `Content-Length`, `Cookie`, …); `secret` is single-line printable ASCII; `boundUrl` is an `https` address on a public host; `boundMatch` is `exact` (default) or `prefix`. |
+| `PATCH`  | `/v1/http-credentials/:id` | Rename, rotate the secret, or set / move the lock. Clearing a lock is refused (`409 binding_required`) — delete and recreate instead. |
+| `DELETE` | `/v1/http-credentials/:id` | Remove. Nodes that referenced it fail at their next send with a clear message; nothing is ever sent without the key. |
+
+All four are browser-session only (`403 in_app_only` otherwise) and rate
+limited per user; a missing instance encryption key answers
+`503 encryption_key_missing`. Running a workflow that sends with a credential
+works from every lane (editor, API token, MCP, schedule, published app), with
+the rules the [Webhook Output](./nodes/output/webhook-output.md) page
+describes: the credential is the workflow **owner's**, a plain (unlocked) one
+travels only on a run the owner starts in person from the editor, and a locked
+one only to its address. A run started with an API token or an OAuth app
+token, by a webhook trigger, by a schedule, or from a published app does not
+count as the owner's own, even though it runs as the owner — for any of those,
+lock the credential. Publishing an app or sharing a workflow for run answers
+`409 credential_unbound` — with
+`details: [{ nodeId, nodeLabel, credentialId, nodeUrl, kind, credentialName, urlMapped? }]`,
+where `kind` is `plain` (no lock), `missing` (deleted or not the owner's) or
+`mismatch` (locked, but the node's URL is not under the lock), and
+`urlMapped: true` marks a node whose URL comes from another node at run time
+(`nodeUrl` is empty then; lock the credential to the address it will send
+to) — until every credential it sends with, including inside sub-workflows,
+is locked to an address the node sends to.
 
 One surface is app-only *conditionally*: on a deployment-payer instance —
 where a single billing account funds every user — the credit-balance reads

@@ -242,6 +242,11 @@ export async function reconcileWorkflowTriggers(params: {
     const plan = planTriggerSync(desired, existing)
 
     if (plan.create.length > 0) {
+      // Never `owner_initiated`: the caller's request is not proof the OWNER
+      // placed the node — an API token's or an OAuth app's graph write arrives
+      // here as the owner — so the column keeps its default and a plain stored
+      // credential will not travel on a schedule projected from a graph. Only
+      // POST /v1/workflow-triggers, from a browser session, decides it.
       const { error } = await supabase.from("workflow_triggers").insert(
         plan.create.map((t) => ({
           workflow_id: workflowId,

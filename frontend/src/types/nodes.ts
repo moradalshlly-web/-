@@ -4692,6 +4692,13 @@ export type WebhookOutputData = {
   label: string
   url: string
   params: WebhookParam[]
+  /**
+   * A stored HTTP credential (Integrations → Credentials) to send with — the
+   * row's id, never the secret. Resolved for the workflow OWNER at send time;
+   * a plain (unlocked) credential only travels on the owner's own runs, a
+   * locked one only to its address.
+   */
+  credentialId?: string
   currentJobId?: string
   executionStatus?: "idle" | "running" | "completed" | "failed"
   errorMessage?: string

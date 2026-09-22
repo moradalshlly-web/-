@@ -15,6 +15,7 @@ import { supabase } from "../../lib/supabase.js"
 import { insertInternalJob } from "../../lib/insert-job.js"
 import { JobBlockedError } from "../../lib/job-policy.js"
 import { safeFetch } from "../../lib/safe-fetch.js"
+import { HttpCredentialError, resolveHttpAuthHeaders, type ResolvedHttpAuth } from "../../lib/http-credentials.js"
 import { safeUrlSchema } from "../../lib/url-validator.js"
 
 /**
@@ -933,7 +934,13 @@ export async function executeWebhookOutput(
       job_type: "webhook-output",
       // `node_id` lets the reconcile cron map this row back to its node
       // when the orchestrator dies before persisting node_states[X].jobId.
-      input_data: { url, payload, type: "webhook-output", node_id: node.id },
+      input_data: {
+        url,
+        payload,
+        type: "webhook-output",
+        node_id: node.id,
+        ...(typeof node.data.credentialId === "string" && node.data.credentialId ? { credentialId: node.data.credentialId } : {}),
+      },
     }, { billingContext: ctx.billingContext })
     // A request-gate BLOCK is not a failed audit row — it is the platform
     // refusing this delivery. Dropping it (as this line did) would POST the
@@ -952,21 +959,60 @@ export async function executeWebhookOutput(
   let success = false
   let errorMessage: string | undefined
 
-  try {
+  // A stored credential (plan D7): resolves for the WORKFLOW OWNER —
+  // `ctx.workflowOwnerId`, never `ctx.userId` (the runner) — and a plain one
+  // only on an OWNER-INITIATED run, a flag decided at enqueue (the editor's
+  // own browser-session run, the owner's own schedule). Not uuid equality: a
+  // public webhook trigger and an OAuth / API token both run AS the owner. No
+  // ctx / no owner → the resolver fails closed; nothing is sent bare.
+  const credentialId = typeof node.data.credentialId === "string" ? node.data.credentialId.trim() : ""
+  let auth: ResolvedHttpAuth | null = null
+  // A refusal is recorded through the SAME job write as a failed POST below —
+  // one writer, so the node-state totality guard keeps seeing one site.
+  let refusal: string | undefined
+  if (credentialId) {
+    try {
+      const ownerId = ctx?.workflowOwnerId
+      auth = await resolveHttpAuthHeaders(credentialId, ownerId, url, {
+        ownerInitiated: ctx?.ownerInitiated === true,
+      })
+    } catch (err) {
+      refusal = err instanceof HttpCredentialError || (err instanceof Error && err.name === "EncryptionKeyMissingError")
+        ? err.message
+        : "This webhook's credential could not be resolved"
+    }
+  }
+  const credentialed = auth !== null
+
+  if (refusal) {
+    errorMessage = refusal
+  } else try {
     const response = await safeFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       timeoutMs: 30_000,
+      // Auth rides the credential lane, never `headers` (plan D6).
+      ...(auth ? { credentialHeaders: auth.headers, credentialBinding: auth.binding ?? undefined } : {}),
     })
     statusCode = response.status
-    responseBody = (await response.text().catch(() => "")).slice(0, 2000)
+    const rawBody = (await response.text().catch(() => "")).slice(0, 2000)
+    // With a credential attached the body is NOT returned, stored or shown:
+    // a target that reflects the request would hand the secret back (D10).
+    responseBody = credentialed ? "" : rawBody
     success = response.ok
     if (!response.ok) {
-      errorMessage = `Webhook POST failed (${statusCode}): ${responseBody.slice(0, 200)}`
+      errorMessage = credentialed
+        ? `Webhook POST failed (${statusCode})`
+        : `Webhook POST failed (${statusCode}): ${responseBody.slice(0, 200)}`
     }
   } catch (err) {
-    errorMessage = err instanceof Error ? err.message : "Webhook POST failed"
+    // A credentialed send never puts a transport error's own text into an
+    // error column: safeFetch's refusals are fixed text of ours, anything
+    // else is replaced (an undici error can embed the request it was building).
+    errorMessage = credentialed
+      ? (err instanceof Error && err.message.startsWith("safeFetch: blocked") ? err.message : "Webhook POST failed")
+      : err instanceof Error ? err.message : "Webhook POST failed"
   }
 
   if (jobId) {
@@ -975,7 +1021,7 @@ export async function executeWebhookOutput(
       .update({
         status: success ? "completed" : "failed",
         error_message: success ? null : errorMessage,
-        output_data: { success, statusCode, responseBody },
+        output_data: { success, statusCode, responseBody, ...(credentialed ? { credentialId } : {}) },
         completed_at: new Date().toISOString(),
       })
       .eq("id", jobId)

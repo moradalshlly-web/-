@@ -1,5 +1,6 @@
 import type { GenericNode, GenericEdge } from "./types.js"
 import { EXECUTION_DATA_KEYS } from "./node-runtime-keys.js"
+import { SOCIAL_POST_NODE_TYPES } from "./social-post.js"
 
 /** A named media variant (expression, pose, angle, etc.) produced during entity generation. */
 interface AssetVariant {
@@ -216,9 +217,40 @@ const NODE_EXTRA_FIELDS: Record<string, string[]> = {
   "sub-workflow": ["referencedWorkflowId"],
 }
 
+/**
+ * Node fields that point at a row the IMPORTER does not own — a stored HTTP
+ * credential behind a Webhook Output, a connected social account behind a
+ * publisher. The id alone is useless without owning the row (resolution is
+ * owner-scoped), so nothing leaks either way; the point is that the imported
+ * node lands UNBOUND and the importer picks their own, instead of carrying a
+ * dangling pointer at the exporter's account. Applied by every export shape,
+ * including the asset bundle that otherwise keeps node data verbatim.
+ */
+const UNOWNED_REF_FIELDS: Record<string, readonly string[]> = {
+  "webhook-output": ["credentialId"],
+  ...Object.fromEntries([...SOCIAL_POST_NODE_TYPES].map((type) => [type, ["connectionId"]])),
+}
+
+/** Clear owner-bound references (credential / connection ids). Returns new node objects; inputs are not mutated. */
+export function stripUnownedRefs(nodes: GenericNode[]): GenericNode[] {
+  return nodes.map((node) => {
+    const fields = UNOWNED_REF_FIELDS[node.type]
+    if (!fields || !node.data) return node
+    const data = { ...(node.data as Record<string, unknown>) }
+    let changed = false
+    for (const field of fields) {
+      if (field in data) {
+        delete data[field]
+        changed = true
+      }
+    }
+    return changed ? { ...node, data } : node
+  })
+}
+
 /** Strip generated/transient content from nodes for template export. Returns new node objects; inputs are not mutated. */
 export function stripExportContent(nodes: GenericNode[]): GenericNode[] {
-  return nodes.map((node) => {
+  return stripUnownedRefs(nodes).map((node) => {
     const data = { ...(node.data as Record<string, unknown>) }
     for (const field of GENERATED_FIELDS) delete data[field]
     const extras = NODE_EXTRA_FIELDS[node.type] ?? []

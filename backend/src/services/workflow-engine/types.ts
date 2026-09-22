@@ -216,6 +216,15 @@ export interface WorkflowExecutionJob {
   inputOverrides?: Record<string, Record<string, unknown>>
   /** When running a published app version, load snapshot from published_apps instead of workflows. */
   appVersionId?: string
+  /**
+   * The workflow's OWNER started this run themselves and no external input
+   * can reach the graph: true only for the editor's own run (a browser
+   * session) and the owner's own schedule. Decided at ENQUEUE, where the token
+   * kind and the trigger source are known — never re-derived from uuid
+   * equality, because an OAuth / API token and a public webhook trigger both
+   * run AS the owner. Gates a PLAIN stored credential (plan D3).
+   */
+  ownerInitiated?: boolean
   /** Spend-surface flag captured at run creation (see OrchestratorContext.webFreeMode). */
   webFreeMode?: boolean
   /**
@@ -488,6 +497,8 @@ export interface OrchestratorContext {
    *  a shared workflow or an app run executes under the runner's identity but
    *  must only resolve sub-workflow references belonging to the owner. */
   workflowOwnerId?: string
+  /** Copied from the job at pickup — see WorkflowExecutionJob.ownerInitiated. */
+  ownerInitiated?: boolean
 }
 
 // ---------------------------------------------------------------------------

@@ -484,6 +484,7 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
     triggerData,
     cancelled: false,
     isAppRun: !!appVersionId,
+    ownerInitiated: job.data.ownerInitiated === true,
     webFreeMode: job.data.webFreeMode === true,
     // Resolved at enqueue, coalesced here ONCE (absent = personal, the
     // normative rule — a payload from pre-P14 code or a rollback window).

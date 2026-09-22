@@ -77,6 +77,15 @@ export const EXECUTION_DATA_KEYS: ReadonlySet<string> = new Set([
   // progress tick (~2/s). Pure run-state; also in TRANSIENT_RUNTIME_KEYS below.
   "downloadPercent",
   "downloadPhase",
+  // Webhook Output's delivery receipt. A webhook target may reflect the
+  // request back (httpbin, RequestBin, an API that 400s with "headers
+  // received: …"), so `webhookResponseBody` can carry whatever the request
+  // carried — with an attached credential, the secret itself. Listing the three
+  // here is what keeps the receipt out of template exports (GENERATED_FIELDS
+  // derives from this set), out of node presets, and out of undo history.
+  "webhookSuccess",
+  "webhookStatusCode",
+  "webhookResponseBody",
   // When the editor's "Clear results" last emptied this node (ISO time). Not a
   // result and not config: bookkeeping that tells the load-time recovery lanes
   // "this node is empty ON PURPOSE" — without it, every reload reads an empty
