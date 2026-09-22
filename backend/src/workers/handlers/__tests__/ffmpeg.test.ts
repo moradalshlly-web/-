@@ -115,6 +115,7 @@ vi.mock("@/providers/video/ffmpeg-utils.js", () => ({
   // Real values: apply-edl composes its liveness budget from these at import.
   DEFAULT_FFMPEG_TIMEOUT_MS: 10 * 60 * 1000,
   DOWNLOAD_TIMEOUT_MS: 120_000,
+  FFPROBE_TIMEOUT_MS: 120_000,
 }))
 
 vi.mock("@/providers/audio/transcribe.js", () => ({
@@ -769,7 +770,7 @@ describe("apply-edl handler liveness budget", () => {
     expect(ffmpegHandlers["apply-edl"]!.livenessBudgetMs!(makeJob("apply-edl", {}) as never)).toBeUndefined()
   })
 
-  it("is the only ffmpeg handler that declares one — every other spawn runs at the default ffmpeg ceiling", () => {
+  it("is the only ffmpeg handler that DECLARES a liveness budget (the others fit the default cap)", () => {
     const declaring = Object.entries(ffmpegHandlers).filter(([, h]) => typeof h.livenessBudgetMs === "function").map(([k]) => k)
     expect(declaring).toEqual(["apply-edl"])
   })

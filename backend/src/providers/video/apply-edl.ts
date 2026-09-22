@@ -34,6 +34,7 @@ import {
   COMBINE_DELIVERY_CRF,
   DEFAULT_FFMPEG_TIMEOUT_MS,
   DOWNLOAD_TIMEOUT_MS,
+  FFPROBE_TIMEOUT_MS,
 } from "./ffmpeg-utils.js"
 import { pickTargetResolution, pickTargetFps } from "./combine-videos.js"
 
@@ -276,9 +277,21 @@ async function renderSlice(
   }
 
   // Explicit longer timeout: the default 10-min per-spawn would kill a long
-  // chunk. The SAME number the handler declares as its liveness budget
-  // (`applyEdlRenderBudgetMs`), so "hung" means one thing to both.
+  // chunk. The handler's liveness budget (`applyEdlRenderBudgetMs`) is summed
+  // from this same per-chunk figure, so "hung" means one thing to both.
   await runFfmpeg(args, chunkRenderTimeoutMs(segs))
+}
+
+/** The chunk plan a render uses: ONE pass at or below the threshold, else
+ *  slices closed at hard cuts. The render and its liveness budget both call
+ *  this, so they cannot disagree about how many chunks there are. */
+export function resolveChunks(
+  segs: readonly EdlSegment[],
+  options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> = {},
+): EdlSegment[][] {
+  const maxPerChunk = options.maxSegmentsPerChunk ?? DEFAULT_MAX_SEGMENTS_PER_CHUNK
+  const threshold = options.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD
+  return segs.length > threshold ? planChunks(segs, maxPerChunk) : [segs as EdlSegment[]]
 }
 
 /** The output seconds one chunk renders (D17: crossfade overlaps subtracted). */
@@ -291,28 +304,36 @@ export function chunkRenderTimeoutMs(segs: readonly EdlSegment[]): number {
   return Math.max(CHUNK_RENDER_TIMEOUT_FLOOR_MS, Math.ceil(chunkOutputSec(segs) * CHUNK_RENDER_SECS_PER_OUTPUT_SEC) * 1000)
 }
 
-/** Bounded work `applyEdl` does per source before the first chunk: one fetch
- *  at `downloadFile`'s ceiling, then a couple of probes / a demux pass at the
- *  default ffmpeg ceiling. Two default ceilings cover them with room. */
-export const APPLY_EDL_PER_SOURCE_PREP_MS = DOWNLOAD_TIMEOUT_MS + 2 * DEFAULT_FFMPEG_TIMEOUT_MS
+/** Per referenced source, run in sequence before the first chunk: one fetch at
+ *  `downloadFile`'s ceiling, then `hasAudioStream` (an ffprobe at its ceiling). */
+export const APPLY_EDL_PER_SOURCE_PREP_MS = DOWNLOAD_TIMEOUT_MS + FFPROBE_TIMEOUT_MS
+
+/** Once per render, before the first chunk: the picture-canvas probes —
+ *  resolution, then fps, each run across every video source in parallel, each
+ *  at the ffprobe ceiling. */
+export const APPLY_EDL_CANVAS_PROBE_MS = 2 * FFPROBE_TIMEOUT_MS
 
 /**
- * How long `applyEdl` can legitimately run for this EDL — the handler's
- * liveness budget (`HandlerFn.livenessBudgetMs`), composed from the budgets
- * the render gives its OWN steps: every chunk's ffmpeg kill budget
- * (`chunkRenderTimeoutMs`, over the same chunk plan `applyEdl` renders), each
- * referenced source's bounded prep, and the final stream-copy concat at the
- * default ceiling. One source of truth: a render can be failed by its own
- * timeouts, never by the pre-task sweep while it still works. What this does
- * NOT bound is time spent waiting for an ffmpeg slot — see the wrapper doc.
+ * The handler's liveness budget (`HandlerFn.livenessBudgetMs`): the sum of the
+ * kill budgets of every BOUNDED step `applyEdl` runs for this EDL, in the
+ * order it runs them — each referenced source's fetch + audio probe, the
+ * canvas probes, every chunk's ffmpeg budget (`chunkRenderTimeoutMs`, over
+ * `resolveChunks` — the same plan the render uses), and the final
+ * stream-copy concat at the default ceiling when there is more than one chunk.
+ * One number decides "hung" for the heartbeat and for those steps.
+ *
+ * NOT in the sum, because they have no ceiling of their own to add: time
+ * WAITING for an ffmpeg slot, and storage I/O (the R2 client has no request
+ * timeout — chunk checkpoints, the 404-fallback download, and the deliverable
+ * upload after the render). Those ride in the slack between a real render and
+ * its kill budgets, plus the 30 minutes after the last beat; see the wrapper
+ * doc (`workers/pre-task-heartbeat.ts`).
  */
 export function applyEdlRenderBudgetMs(
   edl: Edl,
   options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> = {},
 ): number {
-  const maxPerChunk = options.maxSegmentsPerChunk ?? DEFAULT_MAX_SEGMENTS_PER_CHUNK
-  const threshold = options.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD
-  const chunks = edl.segments.length > threshold ? planChunks(edl.segments, maxPerChunk) : [edl.segments as EdlSegment[]]
+  const chunks = resolveChunks(edl.segments, options)
   const render = chunks.reduce((acc, chunk) => acc + chunkRenderTimeoutMs(chunk), 0)
   const referenced = new Set<string>()
   for (const seg of edl.segments) {
@@ -320,7 +341,7 @@ export function applyEdlRenderBudgetMs(
     if (seg.audio) referenced.add(seg.audio)
   }
   for (const s of edl.sources) if (s.role === "master-audio") referenced.add(s.id)
-  const prep = Math.max(1, referenced.size) * APPLY_EDL_PER_SOURCE_PREP_MS
+  const prep = Math.max(1, referenced.size) * APPLY_EDL_PER_SOURCE_PREP_MS + APPLY_EDL_CANVAS_PROBE_MS
   const concat = chunks.length > 1 ? DEFAULT_FFMPEG_TIMEOUT_MS : 0
   return render + prep + concat
 }
@@ -345,8 +366,6 @@ export function planChunks(segs: readonly EdlSegment[], maxPerChunk: number): Ed
 
 export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult> {
   const { edl, output, quality, jobId, jobUserId, onProgress, checkpoint = true } = options
-  const maxPerChunk = options.maxSegmentsPerChunk ?? DEFAULT_MAX_SEGMENTS_PER_CHUNK
-  const threshold = options.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD
   const wantVideo = output === "video"
   const workDir = await createWorkDir("apply-edl")
   const ext = wantVideo ? "mp4" : "m4a"
@@ -390,9 +409,7 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       fps = videoPaths.length > 0 ? await pickTargetFps(videoPaths) : 30
     }
 
-    const chunks = edl.segments.length > threshold
-      ? planChunks(edl.segments, maxPerChunk)
-      : [edl.segments as EdlSegment[]]
+    const chunks = resolveChunks(edl.segments, options)
 
     const chunkPaths: string[] = []
     const checkpointKeys: string[] = []

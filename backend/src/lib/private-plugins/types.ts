@@ -53,7 +53,9 @@ export type * from "./scene3d-contract.js"
  * consumes: `job.data` (raw payload) and `job.updateProgress` (passed
  * straight through to `tk.jobs.setJobProgress` / `tk.jobs.withProgressRamp`).
  * Mirrors the `job` parameter of `HandlerFn` (`backend/src/workers/shared.ts`:
- * `export type HandlerFn = (job: Job, ctx: JobContext) => Promise<void>`) and
+ * `(job: Job, ctx: JobContext) => Promise<void>`, which a CORE handler may also
+ * carry an optional `livenessBudgetMs(job)` on — core-only, not part of this
+ * contract: plugin handlers keep the pre-task heartbeat's default cap) and
  * the `job.data as {...}` access pattern used by core worker handlers (see
  * any handler in `backend/src/workers/handlers/`).
  *

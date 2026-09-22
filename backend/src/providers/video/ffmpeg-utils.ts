@@ -114,8 +114,13 @@ export async function withFfmpegSlot<T>(fn: () => Promise<T>, signal?: AbortSign
 // spawns it makes at the default ceiling with the same number.
 export const DEFAULT_FFMPEG_TIMEOUT_MS = 10 * 60 * 1000
 
-/** Wall-clock ceiling `downloadFile` gives one fetch (safeFetch's timeout). */
+/** Wall-clock ceiling `downloadFile` gives one fetch (safeFetch's timeout).
+ *  NOT a bound on the R2-origin 404 fallback inside it, which goes through the
+ *  storage client — that client has no request timeout. */
 export const DOWNLOAD_TIMEOUT_MS = 120_000
+
+/** Wall-clock ceiling of one `runFfprobe` call (its execFile watchdog). */
+export const FFPROBE_TIMEOUT_MS = 120_000
 
 /**
  * How much of ffmpeg's output a failure message carries.
@@ -336,7 +341,7 @@ export function runFfprobe(args: readonly string[]): Promise<string> {
     // a stalled edge/socket would otherwise hang the worker indefinitely —
     // there is no BullMQ-side rescue for a live-but-stuck handler. 120s
     // matches the safeFetch download timeout.
-    execFile("ffprobe", args as string[], { maxBuffer: 5 * 1024 * 1024, timeout: 120_000 }, (error, stdout, stderr) => {
+    execFile("ffprobe", args as string[], { maxBuffer: 5 * 1024 * 1024, timeout: FFPROBE_TIMEOUT_MS }, (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`ffprobe failed: ${stderr || error.message}`))
       } else {

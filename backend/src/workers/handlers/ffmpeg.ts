@@ -213,9 +213,11 @@ const handleApplyEdl: HandlerFn = async function handleApplyEdl(job, ctx) {
 // A final-quality render of a long episode is hours of ffmpeg — far past the
 // pre-task heartbeat's default cap (the orchestrator's 90-min node ceiling),
 // and on a direct lane (`POST /v1/apply-edl`, the MCP verb) nothing else bounds
-// it. The handler's liveness budget is the budget it gives its own work: the
-// per-chunk ffmpeg kill budget `applyEdl` hands `runFfmpeg`, plus the bounded
-// prep — so the sweep can never fail a render its own timeouts still allow.
+// it. The handler's liveness budget is the budget it gives its own bounded
+// work: the per-chunk ffmpeg kill budget `applyEdl` hands `runFfmpeg`, plus its
+// fetches and probes — so "hung" means one thing to the heartbeat and to those
+// steps. Storage I/O and ffmpeg-slot waits have no ceiling to add and are the
+// stated residual (see `workers/pre-task-heartbeat.ts`).
 handleApplyEdl.livenessBudgetMs = (job) => {
   const { edl } = job.data as { edl?: Edl }
   return edl && Array.isArray(edl.segments) && Array.isArray(edl.sources) ? applyEdlRenderBudgetMs(edl) : undefined
@@ -966,9 +968,8 @@ async function dispatchKineticCaptions(
   // BOTH reconcile paths (the main scan requires the timestamp non-null;
   // sweepNeverStartedJobs requires status="pending"). render-worker + BullMQ
   // stall-recovery now solely own the job's lifecycle. Without this the cron
-  // could refund a still-rendering job (free render) or spuriously fail it
-  // mid-render, after which markJobCompleted (CAS excludes only "cancelled")
-  // would flip failed→completed.
+  // would fail + refund a job that is still rendering, and markJobCompleted's
+  // live-status CAS would then discard the finished render.
   await supabase
     .from("jobs")
     .update({ provider_kind: null, provider_call_started_at: null })

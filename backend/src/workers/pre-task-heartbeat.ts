@@ -37,17 +37,34 @@
  * alive forever, and the 30-minute sweep is also the backstop for a HUNG
  * handler. The beats stop after a cap, so a hung job is still failed and
  * refunded one threshold later. The default cap is the orchestrator's own
- * per-node ceiling (`PRE_TASK_HEARTBEAT_MAX_MS`), which every handler but one
- * runs well inside. The one — apply-edl, reached through a direct lane
+ * per-node ceiling (`PRE_TASK_HEARTBEAT_MAX_MS`). A handler whose legitimate
+ * run can outlive it — apply-edl, reached through a direct lane
  * (`POST /v1/apply-edl`, the MCP verb) with no orchestrator watching, whose
  * final-quality render of a long episode is hours of ffmpeg — declares its own
  * budget (`HandlerFn.livenessBudgetMs`, honoured by the dispatch site through
- * `maxMs`), and that budget IS the kill budget it gives its own ffmpeg
- * spawns: one number decides "hung" for the heartbeat and for the work, so a
- * render can only ever be failed by its own timeout, never by this sweep. The
- * residual neither detector bounds is time spent WAITING for an ffmpeg slot
- * (`FFMPEG_CONCURRENCY` slots shared by `VIDEO_WORKER_CONCURRENCY` jobs): the
- * kill budget starts when the spawn starts, the beats when the handler does.
+ * `maxMs`), composed from the kill budgets of its BOUNDED steps: the per-chunk
+ * ffmpeg budget it hands `runFfmpeg`, its probes, its fetches. One number
+ * decides "hung" for the heartbeat and for those steps.
+ *
+ * WHAT NO CAP BOUNDS (stated, not padded over):
+ *  - Time spent WAITING for an ffmpeg slot. `FFMPEG_CONCURRENCY` slots are
+ *    shared by `VIDEO_WORKER_CONCURRENCY` jobs; a spawn's kill budget starts
+ *    at the spawn, the beats at dispatch. This is a residual for EVERY ffmpeg
+ *    handler, and apply-edl's multi-hour slot holds are its dominant cause.
+ *  - Steps with no ceiling of their own. The R2 client carries no request
+ *    timeout, so storage I/O — apply-edl's chunk checkpoints, the 404
+ *    fallback download, the deliverable upload and thumbnail after the render
+ *    — is outside every budget. It rides in the slack between a real run and
+ *    its kill budgets plus the 30 minutes after the last beat; that is a
+ *    margin, not a bound.
+ *  - The default cap itself is an empirical margin over today's inventory
+ *    (relay polls ≤ 85 min; the media-proxy encode behind silence-detect runs
+ *    at a 45-min ceiling; other ffmpeg spawns at the 10-min default), not a
+ *    derived bound. A handler that outgrows it declares a budget.
+ *  - The DAG lane: the orchestrator cancels a node at `NODE_TIMEOUT_MS`
+ *    regardless of any handler budget, so a long apply-edl inside a workflow
+ *    is cancelled at 90 minutes while its worker keeps rendering. Pre-existing;
+ *    `applyEdlRenderBudgetMs` is the number a per-node override would use.
  *
  * Import note: `NODE_TIMEOUT_MS` is a pure constant from the workflow engine's
  * types module — no engine code is pulled into the worker by it.
@@ -67,10 +84,11 @@ export const PRE_TASK_HEARTBEAT_MS = 60_000
 
 /** The DEFAULT cap on how long the host keeps a still-running job looking
  *  live: the orchestrator's own per-node ceiling, past which a workflow has
- *  given up on the node. Every handler that does not declare its own budget
- *  is bounded well inside it (the relay polls for 85 min, the plugin renders
- *  for ~35, scene3d / llm-structured beat for themselves, every other ffmpeg
- *  spawn has a 10-min ceiling). A handler that legitimately runs longer —
+ *  given up on the node. Today's handlers that declare nothing fit inside it
+ *  (the relay polls ≤ 85 min, the plugin renders run ~35, scene3d /
+ *  llm-structured beat for themselves, the media-proxy encode runs at a
+ *  45-min ceiling, other ffmpeg spawns at the 10-min default) — an empirical
+ *  margin, not a derived bound. A handler that legitimately runs longer —
  *  apply-edl on a direct lane, where no orchestrator is watching — declares
  *  its own bound (`HandlerFn.livenessBudgetMs`); this constant never has to
  *  stretch to cover it. */
