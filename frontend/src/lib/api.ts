@@ -7313,7 +7313,7 @@ export async function listWorkflowTriggers(workflowId: string): Promise<Workflow
 export async function syncWorkflowTriggers(
   workflowId: string,
   vouchNodeIds: ReadonlyArray<string> = [],
-): Promise<{ data: { synced: boolean; created: number; updated: number; removed: number } }> {
+): Promise<{ data: { synced: boolean; created: number; updated: number; removed: number; reason?: string } }> {
   return apiRequest(`/v1/workflows/${encodeURIComponent(workflowId)}/sync-triggers`, "Failed to sync triggers", {
     method: "POST",
     body: { vouchNodeIds: [...vouchNodeIds] },

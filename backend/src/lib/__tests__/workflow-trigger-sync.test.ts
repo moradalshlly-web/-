@@ -15,6 +15,7 @@ import {
   isCronExpression,
   mergeTriggerConfig,
   normalizeScheduleConfig,
+  normalizeTelegramConfig,
   planTriggerSync,
   type ExistingTrigger,
 } from "../workflow-trigger-sync.js"
@@ -303,5 +304,154 @@ describe("planTriggerSync", () => {
     )
     expect(plan.remove).toEqual(["t2"])
     expect(plan.create).toEqual([])
+  })
+})
+
+/**
+ * Telegram Trigger — the third projected type, and the only one whose row
+ * means a live registration at a bot. These pin the two conditions that keep
+ * it from listening to a user's chats before they asked, and the one shape
+ * change a row cannot absorb in place.
+ */
+const telegramNode = (id: string, data: Record<string, unknown>) => ({
+  id,
+  type: "telegram-trigger",
+  data: { label: "Telegram Trigger", ...data },
+})
+
+const ALL_TYPES = ["text", "photo", "video", "audio", "document"]
+
+describe("normalizeTelegramConfig", () => {
+  it("projects nothing without a bot — there is nothing to point at Telegram", () => {
+    expect(normalizeTelegramConfig({ isActive: true })).toBeNull()
+    expect(normalizeTelegramConfig({ isActive: true, connectionId: "   " })).toBeNull()
+  })
+
+  it("projects nothing until the user activates it — a picked bot is not consent to read their chats", () => {
+    expect(normalizeTelegramConfig({ connectionId: "conn-1" })).toBeNull()
+    expect(normalizeTelegramConfig({ connectionId: "conn-1", isActive: false })).toBeNull()
+    // Not a truthy check: only a real `true` arms it.
+    expect(normalizeTelegramConfig({ connectionId: "conn-1", isActive: "yes" })).toBeNull()
+  })
+
+  it("emits the bot, the filters, and every message type when none is chosen", () => {
+    expect(normalizeTelegramConfig({ connectionId: "conn-1", isActive: true })).toEqual({
+      connectionId: "conn-1",
+      chatIdFilter: null,
+      messageTypeFilters: ALL_TYPES,
+    })
+  })
+
+  it("emits a CLEARED chat filter as null rather than omitting it", () => {
+    // mergeTriggerConfig keeps whatever the desired config does not mention,
+    // so an omitted key would leave the old filter standing on the row.
+    const config = normalizeTelegramConfig({ connectionId: "conn-1", isActive: true, chatIdFilter: "  " })
+    expect(config).toHaveProperty("chatIdFilter", null)
+  })
+
+  it("keeps the chosen message types, dropping junk entries", () => {
+    expect(normalizeTelegramConfig({
+      connectionId: "conn-1",
+      isActive: true,
+      chatIdFilter: "@news",
+      messageTypeFilters: ["photo", "", 7, "video"],
+    })).toEqual({ connectionId: "conn-1", chatIdFilter: "@news", messageTypeFilters: ["photo", "video"] })
+  })
+})
+
+describe("desiredTriggersFromGraph — telegram", () => {
+  it("projects an armed node and skips a half-configured one", () => {
+    expect(desiredTriggersFromGraph([
+      telegramNode("tg1", { connectionId: "conn-1", isActive: true }),
+      telegramNode("tg2", { connectionId: "conn-1" }),
+      telegramNode("tg3", { isActive: true }),
+    ])).toEqual([
+      { nodeId: "tg1", type: "telegram", config: { connectionId: "conn-1", chatIdFilter: null, messageTypeFilters: ALL_TYPES }, isActive: true },
+    ])
+  })
+})
+
+describe("planTriggerSync — telegram", () => {
+  const tgRow = (id: string, nodeId: string, config: Record<string, unknown>): ExistingTrigger => ({
+    id,
+    type: "telegram",
+    config: { ...config, nodeId },
+    is_active: true,
+  })
+
+  it("deactivating a node reconciles its row away — off IS removal here", () => {
+    const plan = planTriggerSync([], [tgRow("t1", "tg1", { connectionId: "conn-1" })])
+    expect(plan.remove).toEqual(["t1"])
+    expect(plan.create).toEqual([])
+  })
+
+  it("an edited filter is an in-place update, not a re-registration", () => {
+    const plan = planTriggerSync(
+      [{ nodeId: "tg1", type: "telegram", config: { connectionId: "conn-1", chatIdFilter: "@news", messageTypeFilters: ALL_TYPES }, isActive: true }],
+      [tgRow("t1", "tg1", { connectionId: "conn-1", chatIdFilter: null, messageTypeFilters: ALL_TYPES })],
+    )
+    expect(plan.create).toEqual([])
+    expect(plan.remove).toEqual([])
+    expect(plan.update).toHaveLength(1)
+    // The secret the registration minted is runtime state and must survive.
+    expect(plan.update[0].config).toMatchObject({ chatIdFilter: "@news", nodeId: "tg1" })
+  })
+
+  it("keeps the secret the registration minted across an edit", () => {
+    const plan = planTriggerSync(
+      [{ nodeId: "tg1", type: "telegram", config: { connectionId: "conn-1", chatIdFilter: "@news", messageTypeFilters: ALL_TYPES }, isActive: true }],
+      [tgRow("t1", "tg1", { connectionId: "conn-1", chatIdFilter: null, messageTypeFilters: ALL_TYPES, secretToken: "shh" })],
+    )
+    expect(plan.update[0].config).toMatchObject({ secretToken: "shh" })
+  })
+
+  it("switching the BOT replaces the row — the old bot has a registration to take down", () => {
+    const plan = planTriggerSync(
+      [{ nodeId: "tg1", type: "telegram", config: { connectionId: "conn-2", chatIdFilter: null, messageTypeFilters: ALL_TYPES }, isActive: true }],
+      [tgRow("t1", "tg1", { connectionId: "conn-1", chatIdFilter: null, messageTypeFilters: ALL_TYPES })],
+    )
+    expect(plan.remove).toEqual(["t1"])
+    expect(plan.create).toHaveLength(1)
+    expect(plan.update).toEqual([])
+  })
+
+  it("leaves a telegram row created through the API (no nodeId) alone", () => {
+    const byApi: ExistingTrigger = {
+      id: "api-1",
+      type: "telegram",
+      config: { connectionId: "conn-1", secretToken: "shh" },
+      is_active: true,
+    }
+    expect(planTriggerSync([], [byApi])).toEqual({ create: [], update: [], remove: [] })
+  })
+})
+
+describe("planTriggerSync — an inactive telegram row", () => {
+  it("is replaced rather than flipped back on: deactivation gave its url up, and only a create registers one", () => {
+    // The API's deactivate clears the token and may have taken the bot's
+    // webhook down. An UPDATE to is_active=true would leave a trigger that is
+    // active on paper and reachable by nothing.
+    const parked: ExistingTrigger = {
+      id: "t1",
+      type: "telegram",
+      config: { nodeId: "tg1", connectionId: "conn-1", chatIdFilter: null, messageTypeFilters: ["text"], secretToken: "shh" },
+      is_active: false,
+      webhook_token: null,
+    }
+    const plan = planTriggerSync(
+      [{ nodeId: "tg1", type: "telegram", config: { connectionId: "conn-1", chatIdFilter: null, messageTypeFilters: ["text"] }, isActive: true }],
+      [parked],
+    )
+    expect(plan.update).toEqual([])
+    expect(plan.remove).toEqual(["t1"])
+    expect(plan.create).toHaveLength(1)
+  })
+
+  it("an inactive SCHEDULE row is still just reactivated in place — the rule is telegram's alone", () => {
+    const parked: ExistingTrigger = { id: "s1", type: "schedule", config: { nodeId: "n1", cron: "0 6 * * *" }, is_active: false }
+    const plan = planTriggerSync([{ nodeId: "n1", type: "schedule", config: { cron: "0 6 * * *" }, isActive: true }], [parked])
+    expect(plan.remove).toEqual([])
+    expect(plan.create).toEqual([])
+    expect(plan.update).toEqual([{ id: "s1", config: { cron: "0 6 * * *", nodeId: "n1" }, isActive: true }])
   })
 })

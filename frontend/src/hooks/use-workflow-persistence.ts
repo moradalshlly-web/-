@@ -615,8 +615,13 @@ export function useWorkflowPersistence(projectId?: string) {
       const trackers = triggerSyncTrackersRef.current
       const tracker = trackers.get(id) ?? createTriggerSyncTracker()
       trackers.set(id, tracker)
-      void syncTriggersAfterSave(tracker, id, before, after, () => {
-        toast.warning(tx("editor.triggerSyncFailed"), { id: "trigger-sync-failed" })
+      void syncTriggersAfterSave(tracker, id, before, after, (reason) => {
+        // With a reason the user can act (reconnect the bot, set PUBLIC_URL);
+        // without one, the retry-on-next-save promise is all there is to say.
+        toast.warning(
+          reason ? tx("editor.triggerSyncFailedReason", { reason }) : tx("editor.triggerSyncFailed"),
+          { id: "trigger-sync-failed" },
+        )
       })
     },
     [],

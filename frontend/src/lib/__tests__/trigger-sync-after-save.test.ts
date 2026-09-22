@@ -23,7 +23,8 @@ const TEXT = { id: "t1", type: "text-prompt" }
 const SCHEDULE = { id: "s1", type: "schedule-trigger", data: { cron: "*/5 * * * *" } }
 const SCHEDULE_HOURLY = { id: "s1", type: "schedule-trigger", data: { cron: "0 * * * *" } }
 const WEBHOOK = { id: "w1", type: "webhook-trigger", data: {} }
-const TELEGRAM = { id: "g1", type: "telegram-trigger", data: {} }
+const TELEGRAM = { id: "g1", type: "telegram-trigger", data: { connectionId: "conn-1", isActive: true } }
+const TELEGRAM_OFF = { id: "g1", type: "telegram-trigger", data: { connectionId: "conn-1", isActive: false } }
 const PLANTED = { id: "planted", type: "schedule-trigger", data: { cron: "* * * * *" } }
 
 const ok = { data: { synced: true, created: 1, updated: 0, removed: 0 } }
@@ -35,11 +36,20 @@ beforeEach(() => {
 })
 
 describe("graphHasProjectedTriggers / triggerFingerprint", () => {
-  it("knows the two projected types; telegram registers itself", () => {
+  it("knows every projected type — schedule, webhook and telegram", () => {
     expect(graphHasProjectedTriggers([TEXT, SCHEDULE])).toBe(true)
     expect(graphHasProjectedTriggers([WEBHOOK])).toBe(true)
-    expect(graphHasProjectedTriggers([TEXT, TELEGRAM])).toBe(false)
+    expect(graphHasProjectedTriggers([TEXT, TELEGRAM])).toBe(true)
+    expect(graphHasProjectedTriggers([TEXT])).toBe(false)
     expect(graphHasProjectedTriggers(undefined)).toBe(false)
+  })
+
+  it("a telegram trigger switched off is still a sync — off is what removes its row", () => {
+    // The server projects nothing for an inactive node, and projecting
+    // nothing is how the row (and the bot's registration) goes away. A save
+    // that skipped the sync would leave the bot talking to us.
+    expect(triggerFingerprint([TELEGRAM]).signature)
+      .not.toBe(triggerFingerprint([TELEGRAM_OFF]).signature)
   })
 
   it("the fingerprint changes with a trigger's data and ignores everything else", () => {
@@ -158,5 +168,24 @@ describe("syncTriggersAfterSave", () => {
     // The deferred change ran on its own, vouching for the webhook this session added.
     expect(apiMock.syncWorkflowTriggers).toHaveBeenCalledTimes(2)
     expect(apiMock.syncWorkflowTriggers).toHaveBeenLastCalledWith(WF, ["w1"])
+  })
+})
+
+describe("the server's reason", () => {
+  it("reaches onFailure when the server refuses with one — the toast can say what to fix", async () => {
+    apiMock.syncWorkflowTriggers.mockResolvedValueOnce({
+      data: { synced: false, created: 0, updated: 0, removed: 0, reason: "Telegram refused the webhook: Unauthorized" },
+    })
+    const tracker = createTriggerSyncTracker()
+    const onFailure = vi.fn()
+    expect(await syncTriggersAfterSave(tracker, WF, [], [TELEGRAM], onFailure)).toBe("failed")
+    expect(onFailure).toHaveBeenCalledWith("Telegram refused the webhook: Unauthorized")
+  })
+
+  it("is simply absent on a plain refusal", async () => {
+    apiMock.syncWorkflowTriggers.mockResolvedValueOnce({ data: { synced: false, created: 0, updated: 0, removed: 0 } })
+    const onFailure = vi.fn()
+    await syncTriggersAfterSave(createTriggerSyncTracker(), WF, [], [TELEGRAM], onFailure)
+    expect(onFailure).toHaveBeenCalledWith(undefined)
   })
 })

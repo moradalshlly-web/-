@@ -195,6 +195,11 @@ export function TelegramTriggerConfig({ data, onUpdate }: ConfigProps<TelegramTr
   }
 
   const isActive = d.isActive ?? false
+  // A bot is what there is to point at Telegram — "active" without one is a
+  // wish, and the server projects nothing for it. Say so instead of showing
+  // a green light for a trigger that will never fire.
+  const hasBot = !!d.connectionId
+  const listening = isActive && hasBot
 
   const handleToggleActive = () => {
     onUpdate({ isActive: !isActive })
@@ -204,12 +209,14 @@ export function TelegramTriggerConfig({ data, onUpdate }: ConfigProps<TelegramTr
     <div className="flex flex-col gap-4">
       {/* Status indicator */}
       <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium ${
-        isActive
+        listening
           ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400"
-          : "bg-gray-50 dark:bg-[#2D2D2D] border-gray-200 dark:border-[#2D2D2D] text-gray-500 dark:text-[#64748B]"
+          : isActive
+            ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400"
+            : "bg-gray-50 dark:bg-[#2D2D2D] border-gray-200 dark:border-[#2D2D2D] text-gray-500 dark:text-[#64748B]"
       }`}>
-        <div className={`h-2 w-2 rounded-full ${isActive ? "bg-green-500" : "bg-gray-400"}`} />
-        {isActive ? t("cfgext.trigActiveListening") : t("apps.inactive")}
+        <div className={`h-2 w-2 rounded-full ${listening ? "bg-green-500" : isActive ? "bg-amber-500" : "bg-gray-400"}`} />
+        {listening ? t("cfgext.trigActiveListening") : isActive ? t("cfgext.trigPickBotFirst") : t("apps.inactive")}
       </div>
 
       {/* Connection selector */}
@@ -273,13 +280,21 @@ export function TelegramTriggerConfig({ data, onUpdate }: ConfigProps<TelegramTr
       </div>
 
       {/* Activate / Deactivate */}
-      <Button
-        variant={isActive ? "outline" : "default"}
-        className={isActive ? "w-full border-destructive/30 text-destructive hover:bg-destructive/10" : "w-full bg-[#ff0073] hover:bg-[#e0005f] text-white"}
-        onClick={handleToggleActive}
-      >
-        {isActive ? t("cfgext.trigDeactivate") : t("cfgext.trigActivate")}
-      </Button>
+      <div>
+        <Button
+          variant={isActive ? "outline" : "default"}
+          className={isActive ? "w-full border-destructive/30 text-destructive hover:bg-destructive/10" : "w-full bg-[#ff0073] hover:bg-[#e0005f] text-white"}
+          onClick={handleToggleActive}
+          disabled={!isActive && !hasBot}
+        >
+          {isActive ? t("cfgext.trigDeactivate") : t("cfgext.trigActivate")}
+        </Button>
+        {/* The switch is intent; the server registers the bot with Telegram
+            when the graph is saved, so never let the button imply otherwise. */}
+        <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+          {t("cfgext.trigAppliesOnSave")}
+        </p>
+      </div>
     </div>
   )
 }

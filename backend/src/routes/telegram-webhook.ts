@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 import { supabase } from "../lib/supabase.js"
 import { decryptToken } from "../services/social/encryption.js"
-import { config } from "../lib/config.js"
 import { orchestrationQueue } from "../lib/orchestration-queue.js"
 import { uploadBufferToR2 } from "../lib/storage.js"
 import type { WorkflowExecutionJob } from "../services/workflow-engine/types.js"
@@ -10,32 +9,30 @@ import { resolveBillingContext, shouldRefuseDegradedRunFor } from "../lib/billin
 import { billingPairColumns } from "../lib/insert-job.js"
 import { canRunWorkflow } from "../lib/workflow-access.js"
 import { recordTriggerFireRefusal } from "../lib/trigger-fire-refusal.js"
-import {
-  getTriggersForToken,
-  generateWebhookToken,
-  registerTelegramWebhook,
-  unregisterTelegramWebhook,
-  downloadTelegramFile,
-  addTriggerToRoute,
-  removeTriggerFromRoute,
-} from "../lib/telegram-router.js"
+import { getRouteForToken, downloadTelegramFile } from "../lib/telegram-router.js"
+import { ensureBotRegistration, syncBotRegistration } from "../lib/telegram-trigger-activation.js"
 
 export async function telegramWebhookRoutes(app: FastifyInstance) {
   // POST /v1/telegram/webhook/:webhookToken — public, no auth
   app.post("/v1/telegram/webhook/:webhookToken", async (req, reply) => {
     const { webhookToken } = req.params as { webhookToken: string }
-    const triggers = getTriggersForToken(webhookToken)
+    // Every trigger on this bot, not just the one that happens to hold the
+    // url — a bot delivers to ONE address and all of its triggers listen
+    // behind it.
+    const route = getRouteForToken(webhookToken)
+    const triggers = route?.triggers ?? []
     if (triggers.length === 0) {
       return reply.status(404).send({ error: "Unknown webhook" })
     }
 
-    // Validate Telegram secret_token header. Fail-CLOSED: a trigger with no
-    // stored secret cannot authenticate the caller as Telegram, so reject rather
-    // than accept an unverified update. Creation always sets a secret (via
-    // generateWebhookToken + registerTelegramWebhook), so this only rejects
-    // misconfigured/legacy rows — which should not be processing updates anyway.
+    // Validate Telegram secret_token header. Fail-CLOSED: a url with no stored
+    // secret cannot authenticate the caller as Telegram, so reject rather than
+    // accept an unverified update. Registration always sets a secret, so this
+    // only rejects misconfigured/legacy rows — which should not be processing
+    // updates anyway. The secret belongs to the URL, not to the trigger: it is
+    // what was handed to `setWebhook` for this token.
     const telegramSecret = req.headers["x-telegram-bot-api-secret-token"] as string | undefined
-    if (!triggers[0].secretToken || telegramSecret !== triggers[0].secretToken) {
+    if (!route?.secretToken || telegramSecret !== route.secretToken) {
       return reply.status(403).send({ error: "Invalid secret" })
     }
 
@@ -66,14 +63,19 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
       ? ((message.audio || message.voice) as { file_id: string }).file_id
       : undefined
 
-    // Hoist connection lookup — all triggers for one webhookToken share the same bot/user
-    const { data: conn } = await supabase
+    // Hoist connection lookup — every trigger on this url is the same bot, so
+    // one lookup serves them all. Ask for THAT bot by id where the rows name
+    // it: a user with two bots would otherwise download this bot's media with
+    // the other one's token and get nothing back.
+    const botConnectionId = triggers.find((t) => t.connectionId)?.connectionId
+    const connectionQuery = supabase
       .from("social_connections")
       .select("access_token_encrypted")
       .eq("user_id", triggers[0].userId)
       .eq("platform", "telegram")
-      .limit(1)
-      .single()
+    const { data: conn } = botConnectionId
+      ? await connectionQuery.eq("id", botConnectionId).maybeSingle()
+      : await connectionQuery.limit(1).maybeSingle()
 
     // Download media once and upload to R2 (shared across all triggers)
     let imageUrl: string | undefined
@@ -160,6 +162,12 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
           workflowId: trigger.workflowId,
           userId: trigger.userId,
           triggerType: "telegram",
+          // The node this row was projected from: the worker runs the branch
+          // behind it (`triggerRunScope`), the same way the webhook and
+          // schedule lanes do. Without it, two Telegram Triggers on one canvas
+          // would each fan out to a run of the WHOLE workflow. A hand-made
+          // row names none and falls back to the lane's only node.
+          ...(trigger.nodeId ? { triggerNodeId: trigger.nodeId } : {}),
           triggerData,
           billingContext,
         }
@@ -201,21 +209,26 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
 
     const { data: conn } = await supabase
       .from("social_connections")
-      .select("*")
+      .select("id, platform_user_id")
       .eq("id", connectionId)
       .eq("user_id", userId)
+      .eq("platform", "telegram")
       .single()
 
     if (!conn) {
       return reply.status(400).send({ error: { code: "not_found", message: "Connection not found" } })
     }
 
-    const botToken = decryptToken(conn.access_token_encrypted)
-    const webhookToken = generateWebhookToken()
-    const secretToken = generateWebhookToken()
-
-    const publicUrl = config.PUBLIC_URL || "http://localhost:8000"
-    await registerTelegramWebhook(botToken, webhookToken, secretToken, publicUrl)
+    // One registration per BOT, shared by every trigger on it — minting a
+    // fresh url here would silently un-subscribe the bot's other triggers.
+    let registration: Awaited<ReturnType<typeof ensureBotRegistration>>
+    try {
+      registration = await ensureBotRegistration({ userId, connectionId })
+    } catch (err) {
+      return reply.status(400).send({
+        error: { code: "telegram_error", message: err instanceof Error ? err.message : "Activation failed" },
+      })
+    }
 
     const { data: trigger, error } = await supabase
       .from("workflow_triggers")
@@ -228,9 +241,9 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
           connectionId,
           chatIdFilter: chatIdFilter || null,
           messageTypeFilters: messageTypeFilters || ["text", "photo", "video", "audio", "document"],
-          secretToken,
+          secretToken: registration.secretToken,
         },
-        webhook_token: webhookToken,
+        webhook_token: registration.webhookToken,
         is_active: true,
       })
       .select("id")
@@ -240,16 +253,9 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
       return reply.status(500).send({ error: { code: "internal_error" } })
     }
 
-    addTriggerToRoute(webhookToken, {
-      triggerId: trigger.id,
-      workflowId,
-      userId,
-      chatIdFilter: chatIdFilter || undefined,
-      messageTypeFilters: messageTypeFilters || undefined,
-      secretToken,
-    })
+    await syncBotRegistration({ userId, connectionId })
 
-    return { triggerId: trigger.id, webhookToken }
+    return { triggerId: trigger.id, webhookToken: registration.webhookToken }
   })
 
   // DELETE /v1/telegram/triggers/:id — authenticated
@@ -274,31 +280,26 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: { code: "not_found" } })
     }
 
-    const cfg = trigger.config as Record<string, unknown>
-    const connectionId = cfg.connectionId as string
+    const cfg = (trigger.config ?? {}) as Record<string, unknown>
+    const connectionId = typeof cfg.connectionId === "string" ? cfg.connectionId : ""
 
-    const { data: conn } = await supabase
-      .from("social_connections")
-      .select("access_token_encrypted")
-      .eq("id", connectionId)
-      .eq("user_id", userId)
-      .single()
-
-    if (conn) {
-      try {
-        const botToken = decryptToken(conn.access_token_encrypted)
-        await unregisterTelegramWebhook(botToken)
-      } catch {
-        // Best effort
-      }
-    }
-
+    // The url leaves with the trigger: `webhook_token` is UNIQUE, so a row
+    // parked inactive while still holding it would block the handover below.
     await supabase
       .from("workflow_triggers")
-      .update({ is_active: false })
+      .update({ is_active: false, webhook_token: null })
       .eq("id", id)
+      .eq("user_id", userId)
 
-    removeTriggerFromRoute(trigger.webhook_token, id)
+    // The bot is only taken down when this was its LAST trigger; when others
+    // remain, the url this row held is handed to one of them.
+    await syncBotRegistration({
+      userId,
+      connectionId,
+      releasedUrls: trigger.webhook_token
+        ? [{ token: trigger.webhook_token as string, secret: typeof cfg.secretToken === "string" ? cfg.secretToken : "" }]
+        : [],
+    })
 
     return { success: true }
   })

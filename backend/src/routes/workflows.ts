@@ -1361,7 +1361,16 @@ export async function workflowRoutes(app: FastifyInstance) {
 
     const result = await syncTriggersForSavedWorkflow(req, params.id, loaded.row, body.vouchNodeIds)
     return reply.send({
-      data: { synced: !result.error, created: result.created, updated: result.updated, removed: result.removed },
+      data: {
+        synced: !result.error,
+        created: result.created,
+        updated: result.updated,
+        removed: result.removed,
+        // The one failure the user can act on — a Telegram bot that could not
+        // be registered — in words written for them. Internal errors stay in
+        // the warn log above and never reach the wire.
+        ...(result.reason ? { reason: result.reason } : {}),
+      },
     })
   })
 
