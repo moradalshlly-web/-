@@ -10,7 +10,6 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import type { ScheduleTriggerData } from "@/types/nodes"
 
 const HANDLES = [
-  { id: "in",      type: "target" as const, position: Position.Left,  customStyle: { top: 'calc(100% - 24px)', left: '-29px' }, external: true },
   { id: "payload", type: "source" as const, position: Position.Right, customStyle: { top: '24px',              right: '-29px' }, external: true },
 ] as const
 
@@ -44,7 +43,7 @@ function ScheduleTriggerNodeComponent({ id, data, selected }: NodeProps) {
           </p>
         </div>
       </BaseNode>
-      <HandleWithPopover nodeId={id} nodeType="schedule-trigger" handleId="in"      type="target" position={Position.Left}  label="URL"     color={TEXT_HANDLE_COLOR} icon={<Clock />} side="left"  top="calc(100% - 24px)" />
+      {/* A trigger starts the run; it takes nothing from the canvas (registry: inputs []). */}
       <HandleWithPopover nodeId={id} nodeType="schedule-trigger" handleId="payload" type="source" position={Position.Right} label="Payload" color={HANDLE_COLORS.control} icon={<Type />}  side="right" top="24px" />
     </div>
   )
