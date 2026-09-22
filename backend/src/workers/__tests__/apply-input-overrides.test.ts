@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { applyInputOverridesToNodes, applyLocationVariantOverride } from "../apply-input-overrides.js"
+import { LockedOverrideError } from "../../lib/input-override-lock.js"
 
 describe("applyInputOverridesToNodes — shallow merge", () => {
   it("replaces a STALE motionPlan with the full-plan override (lottie slot exposure pin)", () => {
@@ -145,5 +146,58 @@ describe("applyInputOverridesToNodes — media-bound metadata", () => {
     }]
     applyInputOverridesToNodes(nodes, { ref: { label: "Renamed" } })
     expect(nodes[0].data.metadata).toEqual({ durationSeconds: 600 })
+  })
+})
+
+describe("applyInputOverridesToNodes — the override lock (issue #1555)", () => {
+  const graph = () => [
+    { id: "text-1", type: "text-prompt", data: { text: "saved" } },
+    { id: "hook-1", type: "webhook-output", data: { url: "https://creator.example/hook", label: "Deliver" } },
+  ]
+
+  it("throws a LockedOverrideError when an override re-points an outbound node", () => {
+    const nodes = graph()
+    expect(() =>
+      applyInputOverridesToNodes(nodes, { "hook-1": { url: "https://attacker.example/collect" } }),
+    ).toThrow(LockedOverrideError)
+  })
+
+  it("checks the WHOLE map first — a throw leaves every node untouched, even the legitimate entries", () => {
+    const nodes = graph()
+    const before = JSON.stringify(nodes)
+    expect(() =>
+      applyInputOverridesToNodes(nodes, {
+        "text-1": { text: "a legitimate input" },
+        "hook-1": { url: "https://attacker.example/collect" },
+      }),
+    ).toThrow(LockedOverrideError)
+    // No partial merge: the text node did not take its override either.
+    expect(JSON.stringify(nodes)).toBe(before)
+  })
+
+  it("carries a message the orchestrator can fail the execution with — field and node, never the value", () => {
+    let message = ""
+    try {
+      applyInputOverridesToNodes(graph(), { "hook-1": { url: "https://attacker.example/collect" } })
+    } catch (err) {
+      message = (err as Error).message
+    }
+    expect(message).toContain('"url" on webhook-output node "hook-1"')
+    expect(message).not.toContain("attacker")
+    expect(message).not.toContain("creator.example")
+  })
+
+  it("still merges an ordinary field onto an outbound node and a url onto an input node", () => {
+    const nodes = [
+      { id: "img-1", type: "upload-image", data: { url: "https://cdn.example/old.png" } },
+      { id: "scrape-1", type: "web-scrape", data: { target: "https://creator.example", maxItems: 1 } },
+    ]
+    applyInputOverridesToNodes(nodes, {
+      "img-1": { url: "https://cdn.example/new.png" },
+      "scrape-1": { maxItems: 5 },
+    })
+    expect(nodes[0].data.url).toBe("https://cdn.example/new.png")
+    expect(nodes[1].data.maxItems).toBe(5)
+    expect(nodes[1].data.target).toBe("https://creator.example")
   })
 })

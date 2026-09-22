@@ -559,6 +559,59 @@ describe("POST /v1/workflows/:id/run", () => {
     return mockOrchestrationQueueAdd.mock.calls[0]?.[1] as Record<string, unknown>
   }
 
+  // -------------------------------------------------------------------------
+  // The override lock (issue #1555): a run request may not re-point an
+  // outbound node. The orchestrator's merge refuses too; the route answers
+  // 400 so the caller never gets a failed execution row.
+  // -------------------------------------------------------------------------
+
+  it("refuses an override that re-points a Webhook Output — 400 locked_field, nothing enqueued", async () => {
+    mockRunWithGraph([
+      { id: "hook-1", type: "webhook-output", data: { url: "https://mine.example/hook" } },
+    ])
+
+    const res = await authedPost(`/v1/workflows/${TEST_WORKFLOW_ID}/run`, {
+      inputOverrides: { "hook-1": { url: "https://attacker.example/collect" } },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe("locked_field")
+    expect(res.json().error.message).toContain('"url" on webhook-output node "hook-1"')
+    // The message names the field, never the value the request tried to set.
+    expect(res.json().error.message).not.toContain("attacker")
+    expect(mockOrchestrationQueueAdd).not.toHaveBeenCalled()
+  })
+
+  it("refuses a destination hidden inside a nested override object on a publisher", async () => {
+    mockRunWithGraph([{ id: "tg-1", type: "telegram-post", data: {} }])
+
+    const res = await authedPost(`/v1/workflows/${TEST_WORKFLOW_ID}/run`, {
+      inputOverrides: { "tg-1": { text: "fine", config: { chatId: "@attacker" } } },
+    })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.message).toContain('"config.chatId" on telegram-post node "tg-1"')
+    expect(mockOrchestrationQueueAdd).not.toHaveBeenCalled()
+  })
+
+  it("still forwards a nested url override on an INPUT node — an upload's url is the app input", async () => {
+    mockRunWithGraph([{ id: "img-1", type: "upload-image", data: {} }])
+
+    const res = await authedPost(`/v1/workflows/${TEST_WORKFLOW_ID}/run`, {
+      inputOverrides: { "img-1": { url: "https://cdn.example/runner-photo.png" } },
+    })
+    expect(res.statusCode).toBe(202)
+    expect(enqueuedJob().inputOverrides).toEqual({ "img-1": { url: "https://cdn.example/runner-photo.png" } })
+  })
+
+  it("still forwards an ordinary field override on an outbound node — a scraper's limit is not a destination", async () => {
+    mockRunWithGraph([{ id: "scrape-1", type: "web-scrape", data: { target: "https://mine.example" } }])
+
+    const res = await authedPost(`/v1/workflows/${TEST_WORKFLOW_ID}/run`, {
+      inputOverrides: { "scrape-1": { maxItems: 5 } },
+    })
+    expect(res.statusCode).toBe(202)
+    expect(enqueuedJob().inputOverrides).toEqual({ "scrape-1": { maxItems: 5 } })
+  })
+
   it("normalizes a FLAT scalar override into the node's primary field (MCP shape)", async () => {
     mockRunWithGraph([{ id: "text-1", type: "text-prompt", data: {} }])
 

@@ -114,7 +114,9 @@ describe("upload-policy totality — every byte-carrying lane polices", () => {
     expect(importsPresigner('// @aws-sdk/s3-request-presigner\nconst other = "safe"')).toBe(false)
   })
 
-  it("public ingestion cannot mint presigned PUTs; private build output has one scoped quarantine lane", () => {
+  // A source-tree scan: 7 s on a slow CI runner, over the default 5 s budget —
+  // it timed out on two unrelated PRs in the same minute (2026-09-22).
+  it("public ingestion cannot mint presigned PUTs; private build output has one scoped quarantine lane", { timeout: 60_000 }, () => {
     // If someone imports @aws-sdk/s3-request-presigner, bytes could go
     // browser→R2 directly and bypass every policed lane — that lane must then
     // either be dropped again or grow its own policing point. The two private

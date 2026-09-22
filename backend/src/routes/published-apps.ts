@@ -10,6 +10,7 @@ import { sendInternalError } from "../lib/http-errors.js"
 import { accessAtLeast, workflowAccessFromRow } from "../lib/workflow-access.js"
 import { toAccessRow } from "../lib/workflow-route-access.js"
 import { findUnpublishableNodeTypes, unpublishableNodesMessage } from "../lib/surface-deny.js"
+import { sendCredentialUnbound, unboundCredentialUsesFor } from "../lib/credential-gate.js"
 
 const VALID_CATEGORIES = [
   "image-generation", "video-production", "audio-music", "content-writing",
@@ -581,6 +582,18 @@ export async function publishedAppsRoutes(app: FastifyInstance) {
     // Estimate credits
     const nodes = workflow.nodes || []
     const edges = workflow.edges || []
+
+    // A published app runs this snapshot for strangers: every Webhook Output
+    // that sends with a stored credential must be locked to its address first
+    // (plan D3). The credentials are the workflow OWNER's, which publishing
+    // already requires the caller to be.
+    const unboundUses = await unboundCredentialUsesFor(
+      nodes as Array<{ id: string; type?: string; data?: Record<string, unknown> }>,
+      userId,
+      edges as Array<{ target?: unknown; targetHandle?: unknown }>,
+    )
+    if (unboundUses.length > 0) return sendCredentialUnbound(reply, unboundUses)
+
     const baseEstimatedCredits = estimateWorkflowCredits(nodes as Array<{ type: string; data?: Record<string, unknown> }>)
 
     // Inherit monetization from previous version, then user defaults, then zeros

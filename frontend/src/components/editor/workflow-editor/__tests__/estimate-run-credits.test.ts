@@ -5,7 +5,7 @@ vi.mock("@/components/editor/config-panels/helpers", () => ({
 }))
 vi.mock("../types", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../types")>()
-  return { ...actual, getFanOutMultiplier: () => 2 }
+  return { ...actual, getCostMultiplier: () => 2 }
 })
 
 import { estimateRunCredits } from "../estimate-run-credits"
@@ -19,7 +19,7 @@ function n(id: string, type: string): WorkflowNode {
 const cachedCost = (id: string) => (id === "generate-image-model" ? 5 : undefined)
 
 describe("estimateRunCredits", () => {
-  it("sums (cached cost or NODE_CREDIT_COSTS fallback) × fan-out per node", () => {
+  it("sums (cached cost or NODE_CREDIT_COSTS fallback) × the cost multiplier per node", () => {
     const nodes = [n("n1", "generate-image"), n("n2", "totally-unknown-type")]
     // n1: cached 5 × 2 = 10; n2: unknown → fallback 1 × 2 = 2 → 12
     expect(estimateRunCredits(nodes, nodes, [], cachedCost)).toBe(12)

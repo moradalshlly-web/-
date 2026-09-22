@@ -111,7 +111,7 @@ import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, spli
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
-  readPromptAffixes, unwrapEditPlanOutput, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, alignedFieldList, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
+  readPromptAffixes, unwrapEditPlanOutput, clampEditPlanClipCount, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, alignedFieldList, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
 import { applyPromptAffixes, buildSeedanceVideoEditPrompt, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
@@ -6750,7 +6750,7 @@ function executeNodeCore(
         sources,
         instructions: applyPromptAffixes(epData.instructions, readPromptAffixes(epData), refMap),
         styleGuide: epData.styleGuide?.trim() || undefined,
-        count: mode === "clips" && typeof epData.count === "number" ? epData.count : undefined,
+        count: mode === "clips" ? clampEditPlanClipCount(epData.count) : undefined,
         targetDurationSec: mode === "clips" && typeof epData.targetDurationSec === "number" ? epData.targetDurationSec : undefined,
         targetAspect: epData.targetAspect,
         platform: epData.platform?.trim() || undefined,
@@ -9158,6 +9158,10 @@ function executeNodeCore(
     const whData = node.data as Record<string, unknown>;
     const url = (whData.url as string)?.trim();
     const params = (whData.params as Array<{ id: string; name: string; type: string }>) ?? [];
+    // A stored credential rides as its id; the server resolves it for the
+    // workflow owner and answers a body-less receipt (plan D7 / D10).
+    const credentialId =
+      typeof whData.credentialId === "string" && whData.credentialId.trim() ? whData.credentialId.trim() : undefined;
 
     if (!url) {
       updateNodeData(node.id, { executionStatus: "failed", errorMessage: "No webhook URL configured" });
@@ -9188,7 +9192,7 @@ function executeNodeCore(
 
     updateNodeData(node.id, { ...RUN_START_RESET });
     return import("@/lib/api").then(({ sendWebhookOutput }) =>
-      sendWebhookOutput({ url, payload }).then(
+      sendWebhookOutput({ url, payload, ...(credentialId ? { credentialId } : {}) }).then(
         (result) => {
           updateNodeData(node.id, {
             executionStatus: "completed",

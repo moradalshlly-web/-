@@ -93,3 +93,29 @@ describe("edit-plan orchestrated reserve — URL/reference-audio master buckets 
     expect(out.modelIdentifier).toBe("edit-plan:tighten:standard:180m")
   })
 })
+
+// The orchestrated path bypasses the /v1/edit-plan route's Zod (count 1..50), so
+// an unbounded node setting used to reach the planner — and fan out one paid
+// render per clip — unclamped. The frontend estimate prices at most 50.
+describe("edit-plan orchestrated payload — clip count is clamped like the request schema", () => {
+  const clips = (count: unknown) =>
+    (build({ mode: "clips", count }, { transcript: transcript59m, editPlanSources: [urlSourceRow] }).payload as { count?: number }).count
+
+  it("passes an in-range count through", () => {
+    expect(clips(5)).toBe(5)
+  })
+  it("clamps an absurd count to 50 and floors a fraction", () => {
+    expect(clips(9000)).toBe(50)
+    expect(clips(7.9)).toBe(7)
+  })
+  it("sends no count for a missing / non-positive / non-numeric one (the planner uses its default)", () => {
+    expect(clips(undefined)).toBeUndefined()
+    expect(clips(0)).toBeUndefined()
+    expect(clips(-3)).toBeUndefined()
+    expect(clips("12")).toBeUndefined()
+  })
+  it("never sends a count outside clips mode", () => {
+    const out = build({ mode: "tighten", count: 5 }, { transcript: transcript59m, editPlanSources: [urlSourceRow] })
+    expect((out.payload as { count?: number }).count).toBeUndefined()
+  })
+})

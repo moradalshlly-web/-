@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { stripExportContent } from "../workflow-export.js"
+import { stripExportContent, stripUnownedRefs } from "../workflow-export.js"
 import { EXECUTION_DATA_KEYS } from "../node-runtime-keys.js"
 import type { GenericNode } from "../types.js"
 
@@ -34,6 +34,42 @@ describe("stripExportContent — template export hygiene", () => {
     expect(outData.provider).toBe("veo3.1")
     // Regression guard: Kling-3.0 multishot config must survive template export.
     expect(outData.shots, "shots (Kling-3 config) must NOT be stripped").toBe("SENSITIVE_RUNTIME_VALUE")
+  })
+
+  it("clears a Webhook Output's credentialId and a publisher's connectionId — pointers at rows the importer does not own", () => {
+    const hook: GenericNode = {
+      id: "h1",
+      type: "webhook-output",
+      data: { url: "https://mine.example/hook", credentialId: "11111111-1111-4111-8111-111111111111", params: [] },
+    }
+    const post: GenericNode = { id: "p1", type: "telegram-post", data: { connectionId: "conn-1", text: "hello" } }
+    const [outHook, outPost] = stripExportContent([hook, post])
+    expect((outHook.data as Record<string, unknown>).credentialId).toBeUndefined()
+    expect((outHook.data as Record<string, unknown>).url).toBe("https://mine.example/hook")
+    expect((outPost.data as Record<string, unknown>).connectionId).toBeUndefined()
+    expect((outPost.data as Record<string, unknown>).text).toBe("hello")
+  })
+
+  it("stripUnownedRefs alone covers the asset-bundle export, which keeps every other field", () => {
+    const hook: GenericNode = {
+      id: "h1",
+      type: "webhook-output",
+      data: { url: "https://mine.example/hook", credentialId: "11111111-1111-4111-8111-111111111111", webhookResponseBody: "kept by this pass" },
+    }
+    const other: GenericNode = { id: "g1", type: "generate-image", data: { credentialId: "not-a-webhook", prompt: "a cat" } }
+    const [outHook, outOther] = stripUnownedRefs([hook, other])
+    expect((outHook.data as Record<string, unknown>).credentialId).toBeUndefined()
+    // Only the owner-bound pointer goes; the bundle's verbatim-data contract holds for the rest.
+    expect((outHook.data as Record<string, unknown>).webhookResponseBody).toBe("kept by this pass")
+    // A node type that has no owner-bound field is returned as-is.
+    expect(outOther).toBe(other)
+    expect(hook.data.credentialId, "input not mutated").toBe("11111111-1111-4111-8111-111111111111")
+  })
+
+  it("the webhook delivery receipt is a runtime key — a reflected secret never rides a template", () => {
+    for (const key of ["webhookSuccess", "webhookStatusCode", "webhookResponseBody"]) {
+      expect(EXECUTION_DATA_KEYS.has(key), key).toBe(true)
+    }
   })
 
   it("clears faceDbId / referencedWorkflowId on face + sub-workflow template nodes", () => {

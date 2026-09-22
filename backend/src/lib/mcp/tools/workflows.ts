@@ -7,7 +7,7 @@ import { z } from "zod"
 import { isDeepStrictEqual } from "node:util"
 import { clientRequestIdSchema, idempotencyHeaders } from "./_verb-helpers.js"
 import type { FastifyInstance } from "fastify"
-import { stripExportContent, stripTransientRuntimeData, normalizeNodeModelParams, describeNodeAdjustments, type GenericNode, type WorkflowExport } from "@nodaro/shared"
+import { stripExportContent, stripUnownedRefs, stripTransientRuntimeData, normalizeNodeModelParams, describeNodeAdjustments, type GenericNode, type WorkflowExport } from "@nodaro/shared"
 import type { McpSession } from "../session.js"
 import { mcpInject } from "../internal-request.js"
 import { passesGate, type ToolGate } from "../tool-schemas.js"
@@ -273,7 +273,7 @@ export function registerWorkflows({
           exportedAt: new Date().toISOString(),
           name: row.name as string,
           nodes: (includeAssets
-            ? rawNodes
+            ? stripUnownedRefs(rawNodes as unknown as GenericNode[])
             : stripExportContent(rawNodes as unknown as GenericNode[])) as unknown as GenericNode[],
           edges: (row.edges ?? []) as WorkflowExport["edges"],
           settings: (row.settings ?? {}) as Record<string, unknown>,

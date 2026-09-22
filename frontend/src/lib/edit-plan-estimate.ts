@@ -21,12 +21,12 @@
  */
 import { editPlanSourceDurationSec } from "@nodaro/shared"
 
-interface GraphNode {
+export interface GraphNode {
   readonly id: string
   readonly type?: string
   readonly data: unknown
 }
-interface GraphEdge {
+export interface GraphEdge {
   readonly source: string
   readonly target: string
   readonly targetHandle?: string | null
@@ -53,8 +53,9 @@ export const EDIT_PLAN_LEGACY_DURATION_KEYS = [
 
 /** Walk a teleport-send/receive chain back to the producing node — the same
  *  transparency both run resolvers apply (frontend `resolveTeleportOrigin`,
- *  backend input-resolver). A teleport node carries no media fields of its own. */
-function resolveOrigin(
+ *  backend input-resolver). A teleport node carries no media fields of its own.
+ *  Exported for the sibling estimate resolvers (`lib/apply-edl-estimate`). */
+export function resolveGraphOrigin(
   start: GraphNode | undefined,
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
@@ -93,7 +94,7 @@ function masterSourceData(
     ? [...order.filter((id) => srcIds.includes(id)), ...srcIds.filter((id) => !order.includes(id))]
     : srcIds
   const masterId = ordered.find((id) => cfg[id]?.role === "master-audio") ?? ordered[0]
-  return masterId ? dataOf(resolveOrigin(nodes.find((n) => n.id === masterId), nodes, edges)) : undefined
+  return masterId ? dataOf(resolveGraphOrigin(nodes.find((n) => n.id === masterId), nodes, edges)) : undefined
 }
 
 /**
@@ -105,12 +106,20 @@ export function resolveEditPlanEstimateDurationSec(
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
 ): number | undefined {
-  const master = masterSourceData(node, nodes, edges)
-  if (!master) return undefined
-  const known = editPlanSourceDurationSec(master)
+  return mediaLengthSecOf(masterSourceData(node, nodes, edges))
+}
+
+/**
+ * A media node's own recorded length in seconds, from its DATA: the shared
+ * reserve-parity read first, then the legacy design-time keys. The one read every
+ * estimate resolver uses, so "how long is this source" has a single answer.
+ */
+export function mediaLengthSecOf(data: Record<string, unknown> | undefined): number | undefined {
+  if (!data) return undefined
+  const known = editPlanSourceDurationSec(data)
   if (known !== undefined) return known
   for (const key of EDIT_PLAN_LEGACY_DURATION_KEYS) {
-    const v = master[key]
+    const v = data[key]
     if (typeof v === "number" && Number.isFinite(v) && v > 0) return v
   }
   return undefined

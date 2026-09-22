@@ -22,8 +22,6 @@ import {
   TELEPORTER_PAN_EVENT,
   type CombineTextNodeData,
   type SaveToStorageData,
-  type WebhookOutputData,
-  type WebhookParam,
   type SplitTextData,
   type ExtractFieldNodeData,
   type WebScrapeNodeData,
@@ -136,95 +134,6 @@ export function SaveToStorageConfig({ data, onUpdate }: ConfigProps<SaveToStorag
             <SelectItem value="4k">4K</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-    </div>
-  )
-}
-
-export function WebhookOutputConfig({ data, onUpdate }: ConfigProps<WebhookOutputData>) {
-  const t = useT()
-  const params = data.params ?? []
-
-  const addParam = () => {
-    onUpdate({
-      params: [...params, { id: nanoid(), name: "", type: "text" }],
-    })
-  }
-
-  const updateParam = (index: number, patch: Partial<WebhookParam>) => {
-    const updated = params.map((p, i) => (i === index ? { ...p, ...patch } : p))
-    onUpdate({ params: updated })
-  }
-
-  const removeParam = (index: number) => {
-    onUpdate({ params: params.filter((_, i) => i !== index) })
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div>
-        <Label htmlFor="webhook-url">{t("utilcfg.webhookUrl")}</Label>
-        <Input
-          id="webhook-url"
-          value={data.url}
-          onChange={(e) => onUpdate({ url: e.target.value })}
-          placeholder="https://example.com/webhook"
-          className="text-xs font-mono"
-        />
-        <p className="text-[10px] text-muted-foreground mt-1">
-          {t("utilcfg.webhookUrlHint")}
-        </p>
-      </div>
-
-      <div className="border-t border-border pt-3">
-        <div className="flex items-center justify-between mb-2">
-          <Label>{t("utilcfg.inputParameters")}</Label>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addParam}>
-            <Plus className="h-3 w-3" />
-            {t("cfgshared.add")}
-          </Button>
-        </div>
-
-        {params.length === 0 && (
-          <p className="text-[10px] text-muted-foreground bg-muted/30 rounded-md px-3 py-2 border border-dashed border-border">
-            {t("utilcfg.noParamsDefined")}
-          </p>
-        )}
-
-        <div className="flex flex-col gap-2">
-          {params.map((param, i) => (
-            <div key={param.id} className="flex items-center gap-1.5">
-              <Input
-                value={param.name}
-                onChange={(e) => updateParam(i, { name: e.target.value })}
-                placeholder={t("utilcfg.phParamName")}
-                className="text-xs h-8 flex-1"
-              />
-              <Select
-                value={param.type}
-                onValueChange={(v) => updateParam(i, { type: v as WebhookParam["type"] })}
-              >
-                <SelectTrigger className="h-8 w-[100px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text">{t("field.text")}</SelectItem>
-                  <SelectItem value="imageUrl">{t("utilcfg.imageUrl")}</SelectItem>
-                  <SelectItem value="videoUrl">{t("utilcfg.videoUrl")}</SelectItem>
-                  <SelectItem value="audioUrl">{t("utilcfg.audioUrl")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={() => removeParam(i)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   )
@@ -1614,7 +1523,6 @@ export function JsonProcessConfig({ data, onUpdate }: ConfigProps<JsonProcessNod
 // ---------------------------------------------------------------------------
 // FilterListConfig
 // ---------------------------------------------------------------------------
-
 
 /** Render a JSON value with every key labelled by its dot-path. Keys whose
  *  path appears in `highlightedPaths` are dimmed to gray so the user can see

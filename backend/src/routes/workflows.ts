@@ -4,7 +4,7 @@ import { findCloudOnlyNodeTypes, cloudOnlyRejectionMessage } from "../lib/cloud-
 import { deniedNodeRejectionMessage } from "../lib/surface-deny.js"
 import { findDeniedNodeTypesForUser } from "../lib/availability-viewer.js"
 import { z } from "zod"
-import { stripExportContent, stripTransientRuntimeData, validateSubWorkflowRoutes, WORKFLOW_VISIBILITIES, type WorkflowExport } from "@nodaro/shared"
+import { stripExportContent, stripUnownedRefs, stripTransientRuntimeData, validateSubWorkflowRoutes, WORKFLOW_VISIBILITIES, type WorkflowExport } from "@nodaro/shared"
 import { publicWorkflowProjection } from "../lib/public-workflow-projection.js"
 import { supabase } from "../lib/supabase.js"
 import { ensureDefaultProject, PERSONAL_SPACE_DISABLED_ERROR } from "../lib/default-project.js"
@@ -17,15 +17,7 @@ import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { sendNotFound } from "../lib/scoped-delete.js"
 import { refuseIfWorkspaceArchived } from "../lib/orgs-context.js"
-import {
-  accessAtLeast,
-  canChangeWorkflowVisibility,
-  canDeleteWorkflow,
-  canRunWorkflow,
-  canShareWorkflow,
-  workflowAccessFromRow,
-  type AccessLevel,
-} from "../lib/workflow-access.js"
+import { accessAtLeast, canChangeWorkflowVisibility, canDeleteWorkflow, canRunWorkflow, canShareWorkflow, type AccessLevel, workflowAccessFromRow } from "../lib/workflow-access.js"
 import { auditWorkflowDeleted } from "../lib/orgs-audit.js"
 import {
   touchesStudioPublishFlag,
@@ -33,6 +25,7 @@ import {
 } from "../lib/studio-audience.js"
 import { loadWorkflowFor, toAccessRow } from "../lib/workflow-route-access.js"
 import { reconcileWorkflowTriggers, type GraphNode } from "../lib/workflow-trigger-sync.js"
+import { graphNeedsCredentialGate, sendCredentialUnbound, unboundCredentialUsesFor, workflowIsExposed } from "../lib/credential-gate.js"
 import type { WorkflowAccessRow } from "../lib/private-plugins/types.js"
 import {
   asObjectArray,
@@ -282,7 +275,7 @@ const WORKFLOW_META_COLS =
   "id, project_id, user_id, workspace_id, visibility, folder_id, name, description, is_template, version, thumbnail_url, created_at, updated_at"
 
 const WORKFLOW_FULL_COLS =
-  "id, project_id, user_id, workspace_id, visibility, folder_id, name, description, is_template, version, thumbnail_url, source_prompt, nodes, edges, settings, parent_workflow_id, app_slug, created_at, updated_at"
+  "id, project_id, user_id, workspace_id, visibility, folder_id, name, description, is_template, version, thumbnail_url, source_prompt, nodes, edges, settings, parent_workflow_id, app_slug, share_token, is_presentation_enabled, created_at, updated_at"
 
 /**
  * Project a just-saved workflow's Schedule / Webhook Trigger nodes onto
@@ -298,6 +291,27 @@ const WORKFLOW_FULL_COLS =
  * It is still logged: silence here is exactly how trigger nodes came to be
  * decorative in the first place.
  */
+type EdgeRecord = Record<string, unknown>
+
+/**
+ * The edge set a delta save leaves behind: upserts replace stored edges by id,
+ * deletions remove them, everything else stays. Only the credential gate reads
+ * it — the RPC applies the delta itself.
+ */
+export function mergeDeltaEdges(
+  stored: unknown,
+  upserts: ReadonlyArray<EdgeRecord> | undefined,
+  deleteIds: ReadonlyArray<string> | undefined,
+): EdgeRecord[] {
+  const deleted = new Set(deleteIds ?? [])
+  const upserted = upserts ?? []
+  const upsertedIds = new Set(upserted.map((e) => String(e.id)))
+  const kept = (Array.isArray(stored) ? (stored as EdgeRecord[]) : []).filter(
+    (e) => !deleted.has(String(e.id)) && !upsertedIds.has(String(e.id)),
+  )
+  return [...upserted, ...kept]
+}
+
 async function syncTriggersForSavedWorkflow(
   req: FastifyRequest,
   workflowId: string,
@@ -1396,6 +1410,35 @@ export async function workflowRoutes(app: FastifyInstance) {
           })
         }
       }
+      // A plain credential attached to a webhook of a workflow strangers can
+      // already run (shared, or behind an active app) is refused at save
+      // (plan D3) — the runtime check would fail the node at 3 a.m. instead.
+      // Only a delta that carries such a node pays for the two reads.
+      if (graphNeedsCredentialGate(body.delta.upsertNodes as unknown as ReadonlyArray<{ id: string; type?: string; data?: Record<string, unknown> }> | undefined)) {
+        const { data: exposedRow } = await supabase
+          // tenant-scope-ignore: authorization follows immediately, below.
+          .from("workflows")
+          .select("id, user_id, workspace_id, visibility, share_token, is_presentation_enabled, edges")
+          .eq("id", params.id)
+          .maybeSingle()
+        // Judge access BEFORE the gate: a 409 for a workflow the caller cannot
+        // edit would be an existence + exposure oracle. Anyone below `edit`
+        // falls through to the RPC's own refusal, exactly as before.
+        const mayEdit =
+          !!exposedRow &&
+          accessAtLeast(await workflowAccessFromRow(userId, toAccessRow(exposedRow as unknown as Record<string, unknown>)), "edit")
+        if (mayEdit && (await workflowIsExposed(params.id, exposedRow))) {
+          // The edges the RUN will see: what this delta upserts, over what is
+          // already stored, minus what it deletes — a delta that touches only a
+          // node still has to know about a persisted edge into `field-url`.
+          const uses = await unboundCredentialUsesFor(
+            body.delta.upsertNodes as unknown as ReadonlyArray<{ id: string; type?: string; data?: Record<string, unknown> }>,
+            exposedRow.user_id as string,
+            mergeDeltaEdges(exposedRow.edges, body.delta.upsertEdges, body.delta.deleteEdgeIds),
+          )
+          if (uses.length > 0) return sendCredentialUnbound(reply, uses)
+        }
+      }
       const { data: rpcData, error: rpcError } = await supabase.rpc("apply_workflow_delta", {
         p_workflow_id: params.id,
         p_base_version: body.delta.baseVersion,
@@ -1438,6 +1481,20 @@ export async function workflowRoutes(app: FastifyInstance) {
     )
     if (!loaded.ok) return
     const target = toAccessRow(loaded.row)
+
+    // Same rule as the delta branch: a plain credential may not be attached to
+    // a webhook of a workflow strangers can already run (plan D3).
+    if (body.nodes && graphNeedsCredentialGate(body.nodes as unknown as ReadonlyArray<{ id: string; type?: string; data?: Record<string, unknown> }>)) {
+      if (await workflowIsExposed(params.id, loaded.row)) {
+        const uses = await unboundCredentialUsesFor(
+          body.nodes as unknown as ReadonlyArray<{ id: string; type?: string; data?: Record<string, unknown> }>,
+          loaded.row.user_id as string,
+          // A body without edges keeps the stored ones.
+          (body.edges ?? loaded.row.edges) as ReadonlyArray<{ target?: unknown; targetHandle?: unknown }> | undefined,
+        )
+        if (uses.length > 0) return sendCredentialUnbound(reply, uses)
+      }
+    }
 
     if (body.nodes && body.edges) {
       body.edges = migrateGenerateImageHandles(
@@ -1784,7 +1841,10 @@ export async function workflowRoutes(app: FastifyInstance) {
       version: 1,
       exportedAt: new Date().toISOString(),
       name: wf.name as string,
-      nodes: (includeAssets ? rawNodes : stripExportContent(rawNodes as any)) as any,
+      // The asset bundle keeps node data verbatim, EXCEPT the pointers an
+      // importer cannot own (a webhook's credentialId, a publisher's
+      // connectionId) — those come off on every export shape.
+      nodes: (includeAssets ? stripUnownedRefs(rawNodes as any) : stripExportContent(rawNodes as any)) as any,
       edges: (wf.edges ?? []) as any,
       settings: (wf.settings ?? {}) as Record<string, unknown>,
     }

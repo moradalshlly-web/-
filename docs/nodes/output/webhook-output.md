@@ -10,6 +10,53 @@ The Webhook Output node sends the upstream media result and any configured param
 |-------|------|---------|-------------|
 | URL | string | `""` | The destination webhook URL to receive the payload. |
 | Params | WebhookParam[] | `[]` | List of parameters to include in the payload. Each parameter has a name and type. |
+| Credential | string (id) | none | A stored HTTP credential to send with (`credentialId`). Saved once under **Integrations → Credentials**: a header name (for example `Authorization`) and its secret value. The node holds only the id — the secret never enters the workflow, an export, a template or a preset. |
+
+### Sending with a credential
+
+Many webhook targets accept a delivery only with a key in a header (Zapier and
+Make private webhooks, Hookdeck, Segment, PostHog, a customer's own API, a bot
+routine that expects `Authorization: Bearer …`). Save the key once as a
+credential, pick it in the node, and every run attaches it — the value is
+decrypted on the server at send time and is never shown again (rotating it is
+saving a new value over the old one).
+
+A credential is **plain** or **locked**:
+
+- **Plain** — no address. Works on runs you start yourself from the editor —
+  and only there: a plain credential is refused on a published app, a shared
+  workflow, a collaborator's run, a run started with an API token, a webhook
+  trigger and a schedule, because the runner (or nobody) could otherwise aim
+  it. If the workflow runs on its own, lock the credential. The node fails
+  with a clear message instead of sending.
+- **Locked** — tied to an address. Publishing an app or sharing a workflow for
+  run requires every credential it sends with — sub-workflows included — to be
+  locked first, to an address the node actually sends to; the publish / share
+  dialog offers to lock a plain one to the node's current URL in one click,
+  and explains a locked one whose address the node's URL is not under. By
+  default the lock is the exact address (`https://` only — origin and path);
+  optionally it covers everything under a path (`prefix`), so one key can serve
+  several routines of the same service. Locking is one-way: the address can be
+  changed but not removed.
+
+What the lock enforces at send time, on every hop:
+
+- the node URL must match the locked address (exact, or under the prefix); the
+  send is refused before the request leaves;
+- a redirect to any other address is **not followed** — the request fails
+  rather than continuing without the key;
+- a plain credential is dropped by name on a cross-origin redirect;
+- a credential is never sent over plain `http`.
+
+With a credential attached the response body is **not** returned, stored or
+shown — only the status code — because many targets reflect the request
+headers back. A credential that was deleted or belongs to another account fails
+the node with the same message; the node never sends without the key.
+
+A stored credential is managed from the Nodaro app only (`403 in_app_only` for
+API tokens and OAuth apps); runs that use one work from every lane. A workflow
+export or template carries no `credentialId`: an imported node lands without
+a credential and the importer picks their own.
 
 ### Webhook Parameter Types
 

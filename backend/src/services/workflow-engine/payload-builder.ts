@@ -1,6 +1,6 @@
 import { dubbingModelIdentifier } from "../../lib/dubbing-model.js"
 import {
-  pro3DRenderShotStills, assertCanvasExecutionAllowed, OVERLAY_MAX_VARIANTS, overlayVariantIdFromHandle } from "@nodaro/shared"
+  pro3DRenderShotStills, assertCanvasExecutionAllowed, OVERLAY_MAX_VARIANTS, overlayVariantIdFromHandle, clampEditPlanClipCount } from "@nodaro/shared"
 import type { Scene3DReference } from "@nodaro/shared"
 import { scene3DInputAssetsForEngine, type Scene3DInputAsset } from "@nodaro/shared"
 /**
@@ -4137,7 +4137,9 @@ export function buildPayload(
         sources,
         instructions: applyPromptAffixes(data.instructions as string | undefined, readPromptAffixes(data), refMap),
         styleGuide: typeof data.styleGuide === "string" ? data.styleGuide : undefined,
-        count: mode === "clips" && typeof data.count === "number" ? data.count : undefined,
+        // Clamped to the request schema's own [1, 50]: the orchestrated path
+        // bypasses the route's Zod, and an unbounded count fans out unbounded renders.
+        count: mode === "clips" ? clampEditPlanClipCount(data.count) : undefined,
         targetDurationSec: mode === "clips" && typeof data.targetDurationSec === "number" ? data.targetDurationSec : undefined,
         targetAspect: typeof data.targetAspect === "string" ? data.targetAspect : undefined,
         platform: typeof data.platform === "string" ? data.platform : undefined,

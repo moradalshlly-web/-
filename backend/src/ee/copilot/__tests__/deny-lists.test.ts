@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { DENIED_NODE_TYPES, changedLockedUrlFields, isDeniedNodeType, isLockedField } from "../tools/deny-lists.js"
+import { OUTBOUND_SELECTOR_FIELDS } from "../../../lib/outbound-node-lock.js"
 
 const ENGINE_DIR = join(__dirname, "..", "..", "..", "services", "workflow-engine")
 const NODE_EXECUTOR = readFileSync(join(ENGINE_DIR, "node-executor.ts"), "utf8")
@@ -26,7 +27,7 @@ function caseBlocks(source: string): Array<{ types: string[]; body: string }> {
 }
 
 /** A destination the executor takes from node data: `data.url`, `data.target`, `data.chatId`, … */
-const DESTINATION_READ = /\bdata\.(\w*(?:[Uu]rls?|target|query|channel|chatId|connectionId|platform|endpoint|host))\b/
+const DESTINATION_READ = /\bdata\.(\w*(?:[Uu]rls?|targets?|query|channel|chatId|connectionId|platform|endpoint|host))\b/
 
 describe("denied node types (derived from the executors)", () => {
   it("every node whose executor reads a destination from node data is denied", () => {
@@ -46,6 +47,73 @@ describe("denied node types (derived from the executors)", () => {
       [...new Set(offenders)],
       "add these to DENIED_NODE_TYPES — their executor sends to, or fetches from, a destination the node data names",
     ).toEqual([])
+  })
+
+  it("every destination KEY an outbound executor reads is a locked field", () => {
+    // The type set alone is not enough: Instagram Scrape reads `data.targets`
+    // (plural), which neither the `*Url` pattern nor `target` matched — an
+    // override could re-point it while the type looked covered. Read every
+    // destination key out of the executors and hold the field lock to it.
+    const unlocked: string[] = []
+    for (const block of [...caseBlocks(NODE_EXECUTOR), ...caseBlocks(INLINE_EXECUTOR)]) {
+      if (!block.types.some((type) => DENIED_NODE_TYPES.has(type))) continue
+      for (const match of block.body.matchAll(new RegExp(DESTINATION_READ.source, "g"))) {
+        const key = match[1]!
+        if (!isLockedField(key)) unlocked.push(`${block.types.join("/")}: data.${key}`)
+      }
+    }
+    expect(
+      [...new Set(unlocked)],
+      "add these keys to NAMED_DESTINATION_FIELDS (lib/outbound-node-lock.ts) — an outbound executor reads them as a destination",
+    ).toEqual([])
+  })
+
+  /**
+   * The scan above sees only a literal `data.<key>` inside a `case` block, so
+   * a destination read through a HELPER is invisible to it: Webhook Output
+   * reads `node.data.url` inside `executeWebhookOutput` (a function, not a
+   * case), Meta Ads reads everything through `metaAdsScrapeWireSources`
+   * (`packages/shared/src/meta-ads-scrape.ts`), and the Video URL node is a
+   * SOURCE whose link `resolveVideoLinkOutput` (`packages/shared/src/video-link.ts`)
+   * reads. Those reads are declared here by hand as the TOP-LEVEL node-data
+   * keys the helper touches — the key the merge writes and the lock sees — and
+   * the lock is held to them the same way. RSS Feed has no executable handler
+   * at all (`execution-graph.ts` skips it) and is denied for the copilot only.
+   *
+   * Limit, stated: the totality check below asks for at least ONE known
+   * destination read per denied type, not for every read — a type that moves a
+   * second destination into a helper stays green until it is declared here.
+   */
+  const HELPER_READ_DESTINATIONS: Readonly<Record<string, readonly string[]>> = {
+    "webhook-output": ["url"],
+    "meta-ads-scrape": ["mode", "pageUrls", "query", "advertisers"],
+    "youtube-video": ["youtubeUrl", "downloadedVideoUrl", "downloadedFromUrl"],
+  }
+  const NO_HANDLER: ReadonlySet<string> = new Set(["rss-feed"])
+
+  it("every destination key read through a helper is locked too, and every denied type has at least one known destination", () => {
+    const derived = new Map<string, Set<string>>()
+    for (const block of [...caseBlocks(NODE_EXECUTOR), ...caseBlocks(INLINE_EXECUTOR)]) {
+      for (const match of block.body.matchAll(new RegExp(DESTINATION_READ.source, "g"))) {
+        for (const type of block.types) {
+          if (!DENIED_NODE_TYPES.has(type)) continue
+          if (!derived.has(type)) derived.set(type, new Set())
+          derived.get(type)!.add(match[1]!)
+        }
+      }
+    }
+    const problems: string[] = []
+    for (const [type, keys] of Object.entries(HELPER_READ_DESTINATIONS)) {
+      for (const key of keys) {
+        if (!isLockedField(key) && !OUTBOUND_SELECTOR_FIELDS.has(key)) problems.push(`${type}: data.${key} is not locked`)
+      }
+    }
+    for (const type of DENIED_NODE_TYPES) {
+      if (NO_HANDLER.has(type)) continue
+      const known = (derived.get(type)?.size ?? 0) + (HELPER_READ_DESTINATIONS[type]?.length ?? 0)
+      if (known === 0) problems.push(`${type}: no destination read found — declare its helper reads in HELPER_READ_DESTINATIONS`)
+    }
+    expect(problems).toEqual([])
   })
 
   it("covers the known outbound set explicitly", () => {

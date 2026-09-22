@@ -55,7 +55,24 @@ Priced **per minute of rendered output**, measured on the finished (crossfade-co
 | 3 min 10 s | 4 | 40 |
 | 12 min 00 s | 12 | 120 |
 
-The reserve is computed from the EDL's own durations (crossfades already subtracted), so the estimate matches the render. The Run button always shows the live estimate at the current rate.
+The **reserve** is computed from the EDL's own durations (crossfades already subtracted), so what you are charged matches the render.
+
+### What the estimate shows before you run
+
+The cost on the node, the **Run** button and the run-confirm dialog is an **estimate** at the current rate — what a render realistically costs, leaning high. It is not a guarantee: the true length of a cut is decided by the plan, and when that plan is about to be regenerated the editor cannot know it yet.
+
+**When the cut already exists, the estimate is exact:**
+
+- **An EDL set on the node itself** (nothing wired into **EDL**) is exactly what renders.
+- **Running only this node** — the **Run** button, or the cost shown on the node — renders the plan already on the canvas, so it is priced at that plan's own length.
+
+**When an upstream Edit Plan re-plans in the same run** (running the whole workflow), the plan on the canvas is the *previous* run's and is ignored — last week's shorter episode must not under-price this week's:
+
+- **Tighten** is priced at the **episode's full length** (the longer of the master source and the transcribed media). A tightened cut is normally shorter, so this over-quotes. With no recorded length it prices the 180-minute ceiling — see [Edit Plan](./edit-plan.md#what-the-estimate-shows-before-you-run).
+- **Clips** is priced **per clip at twice the clip-length setting** (the setting is a target the planner aims near, not a limit; with no setting, 90 seconds is assumed), never more than the episode, multiplied by the **clip count** (8 when unset, at most 50). Every node fed from the render with an *each* edge — such as Add Captions — is counted per clip too. A planner that returns much longer clips than the target can cost more than the estimate.
+- **An EDL from any other node that re-runs** prices the 180-minute ceiling.
+
+The balance check before a run compares against this estimate. You are **charged for the length of the cut that is rendered** — computed from its EDL — never for the estimate.
 
 ## Common Use Cases
 

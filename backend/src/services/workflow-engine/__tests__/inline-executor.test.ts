@@ -19,6 +19,11 @@ vi.mock("../../../lib/safe-fetch.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../lib/safe-fetch.js")>()),
   safeFetch: (...args: unknown[]) => safeFetchMock(...(args as [])),
 }))
+const resolveHttpAuthMock = vi.fn()
+vi.mock("../../../lib/http-credentials.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../lib/http-credentials.js")>()),
+  resolveHttpAuthHeaders: (...args: unknown[]) => resolveHttpAuthMock(...(args as [])),
+}))
 vi.mock("../../../lib/supabase.js", () => ({
   supabase: {
     from() {
@@ -40,6 +45,7 @@ import {
   executeWebhookOutput,
 } from "../inline-executor.js"
 import type { SimpleNode, SimpleEdge, NodeExecutionState } from "../types.js"
+import { HttpCredentialError } from "../../../lib/http-credentials.js"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -590,6 +596,92 @@ describe("executeWebhookOutput", () => {
     insertInternalJobMock.mockResolvedValue({ data: null, error: { message: "db down" } })
     await executeWebhookOutput(webhookNode(), [], [], {}, ctx)
     expect(safeFetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// executeWebhookOutput — a stored credential (plan D6 / D7 / D10).
+// ---------------------------------------------------------------------------
+describe("executeWebhookOutput — stored credential", () => {
+  const CRED = "00000000-0000-4000-8000-0000000000c1"
+  const HOOK = "https://hooks.example.com/in/abc"
+  const credNode = () => node("w1", "webhook-output", { url: HOOK, credentialId: CRED })
+  const ownerRun = { userId: "owner-1", workflowOwnerId: "owner-1", ownerInitiated: true, executionId: "exec-1" } as unknown as Parameters<typeof executeWebhookOutput>[4]
+  const viewerRun = { userId: "viewer-9", workflowOwnerId: "owner-1", ownerInitiated: false, executionId: "exec-1" } as unknown as Parameters<typeof executeWebhookOutput>[4]
+  // A public webhook trigger (or an OAuth / API token) runs AS the owner — same
+  // uuid on both sides — but nobody decided it was owner-initiated at enqueue.
+  const triggerRun = { userId: "owner-1", workflowOwnerId: "owner-1", executionId: "exec-1" } as unknown as Parameters<typeof executeWebhookOutput>[4]
+
+  beforeEach(() => {
+    insertInternalJobMock.mockClear()
+    safeFetchMock.mockClear()
+    resolveHttpAuthMock.mockReset()
+    insertInternalJobMock.mockResolvedValue({ data: { id: "job-1" }, error: null })
+    safeFetchMock.mockResolvedValue({ status: 200, ok: true, text: async () => "X-API-Key: secret reflected back" })
+  })
+
+  it("resolves for the workflow OWNER with ownerInitiated from ctx, sends on the credential lane, and returns NO body", async () => {
+    resolveHttpAuthMock.mockResolvedValue({ headers: { "X-API-Key": "secret" }, headerName: "X-API-Key", binding: { url: HOOK, match: "exact" } })
+
+    const out = await executeWebhookOutput(credNode(), [], [], {}, viewerRun)
+
+    expect(resolveHttpAuthMock).toHaveBeenCalledWith(CRED, "owner-1", HOOK, { ownerInitiated: false })
+    const init = (safeFetchMock.mock.calls[0] as unknown as [unknown, Record<string, unknown>])[1]
+    expect(init.credentialHeaders).toEqual({ "X-API-Key": "secret" })
+    expect(init.credentialBinding).toEqual({ url: HOOK, match: "exact" })
+    // Never through ordinary headers.
+    expect(JSON.stringify(init.headers)).not.toContain("secret")
+    expect(out.webhookResponseBody).toBe("")
+    expect(out.webhookStatusCode).toBe(200)
+  })
+
+  it("the owner's own run is ownerInitiated: true — and uuid equality alone is NOT (a webhook trigger runs as the owner)", async () => {
+    resolveHttpAuthMock.mockResolvedValue({ headers: { "X-API-Key": "secret" }, headerName: "X-API-Key", binding: null })
+    await executeWebhookOutput(credNode(), [], [], {}, ownerRun)
+    expect(resolveHttpAuthMock).toHaveBeenLastCalledWith(CRED, "owner-1", HOOK, { ownerInitiated: true })
+    await executeWebhookOutput(credNode(), [], [], {}, triggerRun)
+    expect(resolveHttpAuthMock).toHaveBeenLastCalledWith(CRED, "owner-1", HOOK, { ownerInitiated: false })
+  })
+
+  it("fails closed with the vault's message and never sends when the credential does not resolve", async () => {
+    resolveHttpAuthMock.mockRejectedValue(new HttpCredentialError("unbound_shared_run"))
+    await expect(executeWebhookOutput(credNode(), [], [], {}, viewerRun)).rejects.toThrow(/not locked to an address/)
+    expect(safeFetchMock).not.toHaveBeenCalled()
+  })
+
+  it("no ctx / no owner → the resolver is asked with an undefined owner and the node fails, nothing sent", async () => {
+    resolveHttpAuthMock.mockRejectedValue(new HttpCredentialError("no_owner"))
+    await expect(executeWebhookOutput(credNode(), [], [], {})).rejects.toThrow(/no workflow owner/)
+    expect(resolveHttpAuthMock).toHaveBeenCalledWith(CRED, undefined, HOOK, { ownerInitiated: false })
+    expect(safeFetchMock).not.toHaveBeenCalled()
+  })
+
+  it("a failed credentialed POST names the status only — never the reflected body, never a transport message", async () => {
+    resolveHttpAuthMock.mockResolvedValue({ headers: { "X-API-Key": "secret" }, headerName: "X-API-Key", binding: null })
+    safeFetchMock.mockResolvedValueOnce({ status: 401, ok: false, text: async () => "bad key: secret" })
+    await expect(executeWebhookOutput(credNode(), [], [], {}, ownerRun)).rejects.toThrow(/^Webhook POST failed \(401\)$/)
+
+    safeFetchMock.mockRejectedValueOnce(new Error("TypeError: header value contains secret"))
+    await expect(executeWebhookOutput(credNode(), [], [], {}, ownerRun)).rejects.toThrow(/^Webhook POST failed$/)
+
+    safeFetchMock.mockRejectedValueOnce(new Error("safeFetch: blocked — a redirect left the address this credential is locked to"))
+    await expect(executeWebhookOutput(credNode(), [], [], {}, ownerRun)).rejects.toThrow(/redirect left the address/)
+  })
+
+  it("the audit row carries the credential id, never a header", async () => {
+    resolveHttpAuthMock.mockResolvedValue({ headers: { "X-API-Key": "secret" }, headerName: "X-API-Key", binding: null })
+    await executeWebhookOutput(credNode(), [], [], {}, ownerRun)
+    const row = (insertInternalJobMock.mock.calls[0] as unknown as [unknown, { input_data: Record<string, unknown> }])[1]
+    expect(row.input_data.credentialId).toBe(CRED)
+    expect(JSON.stringify(row.input_data)).not.toContain("secret")
+  })
+
+  it("a node without credentialId is untouched: no resolve, body returned as before", async () => {
+    const out = await executeWebhookOutput(node("w2", "webhook-output", { url: HOOK }), [], [], {}, ownerRun)
+    expect(resolveHttpAuthMock).not.toHaveBeenCalled()
+    expect(out.webhookResponseBody).toBe("X-API-Key: secret reflected back")
+    const init = (safeFetchMock.mock.calls[0] as unknown as [unknown, Record<string, unknown>])[1]
+    expect(init).not.toHaveProperty("credentialHeaders")
   })
 })
 

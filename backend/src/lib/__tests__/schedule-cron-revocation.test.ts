@@ -8,6 +8,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
  * A collaborator who created a schedule trigger and then lost the grant, was
  * suspended, or watched the workspace be archived must stop being served — the
  * same revocation-survival threat the webhook path closes.
+ *
+ * The second half: whether a schedule's runs count as the OWNER'S OWN (so a
+ * plain stored credential may travel) is a stored fact about the trigger,
+ * decided when it was created — never re-derived from uuid equality here,
+ * which would say "owner" for a token-created schedule too.
  */
 
 vi.mock("@/lib/supabase.js", () => ({ supabase: { from: vi.fn() } }))
@@ -36,11 +41,16 @@ const DUE_TRIGGER = {
 }
 
 /**
- * The tables the loop touches: the trigger list, then (only if it gets that
- * far) the collision check and the execution insert. Records the collision
- * check's filters so a test can assert it is scoped to the owner.
+ * The tables the loop touches: the trigger list, the trigger's stored
+ * provenance (`owner_initiated`), then (only if it gets that far) the
+ * collision check and the execution insert. Records the collision check's
+ * filters so a test can assert it is scoped to the owner.
+ *
+ * `provenance`: what the `owner_initiated` read answers — a boolean, `null`
+ * (no row / no column yet on this database) or `"throws"`.
  */
-function tables() {
+function tables(opts: { provenance?: boolean | null | "throws" } = {}) {
+  const provenance = opts.provenance === undefined ? true : opts.provenance
   const collisionEq2 = vi.fn().mockReturnValue({
     in: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
   })
@@ -51,15 +61,21 @@ function tables() {
     }),
   })
   const triggerUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: null, error: null }) })
+  const provenanceEq = vi.fn().mockReturnValue({
+    maybeSingle:
+      provenance === "throws"
+        ? vi.fn().mockRejectedValue(new Error("column \"owner_initiated\" does not exist"))
+        : vi.fn().mockResolvedValue({ data: provenance === null ? null : { owner_initiated: provenance }, error: null }),
+  })
 
   vi.mocked(supabase.from).mockImplementation(((table: string) => {
     if (table === "workflow_triggers") {
       return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: [DUE_TRIGGER], error: null }),
-          }),
-        }),
+        select: vi.fn((columns: string) =>
+          columns === "owner_initiated"
+            ? { eq: provenanceEq }
+            : { eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [DUE_TRIGGER], error: null }) }) },
+        ),
         update: triggerUpdate,
       }
     }
@@ -69,8 +85,11 @@ function tables() {
     }
   }) as never)
 
-  return { collisionEq1, collisionEq2, execInsert }
+  return { collisionEq1, collisionEq2, execInsert, provenanceEq }
 }
+
+const enqueuedWith = (partial: Record<string, unknown>) =>
+  expect(orchestrationQueue.add).toHaveBeenCalledWith("workflow-execution", expect.objectContaining(partial), expect.anything())
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -95,10 +114,52 @@ describe("checkScheduledTriggers — access is re-checked before every fire", ()
     await checkScheduledTriggers()
 
     expect(execInsert).toHaveBeenCalled()
-    expect(orchestrationQueue.add).toHaveBeenCalled()
+    enqueuedWith({ triggerType: "schedule" })
     // The already-running check is scoped to the owner, not workflow-wide —
     // otherwise one member's manual run suppresses another member's schedule.
     expect(collisionEq1).toHaveBeenCalledWith("workflow_id", WF)
     expect(collisionEq2).toHaveBeenCalledWith("user_id", OWNER)
+  })
+})
+
+describe("checkScheduledTriggers — owner-initiated is the trigger's STORED provenance", () => {
+  it("a schedule the backend stored as owner-initiated enqueues ownerInitiated: true, read by trigger id", async () => {
+    vi.mocked(canRunWorkflow).mockResolvedValue(true)
+    const { provenanceEq } = tables({ provenance: true })
+
+    await checkScheduledTriggers()
+
+    expect(provenanceEq).toHaveBeenCalledWith("id", "trig-1")
+    enqueuedWith({ triggerType: "schedule", ownerInitiated: true })
+  })
+
+  it("a schedule stored as NOT owner-initiated (token-created, projected from a graph write) enqueues false — uuid equality does not rescue it", async () => {
+    vi.mocked(canRunWorkflow).mockResolvedValue(true)
+    // DUE_TRIGGER.user_id IS the owner; the stored answer still wins.
+    tables({ provenance: false })
+
+    await checkScheduledTriggers()
+
+    enqueuedWith({ ownerInitiated: false })
+  })
+
+  it("no provenance row (the column has not reached this database) fails closed, and the schedule still fires", async () => {
+    vi.mocked(canRunWorkflow).mockResolvedValue(true)
+    const { execInsert } = tables({ provenance: null })
+
+    await checkScheduledTriggers()
+
+    expect(execInsert).toHaveBeenCalled()
+    enqueuedWith({ ownerInitiated: false })
+  })
+
+  it("a provenance read that throws fails closed, and the schedule still fires", async () => {
+    vi.mocked(canRunWorkflow).mockResolvedValue(true)
+    const { execInsert } = tables({ provenance: "throws" })
+
+    await checkScheduledTriggers()
+
+    expect(execInsert).toHaveBeenCalled()
+    enqueuedWith({ ownerInitiated: false })
   })
 })

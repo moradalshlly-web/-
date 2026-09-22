@@ -22,6 +22,7 @@ import { executeAppRun } from "../services/app-execution.js"
 import { shouldRefuseDegradedRunFor, personalPayer } from "../lib/billing-context.js"
 import { billingPairColumns } from "../lib/insert-job.js"
 import { extractAppInputSchema, flatInputsToOverrides, mergeInputOverrides } from "../lib/mcp/extract-app-inputs.js"
+import { describeLockedOverrides, findLockedOverrides } from "../lib/input-override-lock.js"
 
 // In-memory cache for published app data (30min TTL — explicit invalidation on publish)
 const APP_CACHE_TTL_MS = 30 * 60_000
@@ -313,6 +314,19 @@ export async function appRunnerRoutes(app: FastifyInstance) {
         )
       : undefined
     const inputOverrides = mergeInputOverrides(flatOverrides, nestedOverrides)
+
+    // A stranger runs the creator's snapshot here, and the override map is the
+    // stranger's: it may not re-point a Webhook Output, a publisher or a
+    // scraper (issue #1555). The orchestrator's merge refuses too.
+    const lockedOverrides = findLockedOverrides(
+      (appRow.snapshot_nodes as ReadonlyArray<{ id: string; type?: string }> | null) ?? [],
+      inputOverrides,
+    )
+    if (lockedOverrides.length > 0) {
+      return reply.status(400).send({
+        error: { code: "locked_field", message: describeLockedOverrides(lockedOverrides) },
+      })
+    }
 
     // Validate restricted field values against allowedValues
     const restrictedError = validateRestrictedFields(

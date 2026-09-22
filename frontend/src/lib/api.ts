@@ -186,6 +186,38 @@ export class ConsentRequiredError extends Error {
   }
 }
 
+/** One Webhook Output that cannot send in front of strangers — the 409 `credential_unbound` detail row. */
+export interface UnboundCredentialUse {
+  readonly nodeId: string
+  readonly nodeLabel: string
+  readonly credentialId: string
+  /** The node's current URL — what the one-click lock binds the credential to. */
+  readonly nodeUrl: string
+  /**
+   * `plain`: exists, no lock. `missing`: not the owner's, or gone.
+   * `mismatch`: locked, but to an address the node's URL is not under.
+   */
+  readonly kind: "plain" | "missing" | "mismatch"
+  readonly credentialName: string | null
+  /** The node's URL comes from another node at run time; `nodeUrl` is empty and no lock can be offered here. */
+  readonly urlMapped?: true
+}
+
+/**
+ * 409 `credential_unbound` — publishing an app or sharing a workflow for run
+ * was refused because a Webhook Output sends with a credential that is not
+ * locked to an address (or no longer exists). Carries the uses so the gate
+ * dialog can offer "Lock to <node URL>" and retry.
+ */
+export class CredentialUnboundError extends Error {
+  readonly details: ReadonlyArray<UnboundCredentialUse>
+  constructor(message: string, details: ReadonlyArray<UnboundCredentialUse>) {
+    super(message)
+    this.name = "CredentialUnboundError"
+    this.details = details
+  }
+}
+
 /**
  * Throws StorageExceededError if the parsed error JSON indicates storage_limit_exceeded.
  * Throws InsufficientCreditsError for credit-related 402 errors.
@@ -274,6 +306,12 @@ function throwApiError(errJson: Record<string, unknown> | null, fallback: string
       (errObj.retryAfterSeconds as number) ?? 2,
     )
   }
+  if (errObj?.code === "credential_unbound") {
+    throw new CredentialUnboundError(
+      (errObj.message as string) ?? fallback,
+      Array.isArray(errObj.details) ? (errObj.details as UnboundCredentialUse[]) : [],
+    )
+  }
   // Generic error: attach the machine-readable `code` so callers can branch on
   // it (e.g. classify input-fit codes as user-fixable warnings, not red errors).
   throw Object.assign(new Error((errObj?.message as string) ?? fallback), errObj?.code ? { code: errObj.code } : {})
@@ -289,6 +327,11 @@ function throwApiError(errJson: Record<string, unknown> | null, fallback: string
  */
 export function isNotFoundError(err: unknown): boolean {
   return err instanceof Error && (err as { code?: unknown }).code === "not_found"
+}
+
+/** 503 `encryption_key_missing` — this install has no instance encryption key, so a secret cannot be stored. */
+export function isEncryptionKeyMissingError(err: unknown): boolean {
+  return err instanceof Error && (err as { code?: unknown }).code === "encryption_key_missing"
 }
 
 /**
@@ -4376,7 +4419,7 @@ export async function probeVideoAnalysis(params: { youtubeUrl: string }): Promis
   })
 }
 
-export async function sendWebhookOutput(data: { url: string; payload: Record<string, unknown> }): Promise<{ jobId: string; success: boolean; statusCode: number; responseBody: string }> {
+export async function sendWebhookOutput(data: { url: string; payload: Record<string, unknown>; credentialId?: string }): Promise<{ jobId: string; success: boolean; statusCode: number; responseBody: string }> {
   return apiJson("/v1/webhook-output/send", {
     body: data,
     workflowId: true,
@@ -9104,4 +9147,60 @@ export interface VideoProEstimateInput {
 export async function estimateVideoProCredits(input:VideoProEstimateInput):Promise<{credits:number;upperBound:boolean}> {
   const result=await apiJson<{data:{credits:number;upperBound:boolean}}>("/v1/credits/video-pro-estimate",{body:{...input},label:"Failed to estimate video credits"})
   return result.data
+}
+
+// ---------------------------------------------------------------------------
+// Stored HTTP credentials (Integrations → Credentials; Webhook Output sends
+// with one). Browser-session-only routes: the secret is written once and never
+// read back — every response is a summary.
+// ---------------------------------------------------------------------------
+
+export interface HttpCredentialSummary {
+  readonly id: string
+  readonly name: string
+  readonly authKind: "header"
+  readonly headerName: string
+  /** `null` = plain (works on the owner's own runs only); otherwise the locked https address. */
+  readonly boundUrl: string | null
+  readonly boundMatch: "exact" | "prefix"
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+export interface CreateHttpCredentialInput {
+  readonly name: string
+  readonly headerName: string
+  readonly secret: string
+  readonly boundUrl?: string | null
+  readonly boundMatch?: "exact" | "prefix"
+}
+
+export interface UpdateHttpCredentialInput {
+  readonly name?: string
+  readonly headerName?: string
+  readonly secret?: string
+  /** Set or move the lock. Clearing it is refused by the server (409 `binding_required`). */
+  readonly boundUrl?: string | null
+  readonly boundMatch?: "exact" | "prefix"
+}
+
+export async function listHttpCredentials(): Promise<{ data: HttpCredentialSummary[] }> {
+  return apiRequest("/v1/http-credentials", "Failed to load credentials")
+}
+
+export async function createHttpCredential(input: CreateHttpCredentialInput): Promise<{ data: HttpCredentialSummary }> {
+  return apiRequest("/v1/http-credentials", "Failed to save the credential", { method: "POST", body: input })
+}
+
+export async function updateHttpCredential(id: string, patch: UpdateHttpCredentialInput): Promise<{ data: HttpCredentialSummary }> {
+  return apiRequest(`/v1/http-credentials/${encodeURIComponent(id)}`, "Failed to update the credential", { method: "PATCH", body: patch })
+}
+
+export async function deleteHttpCredential(id: string): Promise<{ deleted: boolean }> {
+  return apiRequest(`/v1/http-credentials/${encodeURIComponent(id)}`, "Failed to delete the credential", { method: "DELETE" })
+}
+
+/** The gate's one-click lock: bind the credential to exactly this address. */
+export function lockHttpCredential(id: string, url: string): Promise<{ data: HttpCredentialSummary }> {
+  return updateHttpCredential(id, { boundUrl: url, boundMatch: "exact" })
 }

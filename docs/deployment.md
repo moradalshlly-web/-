@@ -158,7 +158,7 @@ here for each one anyway.
 | `APIFY_API_TOKEN` | `""` | Web Scrape, Meta Ads, Instagram (or run them on the nodaro.ai connection) |
 | `NODARO_API_KEY` | `""` | The nodaro.ai connection by key instead of OAuth (§11) |
 | `NODARO_CLOUD_URL` | `https://app.nodaro.ai` | Where the connection talks to; CI points it at an unreachable host |
-| `NODARO_ENCRYPTION_KEY` | `""` (compose: generated) | 64-char hex; encrypts pasted provider keys and social connections at rest |
+| `NODARO_ENCRYPTION_KEY` | `""` (compose: generated) | 64-char hex; encrypts pasted provider keys, social connections and stored HTTP credentials (Webhook Output) at rest |
 | `HEYGEN_CATALOG_REFRESH_HOURS` | `24` | How often the shared HeyGen preset catalog is refreshed |
 | `REPLICATE_WEBHOOK_SECRET` | `""` | Cloud edition — LoRA training callbacks; unset = webhook fast-fails 503 |
 | `R2_ENDPOINT` · `R2_FORCE_PATH_STYLE` · `R2_ACCOUNT_ID` · `R2_ACCESS_KEY_ID` · `R2_SECRET_ACCESS_KEY` · `R2_BUCKET_NAME` · `R2_PUBLIC_URL` | bundled MinIO (compose); outside compose `R2_BUCKET_NAME` defaults to `scenenode-assets` — always set it to your bucket | Object storage — see 2d |
@@ -939,8 +939,8 @@ Take one before every major-version update.
   workflows fail; everything else recovers from Postgres on restart.
   Don't bother backing up Redis.
 - **The instance encryption key** — everything the server stores for
-  itself (provider keys pasted on `/setup`, social OAuth tokens) is
-  AES-256-GCM encrypted with it. On the community compose stack it is
+  itself (provider keys pasted on `/setup`, social OAuth tokens, the HTTP
+  credentials users save for Webhook Output) is AES-256-GCM encrypted with it. On the community compose stack it is
   generated on first boot and lives in the `app-data` volume at
   `/data/nodaro/encryption-key`; on a managed deployment it is the
   `NODARO_ENCRYPTION_KEY` variable. **Back it up together with Postgres** —

@@ -11,7 +11,8 @@ import { HandleWithPopover, HANDLE_COLORS } from "./handle-with-popover"
 import { ACCEPTS_MEDIA } from "@/lib/ffmpeg-handles"
 import { ACCEPTS_JSON, DATA_HANDLE_COLORS } from "@/lib/data-handles"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
-import { useEstimatedCredits } from "@/hooks/use-estimated-credits"
+import { useModelCredits } from "@/hooks/use-model-credit-cost"
+import { useApplyEdlEstimateMinutes } from "@/hooks/use-apply-edl-estimate-minutes"
 import { useResultAspectRatio } from "@/hooks/use-result-aspect-ratio"
 import { videoNodeSizing } from "./video-node-defaults"
 import { useT } from "@/lib/i18n"
@@ -20,7 +21,11 @@ import type { ApplyEdlData } from "@/types/nodes"
 function ApplyEdlNodeComponent({ id, data, selected }: NodeProps) {
   const nodeData = data as ApplyEdlData
   const t = useT()
-  const credits = useEstimatedCredits({ id, type: "apply-edl", data: nodeData } as never)
+  // Priced per OUTPUT MINUTE: the model cost is a rate, so the pill multiplies it
+  // by the minutes this render can reserve (the shared resolver every run-level
+  // estimate uses). It used to read `useEstimatedCredits`, which has no apply-edl
+  // case — the pill and its Run button showed 0.
+  const credits = useModelCredits("apply-edl") * useApplyEdlEstimateMinutes(id)
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData)
   const runSingleNode = useWorkflowStore((s) => s.runSingleNode)
   const status = nodeData.executionStatus ?? "idle"

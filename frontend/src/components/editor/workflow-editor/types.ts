@@ -1,7 +1,8 @@
 import type { WorkflowNode, WorkflowEdge, GenerateVideoProNodeData, EditVideoProNodeData } from "@/types/nodes";
 import { StorageExceededError, SubscriptionRequiredError } from "@/lib/api";
 import { useWorkflowStore } from "@/hooks/use-workflow-store";
-import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListItems, type SelectorFields, getEffectiveRepeatCount, buildScraperCreditId, isScraperActor, SCRAPER_CREDIT_COSTS, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, INSTAGRAM_SCRAPE_CREDIT_COSTS, instagramScrapeCreditIdFromNode, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, bucketSecondsFromCreditId, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAuditCreditId, VIDEO_AUDIT_BUCKET_CREDITS, FAN_OUT_EACH_TYPES, buildVideoCreditModelIdentifier, SEEDANCE_2_CONTINUATION_REF_SEC, isSeedance2Provider, isMinimaxH3Provider, maxSegmentSecFor, normalizeMinimaxH3Resolution, PRO3D_RENDER_CREDIT_ID } from "@nodaro/shared"
+import { resolveApplyEdlEstimateMinutes } from "@/lib/apply-edl-estimate";
+import { buildMotionCreditModelIdentifier, isDefaultSelectorConfig, selectListItems, type SelectorFields, getEffectiveRepeatCount, buildScraperCreditId, isScraperActor, SCRAPER_CREDIT_COSTS, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, INSTAGRAM_SCRAPE_CREDIT_COSTS, instagramScrapeCreditIdFromNode, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, bucketSecondsFromCreditId, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAuditCreditId, VIDEO_AUDIT_BUCKET_CREDITS, FAN_OUT_EACH_TYPES, EDIT_PLAN_DEFAULT_CLIP_COUNT, EDIT_PLAN_MAX_CLIP_COUNT, buildVideoCreditModelIdentifier, SEEDANCE_2_CONTINUATION_REF_SEC, isSeedance2Provider, isMinimaxH3Provider, maxSegmentSecFor, normalizeMinimaxH3Resolution, PRO3D_RENDER_CREDIT_ID } from "@nodaro/shared"
 // getCachedCredits reads the live React-Query model-cost cache (an `ee/`
 // concern — credits are enterprise-only). Allowlisted in
 // tools/check-ee-imports.mjs (same coupling as ./run-handlers.ts).
@@ -750,16 +751,146 @@ export function getFanOutMultiplier(
   node: WorkflowNode,
   allNodes: WorkflowNode[],
   edges: WorkflowEdge[],
+  rerunIds: ReadonlySet<string> = NO_RERUNS,
 ): number {
-  const baseFanOut = getBaseFanOut(node, allNodes, edges);
+  const baseFanOut = getBaseFanOut(node, allNodes, edges, rerunIds);
   const repeat = getEffectiveRepeatCount(node.data as Record<string, unknown>);
   return baseFanOut * repeat;
+}
+
+/** No upstream node re-runs: a single-node estimate (a node's pill, its Run button). */
+export const NO_RERUNS: ReadonlySet<string> = new Set();
+
+/**
+ * Node types priced per OUTPUT MINUTE → how many minutes the estimate prices.
+ * Their model cost is a per-minute RATE, so quoting it bare prices one minute of
+ * a render that reserves for all of them. Data-driven on purpose: the next
+ * per-minute node is one entry here, and every estimate surface picks it up.
+ */
+const OUTPUT_MINUTE_ESTIMATORS: Readonly<
+  Record<
+    string,
+    (node: WorkflowNode, allNodes: WorkflowNode[], edges: WorkflowEdge[], rerunIds: ReadonlySet<string>) => number
+  >
+> = {
+  "apply-edl": resolveApplyEdlEstimateMinutes,
+};
+
+/** Minutes a per-output-minute node's estimate prices; 1 for every other node. */
+export function getOutputMinuteUnits(
+  node: WorkflowNode,
+  allNodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+  rerunIds: ReadonlySet<string>,
+): number {
+  const estimator = OUTPUT_MINUTE_ESTIMATORS[node.type ?? ""];
+  if (!estimator) return 1;
+  const minutes = estimator(node, allNodes, edges, rerunIds);
+  return Number.isFinite(minutes) && minutes >= 1 ? Math.ceil(minutes) : 1;
+}
+
+/**
+ * Everything a node's per-unit cost is multiplied by in an ESTIMATE: how many
+ * times it runs (list fan-out × repeat) and, for a per-output-minute node, how
+ * many minutes it renders. Every estimate loop multiplies by THIS — never by
+ * `getFanOutMultiplier` alone, which silently prices a 45-minute render as one
+ * minute. `__tests__/cost-multiplier.test.ts` fails the build otherwise.
+ *
+ * `rerunIds` is REQUIRED so every caller states which situation it is pricing:
+ * the ids of the nodes about to execute (a whole-workflow / run-selected
+ * estimate, where an upstream planner re-plans and the plan on the canvas is
+ * stale), or {@link NO_RERUNS} for a single-node estimate (where the persisted
+ * upstream result is exactly what will run, so the cost is exact).
+ */
+export function getCostMultiplier(
+  node: WorkflowNode,
+  allNodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+  rerunIds: ReadonlySet<string>,
+): number {
+  return (
+    getFanOutMultiplier(node, allNodes, edges, rerunIds) * getOutputMinuteUnits(node, allNodes, edges, rerunIds)
+  );
+}
+
+/**
+ * Downstream executions one Edit Plan run fans out: 1 unless it is in `clips`
+ * mode. When the planner is NOT re-running, its persisted plan is what iterates —
+ * exact. When it re-plans, it returns UP TO `count` clips, so the setting is the
+ * figure; a persisted plan holding more is still honoured, never under-counted.
+ */
+function editPlanClipFanOut(
+  data: Record<string, unknown>,
+  replans: boolean,
+  selector?: SelectorFields,
+): number {
+  const plan = data.generatedJson;
+  const persisted = Array.isArray(plan) ? plan.length : 0;
+  let clips: number;
+  if (!replans && plan !== undefined && plan !== null) {
+    // Both engines fan out on the SHAPE of the persisted plan, not on the node's
+    // current `mode` — the user may have switched mode without re-running. An
+    // array iterates; an object (tighten / chapters) runs once.
+    if (persisted === 0) return 1;
+    clips = persisted;
+  } else {
+    // Re-planning — or no plan yet (a fresh template): what the settings ask for,
+    // the same fallback the minutes resolver takes in that state.
+    if (data.mode !== "clips") return 1;
+    const raw = typeof data.count === "number" && data.count > 0 ? Math.floor(data.count) : EDIT_PLAN_DEFAULT_CLIP_COUNT;
+    clips = Math.max(Math.min(EDIT_PLAN_MAX_CLIP_COUNT, Math.max(1, raw)), persisted);
+  }
+  // The edge may carry a range / list selector ("first 3 clips") that both
+  // engines honour — count what it keeps, exactly as the `list` branches do.
+  const kept = fanOutCount(Array.from({ length: clips }, (_, i) => String(i + 1)), selector);
+  return kept > 0 ? kept : 1;
+}
+
+/**
+ * The clips fan-out a node INHERITS from further upstream: Clip Pack renders each
+ * clip (edit-plan ⇒ apply-edl) and then captions each render across an explicit
+ * "each" edge (apply-edl ⇒ add-captions), so the captions node runs once per clip
+ * too. Deliberately narrow — it follows ONLY a chain that starts at an Edit Plan
+ * in clips mode, through non-list nodes. General "each"-edge inheritance is a
+ * different question (a Selector or a list transform runs ONCE over its whole
+ * list), and every other graph's estimate stays exactly what it was.
+ */
+function inheritedClipFanOut(
+  source: WorkflowNode,
+  allNodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+  rerunIds: ReadonlySet<string>,
+  visited: Set<string>,
+): number {
+  if (visited.has(source.id) || FAN_OUT_EACH_TYPES.has(source.type ?? "")) return 1;
+  visited.add(source.id);
+  for (const edge of edges) {
+    if (edge.target !== source.id) continue;
+    const upstream = allNodes.find((n) => n.id === edge.source);
+    if (!upstream) continue;
+    const explicit = (edge.data as Record<string, unknown> | undefined)?.outputMode as string | undefined;
+    if (upstream.type === "edit-plan") {
+      if ((explicit ?? "each") !== "each") continue;
+      const n = editPlanClipFanOut(
+        upstream.data as Record<string, unknown>,
+        rerunIds.has(upstream.id),
+        edge.data as SelectorFields | undefined,
+      );
+      if (n > 1) return n;
+      continue;
+    }
+    if (explicit !== "each") continue;
+    const n = inheritedClipFanOut(upstream, allNodes, edges, rerunIds, visited);
+    if (n > 1) return n;
+  }
+  return 1;
 }
 
 function getBaseFanOut(
   node: WorkflowNode,
   allNodes: WorkflowNode[],
   edges: WorkflowEdge[],
+  rerunIds: ReadonlySet<string>,
 ): number {
   const incomingEdges = edges.filter((e) => e.target === node.id);
 
@@ -776,6 +907,13 @@ function getBaseFanOut(
 
     const edgeData = edge.data as Record<string, unknown> | undefined;
     const selector = edgeData as SelectorFields | undefined;
+
+    // Edit Plan in `clips` mode: one downstream execution per clip (it is in
+    // FAN_OUT_EACH_TYPES, but has no `items`/`rows` for the list reads below).
+    if (sourceNode.type === "edit-plan") {
+      const n = editPlanClipFanOut(sourceNode.data as Record<string, unknown>, rerunIds.has(sourceNode.id), selector);
+      if (n > 1) return n;
+    }
 
     if (sourceNode.type === "list") {
       const items = ((sourceNode.data as Record<string, unknown>).items as string || "")
@@ -824,6 +962,13 @@ function getBaseFanOut(
           }
         }
       }
+    }
+
+    // Clip Pack: an explicit "each" edge from a render that is itself fanned out
+    // per clip. Narrow by design — see `inheritedClipFanOut`.
+    if (edgeMode === "each") {
+      const inherited = inheritedClipFanOut(sourceNode, allNodes, edges, rerunIds, new Set());
+      if (inherited > 1) return inherited;
     }
   }
 

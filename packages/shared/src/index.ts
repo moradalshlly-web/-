@@ -955,7 +955,7 @@ export type {
   WorkflowImportSkippedAsset,
   WorkflowAssetKind,
 } from "./workflow-export.js"
-export { stripExportContent } from "./workflow-export.js"
+export { stripExportContent, stripUnownedRefs } from "./workflow-export.js"
 
 export { validateSubWorkflowRoutes } from "./sub-workflow-validation.js"
 

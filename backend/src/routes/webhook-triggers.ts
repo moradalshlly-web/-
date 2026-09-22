@@ -24,6 +24,16 @@ import { billingPairColumns } from "../lib/insert-job.js"
 import { recordTriggerFireRefusal } from "../lib/trigger-fire-refusal.js"
 import { toAccessRow } from "../lib/workflow-route-access.js"
 
+/**
+ * PostgREST's "no such column" (schema-cache PGRST204 / Postgres 42703). The
+ * `owner_initiated` column arrives with migration 436, which reaches the
+ * database only when `main` deploys — staging runs ahead of it. Until then the
+ * row is written without the flag, i.e. NOT owner-initiated: the safe answer.
+ */
+function isMissingColumnError(error: { code?: string | null } | null | undefined): boolean {
+  return error?.code === "PGRST204" || error?.code === "42703"
+}
+
 // ---------------------------------------------------------------------------
 // Rate limiter for webhook endpoint (in-memory, per-token)
 // ---------------------------------------------------------------------------
@@ -340,17 +350,35 @@ export async function webhookTriggerRoutes(app: FastifyInstance) {
       ? randomBytes(32).toString("hex")
       : null
 
-    const { data: trigger, error } = await supabase
-      .from("workflow_triggers")
-      .insert({
-        workflow_id: workflowId,
-        user_id: req.userId,
-        type,
-        config: triggerConfig ?? {},
-        webhook_token: webhookToken,
-      })
-      .select("*")
-      .single()
+    // Who set this up decides whether its runs count as the owner's OWN — a
+    // PLAIN stored credential travels only then (plan D3). Only the owner's
+    // browser session qualifies: a personal API token or an OAuth app token runs
+    // AS the owner and could otherwise mint an owner-initiated schedule aimed
+    // wherever `workflows:write` can point a node. Decided here, once, stored on
+    // the row (the database lets only the backend write it — migration 436), and
+    // read back by the schedule cron. The graph projection in
+    // lib/workflow-trigger-sync.ts never sets it: it has no request to ask.
+    const ownerInitiated = req.authKind === "jwt" && req.userId === (workflow.user_id as string | null)
+
+    const row = {
+      workflow_id: workflowId,
+      user_id: req.userId,
+      type,
+      config: triggerConfig ?? {},
+      webhook_token: webhookToken,
+    }
+    // The column's default is already false — only a "yes" needs the column,
+    // so only a "yes" can hit a database that does not have it yet.
+    const firstAttempt: Record<string, unknown> = ownerInitiated ? { ...row, owner_initiated: true } : { ...row }
+    let inserted = await supabase.from("workflow_triggers").insert(firstAttempt).select("*").single()
+    if (inserted.error && isMissingColumnError(inserted.error)) {
+      req.log.warn(
+        { workflowId, code: inserted.error.code },
+        "workflow_triggers.owner_initiated is not on this database yet (migration 436) — the schedule is stored as not owner-initiated",
+      )
+      inserted = await supabase.from("workflow_triggers").insert(row).select("*").single()
+    }
+    const { data: trigger, error } = inserted
 
     if (error) {
       return sendInternalError(reply, req, error, "Failed to create trigger")

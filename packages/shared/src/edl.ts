@@ -168,6 +168,18 @@ export const EDIT_PLAN_TIERS: readonly EditPlanTier[] = ["economy", "standard", 
 export const EDIT_PLAN_BUCKET_MINUTES: readonly number[] = [15, 30, 60, 90, 120, 180]
 /** Hard duration cap (design §7.4). */
 export const EDIT_PLAN_MAX_MINUTES = 180
+/** `clips` mode: how many clips a plan returns when the caller names no count,
+ *  and the most it may be asked for. One source for the credit estimate, the
+ *  orchestrated payload clamp and the request schema. */
+export const EDIT_PLAN_DEFAULT_CLIP_COUNT = 8
+export const EDIT_PLAN_MAX_CLIP_COUNT = 50
+
+/** Clamp a requested clip count into `[1, EDIT_PLAN_MAX_CLIP_COUNT]`; `undefined`
+ *  for anything that is not a positive number (the planner then uses its default). */
+export function clampEditPlanClipCount(count: unknown): number | undefined {
+  if (typeof count !== "number" || !Number.isFinite(count) || count <= 0) return undefined
+  return Math.min(EDIT_PLAN_MAX_CLIP_COUNT, Math.max(1, Math.floor(count)))
+}
 /** The bare estimator / DB-down fallback id. */
 export const EDIT_PLAN_BASE_CREDIT_ID = "edit-plan"
 

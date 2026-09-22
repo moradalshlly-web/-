@@ -178,7 +178,12 @@ describe("what the model is shown", () => {
     const s = stub({ get_studio_production: text({ production: odd }) })
     const result = await build(s, { shotId: "s1" })
     const body = result.available ? result.text : ""
-    expect(body).not.toContain("-2")
+    // The wrapper tag carries a random hex nonce (`<workflow-context-2f…>`), so
+    // "-2" is asked of the CONTENT, never of the tag — this assertion used to
+    // fail one run in sixteen.
+    expect(body).toContain("<workflow-context-")
+    const content = body.replace(new RegExp("</?workflow-context-[0-9a-f]+>", "g"), "")
+    expect(content).not.toContain("-2")
     expect(body).toContain('The person is looking at Scene 1 ("Odd") [s1]: it has no frame yet, no motion yet and no shots inside the motion.')
     // A frame with a key and no counted take is said in the same shape as the rest.
     expect(body).toContain("frame: active job-z; motion: no take yet, 3 shots inside the motion")

@@ -45,7 +45,7 @@ import {
   getOutputType,
   getNodeResult,
 } from "@/lib/presentation-utils"
-import { EXECUTABLE_TYPES, estimateNodeCredits, isExecutableNode, getFanOutMultiplier } from "@/components/editor/workflow-editor/types"
+import { EXECUTABLE_TYPES, estimateNodeCredits, isExecutableNode, getCostMultiplier } from "@/components/editor/workflow-editor/types"
 import { getModelIdentifier } from "@/components/editor/config-panels/helpers"
 import { getCachedCredits, prefetchModelCredits } from "@/ee/hooks/use-model-credits"
 import { isExpandedClone, calculateMonetizedCost, getItemSortId, mergeNodeInputOverrides } from "@nodaro/shared"
@@ -371,7 +371,7 @@ export function PresentationView({ mode, isOwner, onExitFullscreen, onRun, onCan
     if (!hasCredits()) return
 
     const computeEstimate = () => {
-      // Merge inputValues into node data so getFanOutMultiplier sees current loop rows
+      // Merge inputValues into node data so getCostMultiplier sees current loop rows
       const effectiveNodes = inputValues
         ? nodes.map((n) => {
             const vals = inputValues[n.id]
@@ -384,13 +384,15 @@ export function PresentationView({ mode, isOwner, onExitFullscreen, onRun, onCan
           })
         : nodes
       const executableNodes = effectiveNodes.filter((n) => isExecutableNode(n) && !isExpandedClone(n))
+      // An app run executes every node, so any upstream planner re-plans.
+      const rerunIds = new Set(executableNodes.map((n) => n.id))
 
       const finish = () => {
         const total = executableNodes.reduce((sum, node) => {
           const modelId = getModelIdentifier(node, edges, effectiveNodes)
           const cached = getCachedCredits(modelId)
           const cost = cached !== undefined ? cached : estimateNodeCredits({ id: node.id, type: node.type, data: node.data as Record<string, unknown> }, edges)
-          const multiplier = getFanOutMultiplier(node, effectiveNodes, edges)
+          const multiplier = getCostMultiplier(node, effectiveNodes, edges, rerunIds)
           return sum + cost * multiplier
         }, 0)
         setDynamicEstimatedCost(total)

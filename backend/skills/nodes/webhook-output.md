@@ -1,7 +1,7 @@
 ---
 node_type: webhook-output
-generated_at: 2026-08-15T21:55:08.515Z
-generated_from: 150c80ac9
+generated_at: 2026-09-22T00:01:38.225Z
+generated_from: aa6130b81
 ---
 
 # Webhook Output
@@ -19,6 +19,7 @@ generated_from: 150c80ac9
 - `params: WebhookParam[]`
 
 **Optional data fields:**
+- `credentialId?: string`
 - `currentJobId?: string`
 - `executionStatus?: "idle" | "running" | "completed" | "failed"`
 - `errorMessage?: string`
