@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest"
-import { matchesCronField, matchesCronMinute, parseIntervalToMs } from "../schedule-cron.js"
+import { vi, beforeEach, afterEach } from "vitest"
+
+vi.mock("@/lib/supabase.js", () => ({ supabase: { from: vi.fn() } }))
+
+import {
+  matchesCronField,
+  matchesCronMinute,
+  msUntilNextTick,
+  parseIntervalToMs,
+  scheduleDue,
+  startScheduleCron,
+  stopScheduleCron,
+} from "../schedule-cron.js"
+import { supabase } from "../supabase.js"
 
 // ---------------------------------------------------------------------------
 // matchesCronField — atomic field-level cron matcher
@@ -181,5 +194,141 @@ describe("parseIntervalToMs", () => {
     expect(parseIntervalToMs("5min")).toBe(0)
     expect(parseIntervalToMs("abc")).toBe(0)
     expect(parseIntervalToMs("-5m")).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// scheduleDue — is this row due at this instant? (pure: config, previous fire, clock)
+// ---------------------------------------------------------------------------
+
+const at = (iso: string) => new Date(iso)
+
+describe("scheduleDue — the rules lane (what the graph projection writes)", () => {
+  const every20 = { rules: [{ id: "a", kind: "minutes", every: 20 }] }
+
+  it("fires when a rule matches this minute, not otherwise", () => {
+    expect(scheduleDue(every20, null, at("2026-09-22T10:20:00Z"))).toBe(true)
+    expect(scheduleDue(every20, null, at("2026-09-22T10:21:00Z"))).toBe(false)
+  })
+
+  it("reads the clock in the config's timezone", () => {
+    const nine = { rules: [{ id: "a", kind: "days", every: 1, hour: 9, minute: 0 }], timezone: "Asia/Jerusalem" }
+    expect(scheduleDue(nine, null, at("2026-07-01T06:00:00Z"))).toBe(true) // 09:00 in Jerusalem (summer)
+    expect(scheduleDue(nine, null, at("2026-07-01T09:00:00Z"))).toBe(false)
+  })
+
+  it("never fires twice in one wall-clock minute — a restart's immediate check, or a replica a moment behind", () => {
+    expect(scheduleDue(every20, "2026-09-22T10:20:05.000Z", at("2026-09-22T10:20:40Z"))).toBe(false)
+    expect(scheduleDue(every20, "2026-09-22T10:00:05.000Z", at("2026-09-22T10:20:40Z"))).toBe(true)
+  })
+
+  it("the second pass of a wall-clock minute the clocks fell back onto does not fire", () => {
+    // New York, 2026-11-01: 01:30 EDT is 05:30Z and 01:30 EST, an hour later, is 06:30Z.
+    const halfPastOne = { rules: [{ id: "a", kind: "days", every: 1, hour: 1, minute: 30 }], timezone: "America/New_York" }
+    expect(scheduleDue(halfPastOne, null, at("2026-11-01T05:30:00Z"))).toBe(true)
+    expect(scheduleDue(halfPastOne, "2026-11-01T05:30:00.000Z", at("2026-11-01T06:30:00Z"))).toBe(false)
+  })
+
+  it("rules present means rules — a stale legacy key beside them is ignored, and no usable rule never fires", () => {
+    expect(scheduleDue({ rules: [{ id: "a", kind: "minutes", every: 20 }], interval: "1m" }, null, at("2026-09-22T10:21:00Z"))).toBe(false)
+    expect(scheduleDue({ rules: [], interval: "1m" }, null, at("2026-09-22T10:21:00Z"))).toBe(false)
+    expect(scheduleDue({ rules: [{ kind: "seconds", every: 30 }] }, null, at("2026-09-22T10:21:00Z"))).toBe(false)
+  })
+})
+
+describe("scheduleDue — the legacy lanes (rows made by hand, rows not re-projected since the model changed)", () => {
+  it("interval: due once that much time has passed since the previous fire — at once when there was none", () => {
+    expect(scheduleDue({ interval: "5m" }, null, at("2026-09-22T10:21:00Z"))).toBe(true)
+    expect(scheduleDue({ interval: "5m" }, "2026-09-22T10:17:00.000Z", at("2026-09-22T10:21:00Z"))).toBe(false)
+    expect(scheduleDue({ interval: "5m" }, "2026-09-22T10:16:00.000Z", at("2026-09-22T10:21:00Z"))).toBe(true)
+  })
+
+  it("cron: matches the minute, and never twice in it", () => {
+    expect(scheduleDue({ cron: "*/15 * * * *" }, null, at("2026-09-22T10:15:00Z"))).toBe(true)
+    expect(scheduleDue({ cron: "*/15 * * * *" }, "2026-09-22T10:15:02.000Z", at("2026-09-22T10:15:50Z"))).toBe(false)
+    expect(scheduleDue({ cron: "*/15 * * * *" }, null, at("2026-09-22T10:16:00Z"))).toBe(false)
+  })
+
+  it("interval beats cron on a hand-made row carrying both; nothing configured never fires", () => {
+    expect(scheduleDue({ interval: "5m", cron: "0 0 1 1 *" }, null, at("2026-09-22T10:21:00Z"))).toBe(true)
+    expect(scheduleDue({}, null, at("2026-09-22T10:21:00Z"))).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// startScheduleCron — one check per calendar minute, just after the boundary
+// ---------------------------------------------------------------------------
+
+describe("startScheduleCron — one check per calendar minute, just after the boundary", () => {
+  const checks = () => vi.mocked(supabase.from).mock.calls.filter(([table]) => table === "workflow_triggers").length
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.mocked(supabase.from).mockReset()
+    vi.mocked(supabase.from).mockImplementation((() => ({
+      select: () => ({ eq: () => ({ eq: async () => ({ data: [], error: null }) }) }),
+    })) as never)
+  })
+
+  afterEach(() => {
+    stopScheduleCron()
+    vi.useRealTimers()
+  })
+
+  it("msUntilNextTick lands just past the next minute boundary", () => {
+    expect(msUntilNextTick(Date.parse("2026-09-22T10:00:20Z"))).toBe(40_250)
+    expect(msUntilNextTick(Date.parse("2026-09-22T10:00:00Z"))).toBe(60_250)
+    expect(msUntilNextTick(Date.parse("2026-09-22T10:00:59.900Z"))).toBe(350)
+  })
+
+  it("checks at once, then at every next boundary — every rule is a per-minute question, so no minute may be skipped", async () => {
+    vi.setSystemTime(new Date("2026-09-22T10:00:20.000Z"))
+    startScheduleCron()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(checks()).toBe(1)
+    await vi.advanceTimersByTimeAsync(40_249) // 10:01:00.249 — not yet
+    expect(checks()).toBe(1)
+    await vi.advanceTimersByTimeAsync(1) // 10:01:00.250
+    expect(checks()).toBe(2)
+    await vi.advanceTimersByTimeAsync(60_000) // 10:02:00.250
+    expect(checks()).toBe(3)
+  })
+
+  it("stops", async () => {
+    vi.setSystemTime(new Date("2026-09-22T10:00:20.000Z"))
+    startScheduleCron()
+    await vi.advanceTimersByTimeAsync(0)
+    stopScheduleCron()
+    await vi.advanceTimersByTimeAsync(180_000)
+    expect(checks()).toBe(1)
+  })
+
+  it("a check that overruns the boundary neither shifts the chain nor loses the minute it covered — the next tick catches it up", async () => {
+    // The second check (the 10:01 boundary) takes 70 s. With every rule a
+    // per-minute question, minute 10:02 must still be evaluated: the 10:02
+    // tick is skipped (a check is in flight), and the 10:03 tick evaluates
+    // 10:02 AND 10:03.
+    let call = 0
+    vi.mocked(supabase.from).mockImplementation((() => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => {
+            call += 1
+            const delay = call === 2 ? 70_000 : 0
+            return new Promise((resolve) => setTimeout(() => resolve({ data: [], error: null }), delay))
+          },
+        }),
+      }),
+    })) as never)
+    vi.setSystemTime(new Date("2026-09-22T10:00:20.000Z"))
+    startScheduleCron()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(checks()).toBe(1) // 10:00:20
+    await vi.advanceTimersByTimeAsync(40_250) // 10:01:00.250 — the slow check starts
+    expect(checks()).toBe(2)
+    await vi.advanceTimersByTimeAsync(60_000) // 10:02:00.250 — in flight, skipped
+    expect(checks()).toBe(2)
+    await vi.advanceTimersByTimeAsync(61_000) // 10:03:00.250 (+1 s for the two quick checks) — catches up 10:02, then 10:03
+    expect(checks()).toBe(4)
   })
 })

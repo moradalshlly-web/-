@@ -53,7 +53,8 @@ describe("reconcileWorkflowTriggers — provenance on the rows it creates", () =
     expect(result).toEqual({ created: 1, updated: 0, removed: 0 })
     expect(inserts).toHaveLength(1)
     expect(inserts[0][0]).toMatchObject({ workflow_id: WF, user_id: OWNER, type: "schedule", owner_initiated: true })
-    expect(inserts[0][0].config).toMatchObject({ cron: "*/5 * * * *", nodeId: "s1" })
+    // The node carries the old panel's "*/5 * * * *" preset; the row gets it as a rule.
+    expect(inserts[0][0].config).toMatchObject({ rules: [{ id: "rule-1", kind: "minutes", every: 5 }], nodeId: "s1" })
   })
 
   it("no vouch (an API or MCP graph write) creates the row without the column at all", async () => {

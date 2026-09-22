@@ -641,9 +641,10 @@ backend/src/lib/schedule-cron.ts            — Cron/interval scheduler (60s che
 - `DELETE /v1/workflow-triggers/:id` — Delete trigger
 
 ### Schedule Cron (`lib/schedule-cron.ts`)
-- `setInterval` every 60 seconds (runs in server process via `startScheduleCron()`)
-- Supports 5-field cron expressions AND simple interval strings ("5m", "1h", "1d")
-- Respects `maxExecutions` limit, skips if workflow already has pending/running execution
+- Runs in the server process via `startScheduleCron()`, one check per calendar minute, re-armed for just after each minute boundary (NOT a fixed `setInterval` — that drifts and eventually skips a minute, and every rule is a per-minute question). `scheduleDue(config, lastTriggeredAt, now)` is the pure decision, pinned directly in `lib/__tests__/schedule-cron.test.ts`.
+- Three config lanes, first present wins: `rules` (the Schedule Trigger node's model — `@nodaro/shared` `schedule-rules`, the SAME functions the editor previews with; read in the config's timezone), then legacy `interval` ("5m", elapsed-since-last-fire), then legacy `cron`. The graph projection (`lib/workflow-trigger-sync.ts::normalizeScheduleConfig`) ALWAYS writes `rules` — legacy node data converts on the way through and `mergeTriggerConfig` drops every schedule key first, so no legacy key can shadow the rules. A timezone the runtime cannot read (`isValidTimezone`) is refused at projection and at the route, never defaulted to UTC.
+- The minute-matching lanes never fire twice in one wall-clock minute (`localMinuteKey`): a restart's immediate check, a second replica, or the clocks falling back cannot double a fire under a fresh idempotency key.
+- Respects `maxExecutions` limit, skips if workflow already has pending/running execution, drops a node-managed row whose node left the graph.
 
 ### Timeouts
 - Per-node: 90 minutes (`NODE_TIMEOUT_MS`)

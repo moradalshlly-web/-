@@ -647,6 +647,30 @@ export {
   isProjectedTriggerNodeType,
 } from "./trigger-node-types.js"
 
+export {
+  SCHEDULE_RULE_KINDS,
+  SCHEDULE_EVERY_LIMITS,
+  isCronExpression,
+  isValidTimezone,
+  normalizeScheduleRule,
+  normalizeScheduleRules,
+  legacyScheduleToRules,
+  localTimeIn,
+  localMinuteKey,
+  timezoneOffsetMinutes,
+  matchesCronField,
+  matchesCron,
+  ruleMatches,
+  scheduleMatchesAt,
+  scheduleOccurrences,
+  nextScheduleRuns,
+  previewHorizonMs,
+  type ScheduleRuleKind,
+  type ScheduleRule,
+  type ScheduleSpec,
+  type LocalTime,
+} from "./schedule-rules.js"
+
 
 export {
   resolveScraperCreditId,

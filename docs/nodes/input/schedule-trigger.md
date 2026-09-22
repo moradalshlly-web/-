@@ -57,11 +57,16 @@ This works however the workflow was written — the editor, the API, the SDK,
 `import`, or MCP — so a workflow you created programmatically is scheduled the
 moment it is saved with a configured node.
 
-Two details worth knowing:
+Three details worth knowing:
 
 - **A half-configured node is not scheduled.** Pick *Custom cron* but leave the
   expression empty and nothing is registered, deliberately — a schedule never
   starts on a guess. Fill it in and save again.
+- **An unknown timezone is not scheduled either.** A timezone the server
+  cannot read (a typo, a city name instead of `Area/City`) is refused rather
+  than silently replaced with UTC — the run would land at hours you never
+  asked for. Fix the name and save again. Presets run on the clock in that
+  timezone: every 5 minutes is :00, :05, :10…, hourly is on the hour.
 - **Schedules you created by hand** against `POST /v1/workflow-triggers` are
   left alone: they are not managed by any node, so no save will change or
   remove them.

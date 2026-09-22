@@ -22,11 +22,19 @@
 
 import { randomBytes } from "node:crypto"
 import { isDeepStrictEqual } from "node:util"
-import { SCHEDULE_TRIGGER_NODE_TYPE, WEBHOOK_TRIGGER_NODE_TYPE } from "@nodaro/shared"
+import {
+  SCHEDULE_TRIGGER_NODE_TYPE,
+  WEBHOOK_TRIGGER_NODE_TYPE,
+  isCronExpression,
+  isValidTimezone,
+  legacyScheduleToRules,
+  normalizeScheduleRules,
+  type ScheduleRule,
+} from "@nodaro/shared"
 import { supabase } from "./supabase.js"
 import { isMissingColumnError } from "./postgrest-errors.js"
 
-export { SCHEDULE_TRIGGER_NODE_TYPE, WEBHOOK_TRIGGER_NODE_TYPE }
+export { SCHEDULE_TRIGGER_NODE_TYPE, WEBHOOK_TRIGGER_NODE_TYPE, isCronExpression }
 
 export type SyncedTriggerType = "schedule" | "webhook"
 
@@ -40,6 +48,14 @@ export interface DesiredTrigger {
   readonly nodeId: string
   readonly type: SyncedTriggerType
   readonly config: Record<string, unknown>
+  /**
+   * The node is on the graph but cannot run (no usable rule, a timezone the
+   * runtime cannot read): keep an EXISTING row — paused, its schedule keys
+   * cleared, its `executionCount` and `owner_initiated` intact for the day
+   * the node is fixed — and create none. Deleting it instead would restart
+   * the run count and lose the owner's vouch when it came back.
+   */
+  readonly parked?: true
 }
 
 export interface ExistingTrigger {
@@ -55,53 +71,43 @@ export interface TriggerPlan {
   readonly remove: readonly string[]
 }
 
-/**
- * `shouldTriggerFire` reads `config.interval` FIRST and ignores `config.cron`
- * when it is set, and `parseIntervalToMs` only understands `<n><s|m|h|d>`.
- * The editor panel stores its presets (`"0 * * * *"`, …) under `interval`, so
- * an un-normalised copy of node data would land a cron string in the key that
- * shadows cron and parses to 0 ms — a schedule that never fires and says
- * nothing. Everything below funnels into exactly ONE of `cron` / `interval`.
- */
-const INTERVAL_RE = /^\d+[smhd]$/
-
-/** A 5-field cron expression, the only shape `matchesCronMinute` understands. */
-export function isCronExpression(value: string): boolean {
-  return value.split(/\s+/).filter(Boolean).length === 5
-}
-
 function trimmed(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
 }
 
 /**
- * The schedule a `schedule-trigger` node is asking for, or null when the node
- * is not configured enough to schedule (a half-filled node must not quietly
- * start running). `cronExpression` is read because the editor panel wrote the
- * custom cron under that name while the node type, the node card and this
- * table all use `cron`.
+ * The schedule a `schedule-trigger` node is asking for, as the RULES the cron
+ * evaluates (`config.rules` — the model the editor shares, `@nodaro/shared`
+ * `schedule-rules`), or null when the node is not configured enough to
+ * schedule (a half-filled node must not quietly start running).
+ *
+ * A node written before the rules model carries `interval` ("5m", or one of
+ * the old panel's cron presets — `"0 * * * *"` stored under `interval`) and/or
+ * a custom `cron` (`cronExpression` — the name the old panel used). Those
+ * convert on the way through, so a row always holds rules and the legacy
+ * keys never reach it to shadow them (`scheduleDue` reads `interval` before
+ * `cron`, and a cron string under `interval` used to parse as 0 ms — a
+ * schedule that never fired and said nothing). Rules present means rules: a
+ * stale legacy key beside them is ignored.
+ *
+ * A timezone the runtime cannot read is a refusal, not a fallback — a
+ * schedule that ran at UTC hours its owner never asked for is worse than one
+ * that waits to be fixed.
  */
 export function normalizeScheduleConfig(
   data: Record<string, unknown>,
 ): Record<string, unknown> | null {
-  const interval = trimmed(data.interval)
-  const explicitCron = trimmed(data.cron) || trimmed(data.cronExpression)
-
-  let schedule: { cron: string } | { interval: string } | null = null
-  if (INTERVAL_RE.test(interval)) {
-    schedule = { interval }
-  } else {
-    // "custom" (or nothing) selected -> the typed expression; otherwise the
-    // preset itself already IS the cron string.
-    const expression = interval === "" || interval === "custom" ? explicitCron : interval
-    if (isCronExpression(expression)) schedule = { cron: expression }
-  }
-  if (!schedule) return null
+  const rules: ScheduleRule[] = Array.isArray(data.rules)
+    ? normalizeScheduleRules(data.rules)
+    : legacyScheduleToRules(data)
+  if (rules.length === 0) return null
 
   const timezone = trimmed(data.timezone)
+  if (timezone && !isValidTimezone(timezone)) return null
+
   const maxExecutions = data.maxExecutions
   return {
-    ...schedule,
+    rules,
     ...(timezone ? { timezone } : {}),
     ...(typeof maxExecutions === "number" && Number.isInteger(maxExecutions) && maxExecutions > 0
       ? { maxExecutions }
@@ -120,11 +126,9 @@ export function desiredTriggersFromGraph(nodes: readonly GraphNode[] | undefined
     const data = (node?.data && typeof node.data === "object" ? node.data : {}) as Record<string, unknown>
 
     if (nodeType === SCHEDULE_TRIGGER_NODE_TYPE) {
+      seen.add(nodeId)
       const config = normalizeScheduleConfig(data)
-      if (config) {
-        seen.add(nodeId)
-        desired.push({ nodeId, type: "schedule", config })
-      }
+      desired.push(config ? { nodeId, type: "schedule", config } : { nodeId, type: "schedule", config: {}, parked: true })
     } else if (nodeType === WEBHOOK_TRIGGER_NODE_TYPE) {
       seen.add(nodeId)
       desired.push({ nodeId, type: "webhook", config: {} })
@@ -134,15 +138,17 @@ export function desiredTriggersFromGraph(nodes: readonly GraphNode[] | undefined
 }
 
 /**
- * Runtime state the cron writes back onto `config` and a re-save must not
- * clobber — `schedule-cron.ts` increments `executionCount` there.
+ * Every key that describes the schedule. Runtime state the cron writes back
+ * onto `config` (`executionCount`) is everything else, and a re-save must not
+ * clobber it.
  */
-const SCHEDULE_CONFIG_KEYS = ["cron", "interval", "timezone", "maxExecutions"] as const
+const SCHEDULE_CONFIG_KEYS = ["rules", "cron", "interval", "timezone", "maxExecutions"] as const
 
 /**
  * Desired config merged onto the stored one: runtime state (`executionCount`)
- * survives, and EVERY schedule key is dropped first so a switch from interval
- * to cron cannot leave the old key behind to shadow the new one.
+ * survives, and EVERY schedule key is dropped first so a row written before
+ * the rules model cannot keep its `interval` / `cron` beside the new rules,
+ * and a switch of timezone cannot leave the old one behind.
  */
 export function mergeTriggerConfig(
   existing: Record<string, unknown> | null,
@@ -155,6 +161,35 @@ export function mergeTriggerConfig(
     preserved[key] = value
   }
   return { ...preserved, ...desired, nodeId }
+}
+
+/**
+ * `PATCH /v1/workflow-triggers/:id` config semantics: the submitted keys land
+ * ON TOP of the stored config — a PATCH of the timezone alone keeps the
+ * rules — and the row's `nodeId` (its link to the node that manages it) and
+ * `executionCount` (the cron's own count) are never the caller's to change.
+ * One family of schedule keys at a time: submitting `rules` drops a stored
+ * `interval` / `cron`; submitting either of those without rules drops stored
+ * `rules` — whichever the caller just said is what runs, never a stale key
+ * shadowing it.
+ */
+export function applyTriggerConfigPatch(
+  existing: Record<string, unknown> | null,
+  submitted: Record<string, unknown>,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = { ...(existing ?? {}) }
+  if (submitted.rules !== undefined) {
+    delete base.interval
+    delete base.cron
+  } else if (submitted.interval !== undefined || submitted.cron !== undefined) {
+    delete base.rules
+  }
+  const merged: Record<string, unknown> = { ...base, ...submitted }
+  if (existing && typeof existing.nodeId === "string") merged.nodeId = existing.nodeId
+  else delete merged.nodeId
+  if (existing && existing.executionCount !== undefined) merged.executionCount = existing.executionCount
+  else delete merged.executionCount
+  return merged
 }
 
 /** Pure diff: what to create, update and delete. Rows without `nodeId` are not ours. */
@@ -179,13 +214,14 @@ export function planTriggerSync(
     const key = `${want.type}:${want.nodeId}`
     const row = owned.get(key)
     if (!row) {
-      create.push(want)
+      if (!want.parked) create.push(want)
       continue
     }
     matched.add(key)
     const config = mergeTriggerConfig(row.config, want.config, want.nodeId)
-    if (!isDeepStrictEqual(config, row.config) || !row.is_active) {
-      update.push({ id: row.id, config, isActive: true })
+    const wantActive = !want.parked
+    if (!isDeepStrictEqual(config, row.config) || row.is_active !== wantActive) {
+      update.push({ id: row.id, config, isActive: wantActive })
     }
   }
 

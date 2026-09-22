@@ -668,6 +668,46 @@ or resume one with `PATCH /v1/workflow-triggers/<id>`. Triggers you create direc
 `POST /v1/workflow-triggers` are not managed by any node, so saving the
 workflow never changes or removes them.
 
+A schedule's `config` carries `rules` — the same model the Schedule Trigger
+node uses — plus an optional `timezone` (a zone name the server can read,
+such as `Asia/Jerusalem`; the clock the rules are read in, UTC when omitted)
+and `maxExecutions`:
+
+```json
+{
+  "workflowId": "…",
+  "type": "schedule",
+  "config": {
+    "rules": [
+      { "kind": "days", "every": 1, "hour": 9, "minute": 0 },
+      { "kind": "weeks", "every": 2, "weekdays": [1, 3], "hour": 18, "minute": 30 }
+    ],
+    "timezone": "Asia/Jerusalem"
+  }
+}
+```
+
+| `kind` | Fields | Runs |
+|--------|--------|------|
+| `minutes` | `every` 1–59 | at minute 0, N, 2N… of every hour |
+| `hours` | `every` 1–23, `minute` | at hour 0, N, 2N… of every day, at that minute |
+| `days` | `every` 1–31, `hour`, `minute` | every Nth calendar day at that time |
+| `weeks` | `every` 1–52, `weekdays` (0 = Sunday … 6 = Saturday), `hour`, `minute` | on those weekdays, every Nth week |
+| `months` | `every` 1–12, `dayOfMonth` 1–31, `hour`, `minute` | on that day (or the month's last day when it is shorter), every Nth month |
+| `cron` | `cron` — a 5-field expression | whenever the expression matches |
+
+The workflow runs whenever **any** rule matches the current minute. "Every
+Nth day / week / month" counts from a fixed origin (weeks start on Monday),
+so re-saving never shifts the phase. In a `cron` rule every field must
+match — day-of-month **and** day-of-week, where some crontabs read
+either/or — and `7` is Sunday like `0`. Values outside a kind's range are
+refused with a 400, as is a timezone the server cannot read. A `config` sent
+in a `PATCH` is merged into the stored one — send only what changes; the
+row's link to its node and its run count are kept. The older
+`interval` (`"5m"`, `"1h"`, `"1d"`) and `cron` forms are still accepted for
+triggers you create by hand; a Schedule Trigger node saved with them is
+converted to rules on save.
+
 ## 7. Rate limits
 
 Per-token, in-memory bucket:
