@@ -77,6 +77,9 @@ export interface BurnCaptionsSegment {
   /** Per-word motion switch (default true); false freezes the geometric
    *  animation. Inert on `subtitle`. */
   animate?: boolean
+  /** Words-per-line cap for THIS segment; the resolver fills it from the
+   *  top-level value when the segment sets none. */
+  maxWordsPerLine?: number
   captions: Caption[]
 }
 
@@ -106,6 +109,10 @@ export interface BurnCaptionsPlan {
    *  animation (word-highlight size hop, karaoke sweep, spring enters) while
    *  keeping grouping/holding/highlight. Inert on `subtitle`. */
   animate?: boolean
+  /** Cap on words per caption LINE (or tiktok page), applied on top of the
+   *  width budget and the speaker's phrasing. A styling lever: it shapes the
+   *  Remotion-rendered `subtitle` too, not just the kinetic styles. */
+  maxWordsPerLine?: number
   /** Optional per-segment captions: when present the top-level `captions`/style
    *  above are ignored and each segment renders its own words + style, gated to
    *  its time range. */

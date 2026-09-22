@@ -1244,22 +1244,28 @@ export const MUSIC_PROVIDERS = [
 ] as const
 export type MusicProvider = typeof MUSIC_PROVIDERS[number]
 
-/** Transcription providers */
+/**
+ * Transcription providers a caller may name — on `/v1/transcribe`, the SDK/CLI
+ * and the canvas Transcribe node. All three lanes are served on cloud again
+ * (the canvas picker re-offered the two Replicate lanes in #768 while this enum
+ * still hid them, so a single-node Run on Whisper 400'd where the same node in a
+ * workflow Run worked). `elevenlabs-stt` stays FIRST: several call sites take
+ * "the first enabled word-capable provider" from this order.
+ */
 export const TRANSCRIBE_PROVIDERS = [
-  // Replicate disabled
-  // "whisper",
-  // "incredibly-fast-whisper",
   "elevenlabs-stt",
+  "whisper",
+  "incredibly-fast-whisper",
 ] as const
 export type TranscribeProvider = typeof TRANSCRIBE_PROVIDERS[number]
 
 /**
- * Every transcription LANE the platform implements — a superset of
- * `TRANSCRIBE_PROVIDERS` (the user-facing enum above, which currently hides the
- * two Replicate lanes). Both hidden lanes are still reached at runtime: the
- * `/v1/transcribe` route defaults an absent provider to `DEFAULT_TRANSCRIBE_PROVIDER`,
- * and add-captions' internal auto-transcribe runs `incredibly-fast-whisper`.
- * Capability questions must be asked over THIS union, not the enum.
+ * Every transcription LANE the platform implements. Today this is the same set
+ * as `TRANSCRIBE_PROVIDERS`; it stays a separate name because the two answer
+ * different questions — "what may a caller name" vs "what can run" — and they
+ * have diverged before (the Replicate lanes were hidden from callers for months
+ * while still reached at runtime via the route default and add-captions'
+ * auto-transcribe). Capability questions must be asked over THIS union.
  */
 export const TRANSCRIBE_LANES = [
   "whisper",

@@ -23,16 +23,7 @@ import { resolveBillingContext, shouldRefuseDegradedRunFor } from "../lib/billin
 import { billingPairColumns } from "../lib/insert-job.js"
 import { recordTriggerFireRefusal } from "../lib/trigger-fire-refusal.js"
 import { toAccessRow } from "../lib/workflow-route-access.js"
-
-/**
- * PostgREST's "no such column" (schema-cache PGRST204 / Postgres 42703). The
- * `owner_initiated` column arrives with migration 436, which reaches the
- * database only when `main` deploys — staging runs ahead of it. Until then the
- * row is written without the flag, i.e. NOT owner-initiated: the safe answer.
- */
-function isMissingColumnError(error: { code?: string | null } | null | undefined): boolean {
-  return error?.code === "PGRST204" || error?.code === "42703"
-}
+import { isMissingColumnError } from "../lib/postgrest-errors.js"
 
 // ---------------------------------------------------------------------------
 // Rate limiter for webhook endpoint (in-memory, per-token)
@@ -357,7 +348,9 @@ export async function webhookTriggerRoutes(app: FastifyInstance) {
     // wherever `workflows:write` can point a node. Decided here, once, stored on
     // the row (the database lets only the backend write it — migration 436), and
     // read back by the schedule cron. The graph projection in
-    // lib/workflow-trigger-sync.ts never sets it: it has no request to ask.
+    // lib/workflow-trigger-sync.ts stamps it only for the node ids the owner's
+    // own editor session says it just added (the sync route); every other lane
+    // leaves the default.
     const ownerInitiated = req.authKind === "jwt" && req.userId === (workflow.user_id as string | null)
 
     const row = {

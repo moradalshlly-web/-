@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 import { supabase } from "../lib/supabase.js"
-import { estimateWorkflowCredits } from "../ee/billing/credits.js"
+import { estimateWorkflowCredits, type EstimateNode, type EstimateEdge } from "../ee/billing/credits.js"
 import {
   DEFAULT_TEMPLATE_CATEGORY,
   TEMPLATE_CATEGORIES,
@@ -470,7 +470,7 @@ export async function workflowTemplatesRoutes(app: FastifyInstance) {
     const providersUsed = extractProviders(nodes)
     const nodeCount = nodes.length
     const complexity = calculateComplexity(nodes, edges)
-    const estimatedCredits = estimateWorkflowCredits(nodes as Array<{ type: string; data?: Record<string, unknown> }>)
+    const estimatedCredits = estimateWorkflowCredits(nodes as unknown as EstimateNode[], edges as unknown as EstimateEdge[])
     const snapshotNodes = nodes
 
     // Resolve the source URL for the template preview with priority:

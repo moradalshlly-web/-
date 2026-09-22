@@ -19,6 +19,8 @@ import { sendInternalError } from "../lib/http-errors.js"
 // The providers this route ACCEPTS that can also honour word timestamps —
 // derived from the capability table, intersected with the route's own enum so
 // the rejection message never names a provider this same route would reject.
+// (Today the enum is every lane, so the intersection is the whole capable set;
+// it stays an intersection because the two sets have diverged before.)
 const WORD_TIMESTAMP_PROVIDERS = TRANSCRIBE_PROVIDERS.filter(
   (p) => TRANSCRIBE_PROVIDER_CAPABILITIES[p].wordTimestamps,
 )
@@ -33,11 +35,15 @@ const transcribeBody = z.object({
   userId: z.string().uuid().optional(),
 }).superRefine((v, ctx) => {
   // Word timings are a per-provider capability, and the incapable lane fails
-  // SILENTLY (Replicate drops the unknown input key, openai/whisper returns no
-  // `words`, the job "succeeds" with an empty array after credits are spent).
-  // Reject at ingress — before the job insert and the credit reservation —
-  // rather than auto-swapping the provider: the credit guard reserves on the
-  // provider id, so a swap would silently change what bills.
+  // SILENTLY: `openai/whisper` has no `word_timestamps` input in any published
+  // version, so Replicate drops the key and the job "succeeds" with an empty
+  // word list after credits are spent. That is the ONE incapable lane in the
+  // enum — `incredibly-fast-whisper` (`timestamp: "word"`) and `elevenlabs-stt`
+  // (word-level by design) both pass. Reject at ingress — before the job insert
+  // and the credit reservation — rather than auto-swapping the provider: the
+  // credit guard reserves on the provider id, so a swap would silently change
+  // what bills. The capability is always asked of the table, never of a
+  // provider-name check.
   if (!v.wordTimestamps) return
   const resolved = v.provider ?? DEFAULT_TRANSCRIBE_PROVIDER
   if (TRANSCRIBE_PROVIDER_CAPABILITIES[resolved].wordTimestamps) return
@@ -52,6 +58,11 @@ const transcribeBody = z.object({
 
 export async function transcribeRoutes(app: FastifyInstance) {
   app.post("/v1/transcribe", {
+    // The engine id IS the credit identifier, and all three enum members carry
+    // a price (`elevenlabs-stt`, `whisper`, `incredibly-fast-whisper` in
+    // STATIC_CREDIT_COSTS + model_pricing) — the guard here and the reservation
+    // below resolve an absent provider the same way, so what is checked is what
+    // bills.
     preHandler: creditGuard((req) => {
       const body = req.body as Record<string, unknown>
       return (body?.provider as string) ?? DEFAULT_TRANSCRIBE_PROVIDER

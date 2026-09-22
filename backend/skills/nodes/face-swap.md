@@ -1,7 +1,7 @@
 ---
 node_type: face-swap
-generated_at: 2026-08-15T21:55:08.413Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T19:12:10.081Z
+generated_from: 09788c987
 ---
 
 # Face Swap
@@ -9,7 +9,7 @@ generated_from: 150c80ac9
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `face-swap`
 **Category:** ai
-**Credit cost:** 16
+**Credit cost:** `16` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `face`, `video`
 **Outputs (source handles):** `out`
 

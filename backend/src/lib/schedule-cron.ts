@@ -5,6 +5,7 @@
  * Runs in the server process (not a separate worker).
  */
 
+import { SCHEDULE_TRIGGER_NODE_TYPE } from "@nodaro/shared"
 import { supabase } from "./supabase.js"
 import { orchestrationQueue } from "./orchestration-queue.js"
 import { canRunWorkflow } from "./workflow-access.js"
@@ -51,6 +52,18 @@ export function stopScheduleCron(): void {
 // Core cron check
 // ---------------------------------------------------------------------------
 
+/** True only when the graph was read and carries no schedule-trigger node with this id. */
+async function scheduleNodeGone(workflowId: string, nodeId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("workflows").select("nodes").eq("id", workflowId).maybeSingle()
+    if (error || !data || !Array.isArray(data.nodes)) return false
+    const nodes = data.nodes as Array<{ id?: unknown; type?: unknown }>
+    return !nodes.some((n) => n.id === nodeId && n.type === SCHEDULE_TRIGGER_NODE_TYPE)
+  } catch {
+    return false
+  }
+}
+
 let provenanceWarned = false
 /** Once per process: the flag read failing every minute is one fact, not sixty log lines an hour. */
 function warnProvenanceUnreadableOnce(reason: string): void {
@@ -77,6 +90,19 @@ export async function checkScheduledTriggers(): Promise<void> {
       const shouldFire = await shouldTriggerFire(trigger, config, now)
 
       if (!shouldFire) continue
+
+      // The graph is the single source of truth for a node-managed schedule:
+      // a row whose Schedule Trigger node is gone from the stored graph is an
+      // orphan (a save lane that did not project the removal), and an orphan
+      // that keeps firing runs the whole workflow forever with no surface to
+      // stop it. Deleted only when the graph was READ and the node is absent;
+      // an unreadable graph changes nothing this tick.
+      const nodeId = typeof config.nodeId === "string" ? config.nodeId : null
+      if (nodeId && (await scheduleNodeGone(trigger.workflow_id, nodeId))) {
+        await supabase.from("workflow_triggers").delete().eq("id", trigger.id)
+        console.warn(`[schedule-cron] dropped orphan schedule ${trigger.id}: node ${nodeId} is no longer on workflow ${trigger.workflow_id}`)
+        continue
+      }
 
       // Check max executions
       const maxExec = config.maxExecutions as number | undefined
@@ -178,15 +204,14 @@ export async function checkScheduledTriggers(): Promise<void> {
 
       // Whether this schedule's runs count as the workflow OWNER'S OWN — the
       // only lane a PLAIN stored credential may travel on (plan D3) — is a
-      // stored fact about the trigger, decided at POST /v1/workflow-triggers
-      // (browser session AND owner) and writable only by the backend
-      // (migration 436). Never re-derived here: uuid equality would say
-      // "owner" for a token-created schedule too. Today nothing in the app
-      // creates schedules through that route (the editor's Schedule Trigger
-      // node is projected from the graph, which never sets the flag), so in
-      // practice a schedule does not carry a plain credential — the docs say
-      // so. Read best-effort: on a database the column has not reached yet
-      // this fails closed and the schedule still fires.
+      // stored fact about the trigger, writable only by the backend
+      // (migration 436): stamped when the owner's own browser session created
+      // the row — the editor's sync after a save that ADDED the node
+      // (POST /v1/workflows/:id/sync-triggers), or POST /v1/workflow-triggers.
+      // A token's or an app's graph write, and every other lane, leaves the
+      // default. Never re-derived here: uuid equality would say "owner" for a
+      // token-created schedule too. Read best-effort: on a database the column
+      // has not reached yet this fails closed and the schedule still fires.
       let ownerInitiated = false
       try {
         const { data: provenance, error: provenanceError } = await supabase

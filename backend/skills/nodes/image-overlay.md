@@ -1,7 +1,7 @@
 ---
 node_type: image-overlay
-generated_at: 2026-09-08T11:55:24.467Z
-generated_from: d346d3b2c
+generated_at: 2026-09-21T19:12:09.683Z
+generated_from: 09788c987
 ---
 
 # Image Overlay
@@ -9,7 +9,7 @@ generated_from: d346d3b2c
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `image-overlay`
 **Category:** processing
-**Credit cost:** 10
+**Credit cost:** `10` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `image`, `overlay`, `overlay2`, `overlay3`, `overlay4`, `overlay5`, `overlay6`, `overlay7`, `overlay8`, `overlay9`, `overlay10`, `overlay11`, `overlay12`, `qrText`
 **Outputs (source handles):** `image`, `mask`
 

@@ -24,7 +24,8 @@ import {
   changesStudioPublishFlag,
 } from "../lib/studio-audience.js"
 import { loadWorkflowFor, toAccessRow } from "../lib/workflow-route-access.js"
-import { reconcileWorkflowTriggers, type GraphNode } from "../lib/workflow-trigger-sync.js"
+import { reconcileWorkflowTriggers, type GraphNode, type ReconcileResult } from "../lib/workflow-trigger-sync.js"
+import { isProjectedTriggerNodeType } from "@nodaro/shared"
 import { graphNeedsCredentialGate, sendCredentialUnbound, unboundCredentialUsesFor, workflowIsExposed } from "../lib/credential-gate.js"
 import type { WorkflowAccessRow } from "../lib/private-plugins/types.js"
 import {
@@ -293,6 +294,10 @@ const WORKFLOW_FULL_COLS =
  */
 type EdgeRecord = Record<string, unknown>
 
+const syncTriggersBody = z.object({
+  vouchNodeIds: z.array(z.string().min(1).max(200)).max(200).optional(),
+})
+
 /**
  * The edge set a delta save leaves behind: upserts replace stored edges by id,
  * deletions remove them, everything else stays. Only the credential gate reads
@@ -316,17 +321,25 @@ async function syncTriggersForSavedWorkflow(
   req: FastifyRequest,
   workflowId: string,
   row: Record<string, unknown>,
-): Promise<void> {
+  vouchNodeIds?: ReadonlyArray<string>,
+): Promise<ReconcileResult> {
   const ownerId = typeof row.user_id === "string" ? row.user_id : ""
-  if (!ownerId) return
+  if (!ownerId) return { created: 0, updated: 0, removed: 0 }
+  // Only the owner's own browser session may vouch, and only for the node ids
+  // it says it just ADDED (plan D3): a token or an app runs AS the owner and
+  // may not, and a node that was already stored is not this save's to vouch
+  // for. The API lanes pass nothing here and never vouch.
+  const ownerSession = req.authKind === "jwt" && req.userId === ownerId
   const result = await reconcileWorkflowTriggers({
     workflowId,
     userId: ownerId,
     nodes: row.nodes as readonly GraphNode[] | undefined,
+    vouchNodeIds: ownerSession && vouchNodeIds && vouchNodeIds.length > 0 ? vouchNodeIds : undefined,
   })
   if (result.error) {
     req.log.warn({ err: result.error, workflowId }, "workflow trigger sync failed")
   }
+  return result
 }
 
 function toWorkflowMeta(row: Record<string, unknown>) {
@@ -1319,6 +1332,39 @@ export async function workflowRoutes(app: FastifyInstance) {
   })
 
   // Update workflow
+  // The editor saves through PostgREST (the delta RPC / the table), never
+  // through the PATCH below — so its Schedule Trigger and Webhook Trigger
+  // nodes never reached `reconcileWorkflowTriggers` and were decorative
+  // (#1566). After a save that carries such a node the editor asks here for
+  // the same projection the API lanes get, from the STORED graph. Any caller
+  // with `edit` may re-project; the graph is whatever is saved, so this
+  // cannot schedule anything the save could not. `vouchNodeIds` names the
+  // trigger nodes the editor ADDED in that save — the only rows an owner's
+  // session gets stamped `owner_initiated` (a narrowing filter: a client can
+  // name fewer, never widen anyone's vouch).
+  app.post("/v1/workflows/:id/sync-triggers", async (req, reply) => {
+    const userId = authorize(req, reply, "workflows:write")
+    if (!userId) return
+
+    const params = parseWith(reply, workflowIdParams, req.params, "Invalid workflow ID")
+    if (!params) return
+
+    const body = parseWith(reply, syncTriggersBody, req.body ?? {}, "Invalid request")
+    if (!body) return
+
+    const loaded = await loadWorkflowFor(
+      req, reply, userId, params.id, "edit",
+      "id, user_id, workspace_id, visibility, nodes",
+      "Failed to sync triggers",
+    )
+    if (!loaded.ok) return
+
+    const result = await syncTriggersForSavedWorkflow(req, params.id, loaded.row, body.vouchNodeIds)
+    return reply.send({
+      data: { synced: !result.error, created: result.created, updated: result.updated, removed: result.removed },
+    })
+  })
+
   app.patch("/v1/workflows/:id", async (req, reply) => {
     const userId = authorize(req, reply, "workflows:write")
     if (!userId) return
@@ -1468,6 +1514,23 @@ export async function workflowRoutes(app: FastifyInstance) {
             currentUpdatedAt: row.updated_at,
           },
         })
+      }
+      // The delta landed through the RPC, which never projects trigger nodes.
+      // Only a delta that upserts a trigger node or deletes any node can
+      // change the projection — that one pays a re-read of the stored graph
+      // and gets the same projection the full-body lane gets (never a vouch:
+      // an API caller). Every other delta stays the one round trip it was.
+      const mayTouchTriggers =
+        (body.delta.upsertNodes ?? []).some((n) => isProjectedTriggerNodeType((n as { type?: unknown }).type)) ||
+        (body.delta.deleteNodeIds?.length ?? 0) > 0
+      if (mayTouchTriggers) {
+        const { data: storedAfterDelta } = await supabase
+          // tenant-scope-ignore: the RPC above already judged this caller's access to this id and applied the write; the re-read only feeds the trigger projection.
+          .from("workflows")
+          .select("id, user_id, nodes")
+          .eq("id", params.id)
+          .maybeSingle()
+        if (storedAfterDelta) await syncTriggersForSavedWorkflow(req, params.id, storedAfterDelta as Record<string, unknown>)
       }
       return { data: { id: params.id, version: row.version, updatedAt: row.updated_at } }
     }

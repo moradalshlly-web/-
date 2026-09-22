@@ -1,7 +1,7 @@
 ---
 node_type: slideshow
-generated_at: 2026-08-21T00:36:17.389Z
-generated_from: 23b00a372
+generated_at: 2026-09-21T19:12:09.716Z
+generated_from: 09788c987
 ---
 
 # Slideshow
@@ -9,7 +9,7 @@ generated_from: 23b00a372
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `slideshow`
 **Category:** processing
-**Credit cost:** 0
+**Credit cost:** `0` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `images`, `audio`, `transition`
 **Outputs (source handles):** `video`
 

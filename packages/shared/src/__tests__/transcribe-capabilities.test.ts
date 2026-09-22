@@ -77,3 +77,28 @@ describe("transcribeLaneSupportsWordTimestamps — untrusted lane ids", () => {
     expect(transcribeLaneSupportsWordTimestamps(null)).toBe(false)
   })
 })
+
+// The catalog is what /v1/models and MCP list_models publish. Every engine a
+// caller may name must be listed there, and its "word-timestamps" feature must
+// agree with the capability table — the table is the authority, the catalog a
+// published copy that this test keeps honest.
+describe("MODEL_CATALOG ↔ transcribe capabilities", () => {
+  it("lists every nameable transcribe engine as an stt model", async () => {
+    const { MODEL_CATALOG } = await import("../model-catalog.js")
+    const { TRANSCRIBE_PROVIDERS } = await import("../model-constants.js")
+    for (const id of TRANSCRIBE_PROVIDERS) {
+      const entry = (MODEL_CATALOG as Record<string, { modes?: readonly string[] } | undefined>)[id]
+      expect(entry, `${id} missing from MODEL_CATALOG`).toBeDefined()
+      expect(entry!.modes, id).toContain("stt")
+    }
+  })
+
+  it('the catalog "word-timestamps" feature matches TRANSCRIBE_PROVIDER_CAPABILITIES', async () => {
+    const { MODEL_CATALOG } = await import("../model-catalog.js")
+    const { TRANSCRIBE_LANES, TRANSCRIBE_PROVIDER_CAPABILITIES } = await import("../model-constants.js")
+    for (const id of TRANSCRIBE_LANES) {
+      const features = (MODEL_CATALOG as Record<string, { features?: readonly string[] } | undefined>)[id]?.features ?? []
+      expect(features.includes("word-timestamps"), id).toBe(TRANSCRIBE_PROVIDER_CAPABILITIES[id].wordTimestamps)
+    }
+  })
+})

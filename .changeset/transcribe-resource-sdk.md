@@ -7,12 +7,13 @@ Add `client.audio.transcribe(input)` — the SDK's first way to reach
 
 `transcribe({ audioUrl, provider?, language?, diarize?, tagAudioEvents?,
 wordTimestamps? })` returns a job id to poll. `provider` is typed as
-`TranscribeProvider` (the ENABLED enum from `@nodaro/shared`), so the one lane
-that returns word timings — `elevenlabs-stt`, always word-level, and the lane
-that honours `diarize` / `tagAudioEvents` — is the one the types steer you to.
-Omitting `provider` runs the route's legacy whisper fallback, which cannot
-produce word timings at all; asking it for them is a `400` at ingress, before
-any credit is spent, and the JSDoc says so.
+`TranscribeProvider` (the ENABLED enum from `@nodaro/shared`), which holds all
+three engines the route serves. The types do not pick for you, so the JSDoc
+does: `elevenlabs-stt` is always word-level and is the lane that honours
+`diarize` / `tagAudioEvents`, `incredibly-fast-whisper` returns word timings when
+asked, and `whisper` returns none at all — named explicitly or reached by
+omitting `provider`, which still falls back to it. Asking `whisper` for word
+timings is a `400` at ingress, before any credit is spent.
 
 `TranscribeProvider` itself is re-exported from `@nodaro/shared` (same pattern
 as `AudioFxPreset`), so a consumer can name the type without a second

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import type { Caption } from "@remotion/captions"
+import { interpolate, spring } from "remotion"
 import {
   CAPTION_LINE_BREAK_GAP_MS,
   CAPTION_LINE_MAX_HOLD_MS,
@@ -7,10 +8,14 @@ import {
   ACTIVE_WORD_MAX_SCALE,
   CAPTION_WORD_PAD_EM,
   activeCaptionLine,
+  activeHeldCaption,
   activeWordScale,
   captionCharWidthEm,
+  captionEnterFrame,
   captionLineCharBudget,
+  captionWindowSweeps,
   groupCaptionLines,
+  splitCaptionRuns,
 } from "../caption-lines"
 
 /** A word caption. `timestampMs`/`confidence` are required by the Caption type
@@ -19,6 +24,11 @@ const w = (text: string, startMs: number, endMs: number): Caption =>
   ({ text, startMs, endMs, timestampMs: startMs, confidence: null })
 
 const texts = (words: readonly Caption[]): string[] => words.map((c) => c.text.trim())
+
+/** Words on a line — what `maxWords` promises to cap. Counted the way the lever
+ *  is documented (whitespace-separated), NOT as one per Caption entry. */
+const wordsOn = (words: readonly Caption[]): number =>
+  words.reduce((sum, c) => sum + c.text.trim().split(/\s+/).filter((t) => t.length > 0).length, 0)
 
 describe("captionCharWidthEm — conservative average advance per character", () => {
   // The calibration point: the default `outline` look is Montserrat 900
@@ -347,5 +357,287 @@ describe("activeWordScale — the highlight pop can never close the gap to a nei
     expect(activeWordScale("x".repeat(500))).toBeGreaterThan(1)
     expect(activeWordScale("")).toBe(1)
     expect(activeWordScale("   ")).toBe(1)
+  })
+})
+
+describe("groupCaptionLines — the maxWords cap (the maxWordsPerLine lever)", () => {
+  // Contiguous timings and a huge char budget, so ONLY the word cap can break.
+  const phrase = (...ws: string[]): Caption[] => ws.map((t, i) => w(t, i * 200, (i + 1) * 200))
+
+  it("omitting opts is byte-identical to the pre-lever grouping", () => {
+    const words = phrase("Same", "face,", "every", "shot.")
+    expect(groupCaptionLines(words, 19, {})).toEqual(groupCaptionLines(words, 19))
+    expect(groupCaptionLines(words, 19, { maxWords: undefined })).toEqual(groupCaptionLines(words, 19))
+  })
+  it("closes the line once it holds maxWords words, even with room to spare", () => {
+    const lines = groupCaptionLines(phrase("a", "b", "c", "d", "e"), 1000, { maxWords: 2 })
+    expect(lines.map((l) => texts(l.words))).toEqual([["a", "b"], ["c", "d"], ["e"]])
+  })
+  it("maxWords: 1 renders one word per line", () => {
+    const lines = groupCaptionLines(phrase("a", "b", "c"), 1000, { maxWords: 1 })
+    expect(lines.map((l) => texts(l.words))).toEqual([["a"], ["b"], ["c"]])
+  })
+  it("the width budget still wins when it is the tighter of the two", () => {
+    // Budget 19 breaks after "face," (16 + " every" = 22); the cap of 5 never fires.
+    const lines = groupCaptionLines(phrase("Same", "face,", "every", "shot."), 19, { maxWords: 5 })
+    expect(lines.map((l) => texts(l.words))).toEqual([["Same", "face,"], ["every", "shot."]])
+  })
+  it("a nonsense cap (0, negative, NaN) is treated as NO cap, never as 'break every word'", () => {
+    const words = phrase("a", "b", "c")
+    for (const maxWords of [0, -3, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(groupCaptionLines(words, 1000, { maxWords })).toEqual(groupCaptionLines(words, 1000))
+    }
+  })
+  it("a fractional cap floors (2.9 words per line means 2)", () => {
+    const lines = groupCaptionLines(phrase("a", "b", "c"), 1000, { maxWords: 2.9 })
+    expect(lines.map((l) => texts(l.words))).toEqual([["a", "b"], ["c"]])
+  })
+  it("widow control never moves a word into a line that would then exceed maxWords", () => {
+    // Without the cap guard the rebalance WOULD move "BBBBBBBB" down: it takes
+    // the pair from |17-3| = 14 apart to |8-12| = 4. The cap of 2 forbids it.
+    const lines = groupCaptionLines(phrase("AAAAAAAA", "BBBBBBBB", "C", "D"), 1000, { maxWords: 2 })
+    expect(lines.map((l) => texts(l.words))).toEqual([["AAAAAAAA", "BBBBBBBB"], ["C", "D"]])
+  })
+  it("no line ever exceeds the cap, whatever the width budget does to it", () => {
+    const words = phrase("73", "characters,", "and", "the", "face", "doesn't", "drift.", "Not", "once.")
+    for (const maxWords of [1, 2, 3, 4]) {
+      for (const maxChars of [8, 19, 40, 1000]) {
+        for (const line of groupCaptionLines(words, maxChars, { maxWords })) {
+          expect(line.words.length).toBeLessThanOrEqual(maxWords)
+        }
+      }
+    }
+  })
+})
+
+describe("splitCaptionRuns — the largest stretch a layout unit may span", () => {
+  it("splits at a sentence end and at a pause, and nowhere else", () => {
+    const runs = splitCaptionRuns([
+      w("Go", 0, 200), w("now.", 200, 500),      // sentence end closes the run
+      w("Then", 1200, 1500),                     // …and the 700ms pause would too
+      w("stop", 1500, 1800), w("here", 1800, 2000),
+    ])
+    expect(runs.map(texts)).toEqual([["Go", "now."], ["Then", "stop", "here"]])
+  })
+  it("also closes a run at maxWords", () => {
+    const runs = splitCaptionRuns([w("a", 0, 100), w("b", 100, 200), w("c", 200, 300)], { maxWords: 2 })
+    expect(runs.map(texts)).toEqual([["a", "b"], ["c"]])
+  })
+  it("orders and drops blanks like groupCaptionLines, and never mutates the input", () => {
+    const input = [w("b", 100, 200), w("   ", 150, 160), w("a", 0, 100)]
+    expect(splitCaptionRuns(input).map(texts)).toEqual([["a", "b"]])
+    expect(input.map((c) => c.text)).toEqual(["b", "   ", "a"])
+  })
+  it("an empty list produces no runs", () => {
+    expect(splitCaptionRuns([])).toEqual([])
+  })
+})
+
+describe("activeHeldCaption — one word at a time, held across the gap to the next", () => {
+  // Real word windows do NOT abut: the gaps below (200-400, 600-2000) are what
+  // word-pop's `captions.find(ms in [start, end])` rendered as NOTHING.
+  const words = [w("one", 0, 200), w("two", 400, 600), w("three", 2000, 2200)]
+
+  it("is null before the first word starts", () => {
+    expect(activeHeldCaption(words, -1)).toBeNull()
+  })
+  it("shows the word during its own window", () => {
+    expect(activeHeldCaption(words, 100)?.text).toBe("one")
+  })
+  it("HOLDS the last-started word inside an inter-word gap (the blanking bug)", () => {
+    expect(activeHeldCaption(words, 300)?.text).toBe("one")
+    expect(activeHeldCaption(words, 1000)?.text).toBe("two")
+  })
+  it("hands over the instant the next word starts", () => {
+    expect(activeHeldCaption(words, 399)?.text).toBe("one")
+    expect(activeHeldCaption(words, 400)?.text).toBe("two")
+  })
+  it("clears once the silence is longer than CAPTION_LINE_MAX_HOLD_MS", () => {
+    // "three" is the last word (2000-2200): nothing takes over from it, so the
+    // cap is what finally clears the caption rather than the next word.
+    expect(activeHeldCaption(words, 2200 + CAPTION_LINE_MAX_HOLD_MS)?.text).toBe("three")
+    expect(activeHeldCaption(words, 2200 + CAPTION_LINE_MAX_HOLD_MS + 1)).toBeNull()
+  })
+  it("one bad endMs floors at the word's own start instead of blanking it", () => {
+    expect(activeHeldCaption([w("bye", 9000, 0)], 9100)?.text).toBe("bye")
+  })
+  it("skips blank captions and sorts unsorted input without mutating it", () => {
+    const input = [w("b", 400, 600), w("  ", 500, 510), w("a", 0, 200)]
+    expect(activeHeldCaption(input, 100)?.text).toBe("a")
+    expect(activeHeldCaption(input, 450)?.text).toBe("b")
+    expect(input.map((c) => c.text)).toEqual(["b", "  ", "a"])
+  })
+})
+
+// The cap counts WHITESPACE-SEPARATED WORDS, not Caption entries. Counting
+// entries made the lever a silent no-op on every phrase-level source — a
+// caller's multi-word captions[] block, a `subtitle` segment built from `text`,
+// and the phrase chunks an engine without word timings returns — while the
+// request was still accepted, carried into the plan and charged for.
+describe("groupCaptionLines — the word cap counts WORDS on phrase-level input", () => {
+  const PHRASES: Caption[] = [
+    w("Hello there my good friend", 0, 2000),
+    w(" how are you doing today", 2100, 4000),
+    w(" fine thanks.", 4100, 5000),
+  ]
+
+  it("no line holds more than the cap, even when every ENTRY is a whole phrase", () => {
+    // Entry-counting returned lines of 5 and 8 words here at maxWords 2.
+    for (const maxWords of [1, 2, 3, 4]) {
+      for (const line of groupCaptionLines(PHRASES, 40, { maxWords })) {
+        expect(wordsOn(line.words), `${maxWords}: ${texts(line.words).join(" | ")}`).toBeLessThanOrEqual(maxWords)
+      }
+    }
+  })
+
+  it("splits an oversize entry into sub-phrases timed in proportion to their characters", () => {
+    // "Hello there" (11 chars) / "my good" (7) / "friend" (6) of 24 → the 2000 ms
+    // span divides 917 / 583 / 500.
+    const lines = groupCaptionLines([w("Hello there my good friend", 0, 2000)], 1000, { maxWords: 2 })
+    expect(lines.map((l) => [texts(l.words).join(" "), l.startMs, l.endMs])).toEqual([
+      ["Hello there", 0, 917],
+      ["my good", 917, 1500],
+      ["friend", 1500, 2000],
+    ])
+  })
+
+  it("the sub-phrases tile the entry's span: contiguous, integer ms, its own first start and last end", () => {
+    const parts = groupCaptionLines([w("one two three four five six seven", 1000, 4321)], 1000, { maxWords: 2 })
+      .flatMap((l) => l.words)
+    expect(parts[0]!.startMs).toBe(1000)
+    expect(parts[parts.length - 1]!.endMs).toBe(4321)
+    for (const part of parts) {
+      expect(Number.isInteger(part.startMs)).toBe(true)
+      expect(Number.isInteger(part.endMs)).toBe(true)
+    }
+    for (let i = 1; i < parts.length; i++) expect(parts[i]!.startMs).toBe(parts[i - 1]!.endMs)
+  })
+
+  it("keeps the @remotion/captions delimiter: the first sub-phrase as the entry had it, the rest with a leading space", () => {
+    const bare = groupCaptionLines([w("a b c d", 0, 400)], 1000, { maxWords: 2 }).flatMap((l) => l.words)
+    expect(bare.map((c) => c.text)).toEqual(["a b", " c d"])
+    const delimited = groupCaptionLines([w(" a b c d", 0, 400)], 1000, { maxWords: 2 }).flatMap((l) => l.words)
+    expect(delimited.map((c) => c.text)).toEqual([" a b", " c d"])
+  })
+
+  it("a zero-length or inverted entry keeps its own window on every sub-phrase (no invented timings)", () => {
+    const zero = groupCaptionLines([w("a b c d", 500, 500)], 1000, { maxWords: 2 }).flatMap((l) => l.words)
+    expect(zero.map((c) => [c.text, c.startMs, c.endMs])).toEqual([["a b", 500, 500], [" c d", 500, 500]])
+    const inverted = groupCaptionLines([w("a b c d", 500, 100)], 1000, { maxWords: 2 }).flatMap((l) => l.words)
+    expect(inverted.map((c) => [c.startMs, c.endMs])).toEqual([[500, 500], [500, 100]])
+  })
+
+  it("an entry with a forced \\n and NO cap stays ONE untouched entry, up for its whole window", () => {
+    // The static text block: `text` on a `subtitle` is burned as one block for the
+    // whole video with "\n" as a forced break, and the worker deliberately does
+    // not pass a word cap into the plan for it.
+    const block = [w("line one\nline two", 0, 30000)]
+    const lines = groupCaptionLines(block, 40)
+    expect(lines).toHaveLength(1)
+    expect(lines[0]!.words).toEqual([block[0]])
+    expect(lines[0]!.words[0]).toBe(block[0])
+    for (const ms of [0, 15000, 30000]) {
+      expect(activeCaptionLine(lines, ms)?.line.words[0]!.text).toBe("line one\nline two")
+    }
+  })
+})
+
+describe("splitCaptionRuns — the word cap counts WORDS there too (the tiktok pages)", () => {
+  const PHRASES: Caption[] = [w("Hello there my good friend", 0, 2000), w(" how are you doing today", 2100, 4000)]
+
+  it("no run holds more than the cap on phrase-level input", () => {
+    for (const maxWords of [1, 2, 3, 4]) {
+      for (const run of splitCaptionRuns(PHRASES, { maxWords })) {
+        expect(wordsOn(run), `${maxWords}: ${texts(run).join(" | ")}`).toBeLessThanOrEqual(maxWords)
+      }
+    }
+  })
+
+  it("splits an oversize entry exactly as groupCaptionLines does", () => {
+    const runs = splitCaptionRuns([w("Hello there my good friend", 0, 2000)], { maxWords: 2 })
+    expect(runs.map((r) => r.map((c) => [c.text, c.startMs, c.endMs]))).toEqual([
+      [["Hello there", 0, 917]],
+      [[" my good", 917, 1500]],
+      [[" friend", 1500, 2000]],
+    ])
+  })
+})
+
+// The lever used to count Caption entries. On PER-WORD input (one word per entry)
+// the two rules must agree exactly — these literals were captured from the
+// entry-counting implementation, so they are a real before/after pin.
+describe("the word cap leaves per-word input byte-identical to the entry-counting rule", () => {
+  // The real 25 s clip's first words (the fixture the no-blank-frame test uses).
+  const CLIP: Caption[] = [
+    w("Same", 0, 340), w("face,", 340, 620), w("every", 840, 1080), w("shot.", 1080, 1400),
+    w("No", 1780, 1880), w("re-prompting.", 1880, 2500), w("Ok", 3080, 3280),
+    w("so", 3400, 3460), w("I", 3460, 3660),
+  ]
+  // The default outline look at 64px on a 1080-wide frame.
+  const budget = captionLineCharBudget({
+    frameWidth: 1080, fontSize: 64, fontFamily: "Montserrat", fontWeight: 900, uppercase: true,
+  })
+  const CAPS: [string, number | undefined][] = [["none", undefined], ["1", 1], ["2", 2], ["3", 3]]
+  const LINES_BEFORE: Record<string, [number, number, string[]][]> = {
+    none: [[0, 620, ["Same", "face,"]], [840, 1400, ["every", "shot."]], [1780, 2500, ["No", "re-prompting."]], [3080, 3660, ["Ok", "so", "I"]]],
+    1: [[0, 340, ["Same"]], [340, 620, ["face,"]], [840, 1080, ["every"]], [1080, 1400, ["shot."]], [1780, 1880, ["No"]], [1880, 2500, ["re-prompting."]], [3080, 3280, ["Ok"]], [3400, 3460, ["so"]], [3460, 3660, ["I"]]],
+    2: [[0, 620, ["Same", "face,"]], [840, 1400, ["every", "shot."]], [1780, 2500, ["No", "re-prompting."]], [3080, 3280, ["Ok"]], [3400, 3660, ["so", "I"]]],
+    3: [[0, 620, ["Same", "face,"]], [840, 1400, ["every", "shot."]], [1780, 2500, ["No", "re-prompting."]], [3080, 3660, ["Ok", "so", "I"]]],
+  }
+  const RUNS_BEFORE: Record<string, string[][]> = {
+    none: [["Same", "face,", "every", "shot."], ["No", "re-prompting."], ["Ok", "so", "I"]],
+    1: [["Same"], ["face,"], ["every"], ["shot."], ["No"], ["re-prompting."], ["Ok"], ["so"], ["I"]],
+    2: [["Same", "face,"], ["every", "shot."], ["No", "re-prompting."], ["Ok", "so"], ["I"]],
+    3: [["Same", "face,", "every"], ["shot."], ["No", "re-prompting."], ["Ok", "so", "I"]],
+  }
+
+  it.each(CAPS)("groupCaptionLines is unchanged at cap %s", (key, maxWords) => {
+    const lines = groupCaptionLines(CLIP, budget, { maxWords })
+    expect(lines.map((l) => [l.startMs, l.endMs, texts(l.words)])).toEqual(LINES_BEFORE[key])
+  })
+
+  it.each(CAPS)("splitCaptionRuns is unchanged at cap %s", (key, maxWords) => {
+    expect(splitCaptionRuns(CLIP, { maxWords }).map(texts)).toEqual(RUNS_BEFORE[key])
+  })
+
+  it("hands back the caller's own Caption objects — a word entry is never reshaped", () => {
+    expect(groupCaptionLines(CLIP, budget, { maxWords: 2 })[0]!.words[0]).toBe(CLIP[0])
+    expect(splitCaptionRuns(CLIP, { maxWords: 2 })[0]![0]).toBe(CLIP[0])
+  })
+})
+
+// A malformed or zero-length word timing must DEGRADE, never take the render
+// down: a caption render has no error boundary, so one throw fails the job.
+describe("captionWindowSweeps / captionEnterFrame — the animation-input guards", () => {
+  const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const
+
+  it("a strictly increasing finite window sweeps", () => {
+    expect(captionWindowSweeps({ startMs: 100, endMs: 200 })).toBe(true)
+  })
+
+  it("a zero-length, inverted or non-finite window does not", () => {
+    expect(captionWindowSweeps({ startMs: 100, endMs: 100 })).toBe(false)
+    expect(captionWindowSweeps({ startMs: 9500, endMs: 0 })).toBe(false)
+    expect(captionWindowSweeps({ startMs: Number.NaN, endMs: 100 })).toBe(false)
+    expect(captionWindowSweeps({ startMs: 0, endMs: Number.POSITIVE_INFINITY })).toBe(false)
+  })
+
+  it("those are exactly the ranges Remotion's interpolate throws on", () => {
+    expect(() => interpolate(5, [10, 20], [0, 1], clamp)).not.toThrow()
+    expect(() => interpolate(5, [10, 10], [0, 1], clamp)).toThrow(/strictly monotonically increasing/)
+    expect(() => interpolate(5, [10, 0], [0, 1], clamp)).toThrow(/strictly monotonically increasing/)
+    expect(() => interpolate(5, [Number.NaN, 10], [0, 1], clamp)).toThrow(/finite/)
+  })
+
+  it("captionEnterFrame turns a start into a frame offset, and an unusable one into null", () => {
+    expect(captionEnterFrame(1000, 60, 30)).toBe(30)
+    expect(captionEnterFrame(0, 0, 30)).toBe(0)
+    expect(captionEnterFrame(Number.NaN, 60, 30)).toBeNull()
+    expect(captionEnterFrame(Number.POSITIVE_INFINITY, 60, 30)).toBeNull()
+  })
+
+  it("spring throws on exactly the frame captionEnterFrame refuses", () => {
+    expect(() => spring({ frame: 30, fps: 30 })).not.toThrow()
+    expect(() => spring({ frame: Number.NaN, fps: 30 })).toThrow(/finite/)
   })
 })

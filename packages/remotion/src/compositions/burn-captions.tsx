@@ -38,6 +38,7 @@ const SegmentOverlay: React.FC<{ segment: BurnCaptionsSegment }> = ({ segment })
       uppercase={segment.uppercase}
       positionY={segment.positionY}
       animate={segment.animate}
+      maxWordsPerLine={segment.maxWordsPerLine}
     />
   )
 }
@@ -73,6 +74,7 @@ export const BurnCaptions: React.FC<BurnCaptionsInputProps> = ({ plan }) => {
           uppercase={plan.uppercase}
           positionY={plan.positionY}
           animate={plan.animate}
+          maxWordsPerLine={plan.maxWordsPerLine}
         />
       )}
     </AbsoluteFill>

@@ -634,7 +634,71 @@ describe("POST /v1/credits/estimate-workflow", () => {
     expect(res.statusCode).toBe(200)
     const body = res.json()
     expect(body.data).toEqual({ totalCredits: 14, nodeCount: 3, payer: "user" })
-    expect(mockEstimateWorkflowCredits).toHaveBeenCalledWith(nodes)
+    // Edges are OPTIONAL: an older caller sends nodes alone and the estimator
+    // is handed `undefined`, which is its "assume the pricier lane" signal.
+    expect(mockEstimateWorkflowCredits).toHaveBeenCalledWith(nodes, undefined)
+  })
+
+  // ── the edge-aware half ────────────────────────────────────────────────
+  // Some prices are a GRAPH fact (a transcript wired into add-captions renders
+  // through the pricier lane), so the body carries optional node `id`s and
+  // `edges`. Both are additive: a body without them must answer exactly as it
+  // did before, and a body with them must deliver them to the estimator
+  // unchanged — a quote computed from a graph the caller did not send is the
+  // under-quote this plumbing exists to prevent.
+
+  it("forwards node ids and edges to the estimator when the caller sends them", async () => {
+    mockEstimateWorkflowCredits.mockReturnValue(50)
+
+    const nodes = [
+      { id: "tr1", type: "transcribe", data: { provider: "elevenlabs-stt" } },
+      { id: "ac1", type: "add-captions", data: { style: "subtitle", text: "Hello" } },
+    ]
+    const edges = [{ source: "tr1", target: "ac1", targetHandle: "transcript" }]
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/credits/estimate-workflow",
+      payload: { nodes, edges },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual({ totalCredits: 50, nodeCount: 2, payer: "user" })
+    expect(mockEstimateWorkflowCredits).toHaveBeenCalledWith(nodes, edges)
+  })
+
+  it("keeps only the three edge fields a price can depend on", async () => {
+    // The schema is a `z.object`, so an edge's `id` / `sourceHandle` are
+    // stripped before the estimator sees them. Pinned so nobody later reads a
+    // field here that never arrives.
+    mockEstimateWorkflowCredits.mockReturnValue(30)
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/credits/estimate-workflow",
+      payload: {
+        nodes: [{ id: "ac1", type: "add-captions" }],
+        edges: [{ id: "e1", source: "tr1", sourceHandle: "json", target: "ac1", targetHandle: "transcript" }],
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(mockEstimateWorkflowCredits).toHaveBeenCalledWith(
+      [{ id: "ac1", type: "add-captions" }],
+      [{ source: "tr1", target: "ac1", targetHandle: "transcript" }],
+    )
+  })
+
+  it("rejects a malformed edge instead of quoting from half a graph", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/credits/estimate-workflow",
+      payload: { nodes: [{ type: "add-captions" }], edges: [{ source: "tr1" }] },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe("validation_error")
+    expect(mockEstimateWorkflowCredits).not.toHaveBeenCalled()
   })
 })
 

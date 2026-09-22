@@ -23,12 +23,12 @@ saving a new value over the old one).
 
 A credential is **plain** or **locked**:
 
-- **Plain** — no address. Works on runs you start yourself from the editor —
-  and only there: a plain credential is refused on a published app, a shared
-  workflow, a collaborator's run, a run started with an API token, a webhook
-  trigger and a schedule, because the runner (or nobody) could otherwise aim
-  it. If the workflow runs on its own, lock the credential. The node fails
-  with a clear message instead of sending.
+- **Plain** — no address. Works on runs you start yourself: a run from the
+  editor, and a schedule you set up in the editor. It is refused on a
+  published app, a shared workflow, a collaborator's run, a run started with
+  an API token, a webhook trigger and a schedule created through the API,
+  because the runner (or nobody) could otherwise aim it. The node fails with
+  a clear message instead of sending.
 - **Locked** — tied to an address. Publishing an app or sharing a workflow for
   run requires every credential it sends with — sub-workflows included — to be
   locked first, to an address the node actually sends to; the publish / share

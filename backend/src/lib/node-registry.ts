@@ -1,4 +1,4 @@
-import { IMAGE_GEN_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_GEN_PROVIDERS, LIP_SYNC_PROVIDERS, VOICE_CHANGER_MODEL_IDS, GVP_SUPPORTED_PROVIDERS, SEEDANCE_2_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, MUSIC_PROVIDERS, hasContiguousSegmentDurations, isMinimaxH3Provider, MODEL_CATALOG, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, OVERLAY_PLATFORM_IDS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
+import { IMAGE_GEN_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_GEN_PROVIDERS, LIP_SYNC_PROVIDERS, VOICE_CHANGER_MODEL_IDS, GVP_SUPPORTED_PROVIDERS, SEEDANCE_2_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, MUSIC_PROVIDERS, TRANSCRIBE_PROVIDERS, hasContiguousSegmentDurations, isMinimaxH3Provider, MODEL_CATALOG, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, OVERLAY_PLATFORM_IDS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
 import type { OutputType } from "@nodaro/shared"
 import { nodeSupportsPromptAffixes } from "@nodaro/prompts"
 import { STATIC_CREDIT_COSTS } from "../ee/billing/credits.js"
@@ -15,6 +15,19 @@ const scene3DMaxCost = Math.max(...scene3DAuthoringCosts)
  *  reprice cannot leave the discovery API quoting a number nobody charges. */
 const renderVideoBaseCost = STATIC_CREDIT_COSTS["render-video"]
 const renderVideoMaxCost = STATIC_CREDIT_COSTS["render-video:3d-xlarge"]
+
+/** Add Captions prices by RENDERER, not by node: the cheap FFmpeg drawtext burn
+ *  vs the Remotion render anything styled / timed / transcribed / segmented
+ *  needs. Both ends read from the price table, same reason as Render Video. */
+const addCaptionsFfmpegCost = STATIC_CREDIT_COSTS["add-captions"]
+const addCaptionsRenderCost = STATIC_CREDIT_COSTS["add-captions:kinetic"]
+
+/** Transcribe reserves on the ENGINE id (the guard and the reservation both
+ *  resolve `provider ?? default`), so the advertised band is the one the three
+ *  engines span — not the node-type fallback key. */
+const transcribeEngineCosts = TRANSCRIBE_PROVIDERS.map((p) => STATIC_CREDIT_COSTS[p])
+const transcribeMinCost = Math.min(...transcribeEngineCosts)
+const transcribeMaxCost = Math.max(...transcribeEngineCosts)
 
 export type NodeCategory =
   | "input"
@@ -766,8 +779,10 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     // `{Label}` refs resolve the plain transcript). A second `json` handle emits
     // the normalized Transcript (word/segment timings); the descriptor carries a
     // single primary type, same as video-analysis (json+text) declaring "data".
-    description: "Convert spoken audio to text (plain transcript on `text`, a normalized Transcript with word/segment timings on `json`), with optional speaker diarization and audio event tagging.",
+    description: "Convert spoken audio to text (plain transcript on `text`, a normalized Transcript with word/segment timings on `json`), with optional speaker diarization and audio event tagging. Three engines: `elevenlabs-stt` (Scribe — always word-level, the only lane that diarizes or tags audio events), `incredibly-fast-whisper` (word timings on request) and `whisper` (no word timings at all).",
     outputType: "text",
+    creditCost: `${transcribeMinCost}-${transcribeMaxCost}`,
+    providers: [...TRANSCRIBE_PROVIDERS],
   },
   {
     type: "qa-check",
@@ -1121,7 +1136,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
   { type: "trim-video", label: "Trim Video", category: "processing", description: "Trim a video by start/end seconds.", outputType: "video" },
   { type: "resize-video", label: "Resize Video", category: "processing", description: "Resize a video.", outputType: "video" },
   { type: "extract-frame", label: "Extract Frame", category: "processing", description: "Extract a single frame as an image.", outputType: "image" },
-  { type: "add-captions", label: "Add Captions", category: "processing", description: "Burn captions into a video. Static (subtitle) is FFmpeg/free; kinetic styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy) render via Remotion at 5 credits.", outputType: "video", creditCost: "0-5" },
+  { type: "add-captions", label: "Add Captions", category: "processing", description: "Burn captions into a video. A plain static subtitle is a cheap FFmpeg drawtext burn; a kinetic style (word-highlight, karaoke, tiktok-words, word-pop, bouncy) — or a subtitle that is styled, per-segment, or timed from a transcript / auto-transcription — renders via Remotion and bills at the higher end of the range.", outputType: "video", creditCost: `${addCaptionsFfmpegCost}-${addCaptionsRenderCost}` },
   { type: "speed-ramp", label: "Adjust Speed", category: "processing", description: "Change playback speed (0.05x to 100x), reverse, choose audio treatment (pitch-preserve / pitch-shift / drop), opt into motion-compensated frame interpolation (smooth slow-mo), or define a piecewise speed ramp via segments. FFmpeg only.", outputType: "video", creditCost: "2-5" },
   { type: "split-media", label: "Split into Chunks", category: "processing", description: "Split a video or audio file into equal-duration chunks for batch processing — emits a video clip and an audio file per chunk. (creditCost auto-filled from STATIC_CREDIT_COSTS = 2)", outputType: "video" },
   // ---- Additional processing nodes (video → VIDEO_OUTPUT_NODE_TYPES, audio → AUDIO_OUTPUT_NODE_TYPES in input-resolver.ts; creditCost auto-filled from STATIC_CREDIT_COSTS) ----

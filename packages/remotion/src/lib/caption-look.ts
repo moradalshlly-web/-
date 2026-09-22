@@ -25,6 +25,13 @@ export interface CaptionLook {
   readonly uppercase?: boolean
   /** 0-100, % of composition height — a free vertical position. */
   readonly positionY?: number
+  /** Hard cap on WORDS per caption LINE (or tiktok page), on top of the width
+   *  budget / sentence end / pause rules. Words are whitespace-separated, so a
+   *  phrase-level caption entry counts for all of its words and one holding more
+   *  than the cap is split into sub-phrases (see `splitToWordCap` in
+   *  `caption-lines`). Unset = width and phrasing alone. Inert on `word-pop`,
+   *  which is one word wide by construction. */
+  readonly maxWordsPerLine?: number
   /** Per-word MOTION switch (default true). false freezes the geometric
    *  animation — word-highlight's active-word size hop, karaoke's sweep, the
    *  tiktok/word-pop/bouncy springs — while keeping line grouping, holding and

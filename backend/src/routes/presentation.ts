@@ -19,7 +19,7 @@ import { personalPayer, shouldRefuseDegradedRun } from "../lib/billing-context.j
 import { billingPairColumns } from "../lib/insert-job.js"
 import type { WorkflowExecutionJob } from "../services/workflow-engine/types.js"
 import { ACTIVE_EXECUTION_STATUSES } from "../lib/request-helpers.js"
-import { estimateWorkflowCredits } from "../ee/billing/credits.js"
+import { estimateWorkflowCredits, type EstimateNode, type EstimateEdge } from "../ee/billing/credits.js"
 
 const workflowIdParams = z.object({
   id: z.string().uuid(),
@@ -203,8 +203,9 @@ export async function presentationRoutes(app: FastifyInstance) {
     const isOwner = !!req.userId && workflow.user_id === req.userId
 
     // Estimate credit cost from executable nodes
-    const wfNodes = (workflow.nodes ?? []) as Array<{ type: string; data?: Record<string, unknown> }>
-    const estimatedCost = estimateWorkflowCredits(wfNodes)
+    const wfNodes = (workflow.nodes ?? []) as EstimateNode[]
+    const wfEstimateEdges = (workflow.edges ?? []) as EstimateEdge[]
+    const estimatedCost = estimateWorkflowCredits(wfNodes, wfEstimateEdges)
 
     // Extract presentation settings from workflow settings
     const settings = (workflow.settings ?? {}) as Record<string, unknown>

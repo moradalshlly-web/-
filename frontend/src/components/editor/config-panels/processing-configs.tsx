@@ -8,6 +8,7 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import {
   Select,
@@ -19,7 +20,7 @@ import {
 import { AspectRatioSelector } from "./aspect-ratio-selector"
 import { COMPOSITION_RATIOS, COLLAGE_ASPECT_RATIOS } from "./model-options"
 import { CombineTransitionPicker } from "@/lib/picker-ui"
-import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT, CAPTION_LOOK_IDS, DEFAULT_CAPTION_LOOK, SUPPORTED_FONT_NAMES, type CaptionLookId, type CaptionLookLevers, type SupportedFontName } from "@nodaro/shared"
+import { AUDIO_CROSSFADE_CURVES, DEFAULT_AUDIO_CROSSFADE_CURVE_ID, clampSmartCutWindow, SMART_CUT_WINDOW_MIN, SMART_CUT_WINDOW_MAX, SMART_CUT_WINDOW_DEFAULT, CAPTION_LOOK_IDS, DEFAULT_CAPTION_LOOK, CAPTION_MAX_WORDS_PER_LINE_MIN, CAPTION_MAX_WORDS_PER_LINE_MAX, CAPTION_LEVER_BOUNDS, SUPPORTED_FONT_NAMES, type CaptionLookId, type CaptionLookLevers, type SupportedFontName } from "@nodaro/shared"
 import { resolveCaptionPanelLevers } from "../caption-panel-levers"
 import { isCloud } from "@/lib/edition"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
@@ -356,6 +357,61 @@ function explicitFromData(data: AddCaptionsData): CaptionLookLevers {
 }
 
 const FONT_FAMILY_AUTO = "__auto"
+// Sentinel for "no explicit weight" — the look's own weight wins. Written as
+// `undefined` into node data (never the sentinel), like FONT_FAMILY_AUTO.
+const FONT_WEIGHT_AUTO = "__auto"
+/** Every weight the wire accepts, DERIVED from the shared bounds the route Zod
+ *  and the render plan enforce (100–900 in 100s — `normalizeCaptionNumericLevers`
+ *  snaps to the nearest 100). Offering only 400+ left an authored `fontWeight:
+ *  300` showing an EMPTY trigger — a lever that renders and the panel cannot
+ *  name — and made the doc's "100–900, in 100s" false. Each weight needs a
+ *  `proccfg.fontWeight<N>` label (guard test: caption-font-weights.test.ts). */
+export const CAPTION_FONT_WEIGHTS: ReadonlyArray<number> = Array.from(
+  { length: (CAPTION_LEVER_BOUNDS.fontWeight.max - CAPTION_LEVER_BOUNDS.fontWeight.min) / 100 + 1 },
+  (_, i) => CAPTION_LEVER_BOUNDS.fontWeight.min + i * 100,
+)
+// Where the slider handle SITS while `positionY` is unset, per named slot —
+// display only, so the first drag starts from roughly where the caption already
+// is instead of jumping to 0%. The render keeps using the real anchors
+// (CAPTION_EDGE_INSET: 12% from the top, 18% from the bottom).
+const POSITION_Y_HANDLE_AT: Record<AddCaptionsData["position"], number> = {
+  top: 12,
+  center: 50,
+  bottom: 82,
+}
+
+/**
+ * A caption number field's value on write: `undefined` when cleared (Auto),
+ * never NaN, and clamped to the lever's own bounds. The `min`/`max` attributes
+ * are advisory — a browser happily accepts a typed 99 — and the route's Zod is
+ * not, so coercing here is what keeps the panel from authoring a value that
+ * only fails mid-run, after credits reserve.
+ */
+export function captionIntField(raw: string, min: number, max: number): number | undefined {
+  if (raw === "") return undefined
+  const n = parseInt(raw, 10)
+  if (Number.isNaN(n)) return undefined
+  return Math.min(max, Math.max(min, n))
+}
+
+/**
+ * Font size WHILE TYPING: the upper bound clamped, the lower one left alone.
+ *
+ * The full clamp belongs on commit, not on every keystroke: with a minimum of 12
+ * the first digit of "24" snaps to 12 and the field reads "124". So the ceiling
+ * (the only bound a single keystroke can cross upward) is enforced live and the
+ * floor on blur, via `captionIntField` — the panel still never COMMITS a value
+ * the route's Zod would 400 on.
+ */
+export function captionFontSizeDraft(raw: string): number | undefined {
+  if (raw === "") return undefined
+  const n = parseInt(raw, 10)
+  if (Number.isNaN(n)) return undefined
+  return Math.min(CAPTION_LEVER_BOUNDS.fontSize.max, n)
+}
+
+/** Outline width in px. 0 is a real value ("no outline"); unset follows the look. */
+export const CAPTION_STROKE_WIDTH_MAX = 40
 // Sentinel for "no look" on a subtitle. A bare subtitle (look === undefined)
 // renders PLAIN, not the outline preset — so unlike a kinetic style it needs an
 // explicit, re-selectable "none" entry (re-picking the value already shown fires
@@ -390,6 +446,17 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
   // its explicit levers only, never the outline preset — so an untouched
   // subtitle's controls match its plain render.
   const resolved = resolveCaptionPanelLevers(data.style, data.look, explicitFromData(data), data.fontSize ?? KINETIC_STYLE_FONT_DEFAULT)
+  // The look's OWN casing, with no explicit lever — what the Uppercase switch
+  // would show if it had never been touched. `resolved` cannot answer this: it
+  // already folds `data.uppercase` in, so comparing the switch against it
+  // compares the switch to itself. Used to write `undefined` (unset) instead of
+  // a lever that changes nothing: a persisted `uppercase: false` on a plain
+  // subtitle routes it to the pricier Remotion renderer for no visible change.
+  const lookUppercase =
+    resolveCaptionPanelLevers(data.style, data.look, {}, data.fontSize ?? KINETIC_STYLE_FONT_DEFAULT).uppercase ?? false
+  // A free vertical position wins over the named Position slot at render, so the
+  // slot is shown muted while one is set (see the Position select below).
+  const positionYSet = data.positionY !== undefined
 
   return (
     <div className="flex flex-col gap-3">
@@ -448,25 +515,77 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
           uppercase={data.uppercase}
           positionY={data.positionY}
           animate={data.animate}
+          maxWordsPerLine={data.maxWordsPerLine}
         />
       </Suspense>
 
       <div>
         <Label>{t("proccfg.position")}</Label>
         <Select value={data.position} onValueChange={(v) => onUpdate({ position: v as AddCaptionsData["position"] })}>
-          <SelectTrigger aria-label={t("proccfg.position")}><SelectValue /></SelectTrigger>
+          {/* Muted, not disabled, while a free vertical position is set: the slot
+              is still editable (it is what Auto falls back to), it just isn't
+              what the render anchors on. */}
+          <SelectTrigger aria-label={t("proccfg.position")} className={positionYSet ? "opacity-50" : undefined}><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="bottom">{t("proccfg.bottom")}</SelectItem>
             <SelectItem value="top">{t("proccfg.top")}</SelectItem>
             <SelectItem value="center">{t("proccfg.center")}</SelectItem>
           </SelectContent>
         </Select>
+        {positionYSet && (
+          <p className="mt-1 text-xs text-muted-foreground">{t("proccfg.positionOverridden")}</p>
+        )}
       </div>
+      {takesStylingLevers && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label>{t("proccfg.verticalPosition")}</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {positionYSet
+                  ? t("proccfg.positionYValue", { n: String(data.positionY) })
+                  : t("proccfg.leverAuto")}
+              </span>
+              {positionYSet && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => onUpdate({ positionY: undefined })}
+                >
+                  {t("proccfg.leverAuto")}
+                </Button>
+              )}
+            </div>
+          </div>
+          <Slider
+            aria-label={t("proccfg.verticalPosition")}
+            value={[data.positionY ?? POSITION_Y_HANDLE_AT[data.position] ?? 50]}
+            min={0}
+            max={100}
+            step={1}
+            onValueChange={([v]) => onUpdate({ positionY: v })}
+            className="w-full"
+          />
+        </div>
+      )}
       <div>
         <Label htmlFor="font-size">{t("proccfg.fontSize")}</Label>
-        <Input id="font-size" type="number" min={8} max={200}
+        {/* Bounds from the shared lever table — the same 12–200 the route's Zod
+            and the render plan enforce. `min={8}` plus a raw parseInt let the
+            panel author a 10 that only failed at generate-time (the orchestrator
+            silently coerces the same node to 12 — two engines, one node, two
+            answers). Ceiling on every keystroke, floor on commit: see
+            captionFontSizeDraft. */}
+        <Input id="font-size" type="number"
+          min={CAPTION_LEVER_BOUNDS.fontSize.min}
+          max={CAPTION_LEVER_BOUNDS.fontSize.max}
           value={data.fontSize ?? ""}
-          onChange={(e) => onUpdate({ fontSize: e.target.value === "" ? undefined : parseInt(e.target.value, 10) })}
+          onChange={(e) => onUpdate({ fontSize: captionFontSizeDraft(e.target.value) })}
+          onBlur={(e) => {
+            const settled = captionIntField(e.target.value, CAPTION_LEVER_BOUNDS.fontSize.min, CAPTION_LEVER_BOUNDS.fontSize.max)
+            if (settled !== data.fontSize) onUpdate({ fontSize: settled })
+          }}
         />
       </div>
       <div>
@@ -490,20 +609,88 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <Label>{t("proccfg.fontWeight")}</Label>
+            <Select
+              // Auto ≡ the look's own weight — NOT seeded from `resolved`, so an
+              // untouched node keeps following whichever look it carries.
+              value={data.fontWeight === undefined ? FONT_WEIGHT_AUTO : String(data.fontWeight)}
+              onValueChange={(v) => onUpdate({ fontWeight: v === FONT_WEIGHT_AUTO ? undefined : parseInt(v, 10) })}
+            >
+              <SelectTrigger aria-label={t("proccfg.fontWeight")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FONT_WEIGHT_AUTO}>{t("proccfg.fontWeightAuto")}</SelectItem>
+                {CAPTION_FONT_WEIGHTS.map((w) => (
+                  <SelectItem key={w} value={String(w)}>{t(`proccfg.fontWeight${w}` as MessageKey)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Line grouping — inert on word-pop, which always shows one word. */}
+          {data.style !== "word-pop" && (
+            <div>
+              <Label htmlFor="caption-max-words">{t("proccfg.maxWordsPerLine")}</Label>
+              <Input
+                id="caption-max-words"
+                type="number"
+                min={CAPTION_MAX_WORDS_PER_LINE_MIN}
+                max={CAPTION_MAX_WORDS_PER_LINE_MAX}
+                placeholder={t("proccfg.leverAuto")}
+                value={data.maxWordsPerLine ?? ""}
+                onChange={(e) => onUpdate({ maxWordsPerLine: captionIntField(e.target.value, CAPTION_MAX_WORDS_PER_LINE_MIN, CAPTION_MAX_WORDS_PER_LINE_MAX) })}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{t("proccfg.maxWordsPerLineHint")}</p>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <Label htmlFor="caption-uppercase">{t("proccfg.uppercase")}</Label>
             <Switch
               id="caption-uppercase"
               checked={resolved.uppercase ?? false}
-              onCheckedChange={(v) => onUpdate({ uppercase: v })}
+              // Back to the look's own casing ⇒ UNSET, not `false`: a no-op
+              // lever still counts as a lever for the renderer (and the price).
+              onCheckedChange={(v) => onUpdate({ uppercase: v === lookUppercase ? undefined : v })}
             />
           </div>
           <div>
-            <Label htmlFor="caption-stroke">{t("proccfg.strokeColor")}</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="caption-stroke">{t("proccfg.strokeColor")}</Label>
+              {/* A colour input cannot express "unset", so once touched the
+                  lever would stay set for good — and on a subtitle whose look
+                  draws no outline it is invisible yet still buys the Remotion
+                  renderer and its price. Auto hands the colour back to the look,
+                  the same affordance the vertical-position slider has. */}
+              {data.strokeColor !== undefined && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  aria-label={t("proccfg.strokeColorAuto")}
+                  onClick={() => onUpdate({ strokeColor: undefined })}
+                >
+                  {t("proccfg.leverAuto")}
+                </Button>
+              )}
+            </div>
             <Input id="caption-stroke" type="color"
               value={resolved.strokeColor ?? "#000000"}
               onChange={(e) => onUpdate({ strokeColor: e.target.value })}
             />
+          </div>
+          <div>
+            <Label htmlFor="caption-stroke-width">{t("proccfg.strokeWidth")}</Label>
+            <Input
+              id="caption-stroke-width"
+              type="number"
+              min={0}
+              max={CAPTION_STROKE_WIDTH_MAX}
+              placeholder={t("proccfg.leverAuto")}
+              // `0` is a real value ("no outline"), so captionIntField reads the
+              // empty string — never a falsy check, which would swallow it.
+              value={data.strokeWidth ?? ""}
+              onChange={(e) => onUpdate({ strokeWidth: captionIntField(e.target.value, 0, CAPTION_STROKE_WIDTH_MAX) })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t("proccfg.strokeWidthHint")}</p>
           </div>
         </>
       )}
@@ -512,7 +699,20 @@ export function AddCaptionsConfig({ data, onUpdate }: ConfigProps<AddCaptionsDat
       {isKinetic && (
         <>
           <div>
-            <Label htmlFor="caption-highlight">{t("proccfg.highlightColor")}</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="caption-highlight">{t("proccfg.highlightColor")}</Label>
+              {data.highlightColor !== undefined && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  aria-label={t("proccfg.highlightColorAuto")}
+                  onClick={() => onUpdate({ highlightColor: undefined })}
+                >
+                  {t("proccfg.leverAuto")}
+                </Button>
+              )}
+            </div>
             <Input id="caption-highlight" type="color"
               value={resolved.highlightColor ?? "#FFE600"}
               onChange={(e) => onUpdate({ highlightColor: e.target.value })}

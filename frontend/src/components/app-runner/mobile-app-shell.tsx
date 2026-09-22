@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button"
 import { useAuth, refreshAuth, setAuthFromTokens } from "@/hooks/use-auth"
 import { useAppRunnerStore } from "@/hooks/use-app-runner-store"
 import { usePresentationStore } from "@/hooks/use-presentation-store"
-import { useUserCredits } from "@/ee/hooks/queries/use-credits-queries"
+import { useUserCredits, getCachedCredits, prefetchModelCredits } from "@/ee/hooks/queries/use-credits-queries"
+import { useLiveRunEstimate } from "@/hooks/use-live-run-estimate"
 import { hasCredits } from "@/lib/edition"
 import { formatCreditUnits } from "@/lib/credit-units"
 import { spendableCredits } from "@/lib/spendable-credits"
@@ -45,7 +46,7 @@ import { ConfigFieldRenderer } from "@/components/presentation/config-field-rend
 import { RichtextBlock } from "@/components/presentation/richtext-block"
 import { GroupCard } from "@/components/presentation/group-card"
 import { getCardTitle as getCardTitleHelper, orderNodesByIds, getNodeResultWithInputFallback, areAllInputsFilled, resolveInputItems, resolveOutputItems, findExposableField } from "@/components/presentation/helpers"
-import type { PresentationItem } from "@nodaro/shared"
+import { calculateMonetizedCost, type PresentationItem } from "@nodaro/shared"
 import { NodeConfigModal, CONFIG_INPUT_TYPES } from "@/components/presentation/node-config-modal"
 import { MediaPreviewModal } from "@/components/editor/media-preview-modal"
 import { GetCreditsModal } from "@/ee/components/credits/GetCreditsModal"
@@ -108,6 +109,9 @@ export function MobileAppShell({
 
   const appRunnerInsufficientCredits = useAppRunnerStore((s) => s.insufficientCredits)
   const appSupportsRemix = useAppRunnerStore((s) => s.app?.supportsRemix ?? false)
+  const monetizationEnabled = useAppRunnerStore((s) => s.app?.monetizationEnabled ?? false)
+  const monetizationFlatFee = useAppRunnerStore((s) => s.app?.monetizationFlatFee ?? 0)
+  const monetizationPercent = useAppRunnerStore((s) => s.app?.monetizationPercent ?? 0)
   const combinedProgress = useAppRunnerStore((s) => s.combinedProgress)
 
   const { data: userCredits } = useUserCredits(user?.id)
@@ -153,7 +157,21 @@ export function MobileAppShell({
   const isRunning = presExecutionStatus === "running"
   const suppressOutputFallback = runSlots.activeSlotId !== null && runSlots.activeSlotId !== ORIGINAL_SLOT_ID
   const inputsReadOnly = runSlots.inputsReadOnlyValue
-  const estimatedCost = presEstimatedCost
+  // The SAME live estimate the desktop runner prices (fan-out, per-minute
+  // renders, the user's own input values) — never only the store's seeded
+  // figure, which is the server's static, edge-less estimate and under-quoted a
+  // per-minute render as one minute. The live figure is BASE credits; the seeded
+  // one is already marked up, so it is used as-is until the first compute.
+  const liveBaseEstimate = useLiveRunEstimate(
+    { nodes: presNodes, edges: presEdges, inputValues: presInputValues, enabled: hasCredits() },
+    { getCachedCredits, prefetchModelCredits },
+  )
+  const estimatedCost = useMemo(() => {
+    if (liveBaseEstimate <= 0) return presEstimatedCost
+    return monetizationEnabled
+      ? calculateMonetizedCost(liveBaseEstimate, monetizationFlatFee ?? 0, monetizationPercent ?? 0)
+      : liveBaseEstimate
+  }, [liveBaseEstimate, presEstimatedCost, monetizationEnabled, monetizationFlatFee, monetizationPercent])
 
   // Track A (D12, ruling R-A) — the gate figure, not `total`: under a
   // deployment payer that field is the runner's FROZEN signup grant. The

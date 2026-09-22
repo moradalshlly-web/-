@@ -1,7 +1,7 @@
 ---
 node_type: text-to-video
-generated_at: 2026-09-15T12:15:54.382Z
-generated_from: 026f94462
+generated_at: 2026-09-21T19:12:09.319Z
+generated_from: 09788c987
 ---
 
 # Text to Video
@@ -9,7 +9,7 @@ generated_from: 026f94462
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `text-to-video`
 **Category:** ai
-**Credit cost:** 25
+**Credit cost:** `10-8550` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `video`
 

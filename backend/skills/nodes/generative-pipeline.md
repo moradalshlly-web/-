@@ -1,7 +1,7 @@
 ---
 node_type: generative-pipeline
-generated_at: 2026-08-15T21:55:10.170Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T19:12:10.729Z
+generated_from: 09788c987
 ---
 
 # Story → Video
@@ -9,7 +9,7 @@ generated_from: 150c80ac9
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `generative-pipeline`
 **Category:** scene
-**Credit cost:** 30
+**Credit cost:** `30` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `story_prompt`
 **Outputs (source handles):** (none)
 

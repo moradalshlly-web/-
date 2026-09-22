@@ -14,7 +14,7 @@ generated_from: cb1e786d
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `ai-writer`
 **Category:** ai
-**Credit cost:** 3
+**Credit cost:** priced by the chosen LLM tier (`ai-writer:economy` / `ai-writer` / `ai-writer:premium`) — the live price is `GET /v1/credits/model-cost?model=<id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `text`
 

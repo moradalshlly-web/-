@@ -640,6 +640,12 @@ export {
 } from "./node-default-mappings.js"
 
 export { NODE_MAPPABLE_FIELDS, SUNO_FIELD_HANDLE_FIELDS, fieldKeyFromHandle } from "./node-mappable-fields.js"
+export {
+  SCHEDULE_TRIGGER_NODE_TYPE,
+  WEBHOOK_TRIGGER_NODE_TYPE,
+  PROJECTED_TRIGGER_NODE_TYPES,
+  isProjectedTriggerNodeType,
+} from "./trigger-node-types.js"
 
 
 export {
@@ -912,11 +918,21 @@ export {
   DEFAULT_SUBTITLE_LOOK,
   KINETIC_ONLY_CAPTION_LEVER_KEYS,
   captionRoutesToRemotion,
+  CAPTION_MAX_WORDS_PER_LINE_MIN,
+  CAPTION_MAX_WORDS_PER_LINE_MAX,
+  CAPTION_LEVER_BOUNDS,
+  normalizeCaptionNumericLevers,
   autoStrokeWidth,
   resolveCaptionLook,
   resolveCaptionLevers,
 } from "./caption-styles.js"
 export type { StaticCaptionStyle, KineticCaptionStyle, CaptionStyle, CaptionLookId, CaptionLookLevers, KineticOnlyCaptionLeverKey } from "./caption-styles.js"
+
+export {
+  transcribeWordTimestampsRefusal,
+  findWordlessTranscriptFeeds,
+} from "./transcribe-preflight.js"
+export type { PreflightGraphNode, PreflightGraphEdge, WordlessTranscriptFeed } from "./transcribe-preflight.js"
 
 // Sound parameter-node dimensions (music + voice pickers + backend hints)
 

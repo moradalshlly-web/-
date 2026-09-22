@@ -35,7 +35,7 @@ Don't know where to start? Find your goal here, then jump to the model in the ta
 | music / song generation | Suno V6, Suno V6 Wild, Suno V6 Mini, Suno v5.5 | V6 is the default flagship; V6 Wild for bolder, less predictable results; V6 Mini when speed matters; v5.5 / v5 / v4 keep their own character. Same price. |
 | voice over / narration | ElevenLabs v3, ElevenLabs Turbo v2.5 | v3 supports [audio tags] for emotion; Turbo is cheaper for plain narration. |
 | lip-sync a portrait to audio | Kling Avatar Pro, Kling Avatar Standard, InfiniTalk | Pro for best mouth shape; InfiniTalk for resolution control. |
-| transcription / captions | ElevenLabs STT | Word-level timestamps available. |
+| transcription / captions | ElevenLabs STT, Incredibly Fast Whisper, Whisper | Captions need WORD timestamps: ElevenLabs STT (always) or Incredibly Fast Whisper. Plain Whisper returns phrase segments only. |
 | motion transfer (drive a subject by another video) | Kling 2.6 Motion Transfer, Kling 3.0 Motion Transfer | Kling 2.6 base is cheap; Kling 3.0 is premium. |
 <!-- AUTO-GEN:END model-recommendations -->
 
@@ -174,7 +174,7 @@ Text-to-speech, voice design/changing, dubbing, sound effects, transcription, an
 | --- | --- | --- | --- | --- | --- |
 | ElevenLabs Sound Effects | ElevenLabs | Everyday | 3 | sfx | Generate short sound effects from a text prompt. |
 | ElevenLabs Turbo v2.5 | ElevenLabs | Premium | 15 | tts | Fast, cheap ElevenLabs TTS via the direct ElevenLabs API. Good for narration. |
-| ElevenLabs STT | ElevenLabs | Premium | 22 | stt | Speech-to-text — transcribe audio with timestamps. |
+| ElevenLabs STT | ElevenLabs | Premium | 22 | stt | Speech-to-text with WORD-level timestamps (always on), speaker diarization and audio-event tags. The engine to use when the transcript feeds captions. |
 | ElevenLabs Dialogue v3 | ElevenLabs | Premium | 25 | dialogue | Multi-speaker dialogue via the direct ElevenLabs API — give it a script, it voices each role (any voice: premade, library, or cloned). |
 | ElevenLabs Forced Alignment | ElevenLabs | Premium | 30 | forced-alignment | Align an existing transcript to audio with word-level timestamps. |
 | ElevenLabs Multilingual v2 | ElevenLabs | Premium | 30 | tts | Multi-language ElevenLabs TTS via the direct ElevenLabs API. |
@@ -187,6 +187,8 @@ Text-to-speech, voice design/changing, dubbing, sound effects, transcription, an
 | Suno V6 Wild | Suno | Premium | 30 | music | Suno V6 Wild — pushes creative boundaries for bolder, more distinctive musical expression; more varied, less predictable results. |
 | ElevenLabs Dubbing | ElevenLabs | Premium | 40 | dubbing | Translate + dub audio or a whole video into a new language — video in, dubbed video out. Async. |
 | ElevenLabs Voice Changer | ElevenLabs | Premium | 40 | voice-changer | Speech-to-speech: convert one voice to another while preserving prosody. |
+| Incredibly Fast Whisper | OpenAI | Premium | 40 | stt | Fast Whisper speech-to-text. Returns WORD-level timestamps when asked, so its transcript can feed captions. |
+| Whisper | OpenAI | Premium | 40 | stt | Whisper speech-to-text — PHRASE-level segments only, NO word timestamps. Fine for a transcript or a static subtitle; not for word-timed (kinetic) captions. |
 | ElevenLabs Voice Design | ElevenLabs | Premium | 50 | voice-design | Design a synthetic voice from a description (no reference clip needed). |
 | ElevenLabs Voice Isolation | ElevenLabs | Premium | 74 | isolation | Strip background noise / music from a vocal track. |
 | ElevenLabs Dubbing v2 | ElevenLabs | Premium | 1100 | dubbing | Translate + dub audio or a whole video into a new language — video in, dubbed video out. Async. |

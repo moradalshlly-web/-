@@ -1,7 +1,7 @@
 ---
 node_type: publish-social
-generated_at: 2026-08-15T21:55:10.032Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T19:12:10.680Z
+generated_from: 09788c987
 ---
 
 # Publish to Social
@@ -9,7 +9,7 @@ generated_from: 150c80ac9
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `publish-social`
 **Category:** output
-**Credit cost:** 1
+**Credit cost:** `10` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** (none)
 

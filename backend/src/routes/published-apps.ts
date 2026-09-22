@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 import { supabase } from "../lib/supabase.js"
-import { estimateWorkflowCredits } from "../ee/billing/credits.js"
+import { estimateWorkflowCredits, type EstimateNode, type EstimateEdge } from "../ee/billing/credits.js"
 import { invalidateAppCache } from "./app-runner.js"
 import { getNodeResult, getOutputType, parseHandleId, calculateMonetizationMarkup, calculateMonetizedCost } from "@nodaro/shared"
 import { sanitizeSlugBase, generateSlug, getCreatorDisplayName } from "../lib/marketplace-helpers.js"
@@ -594,7 +594,7 @@ export async function publishedAppsRoutes(app: FastifyInstance) {
     )
     if (unboundUses.length > 0) return sendCredentialUnbound(reply, unboundUses)
 
-    const baseEstimatedCredits = estimateWorkflowCredits(nodes as Array<{ type: string; data?: Record<string, unknown> }>)
+    const baseEstimatedCredits = estimateWorkflowCredits(nodes as EstimateNode[], edges as EstimateEdge[])
 
     // Inherit monetization from previous version, then user defaults, then zeros
     let inheritedMonetizationEnabled = false

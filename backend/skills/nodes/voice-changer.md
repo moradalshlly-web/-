@@ -1,7 +1,7 @@
 ---
 node_type: voice-changer
-generated_at: 2026-08-15T21:55:07.299Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T19:12:09.551Z
+generated_from: 09788c987
 ---
 
 # Voice Changer
@@ -9,7 +9,7 @@ generated_from: 150c80ac9
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `voice-changer`
 **Category:** ai
-**Credit cost:** 4
+**Credit cost:** `4` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `audio`, `video`
 **Outputs (source handles):** `audio`
 

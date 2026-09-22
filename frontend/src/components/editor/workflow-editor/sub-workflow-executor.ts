@@ -1,7 +1,6 @@
 import { toast } from "sonner"
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
-import { createClient } from "@/lib/supabase"
-import type { WorkflowNode, WorkflowEdge, SubWorkflowData, SubWorkflowInputData, SubWorkflowOutputData } from "@/types/nodes"
+import type { WorkflowNode, WorkflowEdge, SubWorkflowData, SubWorkflowOutputData } from "@/types/nodes"
 import { buildExecutionLevels, extractNodeOutput } from "./execution-graph"
 import { isExecutableNode, type ExecutionContext } from "./types"
 import { executeNode } from "./execute-node"
@@ -9,33 +8,9 @@ import { getListFanOutForNode } from "./node-input-resolver"
 import { executeNodeForList } from "./list-execution"
 import { RUN_START_RESET } from "./poll-job"
 import { planFanOut } from "@nodaro/shared"
-
-const MAX_DEPTH = 5
-
-/**
- * BFS to collect all node IDs reachable from a source in a directed graph.
- * Used to prune the subgraph to only the route's reachable nodes.
- */
-function getReachableNodeIds(sourceId: string, edges: WorkflowEdge[]): Set<string> {
-  const adjacency = new Map<string, string[]>()
-  for (const edge of edges) {
-    const list = adjacency.get(edge.source) ?? []
-    list.push(edge.target)
-    adjacency.set(edge.source, list)
-  }
-  const visited = new Set<string>([sourceId])
-  const queue = [sourceId]
-  while (queue.length > 0) {
-    const current = queue.shift()!
-    for (const neighbor of adjacency.get(current) ?? []) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor)
-        queue.push(neighbor)
-      }
-    }
-  }
-  return visited
-}
+import { SUB_WORKFLOW_MAX_DEPTH as MAX_DEPTH, loadSubWorkflowRouteGraph, subWorkflowRouteKey } from "./sub-workflow-route-graph"
+import { wordTimingsPreflight } from "./add-captions-preflight"
+import { nestedWordTimingsPreflight } from "./sub-workflow-preflight"
 
 /**
  * Execute a sub-workflow node.
@@ -81,7 +56,7 @@ export async function executeSubWorkflow(
 
   // Cycle detection — track workflow+route pairs so the same workflow can be
   // called with a *different* route (self-referencing is allowed).
-  const routeKey = `${data.referencedWorkflowId}:${data.selectedRouteId}`
+  const routeKey = subWorkflowRouteKey(data)
   if (executingRouteKeys.has(routeKey)) {
     toast.error(`Node "${data.label}": Circular reference detected`)
     updateNodeData(node.id, { executionStatus: "failed", errorMessage: "Circular reference detected" })
@@ -99,39 +74,25 @@ export async function executeSubWorkflow(
       subWorkflowProgress: { currentNode: "", completed: 0, total: 0 },
     })
 
-    // 1. Load the referenced workflow
-    const supabase = createClient()
-    const { data: wfData, error } = await supabase
-      .from("workflows")
-      .select("id, nodes, edges")
-      .eq("id", data.referencedWorkflowId)
-      .single()
+    // 1./2. Load the referenced workflow and filter it to the nodes this route
+    //        reaches — the same loader the pre-run word-timings walk uses, so
+    //        what was checked before the run is what runs.
+    const { nodes: subNodes, edges: subEdges, inputNode, outputNode } = await loadSubWorkflowRouteGraph(data)
 
-    if (error || !wfData) {
-      throw new Error("Referenced workflow not found")
+    // 2b. Word-timings refusal for the nested graph, BEFORE anything is added to
+    //     the store or executed: a transcribe node on a lane that returns no
+    //     per-word timings feeding Add Captions bills the transcription and then
+    //     fails the captions node. The run gate cannot see this graph, and the
+    //     nested pass carries this executor's own depth + cycle guards so a
+    //     chain one level further down is refused here too.
+    const childExecutingKeys = new Set(executingRouteKeys)
+    childExecutingKeys.add(routeKey)
+    {
+      const blocked =
+        wordTimingsPreflight(subNodes, subEdges) ??
+        (await nestedWordTimingsPreflight(subNodes, { depth: depth + 1, routeKeys: childExecutingKeys }))
+      if (blocked) throw new Error(blocked)
     }
-
-    const allSubNodes = (wfData.nodes as unknown as WorkflowNode[]) ?? []
-    const allSubEdges = (wfData.edges as unknown as WorkflowEdge[]) ?? []
-
-    // Find the route's input and output nodes
-    const inputNode = allSubNodes.find(
-      (n) => n.type === "sub-workflow-input" && (n.data as SubWorkflowInputData).routeId === data.selectedRouteId,
-    )
-    const outputNode = allSubNodes.find(
-      (n) => n.type === "sub-workflow-output" && (n.data as SubWorkflowOutputData).routeId === data.selectedRouteId,
-    )
-
-    if (!inputNode || !outputNode) {
-      throw new Error("Route input/output nodes not found in referenced workflow")
-    }
-
-    // 2. Filter to only nodes reachable from the route's input node.
-    //    This prevents unrelated sub-workflow nodes (e.g. in self-referencing
-    //    workflows) from being included in the execution graph.
-    const reachableIds = getReachableNodeIds(inputNode.id, allSubEdges)
-    const subNodes = allSubNodes.filter((n) => reachableIds.has(n.id))
-    const subEdges = allSubEdges.filter((e) => reachableIds.has(e.source) && reachableIds.has(e.target))
 
     // 3. Namespace all node IDs and edges
     const namespacedNodes: WorkflowNode[] = subNodes.map((n) => {
@@ -186,10 +147,6 @@ export async function executeSubWorkflow(
     updateNodeData(node.id, {
       subWorkflowProgress: { currentNode: "", completed: 0, total: totalNodes },
     })
-
-    // Track the current workflow+route in the executing set
-    const childExecutingKeys = new Set(executingRouteKeys)
-    childExecutingKeys.add(routeKey)
 
     let completedCount = 0
 

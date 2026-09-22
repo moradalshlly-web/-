@@ -61,6 +61,21 @@ describe("rowDirectionFromCaptions", () => {
   it("empty captions → ltr", () => {
     expect(rowDirectionFromCaptions([])).toBe("ltr")
   })
+  // The language of the PIECE, not its first token: a Hebrew clip that opens
+  // with a brand name is still a Hebrew clip, and every line of it lays out RTL.
+  it("a Hebrew list that opens with a Latin brand → rtl (majority, not first strong)", () => {
+    expect(rowDirectionFromCaptions([{ text: "Nodaro" }, { text: " זה" }, { text: " הכלי" }, { text: " הכי" }, { text: " טוב" }])).toBe("rtl")
+  })
+  it("an English list with one Hebrew word → ltr", () => {
+    expect(rowDirectionFromCaptions([{ text: "Say" }, { text: " שלום" }, { text: " to" }, { text: " everyone" }])).toBe("ltr")
+  })
+  it("a tie falls back to the first strong character", () => {
+    expect(rowDirectionFromCaptions([{ text: "abc" }, { text: " שלם" }])).toBe("ltr")
+    expect(rowDirectionFromCaptions([{ text: "שלם" }, { text: " abc" }])).toBe("rtl")
+  })
+  it("digits and punctuation never vote", () => {
+    expect(rowDirectionFromCaptions([{ text: "2026" }, { text: " —" }, { text: " שלום" }])).toBe("rtl")
+  })
 })
 
 describe("containsArabic", () => {

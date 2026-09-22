@@ -1,7 +1,7 @@
 ---
 node_type: generate-music
-generated_at: 2026-08-29T19:02:38.623Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:09.355Z
+generated_from: 09788c987
 ---
 
 # generate-music
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `generate-music`
 **Category:** ai
-**Credit cost:** 5
+**Credit cost:** `180` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`, `ref-audio`, `audio-style`
 **Outputs (source handles):** `audio`
 

@@ -151,3 +151,57 @@ describe("resolveCaptionLevers — per-style default look (kinetic → outline, 
     expect(out.uppercase).toBe(false)
   })
 })
+
+describe("normalizeCaptionNumericLevers — coerce authored node data into the plan's range", () => {
+  it("clamps out-of-range values and snaps fontWeight / maxWordsPerLine", async () => {
+    const { normalizeCaptionNumericLevers } = await import("../caption-styles.js")
+    expect(normalizeCaptionNumericLevers({ fontSize: 999, strokeWidth: -3, positionY: 140, fontWeight: 850, maxWordsPerLine: 2.6 }))
+      .toEqual({ fontSize: 200, strokeWidth: 0, positionY: 100, fontWeight: 900, maxWordsPerLine: 3 })
+    expect(normalizeCaptionNumericLevers({ fontSize: 1, fontWeight: 40, maxWordsPerLine: 0 }))
+      .toEqual({ fontSize: 12, fontWeight: 100, maxWordsPerLine: 1 })
+  })
+  it("DROPS a non-numeric / non-finite lever instead of passing garbage to the plan", async () => {
+    const { normalizeCaptionNumericLevers } = await import("../caption-styles.js")
+    expect(normalizeCaptionNumericLevers({ fontSize: "big", positionY: Number.NaN, strokeWidth: Infinity, style: "karaoke" }))
+      .toEqual({ style: "karaoke" })
+  })
+  it("accepts a numeric string, leaves in-range values and unrelated fields untouched, and never mutates", async () => {
+    const { normalizeCaptionNumericLevers } = await import("../caption-styles.js")
+    const input = { fontSize: "64", positionY: 83.5, look: "outline", uppercase: true }
+    const out = normalizeCaptionNumericLevers(input)
+    expect(out).toEqual({ fontSize: 64, positionY: 83.5, look: "outline", uppercase: true })
+    expect(input.fontSize).toBe("64")
+    expect(normalizeCaptionNumericLevers({ positionY: undefined })).toEqual({ positionY: undefined })
+  })
+
+  it("DROPS a null numeric lever — a null reaching the render plan's numeric schema throws mid-run", async () => {
+    const { normalizeCaptionNumericLevers } = await import("../caption-styles.js")
+    const out = normalizeCaptionNumericLevers({ fontSize: null, strokeWidth: null, positionY: null, fontWeight: null, maxWordsPerLine: null, look: null })
+    expect(out).toEqual({ look: null })
+    expect("fontSize" in out).toBe(false)
+  })
+})
+
+describe("captionRoutesToRemotion — null is unset", () => {
+  it("a plain-text subtitle whose stored levers are all null stays on FFmpeg (and its price)", async () => {
+    const { captionRoutesToRemotion } = await import("../caption-styles.js")
+    expect(
+      captionRoutesToRemotion({
+        style: "subtitle", text: "hi",
+        look: null, fontFamily: null, fontWeight: null, strokeColor: null, strokeWidth: null,
+        uppercase: null, positionY: null, maxWordsPerLine: null, segments: null, captions: null, transcript: null,
+      }),
+    ).toBe(false)
+  })
+
+  it("each lever still routes on its own once it carries a real value (false and 0 are values)", async () => {
+    const { captionRoutesToRemotion } = await import("../caption-styles.js")
+    const base = { style: "subtitle", text: "hi" }
+    for (const lever of [
+      { look: "clean" }, { fontFamily: "Inter" }, { fontWeight: 700 }, { strokeColor: "#000000" },
+      { strokeWidth: 0 }, { uppercase: false }, { positionY: 0 }, { maxWordsPerLine: 2 },
+    ]) {
+      expect(captionRoutesToRemotion({ ...base, ...lever })).toBe(true)
+    }
+  })
+})

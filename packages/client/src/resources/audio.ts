@@ -115,12 +115,14 @@ export class AudioResource {
   /**
    * Transcribe an audio (or video) track to text (`POST /v1/transcribe`).
    *
-   * Pass `provider: "elevenlabs-stt"` whenever you want WORD TIMINGS: Scribe is
-   * always word-level (flag or not) and is the lane that honours `diarize` (who
-   * spoke) and `tagAudioEvents` (laughter, applause, …). OMITTING `provider`
-   * falls back to the legacy whisper lane, which cannot produce word timings —
-   * asking it for them (`wordTimestamps: true`) is rejected with a `400
-   * validation_error` at ingress, before any credit is spent.
+   * Three engines are accepted. `elevenlabs-stt` (Scribe) is always word-level,
+   * flag or not, and is the only lane that honours `diarize` (who spoke) and
+   * `tagAudioEvents` (laughter, applause, …); `incredibly-fast-whisper` returns
+   * word timings when you ask for them. `whisper` returns NO word timings at
+   * all — named explicitly or reached by OMITTING `provider`, which still falls
+   * back to it — so asking it for them (`wordTimestamps: true`) is rejected with
+   * a `400 validation_error` at ingress, before any credit is spent. A kinetic
+   * caption render therefore has to name one of the other two.
    *
    * Poll `jobs.get(jobId)`; the finished job's `output_data` is a
    * {@link TranscribeJobOutput}: `text` (the whole transcript), `words`

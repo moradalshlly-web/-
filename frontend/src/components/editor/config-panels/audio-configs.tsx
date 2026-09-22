@@ -3,7 +3,7 @@ import { surfaceVoiceGenderAllowed } from "@/lib/surface-selectors"
 
 import { useMemo, useCallback, useEffect } from "react"
 import { findUpstreamSunoIds, type UpstreamSunoIds } from "@/lib/suno-ids"
-import { Plus, Trash2, Wand2 } from "lucide-react"
+import { AlertTriangle, Plus, Trash2, Wand2 } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { VoiceBrowser } from "./voice-browser"
+import { wordlessTranscriptWarning } from "./transcribe-word-timings"
 import { DEFAULT_DIALOGUE_VOICE } from "@/lib/tts-voices"
 import type {
   TextToSpeechData,
@@ -1419,8 +1420,16 @@ export function SunoUploadExtendConfig({ data, onUpdate, sources, fieldMappings,
   )
 }
 
-export function TranscribeConfig({ data, onUpdate, sources, fieldMappings, onMapField, nodeRefs }: ConfigProps<TranscribeData>) {
+export function TranscribeConfig({ data, onUpdate, sources, fieldMappings, onMapField, nodeRefs, nodes, edges, nodeId }: ConfigProps<TranscribeData> & { nodeId?: string }) {
   const t = useT()
+  // This node's transcript feeds an Add Captions node on a lane that returns no
+  // word timings — the run can only fail, AFTER paying for the transcription.
+  // Same shared graph walk the pre-run gate uses, so the panel and the refusal
+  // can't disagree about which graphs are broken.
+  const wordlessWarning = useMemo(
+    () => wordlessTranscriptWarning(nodeId, nodes, edges),
+    [nodeId, nodes, edges],
+  )
   // Persist the UI's default (step-12b fail-safe pattern): the Select SHOWS
   // elevenlabs-stt when provider is undefined, but the backend defaults an
   // absent provider to whisper — so an untouched node ran a different lane
@@ -1443,11 +1452,20 @@ export function TranscribeConfig({ data, onUpdate, sources, fieldMappings, onMap
                 installs (the cloud holds keys for both). They were commented
                 out as dead code while no lane could serve them. */}
             <SelectItem value="elevenlabs-stt">{t("audiocfg.providerElevenLabsStt")}</SelectItem>
-            <SelectItem value="whisper">{t("audiocfg.providerWhisper")}</SelectItem>
+            {/* Whisper is the one lane with no per-word timings — say so in the
+                option itself, so the trade-off is visible before it is picked
+                rather than after a paid run hands back `words: []`. */}
+            <SelectItem value="whisper">{t("audiocfg.providerWhisper")} — {t("audiocfg.noWordTimings")}</SelectItem>
             <SelectItem value="incredibly-fast-whisper">{t("audiocfg.providerIncrediblyFastWhisper")}</SelectItem>
           </SelectContent>
         </Select>
       </MappableField>
+      {wordlessWarning && (
+        <div className="flex items-start gap-1.5 text-[10.5px] text-amber-600 dark:text-amber-400 leading-snug" role="status">
+          <AlertTriangle className="size-3 shrink-0 mt-0.5" aria-hidden />
+          {t("audiocfg.wordlessTranscriptWarning")}
+        </div>
+      )}
       <MappableField field="language" label={t("field.language")} sources={sources} fieldMappings={fieldMappings} onMapField={onMapField}>
         <Select value={data.language || "auto"} onValueChange={(v) => onUpdate({ language: v })}>
           <SelectTrigger aria-label={t("field.language")}><SelectValue /></SelectTrigger>

@@ -45,10 +45,11 @@ import {
   getOutputType,
   getNodeResult,
 } from "@/lib/presentation-utils"
-import { EXECUTABLE_TYPES, estimateNodeCredits, isExecutableNode, getCostMultiplier } from "@/components/editor/workflow-editor/types"
+import { EXECUTABLE_TYPES, isExecutableNode } from "@/components/editor/workflow-editor/types"
+import { useLiveRunEstimate } from "@/hooks/use-live-run-estimate"
 import { getModelIdentifier } from "@/components/editor/config-panels/helpers"
 import { getCachedCredits, prefetchModelCredits } from "@/ee/hooks/use-model-credits"
-import { isExpandedClone, calculateMonetizedCost, getItemSortId, mergeNodeInputOverrides } from "@nodaro/shared"
+import { isExpandedClone, calculateMonetizedCost, getItemSortId } from "@nodaro/shared"
 import type { PresentationItem, ExposableField } from "@nodaro/shared"
 import { shareWorkflow } from "@/lib/api"
 import { createClient } from "@/lib/supabase"
@@ -359,77 +360,20 @@ export function PresentationView({ mode, isOwner, onExitFullscreen, onRun, onCan
   // In fullscreen/app mode, inputValues contains live loop rows that affect fan-out,
   // so we merge them into node data for accurate cost calculation.
   const inputValues = isFullscreen ? presInputValues : undefined
-  const [dynamicEstimatedCost, setDynamicEstimatedCost] = useState(0)
-  // Debounced so plain text-field keystrokes don't trigger the O(N^2·E) fan-out
-  // recompute on every change. We still depend on the whole inputValues object so
-  // ANY cost-affecting input (loop rows, exposed provider/resolution fields, …) is
-  // captured — the displayed estimate just lags by the debounce interval, which is
-  // acceptable for a pre-run estimate. nodes/edges changes recompute on the same
-  // path; the leading-edge first run keeps the initial estimate prompt.
-  const costFirstRunRef = useRef(true)
+  // ONE live estimate for every runner surface (the mobile shell prices the same
+  // hook), so desktop and phone cannot quote different numbers for one run. Base
+  // figure; the app's monetization markup is applied below.
+  const dynamicEstimatedCost = useLiveRunEstimate(
+    { nodes, edges, inputValues, enabled: hasCredits() },
+    { getCachedCredits, prefetchModelCredits },
+  )
+  // Mirror the live base figure into the presentation store so other consumers
+  // see it (it was seeded with the server's static figure at load).
   useEffect(() => {
-    if (!hasCredits()) return
-
-    const computeEstimate = () => {
-      // Merge inputValues into node data so getCostMultiplier sees current loop rows
-      const effectiveNodes = inputValues
-        ? nodes.map((n) => {
-            const vals = inputValues[n.id]
-            // The shared merge, not a bare spread: a swapped media input also
-            // drops the saved media-bound `metadata`, so this estimate (which the
-            // run precheck gates on) can't bucket on the publisher's length.
-            return vals
-              ? { ...n, data: mergeNodeInputOverrides(n.type, n.data as Record<string, unknown>, vals as Record<string, unknown>) as typeof n.data }
-              : n
-          })
-        : nodes
-      const executableNodes = effectiveNodes.filter((n) => isExecutableNode(n) && !isExpandedClone(n))
-      // An app run executes every node, so any upstream planner re-plans.
-      const rerunIds = new Set(executableNodes.map((n) => n.id))
-
-      const finish = () => {
-        const total = executableNodes.reduce((sum, node) => {
-          const modelId = getModelIdentifier(node, edges, effectiveNodes)
-          const cached = getCachedCredits(modelId)
-          const cost = cached !== undefined ? cached : estimateNodeCredits({ id: node.id, type: node.type, data: node.data as Record<string, unknown> }, edges)
-          const multiplier = getCostMultiplier(node, effectiveNodes, edges, rerunIds)
-          return sum + cost * multiplier
-        }, 0)
-        setDynamicEstimatedCost(total)
-        // Also update the presentation store so other consumers see the live cost
-        if (isFullscreen) {
-          usePresentationStore.setState({ estimatedCost: total })
-        }
-      }
-
-      const modelIds = [...new Set(executableNodes.map((n) => getModelIdentifier(n, edges, effectiveNodes)).filter(Boolean))]
-      const uncached = modelIds.filter((m) => getCachedCredits(m) === undefined)
-
-      if (uncached.length > 0) {
-        prefetchModelCredits(uncached).then(() => {
-          if (!cancelled) finish()
-        })
-        return
-      }
-
-      finish()
+    if (isFullscreen && dynamicEstimatedCost > 0) {
+      usePresentationStore.setState({ estimatedCost: dynamicEstimatedCost })
     }
-
-    let cancelled = false
-    // Run the very first estimate immediately so initial render isn't blank;
-    // subsequent input changes are coalesced behind a 300ms debounce.
-    if (costFirstRunRef.current) {
-      costFirstRunRef.current = false
-      computeEstimate()
-      return () => { cancelled = true }
-    }
-
-    const timer = setTimeout(computeEstimate, 300)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [nodes, edges, inputValues])
+  }, [isFullscreen, dynamicEstimatedCost])
 
   const rawEstimatedCost = dynamicEstimatedCost || (isFullscreen ? presEstimatedCost : 0)
   const estimatedCost = useMemo(() => {

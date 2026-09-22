@@ -185,6 +185,36 @@ describe("media resource", () => {
     expect(data.url).toBe("https://r2/cut.mp4")
     expect(data.sizeBytes).toBe(123)
   })
+
+  it("addCaptions() carries maxWordsPerLine through to the body, top-level AND on a segment", async () => {
+    // The lever rides the plain `...rest` spread — nothing renames it, and a
+    // segment carries its own copy so it can override the top-level cap.
+    const fetchMock = vi.fn().mockReturnValueOnce(mockOk({ jobId: "j-cap" }))
+    const c = make(fetchMock)
+    await c.media.addCaptions({
+      videoUrl: "https://x/clip.mp4",
+      style: "word-highlight",
+      maxWordsPerLine: 3,
+      segments: [{ startMs: 0, endMs: 4000, maxWordsPerLine: 1 }],
+    })
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.example.com/v1/add-captions")
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)).toEqual({
+      videoUrl: "https://x/clip.mp4",
+      style: "word-highlight",
+      maxWordsPerLine: 3,
+      segments: [{ startMs: 0, endMs: 4000, maxWordsPerLine: 1 }],
+    })
+  })
+
+  it("addCaptions() sends no maxWordsPerLine when none is given (an absent lever stays absent)", async () => {
+    const fetchMock = vi.fn().mockReturnValueOnce(mockOk({ jobId: "j-cap2" }))
+    const c = make(fetchMock)
+    await c.media.addCaptions({ videoUrl: "https://x/clip.mp4", style: "karaoke" })
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)).toEqual({
+      videoUrl: "https://x/clip.mp4",
+      style: "karaoke",
+    })
+  })
 })
 
 /** A Response whose body is an SSE stream emitting the given raw chunks. */

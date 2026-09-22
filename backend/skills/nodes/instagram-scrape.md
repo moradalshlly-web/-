@@ -1,7 +1,7 @@
 ---
 node_type: instagram-scrape
-generated_at: 2026-09-18T07:43:50.529Z
-generated_from: 98185a08e
+generated_at: 2026-09-21T19:12:08.707Z
+generated_from: 09788c987
 ---
 
 # Instagram
@@ -9,7 +9,7 @@ generated_from: 98185a08e
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `instagram-scrape`
 **Category:** input
-**Credit cost:** 20
+**Credit cost:** `20` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `json`, `text`, `image`, `video`
 

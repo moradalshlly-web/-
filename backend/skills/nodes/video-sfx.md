@@ -1,7 +1,7 @@
 ---
 node_type: video-sfx
-generated_at: 2026-08-29T19:02:38.540Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:09.281Z
+generated_from: 09788c987
 ---
 
 # Video SFX
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `video-sfx`
 **Category:** ai
-**Credit cost:** 2
+**Credit cost:** `1-14` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`, `negative`, `video`
 **Outputs (source handles):** `video`
 

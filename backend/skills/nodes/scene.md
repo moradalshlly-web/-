@@ -1,7 +1,7 @@
 ---
 node_type: scene
-generated_at: 2026-08-15T21:55:08.821Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T19:12:10.222Z
+generated_from: 09788c987
 ---
 
 # Scene
@@ -9,7 +9,7 @@ generated_from: 150c80ac9
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `scene`
 **Category:** scene
-**Credit cost:** 0
+**Credit cost:** `0` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `characters`, `location`, `objects`, `prev_last_frame`
 **Outputs (source handles):** `video`, `last_frame`, `audio_track`
 

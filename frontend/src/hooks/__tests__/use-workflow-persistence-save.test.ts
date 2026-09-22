@@ -61,8 +61,10 @@ vi.mock("@/ee/hooks/queries/use-credits-queries", () => ({
   prefetchModelCredits: vi.fn().mockResolvedValue(undefined),
 }))
 
+const mockSyncWorkflowTriggers = vi.fn().mockResolvedValue({ data: { synced: true, created: 1, updated: 0, removed: 0 } })
 vi.mock("@/lib/api", () => ({
   getBatchJobStatus: vi.fn().mockResolvedValue([]),
+  syncWorkflowTriggers: (...args: unknown[]) => mockSyncWorkflowTriggers(...args),
 }))
 
 vi.mock("@/lib/supabase", () => ({
@@ -296,6 +298,65 @@ describe("useWorkflowPersistence — save", () => {
     expect(payload.name).toBe("My Flow")
     expect(payload.nodes).toHaveLength(1)
     expect(payload.edges).toHaveLength(1)
+    // An ordinary graph never asks the server to project triggers.
+    expect(mockSyncWorkflowTriggers).not.toHaveBeenCalled()
+  })
+
+  it("after a save that carries a Schedule Trigger node, asks the server to project it onto a real trigger row (#1566)", async () => {
+    const nodes = [
+      makeNode("n1", { prompt: "a sunset" }),
+      { id: "s1", type: "schedule-trigger", position: { x: 0, y: 0 }, data: { label: "Schedule Trigger", interval: "*/5 * * * *", cron: "*/5 * * * *" } },
+    ]
+    resetStoreState({ workflowId: "existing-wf-id", workflowName: "My Flow", nodes, edges: [] })
+    setupSupabaseUpdate()
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    await act(async () => {
+      const saveResult = await result.current.save()
+      expect(saveResult.success).toBe(true)
+    })
+
+    expect(mockSyncWorkflowTriggers).toHaveBeenCalledTimes(1)
+    // …vouching for exactly the node this save added.
+    expect(mockSyncWorkflowTriggers).toHaveBeenCalledWith("existing-wf-id", ["s1"])
+  })
+
+  it("a save that REMOVED the Schedule Trigger node still asks the server, so the row goes with it", async () => {
+    resetStoreState({
+      workflowId: "existing-wf-id",
+      workflowName: "My Flow",
+      nodes: [makeNode("n1")],
+      edges: [],
+      lastSavedSnapshot: { nodes: [makeNode("n1"), { id: "s1", type: "schedule-trigger", position: { x: 0, y: 0 }, data: {} }], edges: [] },
+    })
+    setupSupabaseUpdate()
+
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    await act(async () => {
+      await result.current.save()
+    })
+
+    expect(mockSyncWorkflowTriggers).toHaveBeenCalledWith("existing-wf-id", [])
+  })
+
+  it("add, then remove, through the same hook with NO saved snapshot (the full-save path never advances it): both saves sync", async () => {
+    const schedule = { id: "s1", type: "schedule-trigger", position: { x: 0, y: 0 }, data: { cron: "*/5 * * * *" } }
+    resetStoreState({ workflowId: "existing-wf-id", workflowName: "My Flow", nodes: [makeNode("n1"), schedule], edges: [] })
+    setupSupabaseUpdate()
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    await act(async () => {
+      await result.current.save()
+    })
+    expect(mockSyncWorkflowTriggers).toHaveBeenNthCalledWith(1, "existing-wf-id", ["s1"])
+
+    // The node is removed; the store still has no snapshot (a full save does not set one).
+    resetStoreState({ workflowId: "existing-wf-id", workflowName: "My Flow", nodes: [makeNode("n1")], edges: [] })
+    setupSupabaseUpdate()
+    await act(async () => {
+      await result.current.save()
+    })
+    expect(mockSyncWorkflowTriggers).toHaveBeenCalledTimes(2)
+    expect(mockSyncWorkflowTriggers).toHaveBeenNthCalledWith(2, "existing-wf-id", [])
   })
 
   it("serialises overlapping save() calls — the second waits for the first and never sends the stale CAS token", async () => {
@@ -1310,6 +1371,69 @@ describe("useWorkflowPersistence — save", () => {
         expect.objectContaining({ name: "Test Workflow" }),
         0,
       )
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("trackers are per workflow: a second workflow whose schedule was already there does not inherit the first one's vouch", async () => {
+    // The SAME node id in both workflows is load-bearing: with one shared
+    // tracker, B's save would be skipped outright (1 call) — the laundering shape.
+    const schedule = { id: "s1", type: "schedule-trigger", position: { x: 0, y: 0 }, data: { cron: "*/5 * * * *" } }
+    resetStoreState({ workflowId: "wf-a", workflowName: "A", nodes: [makeNode("n1"), schedule], edges: [] })
+    setupSupabaseUpdate()
+    const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+    await act(async () => {
+      await result.current.save()
+    })
+    expect(mockSyncWorkflowTriggers).toHaveBeenNthCalledWith(1, "wf-a", ["s1"])
+
+    // The same hook instance now serves workflow B, loaded WITH that schedule:
+    // its first save syncs once (a node that never had a row gets one) but
+    // vouches for nothing — B did not add it. A shared tracker would have
+    // skipped this save outright, carrying A's memory into B.
+    resetStoreState({
+      workflowId: "wf-b",
+      workflowName: "B",
+      nodes: [makeNode("n2"), schedule],
+      edges: [],
+      lastSavedSnapshot: { nodes: [makeNode("n2"), schedule], edges: [] },
+    })
+    setupSupabaseUpdate()
+    await act(async () => {
+      await result.current.save()
+    })
+    expect(mockSyncWorkflowTriggers).toHaveBeenCalledTimes(2)
+    expect(mockSyncWorkflowTriggers).toHaveBeenNthCalledWith(2, "wf-b", [])
+  })
+
+  it("delta: a save that added a Schedule Trigger node asks the server to project it after the RPC landed", async () => {
+    vi.stubEnv("VITE_DELTA_SAVES", "1")
+    try {
+      const { snapshot } = deltaState()
+      const schedule = { id: "s1", type: "schedule-trigger", position: { x: 0, y: 0 }, data: { cron: "*/5 * * * *" } }
+      // Only the schedule node is new (one of three) — well under the ">50% changed" full-save fallback.
+      resetStoreState({
+        workflowId: "w1",
+        nodes: [...snapshot.nodes, schedule],
+        edges: [],
+        loadedUpdatedAt: "2026-01-01T00:00:00Z",
+        loadedVersion: 41,
+        lastSavedSnapshot: snapshot,
+        characterDefinitions: snapshot.characterDefinitions,
+        flowPromptTemplates: snapshot.flowPromptTemplates,
+        presentationSettings: snapshot.presentationSettings,
+      })
+      rpcResolves([{ ok: true, version: 42, updated_at: "2026-06-12T02:00:00Z" }])
+
+      const { result } = renderHook(() => useWorkflowPersistence("proj-1"))
+      await act(async () => {
+        await result.current.save()
+      })
+
+      expect(mockSupabaseRpc).toHaveBeenCalledTimes(1)
+      expect(mockSyncWorkflowTriggers).toHaveBeenCalledTimes(1)
+      expect(mockSyncWorkflowTriggers).toHaveBeenCalledWith("w1", ["s1"])
     } finally {
       vi.unstubAllEnvs()
     }

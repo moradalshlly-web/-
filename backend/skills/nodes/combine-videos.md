@@ -1,7 +1,7 @@
 ---
 node_type: combine-videos
-generated_at: 2026-08-15T21:55:07.530Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T19:12:09.638Z
+generated_from: 09788c987
 ---
 
 # Combine Videos
@@ -9,7 +9,7 @@ generated_from: 150c80ac9
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `combine-videos`
 **Category:** processing
-**Credit cost:** 2
+**Credit cost:** `30` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `video`
 

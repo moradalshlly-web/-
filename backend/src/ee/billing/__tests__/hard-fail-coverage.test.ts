@@ -22,7 +22,7 @@
 
 import { describe, it, expect } from "vitest"
 import { STATIC_CREDIT_COSTS } from "../credits.js"
-import { IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, IMAGE_GEN_PROVIDERS, IMAGE_I2I_PROVIDERS, IMAGE_EDIT_PROVIDERS, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildCreditModelIdentifier, buildLlmCreditIdentifier, LLM_MODELS, FLUX2_RES_MP, type Flux2Model, PIPELINE_PINNABLE_SCRIPT_LLMS, SUNO_MODELS, sunoCreditType, SUNO_VERSION_PRICED_OPERATIONS, SUNO_SELECT_OPERATIONS, MODEL_CATALOG } from "@nodaro/shared"
+import { IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, IMAGE_GEN_PROVIDERS, IMAGE_I2I_PROVIDERS, IMAGE_EDIT_PROVIDERS, buildVideoCreditModelIdentifier, buildMotionCreditModelIdentifier, buildCreditModelIdentifier, buildLlmCreditIdentifier, LLM_MODELS, FLUX2_RES_MP, type Flux2Model, PIPELINE_PINNABLE_SCRIPT_LLMS, SUNO_MODELS, sunoCreditType, SUNO_VERSION_PRICED_OPERATIONS, SUNO_SELECT_OPERATIONS, MODEL_CATALOG, TRANSCRIBE_PROVIDERS, DEFAULT_TRANSCRIBE_PROVIDER, DEFAULT_TRANSCRIBE_NODE_PROVIDER } from "@nodaro/shared"
 
 // ---------------------------------------------------------------------------
 // Plausible-input matrices for each builder
@@ -352,5 +352,27 @@ describe("Suno dropdown credit identifiers resolve to a priced key", () => {
         expect(sunoCreditType(model, operation)).toBe(operation)
       }
     }
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transcription engines
+//
+// The engine id IS the credit identifier for /v1/transcribe (the route's guard
+// and its reservation both resolve `body.provider ?? DEFAULT_TRANSCRIBE_PROVIDER`),
+// so every member of the accepted enum must be priced or a legal request 503s
+// with price_not_configured. Both Replicate lanes sat COMMENTED OUT in
+// STATIC_CREDIT_COSTS while the canvas node still offered them — this sweep is
+// what makes re-widening the enum safe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("every transcription engine is priced", () => {
+  it.each(TRANSCRIBE_PROVIDERS)("%s is in STATIC_CREDIT_COSTS", (provider) => {
+    expect(STATIC_CREDIT_COSTS[provider]).toBeTypeOf("number")
+  })
+
+  it("the engine an absent provider falls back to is priced too", () => {
+    expect(STATIC_CREDIT_COSTS[DEFAULT_TRANSCRIBE_PROVIDER]).toBeTypeOf("number")
+    expect(STATIC_CREDIT_COSTS[DEFAULT_TRANSCRIBE_NODE_PROVIDER]).toBeTypeOf("number")
   })
 })

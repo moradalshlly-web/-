@@ -1,7 +1,7 @@
 ---
 node_type: edit-video-pro
-generated_at: 2026-08-29T19:02:38.521Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:09.265Z
+generated_from: 09788c987
 ---
 
 # Edit Video Pro
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `edit-video-pro`
 **Category:** ai
-**Credit cost:** 67
+**Credit cost:** `100` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `video`, `prompt`, `imageReferences`
 **Outputs (source handles):** `video`
 

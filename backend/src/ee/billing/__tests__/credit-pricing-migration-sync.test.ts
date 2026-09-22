@@ -215,8 +215,9 @@ const KNOWN_GHOST_IDENTIFIERS: ReadonlySet<string> = new Set([
   "musicgen",
   "lyria",
   "bark",
-  "whisper",
-  "incredibly-fast-whisper",
+  // (`whisper` / `incredibly-fast-whisper` are NOT ghosts any more — both
+  //  Replicate transcription lanes are live again and priced in
+  //  STATIC_CREDIT_COSTS; /v1/transcribe accepts all three engines.)
   // ── Collect → Reduce rename (migration 151). The collect:* rows are
   //    inserted by migration 149 and then REPLACE()d to reduce:* by 151.
   //    Both migrations stay on disk forever (Supabase append-only), so the

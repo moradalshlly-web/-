@@ -22,10 +22,11 @@
 
 import { randomBytes } from "node:crypto"
 import { isDeepStrictEqual } from "node:util"
+import { SCHEDULE_TRIGGER_NODE_TYPE, WEBHOOK_TRIGGER_NODE_TYPE } from "@nodaro/shared"
 import { supabase } from "./supabase.js"
+import { isMissingColumnError } from "./postgrest-errors.js"
 
-export const SCHEDULE_TRIGGER_NODE_TYPE = "schedule-trigger"
-export const WEBHOOK_TRIGGER_NODE_TYPE = "webhook-trigger"
+export { SCHEDULE_TRIGGER_NODE_TYPE, WEBHOOK_TRIGGER_NODE_TYPE }
 
 export type SyncedTriggerType = "schedule" | "webhook"
 
@@ -221,8 +222,19 @@ export async function reconcileWorkflowTriggers(params: {
   readonly workflowId: string
   readonly userId: string
   readonly nodes: readonly GraphNode[] | undefined
+  /**
+   * Node ids the OWNER, in their own browser session, ADDED in the save this
+   * projection follows — the editor's sync after its save names them. A row
+   * CREATED for one of them is stamped `owner_initiated` (plan D3, migration
+   * 436); every other created row, and every existing row, keeps the default.
+   * Narrow on purpose: a node that was already in the stored graph may have
+   * been written by an API token or an OAuth app AS the owner, and the
+   * owner's next autosave must not launder that into a vouched schedule.
+   */
+  readonly vouchNodeIds?: ReadonlyArray<string>
 }): Promise<ReconcileResult> {
   const { workflowId, userId, nodes } = params
+  const vouched = new Set(params.vouchNodeIds ?? [])
   try {
     const desired = desiredTriggersFromGraph(nodes)
 
@@ -242,24 +254,36 @@ export async function reconcileWorkflowTriggers(params: {
     const plan = planTriggerSync(desired, existing)
 
     if (plan.create.length > 0) {
-      // Never `owner_initiated`: the caller's request is not proof the OWNER
-      // placed the node — an API token's or an OAuth app's graph write arrives
-      // here as the owner — so the column keeps its default and a plain stored
-      // credential will not travel on a schedule projected from a graph. Only
-      // POST /v1/workflow-triggers, from a browser session, decides it.
-      const { error } = await supabase.from("workflow_triggers").insert(
-        plan.create.map((t) => ({
-          workflow_id: workflowId,
-          user_id: userId,
-          type: t.type,
-          config: { ...t.config, nodeId: t.nodeId },
-          // The token IS the auth for a webhook, so it is minted once here and
-          // then left alone by every later save.
-          webhook_token: t.type === "webhook" ? randomBytes(32).toString("hex") : null,
-          is_active: true,
-        })),
-      )
-      if (error) return { ...EMPTY, error: error.message }
+      const rows = plan.create.map((t) => ({
+        workflow_id: workflowId,
+        user_id: userId,
+        type: t.type,
+        config: { ...t.config, nodeId: t.nodeId },
+        // The token IS the auth for a webhook, so it is minted once here and
+        // then left alone by every later save.
+        webhook_token: t.type === "webhook" ? randomBytes(32).toString("hex") : null,
+        is_active: true,
+      }))
+      // `owner_initiated` rides only on the rows the caller vouched for (see
+      // the param), and only on the wire when true — the default is already
+      // false, so a database that does not have the column yet (migration 436
+      // not landed) only ever sees it on a "yes"; that write is retried
+      // without it. Two inserts because PostgREST wants one key set per batch.
+      const vouchedRows = rows.filter((r) => vouched.has(String(r.config.nodeId)))
+      const plainRows = rows.filter((r) => !vouched.has(String(r.config.nodeId)))
+      if (plainRows.length > 0) {
+        const { error } = await supabase.from("workflow_triggers").insert(plainRows)
+        if (error) return { ...EMPTY, error: error.message }
+      }
+      if (vouchedRows.length > 0) {
+        let { error } = await supabase
+          .from("workflow_triggers")
+          .insert(vouchedRows.map((r) => ({ ...r, owner_initiated: true })))
+        if (error && isMissingColumnError(error)) {
+          ;({ error } = await supabase.from("workflow_triggers").insert(vouchedRows))
+        }
+        if (error) return { ...EMPTY, error: error.message }
+      }
     }
 
     for (const row of plan.update) {

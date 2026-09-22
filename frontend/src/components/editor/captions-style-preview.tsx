@@ -30,7 +30,7 @@ interface PreviewProps extends Record<string, unknown> {
   fontSize: number
   color: string
   backgroundColor?: string
-  levers: CaptionLookLevers & { positionY?: number; animate?: boolean }
+  levers: CaptionLookLevers & { positionY?: number; animate?: boolean; maxWordsPerLine?: number }
   captions: Caption[]
 }
 
@@ -52,6 +52,9 @@ const PreviewComp: React.FC<PreviewProps> = ({ style, position, fontSize, color,
       positionY={levers.positionY}
       // Per-word motion switch — freezes the kinetic animation; inert on subtitle.
       animate={levers.animate}
+      // Line-grouping cap — applies to every line/page-grouped overlay; inert on
+      // word-pop (always one word).
+      maxWordsPerLine={levers.maxWordsPerLine}
     />
   </AbsoluteFill>
 )
@@ -75,18 +78,19 @@ interface Props {
   uppercase?: boolean
   positionY?: number
   animate?: boolean
+  maxWordsPerLine?: number
 }
 
 export function CaptionsStylePreview({
   style, position, fontSize, color, backgroundColor,
-  look, fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, animate,
+  look, fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, animate, maxWordsPerLine,
 }: Props) {
   const captions = useMemo(buildSyntheticCaptions, [])
   // Resolve the look → concrete levers exactly as the worker does (via the shared
   // render-mirror), so the preview is faithful for both kinetic AND subtitle: a
   // bare subtitle shows plain, a subtitle with a look/levers shows them, and
   // `animate` freezes kinetic motion.
-  const levers = useMemo<CaptionLookLevers & { positionY?: number; animate?: boolean }>(() => {
+  const levers = useMemo<CaptionLookLevers & { positionY?: number; animate?: boolean; maxWordsPerLine?: number }>(() => {
     const explicit: CaptionLookLevers = {}
     if (fontFamily !== undefined) explicit.fontFamily = fontFamily
     if (fontWeight !== undefined) explicit.fontWeight = fontWeight
@@ -94,8 +98,8 @@ export function CaptionsStylePreview({
     if (strokeWidth !== undefined) explicit.strokeWidth = strokeWidth
     if (highlightColor !== undefined) explicit.highlightColor = highlightColor
     if (uppercase !== undefined) explicit.uppercase = uppercase
-    return { ...resolveCaptionPanelLevers(style, look, explicit, fontSize), positionY, animate }
-  }, [style, look, fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, fontSize, animate])
+    return { ...resolveCaptionPanelLevers(style, look, explicit, fontSize), positionY, animate, maxWordsPerLine }
+  }, [style, look, fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, fontSize, animate, maxWordsPerLine])
   const inputProps = useMemo<PreviewProps>(
     () => ({ style, position, fontSize, color, backgroundColor, levers, captions }),
     [style, position, fontSize, color, backgroundColor, levers, captions],

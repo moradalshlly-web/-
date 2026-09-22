@@ -164,6 +164,40 @@ export function transcriptToCaptions(
   return lines
 }
 
+/**
+ * PHRASE-level captions from a transcription's `segments` (seconds) — one
+ * caption per segment, timed by the segment itself.
+ *
+ * This is the caption source for a render that does NOT need word timings (a
+ * `subtitle`): every lane returns phrase segments, including the ones that
+ * cannot return words at all, so `whisper` can caption a subtitle instead of
+ * failing the job. The Remotion SubtitleOverlay groups and holds lines itself,
+ * so a whole phrase in one caption is exactly what it wants.
+ *
+ * Sorted by start (an out-of-order lane would otherwise invert a line's span),
+ * blank segments dropped, and the @remotion/captions leading-space delimiter
+ * applied like every other mapper here.
+ */
+export function transcribeSegmentsToCaptions(
+  segments: ReadonlyArray<{ start: number; end: number; text: string }>,
+): Caption[] {
+  const usable = segments
+    .filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end) && s.text.trim().length > 0)
+    .sort((a, b) => a.start - b.start)
+  return usable.map((s, i): Caption => {
+    const startMs = Math.round(s.start * 1000)
+    return {
+      text: i === 0 ? s.text.trim() : ` ${s.text.trim()}`,
+      startMs,
+      // A lane that reports an end before its start would draw a line that is
+      // never on screen; clamp to the start so the overlay still shows it.
+      endMs: Math.max(startMs, Math.round(s.end * 1000)),
+      timestampMs: startMs,
+      confidence: null,
+    }
+  })
+}
+
 /** Fallback: split a sentence by whitespace and evenly slice the duration. */
 export function syntheticCaptionsFromText(
   text: string,

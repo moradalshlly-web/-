@@ -26,7 +26,7 @@ export interface OverlayCommonProps extends CaptionLook {
  */
 export const SubtitleOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
-  fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY,
+  fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY, maxWordsPerLine,
 }) => {
   const frame = useCurrentFrame()
   const { fps, width } = useVideoConfig()
@@ -37,8 +37,9 @@ export const SubtitleOverlay: React.FC<OverlayCommonProps> = ({
     () => groupCaptionLines(
       captions,
       captionLineCharBudget({ frameWidth: width, fontSize, fontFamily, fontWeight: fontWeight ?? 700, uppercase }),
+      { maxWords: maxWordsPerLine },
     ),
-    [captions, width, fontSize, fontFamily, fontWeight, uppercase],
+    [captions, width, fontSize, fontFamily, fontWeight, uppercase, maxWordsPerLine],
   )
   const hit = activeCaptionLine(lines, ms)
   if (!hit) return null

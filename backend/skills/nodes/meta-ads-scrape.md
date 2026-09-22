@@ -1,7 +1,7 @@
 ---
 node_type: meta-ads-scrape
-generated_at: 2026-09-18T05:06:12.011Z
-generated_from: c79489ee8
+generated_at: 2026-09-21T19:12:08.690Z
+generated_from: 09788c987
 ---
 
 # Meta Ads
@@ -9,7 +9,7 @@ generated_from: c79489ee8
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `meta-ads-scrape`
 **Category:** input
-**Credit cost:** 20
+**Credit cost:** `20` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `json`, `text`, `image`, `video`
 

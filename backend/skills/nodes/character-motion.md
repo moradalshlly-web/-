@@ -1,7 +1,7 @@
 ---
 node_type: character-motion
-generated_at: 2026-09-15T17:56:51.636Z
-generated_from: 59f72b270
+generated_at: 2026-09-21T19:12:08.831Z
+generated_from: 09788c987
 ---
 
 # Character Motion
@@ -9,7 +9,7 @@ generated_from: 59f72b270
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `character-motion`
 **Category:** parameter
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `target`, `partner`
 **Outputs (source handles):** `out`
 

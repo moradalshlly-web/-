@@ -1,7 +1,7 @@
 ---
 node_type: suno-generate
-generated_at: 2026-09-10T23:12:24.802Z
-generated_from: 15c8b1229
+generated_at: 2026-09-21T19:12:09.383Z
+generated_from: 09788c987
 ---
 
 # Suno Generate
@@ -9,7 +9,7 @@ generated_from: 15c8b1229
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `suno-generate`
 **Category:** ai
-**Credit cost:** 3
+**Credit cost:** `30` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`, `audio-style`, `voice`, `field-style`, `field-lyrics`, `field-title`, `field-negativeStyle`
 **Outputs (source handles):** `audio`
 

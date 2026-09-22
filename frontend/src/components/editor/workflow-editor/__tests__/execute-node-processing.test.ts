@@ -54,6 +54,7 @@ const mockSpeechToVideoApi = vi.fn()
 const mockVoiceChangerProApi = vi.fn()
 const mockVoiceChangerApi = vi.fn()
 const mockImageCollageApi = vi.fn()
+const mockTranscribeApi = vi.fn()
 let mockNodes: any[] = []
 let mockEdges: any[] = []
 let mockCharacterDefinitions: any[] = []
@@ -118,7 +119,7 @@ vi.mock("@/lib/api", () => ({
   sunoAddVocalsApi: vi.fn(),
   sunoConvertWavApi: vi.fn(),
   sunoUploadExtendApi: vi.fn(),
-  transcribeApi: vi.fn(),
+  transcribeApi: (...args: unknown[]) => mockTranscribeApi(...args),
   downloadYouTubeAudio: vi.fn(),
   lipSyncApi: (...args: unknown[]) => mockLipSyncApi(...args),
   motionTransferApi: (...args: unknown[]) => mockMotionTransferApi(...args),
@@ -1251,6 +1252,142 @@ describe("add-captions", () => {
       "u1",
       { autoTranscribe: true, transcribeProvider: "whisper" },
     )
+  })
+
+  // The node's OWN `text` is a real authored field (the DAG engine reads
+  // `resolvedInputs.prompt || data.text`), but the canvas panel has no text
+  // control, so reading only `inputs.prompt` silently dropped the caption an
+  // import / agent / MCP write had authored and auto-transcribed instead.
+  it("burns the node's own text when nothing is wired — the DAG engine's precedence", async () => {
+    mockResolveNodeInputs.mockReturnValue({ videoUrl: "http://vid.mp4" })
+    mockAddCaptionsApi.mockResolvedValue({ jobId: "j1" })
+    mockPollJobWithNodeUpdate.mockResolvedValue(undefined)
+    await executeNode(
+      makeNode("add-captions", { style: "subtitle", text: "SALE ENDS FRIDAY" }),
+      makeCtx(),
+    )
+    await mockPollJobWithNodeUpdate.mock.calls[0][1]()
+    expect(mockAddCaptionsApi.mock.calls[0][1]).toBe("SALE ENDS FRIDAY")
+  })
+
+  it("wired text still wins over the node's own text", async () => {
+    mockResolveNodeInputs.mockReturnValue({ videoUrl: "http://vid.mp4", prompt: "from the wire" })
+    mockAddCaptionsApi.mockResolvedValue({ jobId: "j1" })
+    mockPollJobWithNodeUpdate.mockResolvedValue(undefined)
+    await executeNode(
+      makeNode("add-captions", { style: "subtitle", text: "from the node" }),
+      makeCtx(),
+    )
+    await mockPollJobWithNodeUpdate.mock.calls[0][1]()
+    expect(mockAddCaptionsApi.mock.calls[0][1]).toBe("from the wire")
+  })
+
+  it("its own text is a caption source, so auto-transcribe OFF is runnable", async () => {
+    mockResolveNodeInputs.mockReturnValue({ videoUrl: "http://vid.mp4" })
+    mockAddCaptionsApi.mockResolvedValue({ jobId: "j1" })
+    mockPollJobWithNodeUpdate.mockResolvedValue(undefined)
+    await executeNode(
+      makeNode("add-captions", { autoTranscribe: false, text: "Hello" }),
+      makeCtx(),
+    )
+    expect(mockToastError).not.toHaveBeenCalled()
+  })
+
+  // A wired transcript is a caption source in the route's own superRefine, so
+  // the canvas guard must not refuse it either.
+  it("a wired transcript is a caption source with auto-transcribe OFF", async () => {
+    mockResolveNodeInputs.mockReturnValue({ videoUrl: "http://vid.mp4", transcript: '{"words":[]}' })
+    mockAddCaptionsApi.mockResolvedValue({ jobId: "j1" })
+    mockPollJobWithNodeUpdate.mockResolvedValue(undefined)
+    await executeNode(
+      makeNode("add-captions", { autoTranscribe: false }),
+      makeCtx(),
+    )
+    expect(mockToastError).not.toHaveBeenCalled()
+  })
+
+  // Node data that never passed the panel's clamp (agent / import / template)
+  // reaches this engine raw: a fontSize the route's Zod 400s on, and a `null`
+  // lever the render plan rejects mid-run. Both are coerced with the SAME helper
+  // the orchestrator applies, so one node cannot mean two things.
+  it("coerces the numeric levers the way the DAG engine does — never sends an out-of-range or null one", async () => {
+    mockResolveNodeInputs.mockReturnValue({ videoUrl: "http://vid.mp4" })
+    mockAddCaptionsApi.mockResolvedValue({ jobId: "j1" })
+    mockPollJobWithNodeUpdate.mockResolvedValue(undefined)
+    await executeNode(
+      makeNode("add-captions", {
+        style: "subtitle",
+        text: "Hi",
+        fontSize: 10,
+        fontWeight: 340,
+        maxWordsPerLine: 99,
+        positionY: null,
+      }),
+      makeCtx(),
+    )
+    await mockPollJobWithNodeUpdate.mock.calls[0][1]()
+    const call = mockAddCaptionsApi.mock.calls[0]
+    expect(call[4]).toBe(12)
+    expect(call[8].fontWeight).toBe(300)
+    expect(call[8].maxWordsPerLine).toBe(20)
+    expect(call[8].positionY).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// transcribe — word timings
+// ---------------------------------------------------------------------------
+
+/**
+ * A lane that cannot return per-word timings still RUNS and BILLS, handing back
+ * `words: []`. An EXPLICIT `wordTimestamps: true` on such a lane is therefore a
+ * promise the run cannot keep, and is refused BEFORE the API call. The INFERRED
+ * request (a wired `json` handle) stays capability-aware: it degrades to a
+ * segments-only transcript instead of refusing.
+ */
+describe("transcribe word timings", () => {
+  it("refuses an explicit wordTimestamps request on whisper, before the API call", async () => {
+    mockResolveNodeInputs.mockReturnValue({ audioUrl: "http://a.mp3" })
+    const promise = executeNode(
+      makeNode("transcribe", { label: "My Transcribe", provider: "whisper", wordTimestamps: true }),
+      makeCtx(),
+    )
+    promise.catch(() => {})
+    await expect(promise).rejects.toThrow("Word timings unavailable")
+    expect(mockTranscribeApi).not.toHaveBeenCalled()
+    // Nothing flips to running either — the refusal lands before RUN_START_RESET.
+    expect(mockUpdateNodeData).not.toHaveBeenCalled()
+    expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining("My Transcribe"))
+    expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining("whisper"))
+  })
+
+  it("runs the same request on a word-capable lane", async () => {
+    mockResolveNodeInputs.mockReturnValue({ audioUrl: "http://a.mp3" })
+    mockTranscribeApi.mockResolvedValue({ jobId: "j1" })
+    const promise = executeNode(
+      makeNode("transcribe", { provider: "incredibly-fast-whisper", wordTimestamps: true }),
+      makeCtx(),
+    )
+    promise.catch(() => {})
+    await vi.waitFor(() => expect(mockTranscribeApi).toHaveBeenCalled())
+    expect(mockTranscribeApi.mock.calls[0][6]).toBe(true)
+    expect(mockToastError).not.toHaveBeenCalled()
+  })
+
+  it("does not refuse an INFERRED request on whisper — it degrades instead", async () => {
+    mockResolveNodeInputs.mockReturnValue({ audioUrl: "http://a.mp3" })
+    mockTranscribeApi.mockResolvedValue({ jobId: "j1" })
+    mockEdges = [{ id: "e1", source: "n1", target: "c1", sourceHandle: "json", targetHandle: "transcript" }]
+    const promise = executeNode(
+      makeNode("transcribe", { provider: "whisper" }),
+      makeCtx(),
+    )
+    promise.catch(() => {})
+    await vi.waitFor(() => expect(mockTranscribeApi).toHaveBeenCalled())
+    // The wired json handle asked for words; the lane can't, so the flag goes
+    // out false rather than refusing the run.
+    expect(mockTranscribeApi.mock.calls[0][6]).toBe(false)
+    expect(mockToastError).not.toHaveBeenCalled()
   })
 })
 

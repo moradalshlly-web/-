@@ -1,7 +1,7 @@
 ---
 node_type: generate-video-pro
-generated_at: 2026-09-16T15:07:56.677Z
-generated_from: 6c3f11bc1
+generated_at: 2026-09-21T19:12:09.248Z
+generated_from: 09788c987
 ---
 
 # Generate Video Pro
@@ -9,7 +9,7 @@ generated_from: 6c3f11bc1
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `generate-video-pro`
 **Category:** ai
-**Credit cost:** 82
+**Credit cost:** `100` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`, `negative`, `startFrame`, `endFrame`, `imageReferences`, `videoReferences`, `audio`, `audioReferences`, `assets`, `elements`, `look`
 **Outputs (source handles):** `video`
 

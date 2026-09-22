@@ -1,6 +1,6 @@
 import type { NodaroClient } from "../client.js"
 import { readSseStream } from "../sse.js"
-import type { OverlayAnchor, CaptionStyle, CaptionLookId, SupportedFontName } from "@nodaro/shared"
+import type { OverlayAnchor, CaptionStyle, CaptionLookId, SupportedFontName, TranscribeLane } from "@nodaro/shared"
 
 /** One word-timed caption entry (one per WORD for the kinetic styles). */
 export interface CaptionEntry {
@@ -14,10 +14,11 @@ export interface CaptionEntry {
 /** Look + motion levers — see {@link MediaResource.addCaptions}. `look` is a
  *  named preset the explicit levers override; an unset look renders as `outline`
  *  (the default). The STYLING levers (`look`, `fontFamily`, `fontWeight`,
- *  `strokeColor`/`strokeWidth`, `uppercase`, `positionY`) now apply to the static
- *  `subtitle` style too — a subtitle carrying any of them renders via Remotion.
- *  Only `highlightColor` (no spoken-word cursor to colour) and `animate` (no
- *  motion to freeze) stay kinetic-only and are rejected (400) on `subtitle`. */
+ *  `strokeColor`/`strokeWidth`, `uppercase`, `positionY`, `maxWordsPerLine`) now
+ *  apply to the static `subtitle` style too — a subtitle carrying any of them
+ *  renders via Remotion. Only `highlightColor` (no spoken-word cursor to colour)
+ *  and `animate` (no motion to freeze) stay kinetic-only and are rejected (400)
+ *  on `subtitle`. */
 export interface CaptionLookInput {
   look?: CaptionLookId
   fontFamily?: SupportedFontName
@@ -27,6 +28,13 @@ export interface CaptionLookInput {
   highlightColor?: string
   uppercase?: boolean
   positionY?: number
+  /** Cap on how many words one caption LINE (or `tiktok-words` page) may hold,
+   *  1-20, on TOP of the frame-width budget, sentence ends and pauses that
+   *  already close a line — 1-2 gives the punchy CapCut read, unset fits the
+   *  width. Applies to `word-highlight` / `karaoke` / `bouncy` / `tiktok-words`
+   *  and to a Remotion-rendered `subtitle`; inert on `word-pop` (always one
+   *  word). */
+  maxWordsPerLine?: number
   /** Kinetic styles only. `false` freezes the per-word MOTION — the grouping,
    *  line-holding and spoken-word highlight stay, only the movement stops;
    *  default `true`. Rejected (400) on the static `subtitle` style. */
@@ -55,7 +63,7 @@ export interface AddCaptionsInput extends CaptionLookInput {
   captions?: CaptionEntry[]
   /** Transcribe the video's audio when no text/captions are given (default true). */
   autoTranscribe?: boolean
-  transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
+  transcribeProvider?: TranscribeLane
   style?: CaptionStyle
   position?: "bottom" | "top" | "center"
   fontSize?: number
@@ -296,14 +304,20 @@ export class MediaResource {
    * `look` picks a preset — `outline` (Montserrat 900, UPPERCASE, black outline,
    * yellow spoken word — the TikTok/Reels read) or `clean`; an UNSET look renders
    * as `outline`. The explicit STYLING levers (`fontFamily`, `fontWeight`,
-   * `strokeColor`/`strokeWidth`, `uppercase`, `positionY`) override individual
-   * fields of it and now apply to `subtitle` too. Only `highlightColor` (the
-   * spoken-word cursor) and `animate` stay kinetic-only and are REJECTED on
-   * `subtitle`.
+   * `strokeColor`/`strokeWidth`, `uppercase`, `positionY`, `maxWordsPerLine`)
+   * override individual fields of it and now apply to `subtitle` too. Only
+   * `highlightColor` (the spoken-word cursor) and `animate` stay kinetic-only
+   * and are REJECTED on `subtitle`.
    *
    * `animate` (default true) freezes the per-word MOTION on the kinetic styles
    * when set to false — the grouping, line-holding and spoken-word highlight
    * stay; only the movement stops.
+   *
+   * `maxWordsPerLine` (1-20) caps how many words a line — or a `tiktok-words`
+   * page — may hold, on top of the width budget / sentence ends / pauses that
+   * already close one; it is inert on `word-pop`, which is always one word.
+   * Like every lever here it exists top-level AND per segment, and a segment
+   * that does not name its own inherits the top-level value.
    *
    * `segments[]` applies DIFFERENT treatments to non-overlapping time ranges in
    * one call (e.g. a large top intro, then a small bottom body); a segment that

@@ -111,7 +111,7 @@ import { metaAdsAdvertisersFrom, metaAdsNodeMode, metaAdsScrapeWireSources, spli
 import { tx } from "@/lib/i18n";
 import { resolveTemplate, applyTemplate } from "@/lib/prompt-templates";
 import {
-  readPromptAffixes, unwrapEditPlanOutput, clampEditPlanClipCount, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, alignedFieldList, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps } from "@nodaro/shared"
+  readPromptAffixes, unwrapEditPlanOutput, clampEditPlanClipCount, asEditPlanMode, asEditPlanTier, resolveSlideshowTransition, ASPECT_RATIO_DIMENSIONS, buildPro3DRenderSource, pro3DRenderTimingOverrides, resolveScene3DAuthoringEngine, COMPOSER_PLAN_MAP, VIDEO_INPUT_LIP_SYNC_PROVIDERS, FLEXIBLE_INPUT_LIP_SYNC_PROVIDERS, isSeedance2Provider, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, uiResolutionFill, supportsExtendRender, isMinimaxH3Provider, isVeoProvider, isGeminiOmniProvider, MODEL_CATALOG, splitGeneratedItems, LLM_FEATURE_DEFAULTS, resolveVideoProviderForMode, resolveVideoModeForInputs, VIDEO_REF_LIMITS_BY_PROVIDER, resolveEffectiveSourceType, sourceRefKey, hasFeature, countRefModalityEdges, type ReferenceModality, LOCATION_REFERENCE_PHOTO_KINDS, locationReferencePhotoKindLabel, type LocationReferencePhotoKind, characterMentionSlug, characterMentionableAssetArrays, selectLoraRoutingForMentions, expandExtraRefsToConnectedReferences, resolveSeparator, evaluateJsonPath, stringifyPathResults, alignedFieldList, spreadJsonArrayIfSingleton, zipMergeLists, evaluateJsonExpression, buildExpressionFromVisual, jsonResultToList, tryParseJson, evaluateCondition, evaluateConditionGroup, resolveConditionValue, sortListItems, runSelector, resolveSelectorRefs, buildConditionVariables, VARIABLES_HANDLE_ID, clampSmartCutWindow, resolveGvpAnchorWire, resolveTopazUpscale, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, unresolvedRefTokens, classifyRefToken, canonicalVarName, parseNodeRef, NODE_REF_PATTERN, DEFAULT_TRANSCRIBE_NODE_PROVIDER, transcribeLaneSupportsWordTimestamps, transcribeWordTimestampsRefusal, normalizeCaptionNumericLevers } from "@nodaro/shared"
 import { applyPromptAffixes, buildSeedanceVideoEditPrompt, composeNegative, computeNodePrompt, computeLlmChatFields, pickerFanoutTargets, buildImagePrompt, assembleImageInput, composeVideoPromptText, readDirectionFields, readStructuredFields, readSubjectFields, collectIdentityLockClause, characterLockToRefLock, assembleSunoInput, type AssembleSunoResult, NODE_PROMPT_CANDIDATE_FIELDS } from "@nodaro/prompts"
 import {
   appendScene3DStillScopingLines,
@@ -4723,6 +4723,22 @@ function executeNodeCore(
       return Promise.reject(new Error("No audio input"));
     }
     const d = node.data as TranscribeData;
+    // An EXPLICIT word-timings request the selected lane cannot honour is
+    // refused HERE — before the node flips to running, before any YouTube audio
+    // extraction, and before the API call reserves credits. The lane still runs
+    // and BILLS on an incapable engine, handing back `words: []`, so the cost of
+    // discovering this downstream is a paid transcription plus a failed
+    // captions node. The INFERRED flag below stays capability-aware (it silently
+    // degrades instead of refusing) — only an explicit `true` is a promise.
+    {
+      const refusal = d.wordTimestamps === true
+        ? transcribeWordTimestampsRefusal(d.provider)
+        : null;
+      if (refusal) {
+        toast.error(`Node "${d.label}": ${refusal}`);
+        return Promise.reject(new Error("Word timings unavailable"));
+      }
+    }
     const { updateNodeData } = useWorkflowStore.getState();
     updateNodeData(node.id, {
       ...RUN_START_RESET,
@@ -7655,12 +7671,31 @@ function executeNodeCore(
       return Promise.reject(new Error("No video"));
     }
     const d = node.data as AddCaptionsData;
-    const text = inputs.prompt ?? "";
-    // Mirror of the route's superRefine: text, captions, or auto-transcribe
-    // (opt-OUT, worker semantics — undefined means "transcribe the video").
-    // The old guard read the flag opt-IN against a value nothing ever writes,
-    // which made every style unrunnable from a bare video (#759).
-    const preflightError = addCaptionsPreflight(d, inputs);
+    // Wired text first, then the node's OWN `text` — the same precedence the DAG
+    // engine uses (payload-builder: `resolvedInputs.prompt || resolveRefs(data.text)`).
+    // Reading only `inputs.prompt` dropped the authored text of every imported /
+    // agent-written / MCP node (the canvas panel has no text field, but the field
+    // is real and the backend honours it), so the run silently burned an
+    // auto-transcription instead of the caption the author wrote.
+    const text = inputs.prompt || resolveTextRefs(typeof d.text === "string" ? d.text : undefined, refMap) || "";
+    // Numeric levers coerced with the SAME helper the DAG engine applies
+    // (payload-builder → normalizeCaptionNumericLevers): a node written by an
+    // agent / import / template never passed the panel's clamp, so without this
+    // the canvas run 400s on a fontSize the orchestrator silently renders at 12
+    // — one node, two engines, two answers. A null lever is dropped, never sent.
+    const levers: { fontSize?: number; fontWeight?: number; strokeWidth?: number; positionY?: number; maxWordsPerLine?: number } =
+      normalizeCaptionNumericLevers({
+        fontSize: d.fontSize,
+        fontWeight: d.fontWeight,
+        strokeWidth: d.strokeWidth,
+        positionY: d.positionY,
+        maxWordsPerLine: d.maxWordsPerLine,
+      });
+    // Mirror of the route's superRefine: text, a wired transcript, or
+    // auto-transcribe (opt-OUT, worker semantics — undefined means "transcribe
+    // the video"). The old guard read the flag opt-IN against a value nothing
+    // ever writes, which made every style unrunnable from a bare video (#759).
+    const preflightError = addCaptionsPreflight(d, { text, transcript: inputs.transcript });
     if (preflightError) {
       toast.error(preflightError);
       return Promise.reject(new Error("No caption source"));
@@ -7673,7 +7708,7 @@ function executeNodeCore(
           text,
           d.style,
           d.position,
-          d.fontSize,
+          levers.fontSize,
           d.color,
           d.backgroundColor as string | undefined,
           ctx.userId,
@@ -7689,13 +7724,14 @@ function executeNodeCore(
             // subtitle (KINETIC_ONLY_CAPTION_LEVER_KEYS).
             look: d.look,
             fontFamily: d.fontFamily,
-            fontWeight: d.fontWeight,
+            fontWeight: levers.fontWeight,
             strokeColor: d.strokeColor,
-            strokeWidth: d.strokeWidth,
+            strokeWidth: levers.strokeWidth,
             highlightColor: d.highlightColor,
             uppercase: d.uppercase,
-            positionY: d.positionY,
+            positionY: levers.positionY,
             animate: d.animate,
+            maxWordsPerLine: levers.maxWordsPerLine,
           },
         ),
       "generatedVideoUrl",

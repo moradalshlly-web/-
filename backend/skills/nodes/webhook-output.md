@@ -1,7 +1,7 @@
 ---
 node_type: webhook-output
-generated_at: 2026-09-22T00:01:38.225Z
-generated_from: aa6130b81
+generated_at: 2026-09-22T04:24:31.538Z
+generated_from: e725fce75
 ---
 
 # Webhook Output
@@ -9,7 +9,7 @@ generated_from: aa6130b81
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `webhook-output`
 **Category:** output
-**Credit cost:** 0
+**Credit cost:** `0` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** (none)
 

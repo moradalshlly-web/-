@@ -1,7 +1,7 @@
 ---
 node_type: motion-graphics
-generated_at: 2026-08-29T19:02:39.140Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:09.945Z
+generated_from: 09788c987
 ---
 
 # Motion Graphics
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `motion-graphics`
 **Category:** ai
-**Credit cost:** 5
+**Credit cost:** `1-8` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `composition`, `lottie`
 

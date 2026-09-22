@@ -1,7 +1,7 @@
 ---
 node_type: dubbing
-generated_at: 2026-08-30T23:28:29.053Z
-generated_from: 5be082c3f
+generated_at: 2026-09-21T19:12:09.568Z
+generated_from: 09788c987
 ---
 
 # Dubbing
@@ -9,7 +9,7 @@ generated_from: 5be082c3f
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `dubbing`
 **Category:** ai
-**Credit cost:** 40
+**Credit cost:** `80` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `audio`, `video`
 **Outputs (source handles):** `audio`, `video`
 

@@ -1,7 +1,7 @@
 ---
 node_type: still-to-video
-generated_at: 2026-08-20T22:45:49.309Z
-generated_from: 00e082f98
+generated_at: 2026-09-21T19:12:09.709Z
+generated_from: 09788c987
 ---
 
 # Still to Video
@@ -9,7 +9,7 @@ generated_from: 00e082f98
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `still-to-video`
 **Category:** processing
-**Credit cost:** 0
+**Credit cost:** `0` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `image`, `audio`
 **Outputs (source handles):** `video`
 

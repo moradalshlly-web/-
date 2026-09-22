@@ -10,6 +10,8 @@ import {
   CAPTION_LOOK_IDS,
   DEFAULT_CAPTION_LOOK,
   SUPPORTED_FONT_NAMES,
+  CAPTION_MAX_WORDS_PER_LINE_MIN,
+  CAPTION_MAX_WORDS_PER_LINE_MAX,
   TRANSCRIBE_LANES,
   type OverlayAnchor,
   type OverlayPlatformId,
@@ -39,6 +41,20 @@ function parseSection(raw: string): { sectionStartSec: number; sectionEndSec: nu
     process.exit(1)
   }
   return { sectionStartSec: start, sectionEndSec: end }
+}
+
+/** Parse `--max-words-per-line n` — a whole number inside the shared bounds.
+ *  Kept a string until here so the refusal can quote what was actually typed
+ *  (`--max-words-per-line 2.5` is a mistake worth naming, not a silent 2). */
+function parseMaxWordsPerLine(raw: string): number {
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < CAPTION_MAX_WORDS_PER_LINE_MIN || n > CAPTION_MAX_WORDS_PER_LINE_MAX) {
+    warn(
+      `--max-words-per-line must be a whole number ${CAPTION_MAX_WORDS_PER_LINE_MIN}-${CAPTION_MAX_WORDS_PER_LINE_MAX} (got "${raw}")`,
+    )
+    process.exit(1)
+  }
+  return n
 }
 
 /** Parse `--canvas WxH` (px) into the route's canvas object. */
@@ -401,6 +417,10 @@ Example:
     .option("--highlight-color <color>", "colour of the word being spoken (kinetic styles only)")
     .option("--uppercase", "force UPPERCASE captions")
     .option("--no-uppercase", "keep mixed case (the default outline look is UPPERCASE)")
+    .option(
+      "--max-words-per-line <n>",
+      `cap the words on one caption line (or tiktok-words page), ${CAPTION_MAX_WORDS_PER_LINE_MIN}-${CAPTION_MAX_WORDS_PER_LINE_MAX} — unset fits the frame width`,
+    )
     .option("--animate", "animate per-word motion on the kinetic styles (the default)")
     .option(
       "--no-animate",
@@ -420,12 +440,17 @@ Example:
 Fonts: ${SUPPORTED_FONT_NAMES.join(", ")}
 
 The styling levers (--look, --font-family, --font-weight, --stroke-*, --uppercase,
---position-y) now apply to the static subtitle style too — a subtitle carrying any
-of them renders via Remotion. Only --highlight-color and --animate are kinetic-only;
-the subtitle style rejects them with a 400.
+--position-y, --max-words-per-line) now apply to the static subtitle style too — a
+subtitle carrying any of them renders via Remotion. Only --highlight-color and
+--animate are kinetic-only; the subtitle style rejects them with a 400.
 
 --animate is on by default; --no-animate freezes the per-word motion on the kinetic
 styles (the grouping, line-holding and spoken-word highlight stay).
+
+--max-words-per-line caps a line (or a tiktok-words page) ON TOP of the width budget,
+sentence ends and pauses that already close one — 1-2 gives the punchy CapCut read.
+It is inert on word-pop, which is always one word, and a --segments-file entry that
+names its own overrides it for that range.
 
 Examples:
   $ nodaro media add-captions https://.../clip.mp4 --style word-highlight --look outline --watch
@@ -450,6 +475,7 @@ Examples:
           strokeWidth?: number
           highlightColor?: string
           uppercase?: boolean
+          maxWordsPerLine?: string
           animate?: boolean
           autoTranscribe?: boolean
           transcribeProvider?: string
@@ -484,6 +510,8 @@ Examples:
             warn(`--transcribe-provider must be one of ${TRANSCRIBE_LANES.join(", ")} (got "${opts.transcribeProvider}")`)
             process.exit(1)
           }
+          const maxWordsPerLine =
+            opts.maxWordsPerLine !== undefined ? parseMaxWordsPerLine(opts.maxWordsPerLine) : undefined
           const captions = opts.captionsFile
             ? readJsonArrayFile<CaptionEntry>(opts.captionsFile, "--captions-file")
             : undefined
@@ -508,6 +536,7 @@ Examples:
             ...(opts.strokeColor ? { strokeColor: opts.strokeColor } : {}),
             ...(opts.strokeWidth !== undefined ? { strokeWidth: opts.strokeWidth } : {}),
             ...(opts.highlightColor ? { highlightColor: opts.highlightColor } : {}),
+            ...(maxWordsPerLine !== undefined ? { maxWordsPerLine } : {}),
             // Tri-state: commander leaves it undefined unless --uppercase / --no-uppercase
             // was passed, so an untouched flag keeps the look's own casing.
             ...(opts.uppercase !== undefined ? { uppercase: opts.uppercase } : {}),

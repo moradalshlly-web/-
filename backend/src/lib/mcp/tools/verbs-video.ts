@@ -17,7 +17,7 @@ import {
   uiMeta,
 } from "./_verb-helpers.js"
 import { WIDGET_URI } from "../widgets/registrar.js"
-import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, CAPTION_LOOK_IDS, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_NODE_PROVIDERS, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, TRANSCRIBE_LANES } from "@nodaro/shared"
+import { modelIdsByKindMode, VIDEO_REF_LIMITS_BY_PROVIDER, SEEDANCE_2_REF_LIMITS, ALL_CAPTION_STYLES, CAPTION_LOOK_IDS, SUPPORTED_FONT_NAMES, COMBINE_TRANSITION_IDS, AUDIO_CROSSFADE_CURVE_IDS, MOTION_TRANSFER_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_TIER, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_MAX_SCENE_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, readPromptAffixes, LIP_SYNC_PROVIDERS, VIDEO_TO_VIDEO_NODE_PROVIDERS, isSeedanceVideoEditProvider, SEEDANCE_VIDEO_EDIT_SHAPE, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, TRANSCRIBE_LANES, CAPTION_MAX_WORDS_PER_LINE_MIN, CAPTION_MAX_WORDS_PER_LINE_MAX } from "@nodaro/shared"
 import { applyPromptAffixes, buildSeedanceVideoEditPrompt } from "@nodaro/prompts"
 
 // Map list_models catalog/display ids → /v1/motion-transfer route providers.
@@ -963,10 +963,16 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
     "add_captions",
     {
       title: "Add Captions",
+      // The doctrine — picking a style, what each look preset resolves to, the
+      // segment cascade, line fitting, the billing rule — lives in the skill
+      // (`get_node_skill("add-captions")`), NOT here. This description carries
+      // only what an agent needs to make a correct call; every lever it names
+      // is documented at length there. Keep it that way: the per-tool wire
+      // budget is spent by every session on every host, the skill is fetched
+      // once by the caller who needs it.
       description:
-        "Burn captions into a video. Provide either video_url OR video_asset_id, plus captions data. Static styles (subtitle) accept `text`. Kinetic styles (word-highlight, karaoke, tiktok-words, word-pop, bouncy) need word-timed `captions[]` OR set `auto_transcribe: true` (default) to transcribe the input video's audio.\n\n" +
-        "TikTok/Reels look in one field: `look` picks a preset for the KINETIC styles — `outline` (heavy Montserrat 900, UPPERCASE, thick black outline, yellow spoken word — the CapCut/TikTok read) or `clean` (Inter, no outline/casing). **An UNSET `look` renders as `outline`** — that is the default kinetic look. Pass `look: \"clean\"` to turn the preset off and keep only your own explicit levers.\n\n" +
-        "The explicit levers below OVERRIDE individual fields of the chosen look (ADDED, not replacements — with `outline`, setting only `highlight_color` keeps Montserrat/caps/outline and just recolours the spoken word). `font_family`, `font_weight`, `stroke_color`+`stroke_width`, `uppercase` and `position_y` ALSO style the static `subtitle` (it renders via Remotion when you set one); only `highlight_color` and `animate` are kinetic-only. `animate: false` makes a kinetic style STATIC — keeps grouping + spoken-word highlight, drops the per-word motion (set `highlight_color`=`color` too for a fully still line). All free (no extra credits).",
+        "Burn captions into a video. Pass video_url OR video_asset_id. On `subtitle` (the default style) `text` is burned as-is — ONE static block for the whole video, never transcribed over, with or without styling levers; omit `text` to caption the speech. The kinetic styles — word-highlight, karaoke, tiktok-words, word-pop, bouncy — are word-timed: give them `captions[]` (one entry per WORD) or leave `auto_transcribe` on to transcribe the video's own audio; `text` is only their fallback.\n\n" +
+        "An UNSET `look` is the TikTok/CapCut read (`outline`) on a kinetic style, `clean` on `subtitle`; the levers below each override ONE field of it, at no extra credits on a kinetic style — but a styling lever on `subtitle` moves that render to Remotion and to the kinetic price. For which style to pick, what each look resolves to, the `segments[]` cascade and the gotchas, read `get_node_skill(\"add-captions\")`.",
       inputSchema: {
         text: z.string().min(1).optional(),
         captions: z.array(z.object({
@@ -976,14 +982,12 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
           timestampMs: z.number().min(0).nullable().default(null),
           confidence: z.number().min(0).max(1).nullable().default(null),
         })).optional().describe(
-          "Word-timed captions for the kinetic styles: ONE entry per WORD (a bare word is fine — words are auto-spaced). " +
-          "`startMs`/`endMs` are the word's SPOKEN window — they time its highlight/animation, not always its visibility " +
-          "(word-highlight holds each LINE until the next line starts); `timestampMs` (optional) is the word " +
-          "timestamp used by tiktok-words token timing; `confidence` (optional) is metadata, ignored by rendering.",
+          "ONE entry per WORD, `{ text, startMs, endMs }` in ms on the video's timeline — what `transcribe` returns. " +
+          "`startMs`/`endMs` are the word's SPOKEN window, not always its visibility window.",
         ),
         auto_transcribe: z.boolean().optional(),
         transcribe_provider: z.enum(TRANSCRIBE_LANES).optional().describe(
-          "Auto-transcribe engine. `whisper` returns NO word timings, so it is refused when transcription is the render's only caption source.",
+          "Auto-transcribe engine. `whisper` returns NO word timings: refused only when a KINETIC render's sole caption source is transcription; fine on `subtitle`.",
         ),
         video_url: z.string().url().optional(),
         video_asset_id: z.string().optional(),
@@ -992,15 +996,16 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         font_size: z.number().int().min(12).max(200).optional(),
         color: z.string().optional(),
         background_color: z.string().optional(),
-        look: z.enum(CAPTION_LOOK_IDS).optional().describe("Kinetic styles only. Named look preset — `outline` (Montserrat 900, UPPERCASE, black outline, yellow spoken word) or `clean` (Inter, no outline/casing). UNSET = `outline` (the default). The explicit levers below override individual fields of it; pass `clean` to keep only your own levers."),
-        font_family: z.enum(SUPPORTED_FONT_NAMES).optional().describe("Overrides the look's face. Any face from SUPPORTED_FONT_NAMES (e.g. Montserrat, Anton, Bebas Neue, Oswald, Poppins; Rubik/Heebo/Cairo/Tajawal cover Hebrew/Arabic)."),
-        font_weight: z.number().int().min(100).max(900).multipleOf(100).optional().describe("CSS numeric weight 100-900 (in 100s). The face must ship that weight or it renders at the nearest loaded one."),
-        stroke_color: z.string().optional().describe("Outline colour (e.g. #000000). Needs stroke_width > 0."),
-        stroke_width: z.number().min(0).max(40).optional().describe("Outline width in px (the TikTok/Reels black outline)."),
-        highlight_color: z.string().optional().describe("Kinetic only. The spoken/active word colour — token-by-token for tiktok-words; also recolours the active word in word-highlight/karaoke."),
+        look: z.enum(CAPTION_LOOK_IDS).optional().describe("Typography preset. UNSET = `outline` on kinetic styles (Montserrat 900, UPPERCASE, black outline, yellow spoken word), `clean` (Inter) on `subtitle`."),
+        font_family: z.enum(SUPPORTED_FONT_NAMES).optional().describe("Type face. Rubik/Heebo/Cairo/Tajawal cover Hebrew and Arabic."),
+        font_weight: z.number().int().min(100).max(900).multipleOf(100).optional().describe("CSS weight 100-900, in 100s."),
+        stroke_color: z.string().optional().describe("Outline colour. Needs stroke_width > 0."),
+        stroke_width: z.number().min(0).max(40).optional().describe("Outline width in px; 0 removes it."),
+        highlight_color: z.string().optional().describe("Kinetic only. Colour of the spoken/active word."),
         uppercase: z.boolean().optional().describe("Render captions in UPPERCASE."),
-        position_y: z.number().min(0).max(100).optional().describe("Vertical position of the caption block's CENTER as % of height; overrides `position`. ~65 sits below the face, above the app's bottom UI."),
-        animate: z.boolean().optional().describe("Kinetic only. false freezes per-word motion (keeps grouping + highlight; set highlight_color=color for fully static). Default true."),
+        position_y: z.number().min(0).max(100).optional().describe("The block's CENTRE as % of height; overrides `position`. ~65 sits below a face, above the app UI."),
+        animate: z.boolean().optional().describe("Kinetic only. false freezes the per-word motion. Default true."),
+        max_words_per_line: z.number().int().min(CAPTION_MAX_WORDS_PER_LINE_MIN).max(CAPTION_MAX_WORDS_PER_LINE_MAX).optional().describe("Max WORDS per caption line (or tiktok-words page) for any input, on top of the width budget; on a static `text` block it sets the line breaks. 1-2 is the CapCut read; unset fits the width. Inert on word-pop."),
         segments: z.array(z.object({
           start_ms: z.number().min(0),
           end_ms: z.number().min(0),
@@ -1018,6 +1023,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
           uppercase: z.boolean().optional(),
           position_y: z.number().min(0).max(100).optional(),
           animate: z.boolean().optional(),
+          max_words_per_line: z.number().int().min(CAPTION_MAX_WORDS_PER_LINE_MIN).max(CAPTION_MAX_WORDS_PER_LINE_MAX).optional(),
           text: z.string().min(1).optional(),
           captions: z.array(z.object({
             text: z.string(),
@@ -1027,7 +1033,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
             confidence: z.number().min(0).max(1).nullable().default(null),
           })).optional(),
         })).min(1).optional().describe(
-          "Apply DIFFERENT caption treatments to time ranges of the SAME video in one call (e.g. a large uppercase phrase at the top for the intro, then one word at a time at the bottom for the body). Each segment: start_ms/end_ms plus any style/look overrides (inherit the top-level value when omitted) and optionally its own `text`/`captions` (else it uses the shared transcript filtered to its range). Segments must NOT overlap. Any `style` (incl. subtitle) is fine here — a segmented render is all Remotion. Look cascade: a segment WITHOUT its own `look` inherits the top-level look AND the top-level explicit levers; a segment that names its OWN `look` starts fresh from that preset and does NOT inherit the top-level explicit levers (only its own) — so a top-level highlight_color does not carry onto a segment that sets `look`.",
+          "Different caption treatments on time ranges of the SAME video in one call. Each item: start_ms/end_ms, any style/look lever (omitted ones inherit the top level) and optionally its own `text`/`captions` (else the shared transcript filtered to the range). Ranges must NOT overlap; a segmented render is all Remotion, so any style takes any lever.",
         ),
       },
               outputSchema: {
@@ -1090,6 +1096,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
         uppercase: args.uppercase,
         positionY: args.position_y,
         animate: args.animate,
+        maxWordsPerLine: args.max_words_per_line,
         ...(args.segments
           ? {
               segments: args.segments.map((s) => ({
@@ -1109,6 +1116,7 @@ export function registerVideoVerbs({ server, session, fastify }: RegisterOpts): 
                 uppercase: s.uppercase,
                 positionY: s.position_y,
                 animate: s.animate,
+                maxWordsPerLine: s.max_words_per_line,
                 text: s.text,
                 captions: s.captions,
               })),

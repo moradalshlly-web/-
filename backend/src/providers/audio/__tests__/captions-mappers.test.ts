@@ -3,6 +3,7 @@ import {
   fastWhisperWordsToCaptions,
   whisperWordsToCaptions,
   syntheticCaptionsFromText,
+  transcribeSegmentsToCaptions,
   transcriptToCaptions,
   CAPTION_LINE_MAX_WORDS,
   CAPTION_LINE_GAP_MS,
@@ -208,5 +209,61 @@ describe("transcriptToCaptions — alignment through an apply-edl remap (±80ms,
       expect(Math.abs(c.startMs - expected[i].startMs)).toBeLessThanOrEqual(80)
       expect(Math.abs(c.endMs - expected[i].endMs)).toBeLessThanOrEqual(80)
     })
+  })
+})
+
+/**
+ * PHRASE-level captions — the source for a render that does NOT need word
+ * timings (a subtitle). Every transcription lane returns segments, including
+ * the ones that can return no words at all, so this is what lets `whisper`
+ * caption a subtitle instead of failing the job after it was paid for.
+ */
+describe("transcribeSegmentsToCaptions", () => {
+  it("makes one caption per segment, timed by the segment (seconds → ms)", () => {
+    expect(
+      transcribeSegmentsToCaptions([
+        { start: 0, end: 1.5, text: "one two." },
+        { start: 1.5, end: 3.25, text: "three four." },
+      ]),
+    ).toEqual([
+      { text: "one two.", startMs: 0, endMs: 1500, timestampMs: 0, confidence: null },
+      { text: " three four.", startMs: 1500, endMs: 3250, timestampMs: 1500, confidence: null },
+    ])
+  })
+
+  it("applies the @remotion/captions leading-space delimiter from the second line on", () => {
+    const caps = transcribeSegmentsToCaptions([
+      { start: 0, end: 1, text: "  first  " },
+      { start: 1, end: 2, text: "second" },
+    ])
+    expect(caps.map((c) => c.text)).toEqual(["first", " second"])
+  })
+
+  it("sorts by start so a line's span can never invert", () => {
+    const caps = transcribeSegmentsToCaptions([
+      { start: 2, end: 3, text: "later" },
+      { start: 0, end: 1, text: "earlier" },
+    ])
+    expect(caps.map((c) => c.text)).toEqual(["earlier", " later"])
+    expect(caps.every((c) => c.endMs >= c.startMs)).toBe(true)
+  })
+
+  it("drops blank and unusable segments", () => {
+    expect(
+      transcribeSegmentsToCaptions([
+        { start: 0, end: 1, text: "   " },
+        { start: Number.NaN, end: 1, text: "bad" },
+        { start: 0, end: 1, text: "kept" },
+      ]),
+    ).toEqual([{ text: "kept", startMs: 0, endMs: 1000, timestampMs: 0, confidence: null }])
+  })
+
+  it("clamps an end that precedes its start (a line that would never be on screen)", () => {
+    const [cap] = transcribeSegmentsToCaptions([{ start: 2, end: 1, text: "backwards" }])
+    expect(cap).toMatchObject({ startMs: 2000, endMs: 2000 })
+  })
+
+  it("returns nothing for an empty list", () => {
+    expect(transcribeSegmentsToCaptions([])).toEqual([])
   })
 })

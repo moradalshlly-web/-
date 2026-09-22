@@ -1,7 +1,7 @@
 ---
 node_type: voice-remix
-generated_at: 2026-08-29T19:02:38.860Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:09.577Z
+generated_from: 09788c987
 ---
 
 # Voice Remix
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `voice-remix`
 **Category:** ai
-**Credit cost:** 4
+**Credit cost:** `40` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `audio`, `audio-style`
 **Outputs (source handles):** `audio`
 

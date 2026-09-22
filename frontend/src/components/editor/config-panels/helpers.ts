@@ -1,6 +1,6 @@
 import type { WorkflowNode, WorkflowEdge, FieldMappings } from "@/types/nodes"
 import type { SourceNodeInfo } from "./types"
-import { buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, instagramScrapeCreditIdFromNode, isKineticCaptionStyle, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
+import { DEFAULT_TRANSCRIBE_NODE_PROVIDER, buildCreditModelIdentifier as sharedBuildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, LLM_FEATURE_DEFAULTS, motionGraphicsFeature, buildScraperCreditId, isScraperActor, metaAdsScrapeCreditIdFromNode, instagramScrapeCreditIdFromNode, captionRoutesToRemotion, resolveAiAvatarCreditId, resolveCinematicCreditId, referenceSheetCreditId, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, buildVideoAuditCreditId, buildEditPlanCreditId, asEditPlanMode, asEditPlanTier, sunoCreditType, resolveTopazUpscale, applyDefaultVideoSelection } from "@nodaro/shared"
 import { videoAuditAnalysisWired } from "@/components/editor/workflow-editor/types"
 import { renderVideoCreditIdForNode } from "@/lib/render-video-plan"
 import { resolveEditPlanEstimateDurationSec } from "@/lib/edit-plan-estimate"
@@ -282,6 +282,67 @@ const LLM_NODE_FEATURE_MAP: Record<string, LlmFeature> = {
 }
 
 /**
+ * Does an edge feed this Add Captions node a TIMED caption source — a Transcript
+ * on its `transcript` handle, or a transcribe node wired straight in? Either one
+ * makes the render Remotion (`add-captions:kinetic`) whatever the node's own data
+ * says, because the run resolves the wired source over `data.text`.
+ *
+ * UNKNOWN (no edges passed, or a node with no id) answers TRUE: the estimate may
+ * over-quote, it must never under-quote. Mirror of the backend estimator's
+ * `timedCaptionSourceWired` (ee/billing/credits.ts), which is the other half of
+ * the same price.
+ */
+export function addCaptionsTimedSourceWired(
+  nodeId: string | undefined,
+  edges?: ReadonlyArray<WorkflowEdge>,
+  nodes?: ReadonlyArray<WorkflowNode>,
+): boolean {
+  if (!edges || !nodeId) return true
+  return edges.some((e) => {
+    if (e.target !== nodeId) return false
+    if (e.targetHandle === "transcript") return true
+    return nodes?.some((n) => n.id === e.source && n.type === "transcribe") ?? false
+  })
+}
+
+/**
+ * The credit row an Add Captions node is priced against — the ONE place the
+ * canvas badge, the panel's Generate button and every run-level estimate read,
+ * so they cannot quote different prices for the same node.
+ *
+ * The price follows the RENDERER, via the same predicate the route's credit id,
+ * payload-builder's reservation and the worker's dispatch use. `wiredTimedSource`
+ * is the graph fact the node's own data cannot show (see above).
+ */
+export function addCaptionsCreditId(
+  data: Record<string, unknown>,
+  wiredTimedSource: boolean,
+): "add-captions" | "add-captions:kinetic" {
+  // `text` proves the cheap FFmpeg burn only when it is LITERAL: a `{Label}`
+  // reference can resolve to nothing at run time, which leaves transcription as
+  // the only source — timed captions, Remotion, the kinetic row.
+  const rawText = typeof data.text === "string" ? data.text : undefined
+  const literalText = rawText && !/\{[^{}]+\}/.test(rawText) ? rawText : undefined
+  return captionRoutesToRemotion({
+    style: data.style as string | undefined,
+    text: literalText,
+    segments: Array.isArray(data.segments) ? (data.segments as unknown[]) : undefined,
+    transcript: wiredTimedSource ? {} : data.transcript,
+    captions: Array.isArray(data.captions) ? (data.captions as unknown[]) : undefined,
+    look: data.look,
+    fontFamily: data.fontFamily,
+    fontWeight: data.fontWeight,
+    strokeColor: data.strokeColor,
+    strokeWidth: data.strokeWidth,
+    uppercase: data.uppercase,
+    positionY: data.positionY,
+    maxWordsPerLine: data.maxWordsPerLine,
+  })
+    ? "add-captions:kinetic"
+    : "add-captions"
+}
+
+/**
  * The credit-cost row a node should be priced against.
  *
  * `edges` is optional graph context, read ONLY by node types whose price
@@ -378,12 +439,11 @@ export function getModelIdentifier(
     return instagramScrapeCreditIdFromNode(data)
   }
 
+  // Add Captions: the price follows the RENDERER, not the style — see
+  // addCaptionsCreditId, which the node's own badge reads too (through
+  // use-add-captions-credit-id) so the pill and the panel cannot disagree.
   if (nodeType === "add-captions") {
-    const style = data.style as string | undefined
-    if (isKineticCaptionStyle(style)) {
-      return "add-captions:kinetic"
-    }
-    return "add-captions"
+    return addCaptionsCreditId(data, addCaptionsTimedSourceWired(node.id, edges, nodes))
   }
 
   // Video-analysis: tier+duration composite — the SAME id the node badge
@@ -491,6 +551,16 @@ export function getModelIdentifier(
       resolution,
       hasVideoRef,
     )
+  }
+
+  // Transcribe reserves on the ENGINE — execute-node sends
+  // `d.provider || DEFAULT_TRANSCRIBE_NODE_PROVIDER` and payload-builder reserves
+  // that same lane — so a provider-less node (agent-written / imported JSON; the
+  // canvas default fills one in) must be quoted on the engine, not on the bare
+  // `transcribe` row. ABOVE the `!provider` bail for exactly that reason. Mirror
+  // of the backend estimator's transcribe branch (ee/billing/credits.ts).
+  if (nodeType === "transcribe") {
+    return (typeof data.provider === "string" && data.provider) || DEFAULT_TRANSCRIBE_NODE_PROVIDER
   }
 
   const provider = data.provider as string | undefined

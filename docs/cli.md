@@ -283,14 +283,27 @@ nodaro media download <url> [--max-height <px>] [--section <a-b>] [--watch] [--j
 nodaro media metadata <url> [--json]                     # probe duration/dimensions/title WITHOUT downloading
 nodaro media trim-video --video <url> --start <sec> --end <sec>|--keep-first <sec>|--keep-last <sec> [--watch] [--poll-interval <ms>] [--json]
 nodaro media trim-audio --video <url>|--audio <url> [--start <sec>] [--end <sec>] [--format mp3|wav|aac] [--watch] [--poll-interval <ms>] [--json]
-nodaro media add-captions <videoUrl> [--text <text>] [--captions-file <file.json>] [--style subtitle|word-highlight|karaoke|tiktok-words|word-pop|bouncy] [--look outline|clean] [--position bottom|top|center] [--position-y <pct>] [--font-size <px>] [--font-family <name>] [--font-weight <100-900>] [--color <c>] [--background-color <c>] [--stroke-color <c>] [--stroke-width <px>] [--highlight-color <c>] [--uppercase|--no-uppercase] [--animate|--no-animate] [--no-auto-transcribe] [--transcribe-provider <lane>] [--segments-file <file.json>] [--watch] [--poll-interval <ms>] [--json]
+nodaro media add-captions <videoUrl> [--text <text>] [--captions-file <file.json>] [--style subtitle|word-highlight|karaoke|tiktok-words|word-pop|bouncy] [--look outline|clean] [--position bottom|top|center] [--position-y <pct>] [--font-size <px>] [--font-family <name>] [--font-weight <100-900>] [--color <c>] [--background-color <c>] [--stroke-color <c>] [--stroke-width <px>] [--highlight-color <c>] [--uppercase|--no-uppercase] [--max-words-per-line <1-20>] [--animate|--no-animate] [--no-auto-transcribe] [--transcribe-provider elevenlabs-stt|incredibly-fast-whisper|whisper] [--segments-file <file.json>] [--watch] [--poll-interval <ms>] [--json]
                                                          # burn captions in. `subtitle` is static (FFmpeg drawtext); the kinetic styles render
-                                                         # via Remotion. The STYLING levers (--look, --font-family, --font-weight, --stroke-*,
-                                                         # --uppercase, --position-y) now ALSO style a `subtitle` — a styled subtitle renders via
-                                                         # Remotion and bills at the kinetic price; a bare plain-text subtitle stays on the cheap
-                                                         # path. Only --highlight-color and --animate are kinetic-only (rejected on subtitle).
-                                                         # --animate is on by default; --no-animate freezes the per-word motion (grouping +
-                                                         # highlight colour stay). On the kinetic styles an unset --look renders as `outline`.
+                                                         # via Remotion. On `subtitle`, --text is burned as-is as ONE static block for the whole
+                                                         # video — never transcribed over, styled or not; omit --text to caption the speech. On a
+                                                         # kinetic style --text is only the fallback when transcription returns nothing (or with
+                                                         # --no-auto-transcribe). The STYLING levers (--look, --font-family, --font-weight, --stroke-*,
+                                                         # --uppercase, --position-y, --max-words-per-line) ALSO style a `subtitle` — a styled
+                                                         # subtitle renders via Remotion and bills at the kinetic price; a bare plain-text subtitle
+                                                         # stays on the cheap path. Only --highlight-color and --animate are kinetic-only (rejected
+                                                         # on subtitle). --animate is on by default; --no-animate freezes the per-word motion
+                                                         # (grouping + highlight colour stay). On the kinetic styles an unset --look renders as
+                                                         # `outline`; on `subtitle` as `clean`. --max-words-per-line <n> (1-20) caps the WORDS on
+                                                         # one caption line (or tiktok-words page) on top of the frame-width budget, sentence ends
+                                                         # and >=0.5s pauses — it counts words for any input (a longer phrase entry is split), and
+                                                         # on a --text subtitle it only sets the line breaks. 1-2 is the punchy CapCut read, unset
+                                                         # fits the width; inert on word-pop. word-highlight,
+                                                         # karaoke and bouncy all show ONE held line at a time. --transcribe-provider picks the
+                                                         # auto-transcribe engine: a kinetic style needs word timings (incredibly-fast-whisper,
+                                                         # the default, or elevenlabs-stt); `subtitle` needs phrase timing only, so whisper is fine
+                                                         # there. A Remotion render keeps the source frame rate (whole number, 15-60 fps; a
+                                                         # variable-frame-rate or very long source renders at 30 fps).
                                                          # --captions-file is a JSON array of word-timed entries [{ text, startMs, endMs }] — one
                                                          # per WORD for the kinetic styles, and an `audio transcribe` job's output_data.words drops
                                                          # in verbatim (pair it with --no-auto-transcribe). --segments-file gives non-overlapping
@@ -326,10 +339,12 @@ nodaro audio fx --audio <url> [--preset <preset>] [--mix <0-100>] [--delay <20-2
 nodaro audio mix --audio <url> --audio <url> ... [--volumes <csv>] [--watch] [--poll-interval <ms>] [--json]
 nodaro audio adjust-volume --audio <url>|--video <url> [--volume <0-200>] [--normalize] [--fade-in <sec>] [--fade-out <sec>] [--watch] [--poll-interval <ms>] [--json]
 nodaro audio combine --segment <url[@a-b]> --segment ... [--watch] [--poll-interval <ms>] [--json]
-nodaro audio transcribe --audio <url> [--provider elevenlabs-stt] [--language <code>] [--diarize] [--tag-audio-events] [--word-timestamps] [--watch] [--poll-interval <ms>] [--json]
-                                                         # speech → text. --provider elevenlabs-stt is always word-level and is the lane that
-                                                         # honours --diarize / --tag-audio-events; OMITTING --provider runs the legacy whisper
-                                                         # lane, which has no word timings (--word-timestamps is refused there, before credits).
+nodaro audio transcribe --audio <url> [--provider elevenlabs-stt|incredibly-fast-whisper|whisper] [--language <code>] [--diarize] [--tag-audio-events] [--word-timestamps] [--watch] [--poll-interval <ms>] [--json]
+                                                         # speech → text. Three engines: elevenlabs-stt is always word-level and is the lane that
+                                                         # honours --diarize / --tag-audio-events; incredibly-fast-whisper returns word timings
+                                                         # with --word-timestamps; whisper returns phrase segments only — NO word timings, so
+                                                         # --word-timestamps is refused there, before credits. OMITTING --provider still runs the
+                                                         # legacy whisper lane, so name an engine whenever you need word timings.
                                                          # The completed job's output_data carries text, words (one per word, in MILLISECONDS)
                                                          # and json (the normalized transcript, also ms); top-level segments (SECONDS) exist only
                                                          # on the legacy lanes — elevenlabs-stt returns none, so read words.
@@ -564,7 +579,11 @@ nodaro media add-captions https://example.com/talk.mp4 \
 ```
 
 Correct a word's `text` in `words.json` between steps 2 and 3 and the correction
-is what burns in.
+is what burns in. Add `--max-words-per-line 2` to step 3 for the punchy
+two-words-at-a-time read — it caps each held line on top of the frame-width
+budget. Step 1 needs a word-capable engine (`elevenlabs-stt` or
+`incredibly-fast-whisper`); `--provider whisper` returns phrase segments with no
+words, so there would be nothing to feed a kinetic style.
 
 ### Wrap an app's prompt with hidden text for one run
 
