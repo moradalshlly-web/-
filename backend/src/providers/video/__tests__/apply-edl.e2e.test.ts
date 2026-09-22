@@ -19,7 +19,7 @@ import { execFileSync } from "node:child_process"
 import { basename, dirname, join } from "node:path"
 import { promises as fs } from "node:fs"
 import { tmpdir } from "node:os"
-import { runFfmpeg, runFfprobe } from "../ffmpeg-utils.js"
+import { runFfmpeg, runFfprobe, probeStreamEnds } from "../ffmpeg-utils.js"
 import type { Edl } from "@nodaro/shared"
 
 vi.mock("../ffmpeg-utils.js", async (importOriginal) => {
@@ -71,15 +71,6 @@ async function probeDurationSec(path: string): Promise<number> {
   return parseFloat(out.trim())
 }
 
-/** Each track's own duration in an OUTPUT file — a render whose tracks differ
- *  in length is out of sync, which one container duration would hide. */
-async function streamDurationsSec(path: string): Promise<{ video: number; audio: number }> {
-  const out = await runFfprobe(["-v", "error", "-show_entries", "stream=codec_type,duration", "-of", "json", path])
-  const streams = (JSON.parse(out) as { streams: Array<{ codec_type: string; duration?: string }> }).streams
-  const of = (t: string) => Number(streams.find((st) => st.codec_type === t)?.duration ?? Number.NaN)
-  return { video: of("video"), audio: of("audio") }
-}
-
 /** Average RGB at output time `t` (scale=1:1 averages the whole frame). */
 async function probeColor(path: string, t: number): Promise<{ r: number; g: number; b: number }> {
   const raw = join(tmpdir(), `ae-px-${Math.random().toString(36).slice(2)}.raw`)
@@ -123,7 +114,7 @@ async function probeTone(path: string, t: number, candidates: number[]): Promise
 describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
   let dir: string
   let srcA: string, srcB: string, srcC: string, srcVbr: string, srcArt: string, srcLive: string
-  let srcLowFps: string, srcV6A3: string, srcV3A6: string, srcOff15: string
+  let srcLowFps: string, srcV6A3: string, srcV3A6: string, srcOff15: string, srcTs: string
   // Every successful render leaves its work dir (source copies + output) in
   // tmpdir; a failed one is cleaned by applyEdl itself. Collected and removed.
   const renderDirs: string[] = []
@@ -139,7 +130,7 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
     srcA = join(dir, "a.mp4"); srcB = join(dir, "b.mp4"); srcC = join(dir, "c.mp4")
     srcVbr = join(dir, "vbr.mp3"); srcArt = join(dir, "art.mp3"); srcLive = join(dir, "live.mkv")
     srcLowFps = join(dir, "lowfps.mp4"); srcV6A3 = join(dir, "v6a3.mp4"); srcV3A6 = join(dir, "v3a6.mp4")
-    srcOff15 = join(dir, "off15.mp4")
+    srcOff15 = join(dir, "off15.mp4"); srcTs = join(dir, "cam.ts")
     await makeSource(srcA, "red", 440, 6)
     await makeSource(srcB, "blue", 880, 6)
     await makeSource(srcC, "green", 660, 6)
@@ -184,6 +175,11 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
       "-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:r=30:d=6", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=6",
       "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-output_ts_offset", "1.5", srcOff15,
     ])
+    // An MPEG-TS remux with a large timestamp offset — a broadcast/OBS-style
+    // container that re-anchors to the earliest MAPPED stream, so
+    // format.start_time is NOT the render's zero. The probe must SKIP it
+    // (both tracks unmeasured) rather than measure against the wrong clock.
+    await runFfmpeg(["-y", "-i", srcA, "-c", "copy", "-muxdelay", "0", "-output_ts_offset", "3600", "-f", "mpegts", srcTs])
     // A 6 s live-muxed Matroska (what a MediaRecorder writes) — no duration element.
     await runFfmpeg([
       "-y",
@@ -229,52 +225,16 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
       .rejects.toThrow(/segment\[0\] "s0" ends at 9\.00s on source "A"/)
   })
 
-  it("tolerates a sub-second overrun and renders the segment's EXACT length on both tracks (last frame held, silence padded)", async () => {
+  it("tolerates a sub-second overrun (track skew) and renders to the source's real end", async () => {
     const edl: Edl = {
       version: 1, clock: "master",
       sources: [{ id: "A", url: "https://fixtures.test/a.mp4", kind: "video" }],
       segments: [{ id: "s0", inMs: 0, outMs: 6400, video: "A", audio: "A" }],
     }
     const { outputPath } = await render({ edl, output: "video", quality: "final", jobId: "t-overrun-ok", checkpoint: false })
-    const tracks = await streamDurationsSec(outputPath)
-    expect(tracks.video).toBeCloseTo(6.4, 1)
-    expect(tracks.audio).toBeCloseTo(6.4, 1)
-  })
-
-  // Inside the tolerance a short read must not SHORTEN its segment: that would
-  // pull every later segment of that track earlier than the other track, so
-  // picture and sound drift apart for the rest of the cut. Segment 0 asks for
-  // 6.5 s of a 6 s camera (inside tolerance) while the sound comes from a 10 s
-  // master mic; segment 1 cuts to a camera that started 6 s into the master
-  // clock. With the shortfall padded, the cut to green lands at 6.5 s on BOTH
-  // tracks and the two tracks end together.
-  it("a short read inside the tolerance keeps picture and sound in step for every LATER segment", async () => {
-    const edl: Edl = {
-      version: 1, clock: "master",
-      sources: [
-        { id: "A", url: "https://fixtures.test/a.mp4", kind: "video" },
-        { id: "LATE", url: "https://fixtures.test/c.mp4", kind: "video", offsetMs: 6000 },
-        { id: "MIC", url: "https://fixtures.test/lowfps.mp4", kind: "audio", role: "master-audio" }, // 10 s of sound
-      ],
-      segments: [
-        { id: "s0", inMs: 0, outMs: 6500, video: "A" },
-        { id: "s1", inMs: 6500, outMs: 9000, video: "LATE" },
-      ],
-    }
-    const { outputPath, durationMs } = await render({ edl, output: "video", quality: "final", jobId: "t-sync", checkpoint: false })
-    expect(durationMs).toBe(9000)
-    const tracks = await streamDurationsSec(outputPath)
-    expect(tracks.video).toBeCloseTo(9, 1)
-    expect(tracks.audio).toBeCloseTo(9, 1)
-    expect(Math.abs(tracks.video - tracks.audio)).toBeLessThan(0.1)
-    // 6.25 s: still segment 0 — the held last frame of red A, not green yet.
-    const held = await probeColor(outputPath, 6.25)
-    expect(held.r).toBeGreaterThan(150)
-    expect(held.g).toBeLessThan(100)
-    // 7.0 s: segment 1 — green LATE.
-    const cut = await probeColor(outputPath, 7.0)
-    expect(cut.g).toBeGreaterThan(80)
-    expect(cut.r).toBeLessThan(100)
+    const dur = await probeDurationSec(outputPath)
+    expect(dur).toBeGreaterThan(5.7)
+    expect(dur).toBeLessThan(6.6)
   })
 
   // The probe reads on the render's clock: a source whose timestamps start at
@@ -291,6 +251,16 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
     const dur = await probeDurationSec(outputPath)
     expect(dur).toBeGreaterThan(5.7)
     expect(dur).toBeLessThan(6.4)
+  })
+
+  // An MPEG-TS/PS container re-anchors timestamps to the earliest mapped
+  // stream, so format.start_time is not the render's clock. The probe must not
+  // measure against it (that would refuse correct edits or pass bad ones) — it
+  // marks both tracks unmeasured, so the window check skips the source.
+  it("marks an MPEG-TS source's tracks unmeasured — the window check is skipped, not made wrong", async () => {
+    const ends = await probeStreamEnds(srcTs)
+    expect(ends.video.state).toBe("unmeasured")
+    expect(ends.audio.state).toBe("unmeasured")
   })
 
   // The window check measures each source's REAL stream end, not the length

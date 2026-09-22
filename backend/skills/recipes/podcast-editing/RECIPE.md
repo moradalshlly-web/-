@@ -179,8 +179,7 @@ than failing mid-render, so keep these invariants when editing by hand:
   timestamps): that can only be checked against the file itself, so it runs after the
   sources are downloaded, and a violation **fails the job immediately** (credits refunded,
   not retried) naming the segment, the source and the track. A reach of up to one second is
-  treated as rounding: the segment still renders to its exact length (last frame held,
-  silence padded), so picture and sound stay in step.
+  treated as rounding and renders to whatever the track has.
 - A segment's picture source must have a real video track — an audio file, or an mp3 whose
   only "video" is embedded cover art, fails the job the same way.
 - A `layout` is accepted only when it describes what this renderer does anyway: `mode`

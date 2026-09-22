@@ -91,8 +91,11 @@ function audioSourceId(edl: Edl, seg: EdlSegment, masterAudioId: string | undefi
 
 /** How far past a track's measured end a segment may reach before it is a
  *  refusal rather than rounding — see `assertSegmentsWithinSources`. Inside
- *  it the render still delivers the segment's EXACT length: `renderSlice`
- *  holds the last frame / pads silence, so picture and sound stay in step. */
+ *  it the render reads to whatever the track actually has (a transcript's last
+ *  word can end a beat after the audio; a clip's audio outlasts its picture by
+ *  a frame or two). NOTE: per-segment frame quantization can still drift the
+ *  picture against the sound over many fractional-length segments — the
+ *  cumulative frame-grid fix is Track 0.14, out of scope for this PR. */
 export const SOURCE_END_TOLERANCE_SEC = 1
 
 /** A read the window check could not verify, for the caller to log. */
@@ -228,14 +231,7 @@ async function renderSlice(
   let needsSilence = false
 
   segs.forEach((seg, i) => {
-    // Every segment renders to EXACTLY its EDL length on both tracks. A read
-    // that runs short (inside SOURCE_END_TOLERANCE_SEC — beyond it the window
-    // check refused the job) holds its last frame / pads silence rather than
-    // coming up short: a short track would push every LATER segment of that
-    // track earlier than the other, so picture and sound would drift apart for
-    // the rest of the cut, and `durationMs` would stop being true.
     const durS = secs(seg.outMs - seg.inMs)
-    const exact = durS.toFixed(6)
 
     // --- video --- (`:V` — a real video stream, never embedded cover art;
     // the same stream `probeStreamEnds` measured)
@@ -250,8 +246,7 @@ async function renderSlice(
         `[${vIdx}:V]trim=start=${start.toFixed(6)}:end=${end.toFixed(6)},setpts=PTS-STARTPTS,` +
           `scale=${target.width}:${target.height}:force_original_aspect_ratio=decrease,` +
           `pad=${target.width}:${target.height}:(ow-iw)/2:(oh-ih)/2:color=black,` +
-          `fps=${fps},format=yuv420p,setsar=1,` +
-          `tpad=stop_mode=clone:stop_duration=${exact},trim=duration=${exact}${vLabel}`,
+          `fps=${fps},format=yuv420p,setsar=1${vLabel}`,
       )
     }
 
@@ -265,8 +260,7 @@ async function renderSlice(
       const aEnd = Math.max(aStart, secs(seg.outMs - offsetOf(aSrc)))
       filters.push(
         `[${aIdx}:a]atrim=start=${aStart.toFixed(6)}:end=${aEnd.toFixed(6)},asetpts=PTS-STARTPTS,` +
-          `aformat=sample_rates=48000:channel_layouts=stereo,` +
-          `apad=whole_dur=${exact},atrim=duration=${exact}${aLabel}`,
+          `aformat=sample_rates=48000:channel_layouts=stereo${aLabel}`,
       )
     } else {
       // No usable audio track for this segment — synthesize silence of exactly

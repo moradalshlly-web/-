@@ -577,10 +577,13 @@ export interface StreamEnds {
  *    the decoder drops, which `trim` can never reach. A stream with no pts on
  *    ANY packet (AVI) falls back to max(dts + duration).
  *  - The file's `format.start_time` is subtracted: without `-copyts` the
- *    ffmpeg CLI shifts every input by it before any filter sees a frame, so a
- *    `.ts`, an offset MKV/MP4 or an mp4 with an initial empty edit would
- *    otherwise over-report by exactly that offset (seconds; an hour for a
- *    broadcast TS). A negative start (encoder priming) is handled the same way.
+ *    ffmpeg CLI shifts every input by it before any filter sees a frame, so an
+ *    offset MKV/MP4 or an mp4 with an initial empty edit would otherwise
+ *    over-report by exactly that offset. A negative start (encoder priming) is
+ *    handled the same way. EXCEPTION: MPEG-TS / program-stream containers
+ *    re-anchor to the earliest MAPPED stream (which chunking changes), so
+ *    `format.start_time` is not the render's zero for them — both tracks come
+ *    back `unmeasured` and the window check is skipped rather than made wrong.
  *
  * Cost is I/O only and scales with file size. Packet lines are STREAMED (a
  * two-hour track is several MB of csv — past `runFfprobe`'s buffer). Local
@@ -592,11 +595,21 @@ export interface StreamEnds {
 export async function probeStreamEnds(filePath: string): Promise<StreamEnds> {
   const listing = await runFfprobe([
     "-v", "error",
-    "-show_entries", "format=start_time:stream=index,codec_type:stream_disposition=attached_pic",
+    "-show_entries", "format=start_time,format_name:stream=index,codec_type:stream_disposition=attached_pic",
     "-of", "json",
     filePath,
   ])
-  const { video, audio, startSec } = parseStreamListing(listing)
+  const { video, audio, startSec, reAnchors } = parseStreamListing(listing)
+  if (reAnchors) {
+    // The container's timestamps do not share the render's clock (see the
+    // docstring) — measuring against them would refuse correct edits or pass
+    // bad ones. Skip the check; the render proceeds as it always has.
+    const unmeasured: TrackEnd = { state: "unmeasured", reason: "MPEG-TS/PS container re-anchors timestamps; not on the render's clock" }
+    return {
+      video: video === undefined ? { state: "absent" } : unmeasured,
+      audio: audio === undefined ? { state: "absent" } : unmeasured,
+    }
+  }
   const measure = async (index: number | undefined): Promise<TrackEnd> => {
     if (index === undefined) return { state: "absent" }
     try {
@@ -612,15 +625,17 @@ export async function probeStreamEnds(filePath: string): Promise<StreamEnds> {
   return { video: await measure(video), audio: await measure(audio) }
 }
 
-/** From an ffprobe `-show_entries format=start_time:stream=index,codec_type:
- *  stream_disposition=attached_pic -of json` listing: the first REAL video
- *  stream (not cover art) and the first audio stream, by index, and the file's
- *  start time in seconds (0 when the container reports none). Exported for its
- *  unit test. */
-export function parseStreamListing(listingJson: string): { video?: number; audio?: number; startSec: number } {
+/** From an ffprobe `-show_entries format=start_time,format_name:stream=index,
+ *  codec_type:stream_disposition=attached_pic -of json` listing: the first REAL
+ *  video stream (not cover art) and the first audio stream, by index, the
+ *  file's start time in seconds (0 when the container reports none), and
+ *  `reAnchors` — whether the container re-anchors timestamps to the earliest
+ *  mapped stream (MPEG-TS / program stream), so `format.start_time` is not the
+ *  render's zero. Exported for its unit test. */
+export function parseStreamListing(listingJson: string): { video?: number; audio?: number; startSec: number; reAnchors: boolean } {
   let parsed: {
     streams?: Array<{ index?: number; codec_type?: string; disposition?: { attached_pic?: number } }>
-    format?: { start_time?: string }
+    format?: { start_time?: string; format_name?: string }
   }
   try {
     parsed = JSON.parse(listingJson) as typeof parsed
@@ -631,10 +646,14 @@ export function parseStreamListing(listingJson: string): { video?: number; audio
   const video = streams.find((s) => s.codec_type === "video" && !(s.disposition?.attached_pic ?? 0))?.index
   const audio = streams.find((s) => s.codec_type === "audio")?.index
   const start = Number(parsed.format?.start_time)
+  // ffprobe joins comma-separated demuxer names, e.g. "mpegts" or "mpeg".
+  const names = (parsed.format?.format_name ?? "").split(",").map((n) => n.trim())
+  const reAnchors = names.includes("mpegts") || names.includes("mpegtsraw") || names.includes("mpeg")
   return {
     ...(typeof video === "number" ? { video } : {}),
     ...(typeof audio === "number" ? { audio } : {}),
     startSec: Number.isFinite(start) ? start : 0,
+    reAnchors,
   }
 }
 

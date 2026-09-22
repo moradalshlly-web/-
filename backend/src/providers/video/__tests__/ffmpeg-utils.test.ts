@@ -1248,20 +1248,29 @@ describe("parseStreamListing", () => {
       { index: 0, codec_type: "audio", disposition: { attached_pic: 0 } },
       { index: 1, codec_type: "video", disposition: { attached_pic: 0 } },
       { index: 2, codec_type: "audio", disposition: { attached_pic: 0 } },
-    ], { start_time: "1.478667" }))).toEqual({ video: 1, audio: 0, startSec: 1.478667 })
+    ], { start_time: "1.478667", format_name: "mov,mp4,m4a,3gp,3g2,mj2" }))).toEqual({ video: 1, audio: 0, startSec: 1.478667, reAnchors: false })
   })
 
   it("never picks embedded cover art (attached_pic) as the picture — a podcast mp3 has no video track", () => {
     expect(parseStreamListing(listing([
       { index: 0, codec_type: "audio", disposition: { attached_pic: 0 } },
       { index: 1, codec_type: "video", disposition: { attached_pic: 1 } },
-    ]))).toEqual({ audio: 0, startSec: 0 })
+    ]))).toEqual({ audio: 0, startSec: 0, reAnchors: false })
   })
 
   it("a missing, N/A or negative start_time: 0 for the first two, kept for the last (encoder priming shifts the other way)", () => {
     expect(parseStreamListing(listing([], { start_time: "N/A" })).startSec).toBe(0)
     expect(parseStreamListing(listing([])).startSec).toBe(0)
     expect(parseStreamListing(listing([], { start_time: "-0.021333" })).startSec).toBeCloseTo(-0.021333, 6)
+  })
+
+  it("flags MPEG-TS / program-stream containers as re-anchoring (their start_time is not the render's clock), not mp4/mkv/mp3", () => {
+    expect(parseStreamListing(listing([], { format_name: "mpegts" })).reAnchors).toBe(true)
+    expect(parseStreamListing(listing([], { format_name: "mpeg" })).reAnchors).toBe(true)
+    expect(parseStreamListing(listing([], { format_name: "mov,mp4,m4a,3gp,3g2,mj2" })).reAnchors).toBe(false)
+    expect(parseStreamListing(listing([], { format_name: "matroska,webm" })).reAnchors).toBe(false)
+    expect(parseStreamListing(listing([], { format_name: "mp3" })).reAnchors).toBe(false)
+    expect(parseStreamListing(listing([])).reAnchors).toBe(false)
   })
 
   it("throws (never guesses) when the listing is not JSON", () => {
@@ -1301,12 +1310,28 @@ describe("probeStreamEnds", () => {
     expect((ends.audio as { endSec: number }).endSec).toBeCloseTo(3.008, 3)
 
     expect(execCmd(0)).toBe("ffprobe")
-    expect(execArgs(0)).toEqual(expect.arrayContaining(["-show_entries", "format=start_time:stream=index,codec_type:stream_disposition=attached_pic", "-of", "json"]))
+    expect(execArgs(0)).toEqual(expect.arrayContaining(["-show_entries", "format=start_time,format_name:stream=index,codec_type:stream_disposition=attached_pic", "-of", "json"]))
     expect(mocks.spawn).toHaveBeenCalledTimes(2)
     const [, vArgs] = mocks.spawn.mock.calls[0]!
     expect(vArgs).toEqual(expect.arrayContaining(["-select_streams", "0", "-show_entries", "packet=pts_time,dts_time,duration_time,flags", "-of", "csv=p=0", "/tmp/off15.mp4"]))
     const [, aArgs] = mocks.spawn.mock.calls[1]!
     expect(aArgs).toEqual(expect.arrayContaining(["-select_streams", "1"]))
+  })
+
+  it("an MPEG-TS/PS container is not measured against its start_time — both present tracks come back unmeasured, no packet scan", async () => {
+    execFileOnce(JSON.stringify({ streams: [V0, A1], format: { start_time: "3600.0", format_name: "mpegts" } }))
+    const ends = await probeStreamEnds("/tmp/cam.ts")
+    expect(ends.video).toMatchObject({ state: "unmeasured" })
+    expect(ends.audio).toMatchObject({ state: "unmeasured" })
+    expect((ends.video as { reason: string }).reason).toMatch(/MPEG-TS\/PS/)
+    expect(mocks.spawn).not.toHaveBeenCalled() // no per-track packet scan
+  })
+
+  it("a TS container missing one track: the absent track stays `absent`, the present one is unmeasured", async () => {
+    execFileOnce(JSON.stringify({ streams: [V0], format: { format_name: "mpegts" } }))
+    const ends = await probeStreamEnds("/tmp/vonly.ts")
+    expect(ends.video).toMatchObject({ state: "unmeasured" })
+    expect(ends.audio).toEqual({ state: "absent" })
   })
 
   it("skips packets flagged D (past a tail-trimming edit list — the decoder drops them, `trim` never reaches them)", async () => {
