@@ -9,6 +9,20 @@ import { clientRequestIdSchema, idempotencyHeaders } from "./_verb-helpers.js"
 import type { FastifyInstance } from "fastify"
 import { stripExportContent, stripUnownedRefs, stripTransientRuntimeData, normalizeNodeModelParams, describeNodeAdjustments, type GenericNode, type WorkflowExport } from "@nodaro/shared"
 import type { McpSession } from "../session.js"
+import { reconcileWorkflowTriggers, type GraphNode } from "../../workflow-trigger-sync.js"
+
+/**
+ * Trigger nodes become real trigger rows on every save lane — this one wrote
+ * the graph through PostgREST, so it projects afterwards like the REST lanes
+ * do. Never vouches (`vouchNodeIds` absent): an MCP client runs AS the user,
+ * and a plain stored credential must not travel on a schedule it minted.
+ * Best-effort: the save has landed; a failure is a log line, not an error.
+ */
+async function projectTriggers(workflowId: string, ownerId: string, nodes: unknown): Promise<void> {
+  if (!Array.isArray(nodes)) return
+  const result = await reconcileWorkflowTriggers({ workflowId, userId: ownerId, nodes: nodes as readonly GraphNode[] })
+  if (result.error) console.warn(`[mcp] workflow trigger sync failed for ${workflowId}: ${result.error}`)
+}
 import { mcpInject } from "../internal-request.js"
 import { passesGate, type ToolGate } from "../tool-schemas.js"
 import { supabase } from "../../supabase.js"
@@ -319,6 +333,12 @@ export function registerWorkflows({
         const cloudOnlyErr = await cloudOnlyGuard(args.nodes, session.userId)
         if (cloudOnlyErr) return err(cloudOnlyErr)
 
+        // Heal impossible provider/parameter pairs at the write boundary —
+        // same reason as update_workflow_json: an agent-authored node never
+        // renders the config panel, so nothing else ever snaps its values.
+        const storedNodes = normalizeNodeModelParams(
+          (args.nodes ?? []) as Array<{ id?: unknown; type?: unknown; data?: unknown }>,
+        ).nodes
         const { data, error } = await supabase
           .from("workflows")
           .insert({
@@ -326,12 +346,7 @@ export function registerWorkflows({
             user_id: session.userId,
             name: args.name,
             description: args.description ?? null,
-            // Heal impossible provider/parameter pairs at the write boundary —
-            // same reason as update_workflow_json: an agent-authored node never
-            // renders the config panel, so nothing else ever snaps its values.
-            nodes: normalizeNodeModelParams(
-              (args.nodes ?? []) as Array<{ id?: unknown; type?: unknown; data?: unknown }>,
-            ).nodes,
+            nodes: storedNodes,
             edges: args.edges ?? [],
             settings: args.settings ?? {},
           })
@@ -339,6 +354,7 @@ export function registerWorkflows({
           .single()
         if (error || !data) return err(`Error: ${error?.message ?? "Failed to create workflow"}`)
         const row = data as Record<string, unknown>
+        await projectTriggers(row.id as string, session.userId, storedNodes)
         return ok(
           `Created workflow "${row.name as string}" (id ${row.id as string}) in the mcp project.`,
           { id: row.id, name: row.name },
@@ -635,8 +651,14 @@ export function registerWorkflows({
         if (args.expected_version !== undefined) {
           query = query.eq("version", args.expected_version)
         }
-        const { data, error } = await query.select("id, name, updated_at, version").maybeSingle()
+        const { data, error } = await query.select("id, name, updated_at, version, user_id").maybeSingle()
         if (error) return err(`Error: ${error.message}`)
+        if (data && updates.nodes !== undefined) {
+          // Rows belong to the workflow's OWNER (the cron re-checks the owner's
+          // access on every fire), which in a workspace may not be the caller.
+          const ownerId = typeof (data as { user_id?: unknown }).user_id === "string" ? (data as { user_id: string }).user_id : session.userId
+          await projectTriggers(args.workflow_id, ownerId, updates.nodes)
+        }
         if (!data) {
           // 0 rows matched. Distinguish a stale-version conflict from a genuine
           // not-found (only does the extra read on this rare path).
@@ -774,6 +796,7 @@ export function registerWorkflows({
           return err(`Error: ${wfError?.message ?? "Failed to create workflow"}`)
         }
         const row = newWorkflow as Record<string, unknown>
+        await projectTriggers(row.id as string, session.userId, remappedNodes)
 
         const mediaNotes = [
           importReport.rehosted > 0 ? `${importReport.rehosted} media file(s) copied onto this instance.` : "",

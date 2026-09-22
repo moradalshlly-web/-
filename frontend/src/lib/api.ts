@@ -7303,6 +7303,23 @@ export async function listWorkflowTriggers(workflowId: string): Promise<Workflow
   return json.data
 }
 
+/**
+ * Re-project the STORED graph's trigger nodes onto real trigger rows. The
+ * editor calls this after a save that changed a Schedule / Webhook Trigger
+ * node (its saves go through PostgREST, which never projects them — #1566).
+ * `vouchNodeIds`: the trigger nodes this save ADDED — the only rows an
+ * owner's session gets stamped as the owner's own (a narrowing filter).
+ */
+export async function syncWorkflowTriggers(
+  workflowId: string,
+  vouchNodeIds: ReadonlyArray<string> = [],
+): Promise<{ data: { synced: boolean; created: number; updated: number; removed: number } }> {
+  return apiRequest(`/v1/workflows/${encodeURIComponent(workflowId)}/sync-triggers`, "Failed to sync triggers", {
+    method: "POST",
+    body: { vouchNodeIds: [...vouchNodeIds] },
+  })
+}
+
 /** Update a workflow trigger. */
 export async function updateWorkflowTrigger(
   triggerId: string,

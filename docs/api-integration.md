@@ -117,11 +117,12 @@ limited per user; a missing instance encryption key answers
 works from every lane (editor, API token, MCP, schedule, published app), with
 the rules the [Webhook Output](./nodes/output/webhook-output.md) page
 describes: the credential is the workflow **owner's**, a plain (unlocked) one
-travels only on a run the owner starts in person from the editor, and a locked
-one only to its address. A run started with an API token or an OAuth app
-token, by a webhook trigger, by a schedule, or from a published app does not
-count as the owner's own, even though it runs as the owner — for any of those,
-lock the credential. Publishing an app or sharing a workflow for run answers
+travels only on a run the owner starts in person — a run from the editor, or a
+schedule the owner set up in the editor — and a locked one only to its
+address. A run started with an API token or an OAuth app token, by a webhook
+trigger, by a schedule created through the API, or from a published app does
+not count as the owner's own, even though it runs as the owner — for any of
+those, lock the credential. Publishing an app or sharing a workflow for run answers
 `409 credential_unbound` — with
 `details: [{ nodeId, nodeLabel, credentialId, nodeUrl, kind, credentialName, urlMapped? }]`,
 where `kind` is `plain` (no lock), `missing` (deleted or not the owner's) or
@@ -648,9 +649,15 @@ use the Schedule Trigger node instead — Nodaro polls the schedule
 internally every 60 seconds.
 
 Both node types register on **save**, whichever way the workflow was
-written (editor, API, SDK, import, MCP). Inspect a workflow's triggers with
-`GET /v1/workflows/<id>/triggers`; pause or resume one with
-`PATCH /v1/workflow-triggers/<id>`. Triggers you create directly with
+written (editor, API, SDK, import, MCP). The editor saves through the
+database directly and then asks `POST /v1/workflows/<id>/sync-triggers` to
+project the stored graph; any caller with edit access may call it to
+re-project a workflow (`{ data: { synced, created, updated, removed } }`).
+Its optional body `{ vouchNodeIds: [...] }` names the trigger nodes the
+caller just added; only an owner's own browser session can vouch, and only
+those rows count as the owner's own runs for a plain stored credential.
+Inspect a workflow's triggers with `GET /v1/workflows/<id>/triggers`; pause
+or resume one with `PATCH /v1/workflow-triggers/<id>`. Triggers you create directly with
 `POST /v1/workflow-triggers` are not managed by any node, so saving the
 workflow never changes or removes them.
 

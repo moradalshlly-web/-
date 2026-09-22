@@ -37,7 +37,13 @@ const NO_CREDENTIAL = "__none__"
  * leaves the URL editable under the prefix; a plain one only works on the
  * owner's own runs (the publish / share gate says so).
  */
-/** Node types that start a run with nobody at the editor — a plain credential is refused on those runs. */
+/**
+ * Node types that run the workflow with nobody at the editor. A plain
+ * credential is refused on every such run except a schedule whose node the
+ * owner ADDED here (the editor's own sync vouches for it); a schedule that
+ * came with the workflow, and every webhook / Telegram trigger, need a lock.
+ * The panel cannot tell which schedule is which, so it says both.
+ */
 const UNATTENDED_TRIGGER_TYPES: ReadonlySet<string> = new Set(["schedule-trigger", "webhook-trigger", "telegram-trigger"])
 
 export function WebhookOutputConfig({ data, onUpdate, nodes }: ConfigProps<WebhookOutputData>) {

@@ -6,6 +6,8 @@
 
 The Schedule Trigger node runs workflows automatically on a time-based schedule. Supports preset intervals (every 5 minutes to daily) or custom cron expressions. Optionally limit total executions. The scheduler checks every 60 seconds and skips if the workflow is already running.
 
+The schedule becomes active when the workflow is **saved** with the node on the canvas — from the editor, or through the API / SDK / MCP — and stops when the node is removed and the workflow saved again (a row whose node is gone is also dropped by the scheduler itself). A schedule whose node **you added in the editor** counts as your own run for a stored HTTP credential (see [Webhook Output](../output/webhook-output.md)); one created through the API, or one that was already in the workflow when you opened it, does not.
+
 ## Configuration
 
 | Field | Type | Default | Description |
