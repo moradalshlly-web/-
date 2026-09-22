@@ -98,7 +98,7 @@ describe("CredentialsCard", () => {
     fireEvent.change(within(dialog).getByLabelText(/^name$/i), { target: { value: " Zapier " } })
     fireEvent.change(within(dialog).getByLabelText(/header name/i), { target: { value: "X-Zap-Key" } })
     fireEvent.change(within(dialog).getByLabelText(/secret value/i), { target: { value: "zap_123" } })
-    fireEvent.click(within(dialog).getByRole("switch", { name: /only for this address/i }))
+    fireEvent.click(within(dialog).getByRole("radio", { name: /only one address/i }))
     fireEvent.change(within(dialog).getByLabelText(/address \(https\)/i), { target: { value: "https://hooks.zapier.com/hooks/catch/1/abc" } })
     fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }))
 
@@ -125,7 +125,7 @@ describe("CredentialsCard", () => {
     expect(within(dialog).getByRole("button", { name: /^save$/i })).toBeDisabled()
 
     fireEvent.change(within(dialog).getByLabelText(/secret value/i), { target: { value: "s" } })
-    fireEvent.click(within(dialog).getByRole("switch", { name: /only for this address/i }))
+    fireEvent.click(within(dialog).getByRole("radio", { name: /only one address/i }))
     fireEvent.change(within(dialog).getByLabelText(/address \(https\)/i), { target: { value: "http://plain.example/hook" } })
     expect(within(dialog).getByRole("button", { name: /^save$/i })).toBeDisabled()
     expect(apiMock.create).not.toHaveBeenCalled()
@@ -139,7 +139,7 @@ describe("CredentialsCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /lock to an address: grok bot/i }))
     const dialog = await screen.findByRole("dialog")
     fireEvent.change(within(dialog).getByLabelText(/address \(https\)/i), { target: { value: "https://api2.cursor.sh/automations/webhook" } })
-    fireEvent.click(within(dialog).getByRole("switch", { name: /every address under it/i }))
+    fireEvent.click(within(dialog).getByRole("switch", { name: /also allow paths under this address/i }))
     fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }))
 
     await waitFor(() =>
@@ -186,5 +186,50 @@ describe("CredentialsCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /add credential/i }))
     const again = await screen.findByRole("dialog")
     expect(within(again).getByLabelText(/secret value/i)).toHaveValue("")
+  })
+
+  /**
+   * The binding is a RATCHET: a credential tied to an address can be moved to
+   * another, never opened back up to any address. The server enforces it, so a
+   * selectable "Any address" here would only buy the user a refusal with no
+   * explanation attached. Offering the choice is the bug; the disabled option
+   * carrying the reason is the fix.
+   *
+   * This is the invariant the switch-to-radio change was most likely to drop,
+   * because a radio group's natural state is "every option selectable".
+   */
+  describe("the address binding is a ratchet", () => {
+    it("offers both choices for a NEW credential", async () => {
+      renderCard()
+      await screen.findByText("CRM key")
+      fireEvent.click(screen.getByRole("button", { name: /add credential/i }))
+      const dialog = await screen.findByRole("dialog")
+
+      expect(within(dialog).getByRole("radio", { name: /any address/i })).toBeEnabled()
+      expect(within(dialog).getByRole("radio", { name: /only one address/i })).toBeEnabled()
+    })
+
+    it("refuses to un-bind one that is already locked, and says why", async () => {
+      renderCard()
+      await screen.findByText("CRM key")
+      fireEvent.click(screen.getByRole("button", { name: /change address: crm key/i }))
+      const dialog = await screen.findByRole("dialog")
+
+      const any = within(dialog).getByRole("radio", { name: /any address/i })
+      expect(any).toBeDisabled()
+      expect(any).not.toBeChecked()
+      expect(within(dialog).getByRole("radio", { name: /only one address/i })).toBeChecked()
+      // The reason travels with the option rather than arriving as a server error.
+      expect(any).toHaveAccessibleName(/can be moved, but not opened up again/i)
+    })
+
+    it("keeps the address field reachable while locked, so it can be MOVED", async () => {
+      renderCard()
+      await screen.findByText("CRM key")
+      fireEvent.click(screen.getByRole("button", { name: /change address: crm key/i }))
+      const dialog = await screen.findByRole("dialog")
+
+      expect(within(dialog).getByLabelText(/address \(https\)/i)).toBeEnabled()
+    })
   })
 })

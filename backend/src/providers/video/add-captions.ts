@@ -36,11 +36,15 @@ export async function addCaptions(options: AddCaptionsOptions): Promise<string> 
     console.log(`[addCaptions] Downloading video`)
     await downloadFile(videoUrl, inputPath)
 
+    // The argv string reaches drawtext without a shell, so a real newline in
+    // `text` is the line break — and the only spelling of one drawtext honours.
+    // The two-character `\n` this used to substitute is un-escaped by the
+    // filtergraph parser to a bare `n` ("FRIDAYnFree"), so a multi-line block
+    // rendered as one glued line; the REST/SDK/MCP docs promise `\n` breaks.
     const escapedText = text
       .replace(/\\/g, "\\\\\\\\")
       .replace(/'/g, "\u2019")
       .replace(/:/g, "\\:")
-      .replace(/\n/g, "\\n")
 
     const fontColor = color.startsWith("#") ? color.replace("#", "0x") : color
     const yPos = POSITION_Y[position] ?? POSITION_Y.bottom
@@ -50,7 +54,10 @@ export async function addCaptions(options: AddCaptionsOptions): Promise<string> 
       boxOpts = ":box=1:boxcolor=black@0.7:boxborderw=8"
     }
 
-    const vf = `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=${fontColor}:x=(w-text_w)/2:y=${yPos}${boxOpts}`
+    // text_align=C centres each LINE of a multi-line block (drawtext's default
+    // left-aligns the lines inside the centred box) — the same read as the
+    // Remotion static block, so a caller's `\n` looks alike on both renderers.
+    const vf = `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=${fontColor}:x=(w-text_w)/2:y=${yPos}:text_align=C${boxOpts}`
 
     await runFfmpeg([
       "-y",

@@ -5,6 +5,7 @@ export const hashnodeProvider: SocialProvider = {
   id: "hashnode",
   label: "Hashnode",
   connectKind: "custom_fields",
+  category: "publishing",
   editor: "markdown",
   capabilities: { schedule: true, comment: false, media: ["text"], refresh: "none" },
   requiredEnv: [],

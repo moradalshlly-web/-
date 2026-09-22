@@ -32,7 +32,6 @@ function TelegramTriggerNodeComponent({ id, data, selected }: NodeProps) {
         minWidth={220}
         hideHeader
         handles={[
-          { id: "in",  type: "target", position: Position.Left,  customStyle: { top: 'calc(100% - 24px)', left: '-29px' }, external: true },
           { id: "out", type: "source", position: Position.Right, customStyle: { top: '24px',              right: '-29px' }, external: true },
         ]}
       >
@@ -47,7 +46,7 @@ function TelegramTriggerNodeComponent({ id, data, selected }: NodeProps) {
           )}
         </div>
       </BaseNode>
-      <HandleWithPopover nodeId={id} nodeType="telegram-trigger" handleId="in"  type="target" position={Position.Left}  label="URL"     color={TEXT_HANDLE_COLOR} icon={<Send />} side="left"  top="calc(100% - 24px)" />
+      {/* A trigger starts the run; it takes nothing from the canvas (registry: inputs []). */}
       <HandleWithPopover nodeId={id} nodeType="telegram-trigger" handleId="out" type="source" position={Position.Right} label="Message" color={TEXT_HANDLE_COLOR} icon={<Send />} side="right" top="24px" />
     </div>
   )

@@ -8,6 +8,7 @@ import { runWithJobCancellation, JobCancelledError } from "../lib/job-cancellati
 // NOTE: imported from their CORE modules, not re-exported through ./shared.js —
 // the test harness mocks shared.js wholesale and would undefine them.
 import { isPostProcessingError } from "../lib/post-processing-error.js"
+import { isDeterministicJobError } from "../lib/deterministic-job-error.js"
 import { providerDetailOf } from "../lib/provider-error-detail.js"
 import { markJobFailed } from "../lib/job-failure.js"
 import { isReconcileRecoverable } from "../lib/reconcile/types.js"
@@ -454,7 +455,11 @@ export function createVideoWorker() {
         // A content-policy block reaching this catch is always final: the one
         // permitted retry (if the policy allows one) already ran inline above.
         const block = safetyBlockOf(err, modelId)
-        const finalAttempt = block ? true : isFinalJobAttempt(job)
+        // A refusal that is a pure function of the job's own inputs (e.g.
+        // apply-edl's window check) fails identically on every retry — so it
+        // is final now, like a content-policy block (lib/deterministic-job-error.ts).
+        const deterministic = isDeterministicJobError(err)
+        const finalAttempt = block || deterministic ? true : isFinalJobAttempt(job)
 
         // Post-provider self-heal (audit spec, worker branch). On the FINAL
         // attempt, a PostProcessingError means the provider already delivered
@@ -543,8 +548,10 @@ export function createVideoWorker() {
           // spend another attempt re-running a request that will fail
           // identically. UnrecoverableError short-circuits its retry
           // machinery (precedent: social-publish-worker.ts's `definitive`
-          // branch).
-          if (block) {
+          // branch). A deterministic refusal is the same case: the row is
+          // already failed + refunded above, and a retry would re-download
+          // every input to fail the same way.
+          if (block || deterministic) {
             throw new UnrecoverableError(errorMessage)
           }
         }

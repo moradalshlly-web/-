@@ -65,13 +65,13 @@ You can also generate sheets directly from the **Sheet** tab inside an entity's 
 
 ## Pricing
 
-Cost = **(newly-generated panels at the entity provider's rate)** + a flat **4-credit** assembly fee. Panels that already exist in the entity's Studio are **reused for free** — you only pay to generate the panels that don't exist yet, plus the one-time assembly fee.
+Cost = **(newly-generated panels at the entity provider's rate)** + a flat **40-credit** assembly fee. Panels that already exist in the entity's Studio are **reused for free** — you only pay to generate the panels that don't exist yet, plus the one-time assembly fee.
 
 | Scenario | Math | Credits |
 |----------|------|---------|
-| Turnaround reusing 4 angles the entity already has | `0 + 4` | **4** |
-| 4 new angles generated with Nano Banana (1 cr each) | `4×1 + 4` | **8** |
-| Full reference with 4 new angles generated with Flux 2 Pro (3 cr each) | `4×3 + 4` | **16** |
+| Turnaround reusing 4 angles the entity already has | `0 + 40` | **40** |
+| 4 new angles generated with Nano Banana (10 cr each) | `4×10 + 40` | **80** |
+| Full reference with 4 new angles generated with Flux 2 Pro (23 cr each at its 2 MP default) | `4×23 + 40` | **132** |
 
 The flat assembly fee covers layout, palette extraction, and compositing. The node's Run button shows the assembly fee; when panels need generating, the node first asks you to confirm how many it will generate (each charged at the entity provider's rate) before it starts.
 
@@ -84,11 +84,11 @@ The sheet has two output formats, set by the **flavour's `outputFormat`**:
 
 Motion sheets are **compose-only**: they use the motion clips the entity **already has** in its motion bucket (a Character's `motions`, an Object's `motion_clips`, a Location's `atmosphere_motions`), matched to each panel by name. A panel whose matching motion clip doesn't exist simply keeps the static background in its slot — the motion is **absent**, not generated. Generate the motion clips you want in the entity's **Studio** first, then run the sheet in motion mode to overlay them. The clip with the shortest duration sets the sheet's playback length (clamped to a small minimum).
 
-**Motion pricing:** each motion clip is priced separately by the per-asset motion routes that generate it (in the entity's Studio); the sheet itself adds a flat **6-credit** `reference-sheet:assembly-motion` FFmpeg-assembly fee (vs the 4-credit still assembly fee). As with still sheets, clips already present are reused for free — the motion-assembly fee is the only cost the sheet node itself charges.
+**Motion pricing:** each motion clip is priced separately by the per-asset motion routes that generate it (in the entity's Studio); the sheet itself adds a flat **60-credit** `reference-sheet:assembly-motion` FFmpeg-assembly fee (vs the 40-credit still assembly fee). As with still sheets, clips already present are reused for free — the motion-assembly fee is the only cost the sheet node itself charges.
 
 | Scenario | Math | Credits |
 |----------|------|---------|
-| Motion sheet overlaying 4 motion clips the entity already has | `0 + 6` | **6** |
+| Motion sheet overlaying 4 motion clips the entity already has | `0 + 60` | **60** |
 
 ## Requirements & errors
 

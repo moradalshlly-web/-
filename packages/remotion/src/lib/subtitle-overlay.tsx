@@ -37,6 +37,15 @@ export const SubtitleOverlay: React.FC<OverlayCommonProps> = ({
     () => groupCaptionLines(
       captions,
       captionLineCharBudget({ frameWidth: width, fontSize, fontFamily, fontWeight: fontWeight ?? 700, uppercase }),
+      // DELIBERATELY no `splitToWidth` — do not "align" this with the three
+      // kinetic overlays. They paint each entry as an atomic `white-space: pre`
+      // inline-block that cannot wrap, so an over-wide entry must be split;
+      // this one joins the line's words into ONE `white-space: pre-line` string
+      // that the browser wraps for real, and a subtitle SEGMENT deliberately
+      // shows its joined words as a single block. Which overlays pass the gate
+      // is pinned by RENDERED output in
+      // `__tests__/caption-overlay-lines.test.tsx` ("a phrase entry wider than
+      // the line budget"): adding it here fails that suite.
       { maxWords: maxWordsPerLine },
     ),
     [captions, width, fontSize, fontFamily, fontWeight, uppercase, maxWordsPerLine],

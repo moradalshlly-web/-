@@ -381,6 +381,72 @@
   --home-dots: radial-gradient(#26262f 1px, transparent 1px);
 }
 
+/* Integrations screen — the "Integrations Redesign" handoff. Same reasoning as
+   --home-* above: the handoff carries its own surface ramp (page → surface →
+   sunken) that the stock --card/--muted steps do not match, and it ships a
+   light and a dark theme whose values are NOT derived from one another.
+   The accent stays the brand --primary rather than the mock's #D6006A — the
+   handoff's point is LESS pink, not a second pink.
+
+   The handoff also draws the HeyGen cache panel near-black on the LIGHT page,
+   to mark maintenance apart from content. Not adopted: a dark slab in the
+   middle of a light page reads as a different app rather than a different
+   category, so that panel follows the theme like every other card and carries
+   the distinction in its eyebrow and muted body instead. */
+:root {
+  --integ-page: #f2f1f5;
+  --integ-surface: #ffffff;
+  --integ-sunken: #fcfbfd;
+  --integ-raised: #f6f5f8;
+  --integ-line: #e5e3eb;
+  --integ-line-soft: #efedf3;
+  --integ-line-dashed: #e2dfe8;
+  --integ-fg: #14121a;
+  --integ-muted: #63606f;
+  --integ-ok: #0e9e76;
+  --integ-warn: #e0a100;
+  --integ-soon-card: #faf9fb;
+}
+
+.dark {
+  --integ-page: #0c0b10;
+  --integ-surface: #16151b;
+  --integ-sunken: #141319;
+  --integ-raised: #1c1a22;
+  --integ-line: #2e2b37;
+  --integ-line-soft: #2a2833;
+  --integ-line-dashed: #33303b;
+  --integ-fg: #edebf2;
+  --integ-muted: #a29db0;
+  --integ-ok: #57d3a5;
+  --integ-warn: #e0a100;
+  --integ-soon-card: #141319;
+}
+
+/* A network's tile in the Integrations grid. The handoff gives every brand a
+   light tint AND an ink; carrying both would be two values per brand per
+   theme to keep in sync, and the dark theme has no tints at all. So a brand
+   declares ONE value -- --brand-ink, set inline from BRAND_INK -- and the
+   tint is mixed from it against whatever the current theme's surface is.
+   Dark mode also lifts the ink toward white: a brand blue like #2456C7 is
+   the right mark on paper and unreadable on a dark tile. */
+.integ-brand-tile {
+  background: color-mix(in oklab, var(--brand-ink) 12%, var(--integ-surface));
+  color: var(--brand-ink);
+}
+
+.dark .integ-brand-tile {
+  background: color-mix(in oklab, var(--brand-ink) 22%, var(--integ-surface));
+  color: color-mix(in oklab, var(--brand-ink) 55%, white);
+}
+
+/* The same tile for a network that is not connectable yet -- drained of brand
+   entirely, so "coming soon" never competes with what you can connect now. */
+.integ-brand-tile-muted {
+  background: var(--integ-raised);
+  color: var(--integ-muted);
+}
+
 /* Inside the content panel the stock shadcn surface tokens point at the home
    ramp, so the components it reuses (workflow cards, inputs, the project grid)
    take the design's colours without a fork of each one. Portals (menus,

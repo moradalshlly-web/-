@@ -5,6 +5,7 @@ export const threadsProvider: SocialProvider = {
   id: "threads",
   label: "Threads",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: { schedule: true, comment: false, media: ["image", "text"], refresh: "real" },
   requiredEnv: ["THREADS_APP_ID", "THREADS_APP_SECRET"],

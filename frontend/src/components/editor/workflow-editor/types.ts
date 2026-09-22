@@ -75,6 +75,13 @@ export const NODE_CREDIT_COSTS: Record<string, number> = {
   "adjust-volume": 10,
   "audio-fx": 20,
   "add-captions": 30,
+  // Add Captions prices by RENDERER, so the node has TWO rows: the cheap
+  // FFmpeg drawtext burn above, and the Remotion render that anything styled /
+  // timed / transcribed / segmented needs. `getModelIdentifier` already picks
+  // between them (edge-aware), and `estimateRunCredits` now falls back to the
+  // composite row before the node-type row — without this key a cold cache
+  // quoted the ffmpeg price for a Remotion run and the reserve was 20 higher.
+  "add-captions:kinetic": 50,
   "mix-audio": 20,
   "combine-audio": 10,
   "video-composer": 30,

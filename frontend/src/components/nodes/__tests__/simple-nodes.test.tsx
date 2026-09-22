@@ -83,6 +83,11 @@ vi.mock("@/hooks/use-workflow-store", () => ({
   ),
 }))
 
+// WebhookOutputNode names its chosen credential on the card. The shared React
+// Query entry needs a provider these bare renders do not set up.
+vi.mock("@/hooks/use-http-credentials", () => ({
+  useHttpCredentials: () => ({ credentials: [], loading: false, error: null, refresh: () => {} }),
+}))
 vi.mock("../run-node-button", () => ({
   RunNodeButton: (props: any) => (
     <div data-testid="run-node-button" data-credits={props.credits} />

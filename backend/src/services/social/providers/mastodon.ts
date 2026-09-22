@@ -5,6 +5,7 @@ export const mastodonProvider: SocialProvider = {
   id: "mastodon",
   label: "Mastodon",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: { schedule: true, comment: false, media: ["image", "text"], refresh: "none" },
   requiredEnv: ["MASTODON_CLIENT_ID", "MASTODON_CLIENT_SECRET"],

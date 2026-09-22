@@ -6,6 +6,12 @@
 
 The Webhook Trigger node creates a public HTTP endpoint that triggers workflow execution when called. Each trigger gets a unique token-based URL. Configure output parameters to pass data from the webhook request into the workflow. Useful for integrating with external systems, APIs, or automation tools like n8n and Zapier.
 
+## What a triggered run executes
+
+A trigger that is **wired to something** runs only the branch behind it — the nodes downstream of the trigger, plus every node those nodes need as input (so a branch that also reads from a node off to the side gets a fresh result). Nodes the trigger does not reach are left alone. A trigger **wired to nothing** runs the whole workflow. This is what lets one workflow carry several triggers, each starting its own branch. A manual run from the editor, an API run and a published app are not scoped by triggers.
+
+"Wired" is anything that feeds another node: a drawn connection, a node inside a Group (it feeds the group), or a field mapping. The run starts from the node the webhook was saved from; a webhook created by hand through the API names no node, so the only Webhook Trigger on the canvas is used — with two such nodes there is no honest answer, and the whole workflow runs.
+
 ## Configuration
 
 | Field | Type | Default | Description |

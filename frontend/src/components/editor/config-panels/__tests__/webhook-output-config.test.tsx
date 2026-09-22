@@ -74,6 +74,28 @@ describe("WebhookOutputConfig — credential picker", () => {
     expect(screen.getByText(/locked to this address/i)).toBeInTheDocument()
   })
 
+  /**
+   * "From the credential" is a STATE, not the node's permanent shape. It marks
+   * the one case where the address is not the user's to set — an exact lock —
+   * and must not appear when they can still type, or it reads as a field that
+   * is broken rather than one that is spoken for.
+   */
+  it("marks the destination as coming from the credential only when it actually is", () => {
+    renderPanel({ credentialId: EXACT.id, url: EXACT.boundUrl })
+    expect(screen.getByText(/from the credential/i)).toBeInTheDocument()
+  })
+
+  it("does not mark it for a prefix lock, where the address is still editable", () => {
+    renderPanel({ credentialId: PREFIX.id, url: `${PREFIX.boundUrl}/retry` })
+    expect(screen.queryByText(/from the credential/i)).toBeNull()
+    expect(screen.getByLabelText(/webhook url/i)).not.toBeDisabled()
+  })
+
+  it("does not mark it when there is no credential at all", () => {
+    renderPanel({ url: "https://example.com/hook" })
+    expect(screen.queryByText(/from the credential/i)).toBeNull()
+  })
+
   it("a URL that differs from the lock only by its query (or host case) is the SAME address — no warning, the token stays", () => {
     const onUpdate = renderPanel({ credentialId: EXACT.id, url: "https://CRM.example.com/hooks/in?token=abc" })
     expect(onUpdate).not.toHaveBeenCalled()
@@ -92,13 +114,19 @@ describe("WebhookOutputConfig — credential picker", () => {
   it("a plain credential is flagged as owner-runs-only", () => {
     renderPanel({ credentialId: PLAIN.id, url: "https://mine.example/hook" })
     expect(screen.getByText(/not locked to an address/i)).toBeInTheDocument()
-    expect(screen.queryByText(/runs on its own/i)).toBeNull()
+    expect(screen.queryByText(/also runs on its own/i)).toBeNull()
     expect(screen.getByLabelText(/webhook url/i)).not.toBeDisabled()
   })
 
-  it("a plain credential on a workflow with a schedule or webhook trigger says those runs will fail", () => {
+  it("a plain credential on a workflow with a webhook trigger says those runs will fail", () => {
+    renderPanel({ credentialId: PLAIN.id, url: "https://mine.example/hook" }, vi.fn(), [{ id: "w1", type: "webhook-trigger" }])
+    expect(screen.getByText(/also runs on its own/i)).toBeInTheDocument()
+  })
+
+  it("a plain credential on a workflow with a schedule says which schedules count: the one you added here", () => {
     renderPanel({ credentialId: PLAIN.id, url: "https://mine.example/hook" }, vi.fn(), [{ id: "s1", type: "schedule-trigger" }])
-    expect(screen.getByText(/runs on its own/i)).toBeInTheDocument()
+    expect(screen.getByText(/a schedule you added here/i)).toBeInTheDocument()
+    expect(screen.getByText(/also runs on its own/i)).toBeInTheDocument()
   })
 
   it("a dangling credential id is called out, never shown raw, and does not lock the URL", () => {

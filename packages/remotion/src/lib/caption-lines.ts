@@ -144,11 +144,29 @@ export interface CaptionLineOptions {
   /** Hard cap on WORDS per line, applied ON TOP of the width budget and the
    *  speaker's phrasing. Words are whitespace-separated INSIDE each entry, so a
    *  phrase-level entry counts for every word it holds and one that alone holds
-   *  more than the cap is split into sub-phrases first (`splitToWordCap`) — the
-   *  cap is a promise about words for ANY input, not only for word-level
+   *  more than the cap is split into sub-phrases first (`splitOversizeEntry`) —
+   *  the cap is a promise about words for ANY input, not only for word-level
    *  captions. Unset (or a nonsense value) = width and phrasing decide alone,
    *  which is exactly the pre-lever behaviour. */
   readonly maxWords?: number
+  /**
+   * Whether an entry whose OWN text is wider than `maxChars` may be split into
+   * sub-phrases that fit. Off by default, and only `groupCaptionLines` has a
+   * budget to apply (it is inert on `splitCaptionRuns`, which takes none).
+   *
+   * Why it is a lever and not the rule: the width budget closes a line BETWEEN
+   * entries, so on an overlay that paints each entry as one atomic inline-block
+   * — word-highlight, karaoke, bouncy — a six-word phrase entry is one box
+   * wider than the frame and is simply CUT OFF at both edges (seen on a staging
+   * frame: "No re-prompti", "Same wor"). Those three pass `true`.
+   *
+   * `SubtitleOverlay` must NOT: it joins the line's words into one string in a
+   * `white-space: pre-line` block, so the browser wraps it for real, and for a
+   * subtitle SEGMENT showing the joined words as one block is the deliberate
+   * render. A caller-authored block (text containing "\n") is never split by
+   * this rule wherever it is passed — those breaks are the caller's.
+   */
+  readonly splitToWidth?: boolean
 }
 
 /** A usable word cap, or undefined. A 0 / negative / NaN cap would close every
@@ -168,29 +186,62 @@ const lineWordCount = (words: readonly Caption[]): number =>
   words.reduce((sum, caption) => sum + entryWords(caption.text).length, 0)
 
 /**
- * An entry holding more than `maxWords` words split into consecutive sub-phrases
- * of at most that many. Without this the cap would be a silent no-op on
- * phrase-level captions (the entry is one unit, so nothing can break it) while
- * still being accepted, carried into the plan and charged for.
+ * One entry's words greedily packed into consecutive chunks that hold at most
+ * `maxWords` words AND at most `maxChars` characters (words joined by one space).
+ * Either cap may be absent; with only `maxWords` this is exactly
+ * `words.slice(i, i + maxWords)`, which is what keeps the word cap's behaviour
+ * byte-identical now that the two caps share one chunker.
  *
- * The entry's time span is divided between the sub-phrases in proportion to their
- * CHARACTER length — integer ms, contiguous, the first starting at the entry's
- * `startMs` and the last ending at its `endMs`. A proportional guess is the best
- * available: an entry with no word timings carries none to recover.
+ * A word longer than `maxChars` gets a chunk of its own rather than being
+ * hyphenated or dropped: the first clause never fires on an empty chunk, so the
+ * pass always consumes a word and the one allowed overflow is a single word —
+ * the same concession `groupCaptionLines` makes for a line.
+ */
+const chunkEntryWords = (
+  words: readonly string[],
+  maxWords: number | undefined,
+  maxChars: number | undefined,
+): string[] => {
+  const chunks: string[] = []
+  let current: string[] = []
+  let length = 0
+  for (const word of words) {
+    const overWords = maxWords !== undefined && current.length + 1 > maxWords
+    const overChars = maxChars !== undefined && length + 1 + word.length > maxChars
+    if (current.length > 0 && (overWords || overChars)) {
+      chunks.push(current.join(" "))
+      current = []
+      length = 0
+    }
+    length = current.length === 0 ? word.length : length + 1 + word.length
+    current.push(word)
+  }
+  if (current.length > 0) chunks.push(current.join(" "))
+  return chunks
+}
+
+/**
+ * One entry re-cut into the given sub-phrases, its time span divided between them
+ * in proportion to their CHARACTER length — integer ms, contiguous, the first
+ * starting at the entry's `startMs` and the last ending at its `endMs`. A
+ * proportional guess is the best available: an entry with no word timings carries
+ * none to recover.
  *
  * Sub-phrase text keeps the @remotion/captions delimiter convention the overlays
  * normalise through `captionWord`: every sub-phrase after the first continues
  * mid-phrase and so carries the leading space, and the first keeps whatever the
  * entry itself had.
  *
- * An entry within the cap is returned AS IS (the same object), so per-word input
- * — one word per entry, always within any cap of 1 or more — is untouched.
+ * An entry that stays in one piece is returned AS IS (the same object), so
+ * per-word input — one word per entry, within any cap of 1 or more, and a single
+ * over-wide word being the allowed overflow — is untouched.
+ *
+ * SINGLE-SOURCED on purpose: both the word cap and the width rule re-cut an entry
+ * through here, so a line and a run can never disagree about how a phrase was
+ * divided or when each piece is spoken.
  */
-const splitToWordCap = (caption: Caption, maxWords: number): Caption[] => {
-  const words = entryWords(caption.text)
-  if (words.length <= maxWords) return [caption]
-  const chunks: string[] = []
-  for (let i = 0; i < words.length; i += maxWords) chunks.push(words.slice(i, i + maxWords).join(" "))
+const splitEntry = (caption: Caption, chunks: readonly string[]): Caption[] => {
+  if (chunks.length <= 1) return [caption]
   const chars = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
   // A zero-length or inverted window has nothing to divide: every sub-phrase
   // keeps the entry's own (degenerate) window rather than inventing timings from
@@ -211,12 +262,46 @@ const splitToWordCap = (caption: Caption, maxWords: number): Caption[] => {
   })
 }
 
-/** The canonical order (`orderedWords`) with every oversize entry split to the
- *  word cap — what BOTH grouping functions iterate, so a line and a run can never
- *  disagree about how many words they hold. No cap = no split. */
-const orderedCappedWords = (captions: readonly Caption[], maxWords: number | undefined): Caption[] => {
+/**
+ * An entry that alone busts a cap, split into sub-phrases that hold.
+ *
+ * `maxWords`: without this the cap would be a silent no-op on phrase-level
+ * captions (the entry is one unit, so nothing can break it) while still being
+ * accepted, carried into the plan and charged for.
+ *
+ * `maxChars`: the width budget closes a line BETWEEN entries, so an entry wider
+ * than the budget was never split at all — on the overlays that paint each entry
+ * as one atomic `white-space: pre` inline-block it rendered as a single box wider
+ * than the frame, cut off at both edges.
+ *
+ * A caller-authored BLOCK — an entry whose text contains "\n" — is exempt from
+ * the WIDTH rule: those breaks are the caller's and the block is rendered as one
+ * unit for its whole window (the static `subtitle` `text` of the S1 rule). The
+ * word cap's treatment of such an entry is unchanged: a caller who asks for N
+ * words per line has asked for a reflow.
+ */
+const splitOversizeEntry = (
+  caption: Caption,
+  maxWords: number | undefined,
+  maxChars: number | undefined,
+): Caption[] => {
+  const width = maxChars !== undefined && !caption.text.includes("\n") ? maxChars : undefined
+  if (maxWords === undefined && width === undefined) return [caption]
+  return splitEntry(caption, chunkEntryWords(entryWords(caption.text), maxWords, width))
+}
+
+/** The canonical order (`orderedWords`) with every entry that alone busts a cap
+ *  split to fit — what BOTH grouping functions iterate, so a line and a run can
+ *  never disagree about how many words they hold. No caps = no split. */
+const orderedCappedWords = (
+  captions: readonly Caption[],
+  maxWords: number | undefined,
+  maxChars: number | undefined,
+): Caption[] => {
   const ordered = orderedWords(captions)
-  return maxWords === undefined ? ordered : ordered.flatMap((caption) => splitToWordCap(caption, maxWords))
+  return maxWords === undefined && maxChars === undefined
+    ? ordered
+    : ordered.flatMap((caption) => splitOversizeEntry(caption, maxWords, maxChars))
 }
 
 /**
@@ -231,6 +316,10 @@ const orderedCappedWords = (captions: readonly Caption[], maxWords: number | und
  *
  * A word longer than `maxChars` therefore gets a line to itself — the first
  * clause never fires on an empty line, and the next word breaks again.
+ *
+ * With `opts.splitToWidth`, an entry whose OWN text is wider than `maxChars` is
+ * likewise split into sub-phrases that fit before the pass, so "every line fits
+ * the budget" holds for phrase-level input too and not only for word-level.
  *
  * After the greedy pass, lines split ONLY by layout (width or the word cap) are
  * rebalanced so a phrase never leaves a one-word widow behind, and the rebalance
@@ -261,7 +350,7 @@ export function groupCaptionLines(
     wordsOnLine = 0
   }
 
-  for (const caption of orderedCappedWords(captions, maxWords)) {
+  for (const caption of orderedCappedWords(captions, maxWords, opts.splitToWidth === true ? maxChars : undefined)) {
     const text = caption.text.trim()
     const count = entryWords(caption.text).length
     const previous = words[words.length - 1]
@@ -291,13 +380,19 @@ export function groupCaptionLines(
  * across the gap. Paging each run separately cannot. Same ordering and
  * blank-skipping as `groupCaptionLines`, so the two never disagree about where a
  * phrase ends.
+ *
+ * `opts.splitToWidth` is inert here: a run carries no character budget of its own
+ * (the tiktok overlay measures nothing), and its pages are cut afterwards by
+ * `createTikTokStyleCaptions`, which re-merges tokens that start within
+ * `combineTokensWithinMilliseconds` of the page's first — so width sub-phrases
+ * would only partly survive it. The width rule stays where a budget exists.
  */
 export function splitCaptionRuns(captions: readonly Caption[], opts: CaptionLineOptions = {}): Caption[][] {
   const maxWords = wordCap(opts.maxWords)
   const runs: Caption[][] = []
   let run: Caption[] = []
   let wordsInRun = 0
-  for (const caption of orderedCappedWords(captions, maxWords)) {
+  for (const caption of orderedCappedWords(captions, maxWords, undefined)) {
     const count = entryWords(caption.text).length
     const previous = run[run.length - 1]
     if (previous !== undefined && (captionPhraseEnds(previous, caption) || (maxWords !== undefined && wordsInRun + count > maxWords))) {

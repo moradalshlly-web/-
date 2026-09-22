@@ -8,6 +8,7 @@ import { ArrowLeft, ChevronRight, Save, CheckCircle, Loader2, RefreshCw, Play, P
 import { CreditBalance } from "@/ee/components/credits/CreditBalance"
 import { Button } from "@/components/ui/button"
 import { NodeDoubleClickToggle } from "./node-double-click-toggle"
+import { ScheduleToggle } from "./schedule-toggle"
 import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
@@ -68,7 +69,8 @@ type EditorTab = "editor" | "present" | "executions" | "cost"
 interface EditorToolbarProps {
   readonly projectId?: string
   readonly workflowId?: string
-  readonly onSave: () => void
+  /** Saves; may resolve to the save's result (`{ success }`) so a caller can report honestly. */
+  readonly onSave: () => void | Promise<unknown>
   readonly saving: boolean
   readonly onNavigate?: (href: string) => void
   readonly activeTab?: EditorTab
@@ -555,6 +557,10 @@ export function EditorToolbar({ projectId, onSave, saving, onNavigate, activeTab
             </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* The workflow's schedules, on or off — visible only when the canvas
+            has a Schedule Trigger. A schedule never runs from a save alone. */}
+        <ScheduleToggle onSave={onSave} />
 
         {/* Save Button with integrated state indicator. Hidden in read-only
             (Studio/shared) workflows — save is already a no-op via the store's

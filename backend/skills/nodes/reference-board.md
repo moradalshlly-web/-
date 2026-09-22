@@ -1,7 +1,7 @@
 ---
 node_type: reference-board
-generated_at: 2026-09-21T19:12:10.400Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:31.960Z
+generated_from: 65b4cddf2
 ---
 
 # Reference Board
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `reference-board`
 **Category:** ai
-**Credit cost:** `6` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `15-60` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`, `references`
 **Outputs (source handles):** `image`
 

@@ -6,6 +6,7 @@ import type { WardrobeValue, TransitionPosition, TransitionDuration, TransitionI
 import type { ReferencePhotoKind } from "@/lib/reference-photo-routing"
 import { IMAGE_STYLE_PRESETS, GVP_PROVIDERS, getAspectRatiosForVideoModel, getVideoResolutionOptions } from "@/components/editor/config-panels/model-options"
 import type { FrameFit, FrameDelivery } from "@nodaro/shared"
+import type { ScheduleRule } from "@nodaro/shared"
 
 export type NodeCategory = "input" | "parameter" | "ai" | "processing" | "output" | "scene" | "character" | "face" | "object" | "creature" | "location" | "utility"
 
@@ -2266,7 +2267,7 @@ export interface EditVideoProNodeData extends PromptAffixFields {
  *  using zsxkib/mmaudio (single-shot Replicate dispatch — see
  *  `backend/src/providers/replicate/sfx.ts`).
  *
- *  Pricing: duration-bucketed BASE credits (1cr ≤15s → 11cr ≤300s, pre-markup)
+ *  Pricing: duration-bucketed BASE credits (10cr ≤15s → 110cr ≤300s, pre-markup)
  *  scaled by `versions` (1-4). The route's `probeDurationPreHandler` ffprobes
  *  the resolved video URL up front; credit reservation uses
  *  `bucketBaseCreditsFor(duration) * versions`. Backend Zod schema is
@@ -6149,10 +6150,24 @@ export type WebhookTriggerData = {
 export type ScheduleTriggerData = {
   [key: string]: unknown
   label: string
-  cron?: string
+  /**
+   * The schedule: rules read in `timezone`; the workflow runs whenever any
+   * rule matches the current minute (model: `@nodaro/shared` schedule-rules).
+   */
+  rules?: ScheduleRule[]
+  /** IANA timezone the rules are read in; UTC when missing. */
   timezone?: string
-  interval?: string
+  /** Stop after this many runs; missing = unlimited. */
   maxExecutions?: number
+  /**
+   * The switch. The schedule fires only while this is `true` — a new schedule
+   * starts paused; saving alone never arms it.
+   */
+  active?: boolean
+  /** @deprecated pre-rules schedule ("5m", or a preset cron) — converted to `rules` on the panel's first edit and on save. */
+  interval?: string
+  /** @deprecated pre-rules custom cron — converted to `rules` on the panel's first edit and on save. */
+  cron?: string
 }
 
 export type TelegramTriggerData = {
@@ -6790,7 +6805,14 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     creditCost: 0,
     inputs: [],
     outputs: ["payload"],
-    defaultData: { label: "Schedule Trigger" } as unknown as SceneNodeData,
+    // One quiet rule and the switch OFF: a schedule is configured the moment
+    // it is placed (so the card and the panel have something to show) and
+    // runs nothing until somebody turns it on.
+    defaultData: {
+      label: "Schedule Trigger",
+      rules: [{ id: "rule-1", kind: "days", every: 1, hour: 9, minute: 0 }],
+      active: false,
+    } as unknown as SceneNodeData,
   },
   // Parameter
   {
@@ -7553,7 +7575,7 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
   },
   {
     // Replicate mmaudio — synchronized SFX/foley for a video clip.
-    // Duration-bucketed credit cost (1cr ≤15s → 11cr ≤300s pre-markup, ×versions).
+    // Duration-bucketed credit cost (10cr ≤15s → 110cr ≤300s pre-markup, ×versions).
     // The `creditCost: 2` here is a coarse popup-time display fallback only;
     // real cost is computed at run-time by the route's `creditGuard.computeCredits`
     // (see `backend/src/routes/video-sfx.ts`) and surfaced via `useModelCredits()`.

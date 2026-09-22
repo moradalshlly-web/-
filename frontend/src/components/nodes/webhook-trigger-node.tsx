@@ -9,12 +9,10 @@ import { HandleWithPopover, HANDLE_COLORS, TEXT_HANDLE_COLOR } from "./handle-wi
 import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import type { WebhookTriggerData, WebhookParam } from "@/types/nodes"
 
-const TARGET_HANDLE = { id: "in", type: "target" as const, position: Position.Left, customStyle: { top: 'calc(100% - 24px)', left: '-29px' }, external: true }
 
 function buildHandles(params: ReadonlyArray<WebhookParam>) {
   if (params.length === 0) {
     return [
-      TARGET_HANDLE,
       { id: "payload", type: "source" as const, position: Position.Right, customStyle: { top: '24px', right: '-29px' }, external: true },
     ]
   }
@@ -35,7 +33,7 @@ function buildHandles(params: ReadonlyArray<WebhookParam>) {
       external: true,
     }
   })
-  return [TARGET_HANDLE, ...sourceHandles]
+  return sourceHandles
 }
 
 function WebhookTriggerNodeComponent({ id, data, selected }: NodeProps) {
@@ -79,7 +77,7 @@ function WebhookTriggerNodeComponent({ id, data, selected }: NodeProps) {
           )}
         </div>
       </BaseNode>
-      <HandleWithPopover nodeId={id} nodeType="webhook-trigger" handleId="in" type="target" position={Position.Left} label="URL" color={TEXT_HANDLE_COLOR} icon={<Webhook />} side="left" top="calc(100% - 24px)" />
+      {/* A trigger starts the run; it takes nothing from the canvas (registry: inputs []). Its URL is given by the server, never connected. */}
       {handles.filter(h => h.type === "source").map((h) => (
         <HandleWithPopover key={h.id} nodeId={id} nodeType="webhook-trigger" handleId={h.id} type="source" position={Position.Right} label={(h as { label?: string }).label ?? h.id} color={HANDLE_COLORS.control} icon={<Type />} side="right" top={h.customStyle?.top as string ?? '50%'} />
       ))}

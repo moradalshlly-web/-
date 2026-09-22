@@ -25,7 +25,11 @@ export const BouncyOverlay: React.FC<OverlayCommonProps> = ({
     () => groupCaptionLines(
       captions,
       captionLineCharBudget({ frameWidth: width, fontSize, fontFamily, fontWeight: fontWeight ?? 700, uppercase }),
-      { maxWords: maxWordsPerLine },
+      // splitToWidth: each word here is its own atomic `white-space: pre`
+      // inline-block, so an ENTRY wider than the budget (a phrase-level
+      // captions[] block) cannot wrap — it rendered as one box cut off at both
+      // edges. Split it into sub-phrases that fit.
+      { maxWords: maxWordsPerLine, splitToWidth: true },
     ),
     [captions, width, fontSize, fontFamily, fontWeight, uppercase, maxWordsPerLine],
   )

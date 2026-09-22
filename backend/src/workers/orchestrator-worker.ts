@@ -34,6 +34,7 @@ import {
 import { getRuntimeEnv, scopeToRuntimeEnv } from "../lib/runtime-env.js"
 import {
   buildExecutionLevels,
+  triggerRunScope,
   getEffectivelySkippedIds,
   getUploadDescendantIds,
   computeRouterGatedIds,
@@ -479,7 +480,10 @@ function isFrozenLottieOverride(
  */
 export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): Promise<void> {
   const { executionId, workflowId, userId, triggerType, triggerData, nodeIds, inputOverrides, appVersionId } = job.data
-  const nodeSubset = nodeIds ? new Set(nodeIds) : null
+  // An explicit subset ("run from here" / "run selected") wins; a triggered
+  // run is scoped to the branch behind its trigger once the graph is loaded
+  // (`runScope`, below).
+  const explicitSubset: Set<string> | null = nodeIds ? new Set(nodeIds) : null
 
   const ctx: OrchestratorContext = {
     executionId,
@@ -550,6 +554,13 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
     // image-to-image → modify, old collect → reduce, loop → list) BEFORE the
     // engine reads node.type. See normalize-node-types.ts.
     const rawNodes = (workflowData.nodes as (SimpleNode & { hidden?: boolean })[]) ?? []
+    const nodeSubset: Set<string> | null =
+      explicitSubset ??
+      triggerRunScope(
+        rawNodes,
+        ((workflowData.edges as Array<{ source: string; target: string }> | null) ?? []),
+        { triggerType, triggerNodeId: job.data.triggerNodeId },
+      )
     assertCanvasExecutionAllowed(nodeSubset ? rawNodes.filter((node) => nodeSubset.has(node.id)) : rawNodes)
     const allNodes = normalizeLegacyNodeTypes(rawNodes)
 

@@ -6,6 +6,7 @@ export const instagramProvider: SocialProvider = {
   id: "instagram",
   label: "Instagram",
   connectKind: "oauth2_between_steps",
+  category: "social",
   editor: "normal",
   capabilities: {
     schedule: true,

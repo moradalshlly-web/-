@@ -43,23 +43,23 @@ The node body shows a visual scrubber over the upstream video preview; the quick
 
 ## Credit pricing
 
-Video Retake is metered per second of the retake window, at **4 credits/second** (1080p, the only supported resolution):
+Video Retake is metered per second of the retake window, at **40 credits/second** (1080p, the only supported resolution):
 
 ```
-credits = 4 × retakeDuration × repeatCount
+credits = 40 × retakeDuration × repeatCount
 ```
 
 **Worked examples:**
 
 | Retake duration | Repeat count | Credits |
 |---|---|---|
-| 2s | 1 | 8 |
-| 4s | 1 | 16 |
-| 6s | 1 | 24 |
-| 10s | 1 | 40 |
-| 4s | 3 | 48 |
+| 2s | 1 | 80 |
+| 4s | 1 | 160 |
+| 6s | 1 | 240 |
+| 10s | 1 | 400 |
+| 4s | 3 | 480 |
 
-The same per-second rate applies to **Extend Video** runs on LTX 2.3 Pro (`credits = 4 × extendDuration`). The runtime table at `/admin/models` (Business / Cloud editions) is the authoritative source — this page is updated whenever the rate changes.
+The same per-second rate applies to **Extend Video** runs on LTX 2.3 Pro (`credits = 40 × extendDuration`). The runtime table at `/admin/models` (Business / Cloud editions) is the authoritative source — this page is updated whenever the rate changes.
 
 ## Notes
 
@@ -76,7 +76,7 @@ The same per-second rate applies to **Extend Video** runs on LTX 2.3 Pro (`credi
 ## See also
 
 - [Generate Video](./generate-video.md) — the unified video producer node (LTX 2.3 Pro / Fast both available there for full-clip generation).
-- [Extend Video](./extend-video.md) — append (or prepend) new footage to an existing clip. LTX 2.3 Pro extends are billed at the same `4 credits/second` rate as retake.
+- [Extend Video](./extend-video.md) — append (or prepend) new footage to an existing clip. LTX 2.3 Pro extends are billed at the same `40 credits/second` rate as retake.
 - [Video to Video](./video-to-video.md) — transform an entire clip (not a time window) with a text prompt.
 - [Trim Video](../processing-video/trim-video.md) — for cutting a window out of a clip without regeneration.
 

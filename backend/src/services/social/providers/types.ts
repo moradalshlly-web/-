@@ -22,6 +22,16 @@ export type ConnectKind =
 
 export type MediaKind = "image" | "video" | "carousel" | "story" | "text"
 
+/**
+ * Which family a network belongs to — the Integrations grid's tabs read this,
+ * so the frontend never keeps a name list of its own. Required on every
+ * descriptor: TypeScript is the guard that a new network declares one.
+ *
+ * "social"     — a feed you post to (Instagram, Telegram, Bluesky, Discord).
+ * "publishing" — a site you publish articles on (Dev.to, Medium, WordPress).
+ */
+export type ProviderCategory = "social" | "publishing"
+
 /** One input in a `custom_fields` connect form (rendered by the frontend). */
 export interface FieldSpec {
   key: string
@@ -100,6 +110,8 @@ export interface SocialProvider {
   readonly label: string
   readonly connectKind: ConnectKind
   readonly editor: "none" | "normal" | "markdown" | "html"
+  /** Grid tab this network files under — see `ProviderCategory`. */
+  readonly category: ProviderCategory
   readonly capabilities: ProviderCapabilities
   /**
    * Env vars this deployment must set for connect to work (§2.5 availability).

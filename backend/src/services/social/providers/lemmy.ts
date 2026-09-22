@@ -5,6 +5,7 @@ export const lemmyProvider: SocialProvider = {
   id: "lemmy",
   label: "Lemmy",
   connectKind: "custom_fields",
+  category: "social",
   editor: "markdown",
   capabilities: { schedule: true, comment: false, media: ["image", "text"], refresh: "none" },
   requiredEnv: [],

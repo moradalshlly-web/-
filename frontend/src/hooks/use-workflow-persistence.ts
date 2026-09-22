@@ -18,6 +18,7 @@ import { isValidUuid } from "@/lib/uuid"
 import { collectRestorableSingleNodeJobs, applySingleNodeJobRestore } from "@/lib/single-node-restore"
 import { refreshEntityNodes } from "@/lib/entity-node-data"
 import { settledBeforeClear } from "@/lib/results-cleared"
+import { createTriggerSyncTracker, syncTriggersAfterSave, type TriggerSyncTracker } from "@/lib/trigger-sync-after-save"
 import { namedRunOutputFields } from "@/lib/named-run-outputs"
 
 /**
@@ -601,6 +602,26 @@ export function useWorkflowPersistence(projectId?: string) {
   // full-save path without re-probing on every save.
   const deltaRpcUnavailableRef = useRef(false)
 
+  // The trigger nodes the server last agreed to, PER WORKFLOW ID: decides
+  // whether a save needs the trigger projection at all, which node ids it
+  // vouches for, and that a failed projection is retried on the next save.
+  // Keyed by id because this hook instance outlives a workflow switch and a
+  // late save can still land on the previous workflow — one shared tracker
+  // would hand workflow A's "before" to workflow B's first save and vouch for
+  // a schedule B already had.
+  const triggerSyncTrackersRef = useRef(new Map<string, TriggerSyncTracker>())
+  const reportTriggerSync = useCallback(
+    (id: string, before: WorkflowNode[] | undefined, after: WorkflowNode[]) => {
+      const trackers = triggerSyncTrackersRef.current
+      const tracker = trackers.get(id) ?? createTriggerSyncTracker()
+      trackers.set(id, tracker)
+      void syncTriggersAfterSave(tracker, id, before, after, () => {
+        toast.warning(tx("editor.triggerSyncFailed"), { id: "trigger-sync-failed" })
+      })
+    },
+    [],
+  )
+
   // One save at a time. `save()` is reachable from several callers that do
   // not pass through the autosave gate — the pre-Run save, the poll-start
   // and job-finished saves, the toolbar's Retry — and two of them a few ms
@@ -752,6 +773,9 @@ export function useWorkflowPersistence(projectId?: string) {
           if (editorMovedOn()) {
             if (error) return { success: false, error: error.message }
             const landed = (Array.isArray(data) ? data[0] : data) as { ok?: boolean } | undefined
+            // The write landed even though nobody is looking: a trigger node
+            // saved here still has to become (or stop being) a row.
+            if (landed?.ok) reportTriggerSync(workflowId, snapshot.nodes, nodesNow)
             return landed?.ok ? { success: true } : { success: false, error: "workflow_changed" }
           }
           if (error) {
@@ -780,6 +804,9 @@ export function useWorkflowPersistence(projectId?: string) {
               presentationSettings: st.presentationSettings,
               savedViewport: st.savedViewport,
             }, epochAtStart)
+            // The delta went through PostgREST, which never projects trigger
+            // nodes onto trigger rows — ask the server to, when it matters.
+            reportTriggerSync(workflowId, snapshot.nodes, nodesNow)
             return { success: true }
           }
           if (row.version == null) return "fallback" // row gone — full path 404s
@@ -859,6 +886,11 @@ export function useWorkflowPersistence(projectId?: string) {
           }
         }
 
+        // What the last save left on the server (until the tracker has its own
+        // memory), so a REMOVED trigger node is still synced away after this
+        // full write.
+        const nodesBeforeSave = useWorkflowStore.getState().lastSavedSnapshot?.nodes
+        let createdWorkflowId: string | null = null
         const payload = {
           project_id: resolvedProjectId,
           name: workflowName,
@@ -910,6 +942,7 @@ export function useWorkflowPersistence(projectId?: string) {
           // The editor has moved on — see `editorMovedOn` above.
           if (editorMovedOn()) {
             if (error) return { success: false, error: error.message }
+            if (data) reportTriggerSync(workflowId, nodesBeforeSave, nodes)
             return data ? { success: true } : { success: false, error: "workflow_changed" }
           }
 
@@ -1041,6 +1074,7 @@ export function useWorkflowPersistence(projectId?: string) {
           // triggered by `workflowId` change in `workflow-canvas.tsx`).
           // The window between insert and re-subscribe is broadcast-safe.
           setWorkflowId(data.id)
+          createdWorkflowId = data.id as string
           applySaveSuccess(
             data.updated_at as string,
             typeof (data as { version?: unknown }).version === "number"
@@ -1052,6 +1086,11 @@ export function useWorkflowPersistence(projectId?: string) {
         }
 
         scheduleSavedFade()
+
+        // Same projection for the full-write path (and a brand-new workflow,
+        // by the id the insert just returned).
+        const savedWorkflowId = workflowId ?? createdWorkflowId
+        if (savedWorkflowId) reportTriggerSync(savedWorkflowId, nodesBeforeSave, nodes)
 
         return { success: true }
       } catch (err) {

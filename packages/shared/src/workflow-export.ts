@@ -193,6 +193,10 @@ const GENERATED_FIELDS: readonly string[] = [
 
 /** Per-node-type extra generated fields beyond GENERATED_FIELDS. Unknown types get no extras ([] default). */
 const NODE_EXTRA_FIELDS: Record<string, string[]> = {
+  // A template must never import ARMED: the switch is the importer's to flip
+  // (a schedule starts paused), and the rules themselves are config that
+  // travels.
+  "schedule-trigger": ["active"],
   character: ["expressions", "poses", "lightingVariations", "angles", "customVariations"],
   object: ["angles", "materials", "variations", "customVariations"],
   creature: ["angles", "poses", "variations", "customVariations"],

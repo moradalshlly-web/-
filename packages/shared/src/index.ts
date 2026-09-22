@@ -640,6 +640,38 @@ export {
 } from "./node-default-mappings.js"
 
 export { NODE_MAPPABLE_FIELDS, SUNO_FIELD_HANDLE_FIELDS, fieldKeyFromHandle } from "./node-mappable-fields.js"
+export {
+  SCHEDULE_TRIGGER_NODE_TYPE,
+  WEBHOOK_TRIGGER_NODE_TYPE,
+  PROJECTED_TRIGGER_NODE_TYPES,
+  isProjectedTriggerNodeType,
+} from "./trigger-node-types.js"
+
+export { buildFeedMaps, nodeFeedsAnything, type FeedNode, type FeedEdge, type FeedMaps } from "./trigger-feeds.js"
+
+export {
+  SCHEDULE_RULE_KINDS,
+  SCHEDULE_EVERY_LIMITS,
+  isCronExpression,
+  isValidTimezone,
+  normalizeScheduleRule,
+  normalizeScheduleRules,
+  legacyScheduleToRules,
+  localTimeIn,
+  localMinuteKey,
+  timezoneOffsetMinutes,
+  matchesCronField,
+  matchesCron,
+  ruleMatches,
+  scheduleMatchesAt,
+  scheduleOccurrences,
+  nextScheduleRuns,
+  previewHorizonMs,
+  type ScheduleRuleKind,
+  type ScheduleRule,
+  type ScheduleSpec,
+  type LocalTime,
+} from "./schedule-rules.js"
 
 
 export {

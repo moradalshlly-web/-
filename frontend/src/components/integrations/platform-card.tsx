@@ -1,72 +1,34 @@
 "use client"
 
-import { useMemo, useState, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Loader2, Unlink, Plus, AlertTriangle, RefreshCw, Instagram, Video, Youtube, Linkedin, Twitter, Facebook, Send, Share2, MessageCircle, Cloud, PenLine, BookOpen, Globe, Users, Pin, Gamepad2, AtSign, Hash } from "lucide-react"
-import { getSocialAuthUrl, disconnectSocial, connectTelegram, connectSocialCustom, setDefaultSocialConnection, isNotFoundError, type SocialProviderInfo } from "@/lib/api"
+import { useState, useCallback } from "react"
+import { Loader2, Plus } from "lucide-react"
+import {
+  getSocialAuthUrl,
+  disconnectSocial,
+  connectTelegram,
+  connectSocialCustom,
+  setDefaultSocialConnection,
+  isNotFoundError,
+  type SocialProviderInfo,
+} from "@/lib/api"
 import { toast } from "sonner"
 import { useT } from "@/lib/i18n"
-import { isCloud } from "@/lib/edition"
 import type { SocialConnection } from "@/types/nodes"
+import { BrandTile } from "./brand-tile"
+import { AccountRow } from "./account-row"
+import { describeProvider } from "./platform-meta"
+import { TelegramConnectDialog, FieldsConnectDialog } from "./connect-dialogs"
 
-// Icons for known networks; anything the registry adds later falls back to a
-// generic share icon — the grid derives from GET /v1/social/providers, so a
-// new backend network appears here with ZERO frontend changes.
-const PLATFORM_ICONS: Record<string, React.ReactNode> = {
-  instagram: <Instagram className="h-6 w-6" />,
-  "instagram-standalone": <Instagram className="h-6 w-6" />,
-  tiktok: <Video className="h-6 w-6" />,
-  youtube: <Youtube className="h-6 w-6" />,
-  linkedin: <Linkedin className="h-6 w-6" />,
-  x: <Twitter className="h-6 w-6" />,
-  facebook: <Facebook className="h-6 w-6" />,
-  telegram: <Send className="h-6 w-6" />,
-  bluesky: <Cloud className="h-6 w-6" />,
-  devto: <PenLine className="h-6 w-6" />,
-  hashnode: <Hash className="h-6 w-6" />,
-  medium: <BookOpen className="h-6 w-6" />,
-  wordpress: <Globe className="h-6 w-6" />,
-  lemmy: <Users className="h-6 w-6" />,
-  reddit: <MessageCircle className="h-6 w-6" />,
-  pinterest: <Pin className="h-6 w-6" />,
-  discord: <Gamepad2 className="h-6 w-6" />,
-  twitch: <Video className="h-6 w-6" />,
-  threads: <AtSign className="h-6 w-6" />,
-  mastodon: <Globe className="h-6 w-6" />,
-}
-
-const PLATFORM_DESCRIPTIONS: Record<string, string> = {
-  instagram: "Post images, reels, and stories (uses Facebook Login)",
-  "instagram-standalone": "Post images, reels, and stories — connects directly, no Facebook Page",
-  tiktok: "Upload videos directly",
-  youtube: "Upload videos and shorts",
-  linkedin: "Share posts with text, images, or video",
-  x: "Post tweets with media",
-  facebook: "Post to your page",
-  telegram: "Send messages to channels and chats",
-  bluesky: "Post to the ATmosphere with images",
-  devto: "Publish markdown articles",
-  hashnode: "Publish to your Hashnode blog",
-  medium: "Publish stories",
-  wordpress: "Publish posts to your site",
-  lemmy: "Post into your community",
-  reddit: "Submit posts to subreddits",
-  pinterest: "Pin images to your board",
-  discord: "Send messages via your bot",
-  twitch: "Send chat messages to your channel",
-  threads: "Post text and images",
-  mastodon: "Toot with images",
-}
-
-function describeProvider(provider: SocialProviderInfo): string {
-  return (
-    PLATFORM_DESCRIPTIONS[provider.id] ??
-    `Publish ${provider.capabilities.media.join(", ")} content`
-  )
-}
-
+/**
+ * One connectable network. Everything about it comes from the registry entry,
+ * so a network added to the backend renders here with no change.
+ *
+ * `PlatformCard` only ever draws a network this deployment CAN connect;
+ * unconfigured ones render as `ComingSoonCard`, which is a different shape
+ * with a different message. Splitting them is the handoff's main idea for
+ * this grid: the things you can do now should not have to compete with the
+ * things you cannot.
+ */
 interface PlatformCardProps {
   readonly provider: SocialProviderInfo
   readonly connections: readonly SocialConnection[]
@@ -76,21 +38,13 @@ interface PlatformCardProps {
 export function PlatformCard({ provider, connections, onConnectionChange }: PlatformCardProps) {
   const t = useT()
   const [connecting, setConnecting] = useState(false)
-  const [disconnectingId, setDisconnectingId] = useState<string | null>(null)
-  const [defaultingId, setDefaultingId] = useState<string | null>(null)
-  const [telegramDialogOpen, setTelegramDialogOpen] = useState(false)
+  const [busyConnectionId, setBusyConnectionId] = useState<string | null>(null)
+  const [telegramOpen, setTelegramOpen] = useState(false)
   const [botToken, setBotToken] = useState("")
-  const [fieldsDialogOpen, setFieldsDialogOpen] = useState(false)
+  const [fieldsOpen, setFieldsOpen] = useState(false)
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [dialogBusy, setDialogBusy] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
-
-  const unavailable = !provider.available
-  // Cloud customers cannot set deployment env vars, so an unconfigured
-  // network is simply "not offered yet" — say Coming soon and keep the
-  // deployment internals (env var names) out of the UI. Self-hosted admins
-  // ARE the deployment owner; for them the env hints are the setup guide.
-  const comingSoon = unavailable && isCloud()
 
   const openFieldsDialog = useCallback(() => {
     const defaults: Record<string, string> = {}
@@ -99,12 +53,12 @@ export function PlatformCard({ provider, connections, onConnectionChange }: Plat
     }
     setFieldValues(defaults)
     setDialogError(null)
-    setFieldsDialogOpen(true)
+    setFieldsOpen(true)
   }, [provider.customFields])
 
   const handleConnect = useCallback(async () => {
     if (provider.connectKind === "bot_token") {
-      setTelegramDialogOpen(true)
+      setTelegramOpen(true)
       return
     }
     if (provider.connectKind === "custom_fields") {
@@ -149,40 +103,46 @@ export function PlatformCard({ provider, connections, onConnectionChange }: Plat
     }
   }, [provider, onConnectionChange, openFieldsDialog, t])
 
-  const handleDisconnect = useCallback(async (connectionId: string) => {
-    setDisconnectingId(connectionId)
-    try {
-      await disconnectSocial(connectionId)
-      toast.success(t("integ.disconnectedFrom", { name: provider.label }))
-      onConnectionChange()
-    } catch (err) {
-      // A 404 means the row is already gone (another tab, or a list rendered
-      // before a refetch): that is the state the click asked for, so refresh
-      // and report success rather than "Failed to disconnect" (#722).
-      if (isNotFoundError(err)) {
+  const handleDisconnect = useCallback(
+    async (connectionId: string) => {
+      setBusyConnectionId(connectionId)
+      try {
+        await disconnectSocial(connectionId)
         toast.success(t("integ.disconnectedFrom", { name: provider.label }))
         onConnectionChange()
-        return
+      } catch (err) {
+        // A 404 means the row is already gone (another tab, or a list rendered
+        // before a refetch): that is the state the click asked for, so refresh
+        // and report success rather than "Failed to disconnect" (#722).
+        if (isNotFoundError(err)) {
+          toast.success(t("integ.disconnectedFrom", { name: provider.label }))
+          onConnectionChange()
+          return
+        }
+        toast.error(t("integ.toastDisconnectFailed"))
+      } finally {
+        setBusyConnectionId(null)
       }
-      toast.error(t("integ.toastDisconnectFailed"))
-    } finally {
-      setDisconnectingId(null)
-    }
-  }, [provider.label, onConnectionChange, t])
+    },
+    [provider.label, onConnectionChange, t],
+  )
 
-  const handleMakeDefault = useCallback(async (connectionId: string) => {
-    setDefaultingId(connectionId)
-    try {
-      await setDefaultSocialConnection(connectionId)
-      // Re-read rather than patch locally: setting one default CLEARS the
-      // previous, so the row that changed is not only the one clicked.
-      onConnectionChange()
-    } catch {
-      toast.error(t("integ.toastDefaultFailed"))
-    } finally {
-      setDefaultingId(null)
-    }
-  }, [onConnectionChange, t])
+  const handleMakeDefault = useCallback(
+    async (connectionId: string) => {
+      setBusyConnectionId(connectionId)
+      try {
+        await setDefaultSocialConnection(connectionId)
+        // Re-read rather than patch locally: setting one default CLEARS the
+        // previous, so the row that changed is not only the one clicked.
+        onConnectionChange()
+      } catch {
+        toast.error(t("integ.toastDefaultFailed"))
+      } finally {
+        setBusyConnectionId(null)
+      }
+    },
+    [onConnectionChange, t],
+  )
 
   const handleTelegramConnect = useCallback(async () => {
     setDialogError(null)
@@ -190,7 +150,7 @@ export function PlatformCard({ provider, connections, onConnectionChange }: Plat
     try {
       await connectTelegram(botToken)
       toast.success(t("integ.toastConnectedTelegram"))
-      setTelegramDialogOpen(false)
+      setTelegramOpen(false)
       setBotToken("")
       onConnectionChange()
     } catch (err) {
@@ -199,15 +159,6 @@ export function PlatformCard({ provider, connections, onConnectionChange }: Plat
       setDialogBusy(false)
     }
   }, [botToken, onConnectionChange, t])
-
-  const fieldValidationError = useMemo(() => {
-    for (const f of provider.customFields ?? []) {
-      const value = (fieldValues[f.key] ?? "").trim()
-      if (!value) return t("integ.fieldRequired", { field: f.label })
-      if (f.validation && !new RegExp(f.validation).test(value)) return t("integ.fieldInvalid", { field: f.label })
-    }
-    return null
-  }, [provider.customFields, fieldValues, t])
 
   const handleFieldsConnect = useCallback(async () => {
     setDialogError(null)
@@ -221,7 +172,7 @@ export function PlatformCard({ provider, connections, onConnectionChange }: Plat
           ? t("integ.connectedToAs", { name: provider.label, username: result.username })
           : t("integ.connectedTo", { name: provider.label }),
       )
-      setFieldsDialogOpen(false)
+      setFieldsOpen(false)
       onConnectionChange()
     } catch (err) {
       setDialogError(err instanceof Error ? err.message : t("integ.connectionFailed"))
@@ -230,231 +181,122 @@ export function PlatformCard({ provider, connections, onConnectionChange }: Plat
     }
   }, [provider.id, provider.label, fieldValues, onConnectionChange, t])
 
+  const isConnected = connections.length > 0
+
   return (
-    <div className={`rounded-xl border border-gray-200 dark:border-[#2D2D2D] bg-white dark:bg-[#1E1E1E] p-5 flex flex-col gap-4 relative${unavailable ? " opacity-60" : ""}`}>
-      {unavailable && (
-        <div
-          className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-[#333] text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
-          title={!comingSoon && provider.missingEnv?.length ? t("integ.missing", { env: provider.missingEnv.join(", ") }) : undefined}
+    <div
+      className="flex min-h-[176px] flex-col gap-3.5 rounded-[14px] border p-[18px]"
+      style={{ borderColor: "var(--integ-line)", background: "var(--integ-surface)" }}
+    >
+      <div className="flex items-start gap-3">
+        <BrandTile platformId={provider.id} label={provider.label} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[14.5px] font-bold tracking-[-0.01em]" style={{ color: "var(--integ-fg)" }}>
+            {provider.label}
+          </span>
+          <span className="text-xs leading-[1.45] text-pretty" style={{ color: "var(--integ-muted)" }}>
+            {describeProvider(provider)}
+          </span>
+        </div>
+        <span
+          className="ms-auto flex-none rounded-full px-2 py-[3px] text-[10.5px] font-bold"
+          style={
+            isConnected
+              ? { background: "color-mix(in oklab, var(--integ-ok) 16%, transparent)", color: "var(--integ-ok)" }
+              : { background: "var(--integ-raised)", color: "var(--integ-muted)" }
+          }
         >
-          {comingSoon ? t("dash.comingSoon") : t("integ.requiresSetup")}
-        </div>
-      )}
-      <div className="flex items-center gap-3">
-        <div className="text-gray-600 dark:text-gray-400">
-          {PLATFORM_ICONS[provider.id] ?? <Share2 className="h-6 w-6" />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">{provider.label}</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{describeProvider(provider)}</p>
-        </div>
+          {isConnected ? t("integ.connected") : t("integ.available")}
+        </span>
       </div>
 
-      {unavailable && !comingSoon && provider.missingEnv && provider.missingEnv.length > 0 && (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">
-          {t("integ.setToEnablePre")}<code className="font-mono">{provider.missingEnv.join(", ")}</code>{t("integ.setToEnablePost")}
-        </p>
-      )}
-
-      {/* Connected accounts */}
-      {connections.length > 0 && (
-        <div className="space-y-2">
-          {connections.map((conn) => {
-            // Meta page/business tokens don't self-heal — the publish worker
-            // flags the row and the account keeps LOOKING connected until we
-            // say otherwise. Surface it per account, not per card: a card can
-            // hold several accounts and only one of them may be dead.
-            const needsReconnect = conn.reconnect_needed === true
-            // Only meaningful with something to choose BETWEEN. One account is
-            // already where everything goes, and a "Default" chip beside it
-            // would be a control that does nothing.
-            const showsDefault = connections.length > 1
-            const isDefault = conn.is_default === true
-            return (
-              <div
-                key={conn.id}
-                className={`flex items-center justify-between p-2 rounded-lg ${
-                  needsReconnect
-                    ? "bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-900/50"
-                    : "bg-gray-50 dark:bg-[#252525]"
-                }`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  {conn.platform_avatar_url && (
-                    <img src={conn.platform_avatar_url} alt="" className="h-7 w-7 rounded-full shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                      {conn.display_name || conn.platform_username || t("integ.connected")}
-                    </span>
-                    {needsReconnect && (
-                      <span className="flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-500">
-                        <AlertTriangle className="h-3 w-3 shrink-0" />
-                        {t("integ.sessionExpired")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center shrink-0 ms-2">
-                  {showsDefault &&
-                    (isDefault ? (
-                      <span className="text-[11px] font-medium text-primary px-2 whitespace-nowrap">
-                        {t("integ.defaultAccount")}
-                      </span>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleMakeDefault(conn.id)}
-                        disabled={defaultingId === conn.id}
-                        className="text-[11px] text-gray-500 hover:text-primary dark:text-gray-400 whitespace-nowrap"
-                      >
-                        {defaultingId === conn.id
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          : t("integ.makeDefault")}
-                      </Button>
-                    ))}
-                  {needsReconnect && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleConnect}
-                      disabled={connecting}
-                      className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 dark:text-amber-500 dark:hover:bg-amber-900/40"
-                    >
-                      {connecting
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <RefreshCw className="h-3.5 w-3.5 me-1" />}
-                      {t("integ.reconnect")}
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDisconnect(conn.id)}
-                    disabled={disconnectingId === conn.id}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                  >
-                    {disconnectingId === conn.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlink className="h-3.5 w-3.5" />}
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
+      {isConnected && (
+        <div className="flex flex-col gap-1.5">
+          {connections.map((conn) => (
+            <AccountRow
+              key={conn.id}
+              connection={conn}
+              networkLabel={provider.label}
+              // Only meaningful with something to choose BETWEEN. One account
+              // is already where everything goes, and a "Default" chip beside
+              // it would be a control that does nothing.
+              showsDefault={connections.length > 1}
+              busy={busyConnectionId === conn.id}
+              onMakeDefault={() => handleMakeDefault(conn.id)}
+              onReconnect={handleConnect}
+              onDisconnect={() => handleDisconnect(conn.id)}
+            />
+          ))}
         </div>
       )}
 
-      {/* Add account button */}
-      <Button
-        onClick={handleConnect}
-        disabled={connecting || unavailable}
-        variant={connections.length > 0 && !unavailable ? "outline" : "default"}
-        className={unavailable
-          ? "w-full bg-gray-200 dark:bg-[#333] text-gray-400 dark:text-gray-500 cursor-not-allowed"
-          : connections.length > 0
-            ? "w-full"
-            : "w-full bg-[#ff0073] hover:bg-[#e0005f] text-white"
-        }
-      >
-        {connecting && <Loader2 className="h-4 w-4 animate-spin me-2" />}
-        {unavailable ? (
-          comingSoon ? t("dash.comingSoon") : t("integ.requiresSetup")
-        ) : connections.length > 0 ? (
-          <>
-            <Plus className="h-4 w-4 me-2" />
-            {t("integ.addAnother")}
-          </>
-        ) : (
-          t("integ.connect")
-        )}
-      </Button>
+      {/* One action, at the bottom, in the same place on every card.
+          The two artboards deliberately differ here and both are followed.
+          On the light page Connect is near-black: that IS the handoff's
+          headline change, twenty cards no longer all shouting in pink. The
+          dark artboard paints the same button brand pink, because on a dark
+          page a near-black button disappears and a near-white one is just
+          the same shout in another colour — with no white competing for
+          attention, the brand colour reads as "the action" rather than as
+          noise. So dark mode here is unchanged from today; the light page is
+          where the reduction lands. */}
+      <div className="mt-auto pt-0.5">
+        <button
+          type="button"
+          onClick={handleConnect}
+          disabled={connecting}
+          className={`flex h-[34px] w-full items-center justify-center gap-1.5 rounded-[10px] text-[12.5px] font-semibold transition-colors disabled:opacity-60 ${
+            isConnected
+              ? "border border-dashed hover:border-solid"
+              : "bg-foreground font-bold text-background hover:opacity-90 dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
+          }`}
+          style={
+            isConnected
+              ? { borderColor: "var(--integ-line-dashed)", color: "var(--integ-muted)" }
+              : undefined
+          }
+        >
+          {connecting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {isConnected ? (
+            <>
+              <Plus className="h-3.5 w-3.5" />
+              {t("integ.addAnother")}
+            </>
+          ) : (
+            t("integ.connect")
+          )}
+        </button>
+      </div>
 
-      {/* Bot-token connect (telegram) */}
-      <Dialog open={telegramDialogOpen} onOpenChange={(open) => {
-        setTelegramDialogOpen(open)
-        if (!open) {
-          setBotToken("")
-          setDialogError(null)
-        }
-      }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("integ.connectTelegramBot")}</DialogTitle>
-            <DialogDescription>
-              {t("integ.telegramDescPre")}
-              <a
-                href="https://web.telegram.org/k/#@BotFather"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#ff0073] underline underline-offset-2 hover:text-[#e0005f] font-medium"
-              >
-                @BotFather
-              </a>
-              {t("integ.telegramDescMid")}<code className="text-xs">/newbot</code>{t("integ.telegramDescPost")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 pt-2">
-            <Input
-              placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-              value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
-              disabled={dialogBusy}
-            />
-            {dialogError && <p className="text-sm text-red-500 dark:text-red-400">{dialogError}</p>}
-            <Button
-              onClick={handleTelegramConnect}
-              disabled={dialogBusy || !botToken.trim()}
-              className="w-full bg-[#ff0073] hover:bg-[#e0005f] text-white"
-            >
-              {dialogBusy && <Loader2 className="h-4 w-4 animate-spin me-2" />}
-              {t("integ.connect")}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <TelegramConnectDialog
+        open={telegramOpen}
+        onOpenChange={(open) => {
+          setTelegramOpen(open)
+          if (!open) {
+            setBotToken("")
+            setDialogError(null)
+          }
+        }}
+        token={botToken}
+        onTokenChange={setBotToken}
+        busy={dialogBusy}
+        error={dialogError}
+        onConnect={handleTelegramConnect}
+      />
 
-      {/* custom_fields connect — the form renders from the provider's own
-          FieldSpec list, so a new backend network gets its form for free. */}
-      <Dialog open={fieldsDialogOpen} onOpenChange={(open) => {
-        setFieldsDialogOpen(open)
-        if (!open) setDialogError(null)
-      }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("integ.connectProvider", { name: provider.label })}</DialogTitle>
-            <DialogDescription>
-              {t("integ.credentialValidated", { name: provider.label })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 pt-2">
-            {(provider.customFields ?? []).map((field) => (
-              <div key={field.key} className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor={`cf-${provider.id}-${field.key}`}>
-                  {field.label}
-                </label>
-                <Input
-                  id={`cf-${provider.id}-${field.key}`}
-                  type={field.type === "password" ? "password" : "text"}
-                  value={fieldValues[field.key] ?? ""}
-                  onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                  disabled={dialogBusy}
-                />
-                {field.hint && <p className="text-xs text-gray-500 dark:text-gray-400">{field.hint}</p>}
-              </div>
-            ))}
-            {dialogError && <p className="text-sm text-red-500 dark:text-red-400">{dialogError}</p>}
-            <Button
-              onClick={handleFieldsConnect}
-              disabled={dialogBusy || fieldValidationError !== null}
-              title={fieldValidationError ?? undefined}
-              className="w-full bg-[#ff0073] hover:bg-[#e0005f] text-white"
-            >
-              {dialogBusy && <Loader2 className="h-4 w-4 animate-spin me-2" />}
-              {t("integ.connect")}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <FieldsConnectDialog
+        open={fieldsOpen}
+        onOpenChange={(open) => {
+          setFieldsOpen(open)
+          if (!open) setDialogError(null)
+        }}
+        provider={provider}
+        values={fieldValues}
+        onValuesChange={setFieldValues}
+        busy={dialogBusy}
+        error={dialogError}
+        onConnect={handleFieldsConnect}
+      />
     </div>
   )
 }

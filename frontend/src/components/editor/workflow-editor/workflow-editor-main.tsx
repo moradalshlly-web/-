@@ -731,10 +731,14 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
   // Save / auto-save
   // ---------------------------------------------------------------------------
 
+  // Resolves to the save's result so a caller that reports on it (the
+  // top-bar schedule switch) can tell "saved" from "refused" instead of
+  // guessing.
   const handleSave = useCallback(async () => {
     if (projectId) {
-      await save(projectId);
+      return await save(projectId);
     }
+    return undefined;
   }, [projectId, save]);
 
   useEffect(() => {

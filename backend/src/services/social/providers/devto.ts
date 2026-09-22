@@ -5,6 +5,7 @@ export const devtoProvider: SocialProvider = {
   id: "devto",
   label: "Dev.to",
   connectKind: "custom_fields",
+  category: "publishing",
   editor: "markdown",
   capabilities: { schedule: true, comment: false, media: ["text"], refresh: "none" },
   requiredEnv: [],

@@ -5,6 +5,7 @@ export const discordProvider: SocialProvider = {
   id: "discord",
   label: "Discord",
   connectKind: "oauth2",
+  category: "social",
   editor: "markdown",
   capabilities: { schedule: true, comment: false, media: ["image", "video", "text"], refresh: "real" },
   requiredEnv: ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN"],

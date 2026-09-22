@@ -142,7 +142,7 @@ Response:
     "category": "ai-image",
     "description": "Generate an image from a text prompt.",
     "outputType": "image",
-    "creditCost": "1-8",
+    "creditCost": "2-620",
     "providers": ["flux", "nano-banana", "ideogram", "z-image", "grok", "gpt-image", "nano-banana-pro"],
     "capabilities": ["supports-reference-image", "supports-negative-prompt"]
   }
