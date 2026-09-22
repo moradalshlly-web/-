@@ -3,6 +3,28 @@ import { stripExportContent, stripUnownedRefs } from "../workflow-export.js"
 import { EXECUTION_DATA_KEYS } from "../node-runtime-keys.js"
 import type { GenericNode } from "../types.js"
 
+describe("stripExportContent — a Schedule Trigger never exports armed", () => {
+  it("drops `active` and keeps the schedule itself", () => {
+    const node: GenericNode = {
+      id: "s1",
+      type: "schedule-trigger",
+      data: { label: "Daily", rules: [{ id: "rule-1", kind: "days", every: 1, hour: 9, minute: 0 }], timezone: "Asia/Jerusalem", maxExecutions: 3, active: true },
+    }
+    const [out] = stripExportContent([node])
+    const data = out.data as Record<string, unknown>
+    expect(data.active).toBeUndefined()
+    expect(data.rules).toEqual([{ id: "rule-1", kind: "days", every: 1, hour: 9, minute: 0 }])
+    expect(data.timezone).toBe("Asia/Jerusalem")
+    expect(data.maxExecutions).toBe(3)
+  })
+
+  it("a schedule that was never armed is exported unchanged", () => {
+    const node: GenericNode = { id: "s1", type: "schedule-trigger", data: { label: "Daily", rules: [{ id: "rule-1", kind: "days", every: 1, hour: 9, minute: 0 }] } }
+    const [out] = stripExportContent([node])
+    expect(out.data).toEqual(node.data)
+  })
+})
+
 /**
  * Invariant guard for the template-export leak class (audit R2-H4): a
  * "shareable" template export must never carry runtime/result fields —

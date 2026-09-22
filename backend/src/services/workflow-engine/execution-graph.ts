@@ -3,7 +3,7 @@
  * Pure functions operating on SimpleNode/SimpleEdge arrays.
  */
 
-import { buildChildrenByParent, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES } from "@nodaro/shared"
+import { buildChildrenByParent, buildFeedMaps, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES } from "@nodaro/shared"
 import type { SimpleNode, SimpleEdge, NodeExecutionState } from "./types.js"
 
 // The per-node legacy-type migration lives in normalize-node-types.ts (single
@@ -343,29 +343,14 @@ export function triggerRunScope(
     triggerNode = candidates[0]
   }
 
-  const live = new Set(nodes.map((n) => n.id))
-  const children = new Map<string, string[]>()
-  const parents = new Map<string, string[]>()
-  const feeds = (source: string, target: string) => {
-    if (!live.has(source) || !live.has(target) || source === target) return
-    children.set(source, [...(children.get(source) ?? []), target])
-    parents.set(target, [...(parents.get(target) ?? []), source])
-  }
-  for (const edge of edges) feeds(edge.source, edge.target)
-  for (const n of nodes) {
-    if (typeof n.parentId === "string" && n.parentId) feeds(n.id, n.parentId)
-    const mappings = (n.data as { fieldMappings?: unknown } | null | undefined)?.fieldMappings
-    if (mappings && typeof mappings === "object") {
-      for (const mapping of Object.values(mappings as Record<string, unknown>)) {
-        const sourceNodeId = (mapping as { sourceNodeId?: unknown } | null)?.sourceNodeId
-        if (typeof sourceNodeId === "string" && sourceNodeId) feeds(sourceNodeId, n.id)
-      }
-    }
-  }
+  // The SAME feed definition the editor's "is this trigger wired?" reads
+  // (`@nodaro/shared` trigger-feeds): live edges, Group membership, field
+  // mappings — so the card and the server never disagree on branch vs whole.
+  const { children, parents } = buildFeedMaps(nodes, edges)
   if ((children.get(triggerNode.id) ?? []).length === 0) return null
 
   const scope = new Set<string>([triggerNode.id])
-  const walk = (start: string, next: Map<string, string[]>) => {
+  const walk = (start: string, next: ReadonlyMap<string, ReadonlyArray<string>>) => {
     const queue = [start]
     while (queue.length > 0) {
       const current = queue.shift()!

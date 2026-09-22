@@ -14,6 +14,7 @@
 import {
   describeNodeAdjustments,
   EXECUTION_DATA_KEYS,
+  SCHEDULE_TRIGGER_NODE_TYPE,
   normalizeNodeModelParams,
   stripTransientRuntimeData,
   validateSubWorkflowRoutes,
@@ -351,6 +352,22 @@ function prepare(
         continue
       }
       if (storedData && JSON.stringify(storedData[key]) === JSON.stringify(value)) cleaned[key] = value
+    }
+    // A Schedule Trigger's switch (`active`) is the PERSON'S: a schedule never
+    // runs from a save alone, and an edit is a save. The stored switch rides
+    // across an upsert that omits it (an upsert replaces the node whole — "move
+    // it to 10am" must not silently pause an armed schedule), a model that
+    // tries to arm one is refused, and a new schedule lands paused however it
+    // was sent.
+    if (node.type === SCHEDULE_TRIGGER_NODE_TYPE) {
+      const storedActive = storedData?.active === true
+      if (cleaned.active === true && !storedActive) {
+        throw new EditRejected(
+          `"${node.id}" is a Schedule Trigger: it is turned on by the person, with its switch in the editor — never by an edit. Leave \`active\` out; the schedule is added paused.`,
+        )
+      }
+      if (storedData && "active" in storedData) cleaned.active = storedData.active
+      else delete cleaned.active
     }
     return { ...node, data: cleaned }
   })

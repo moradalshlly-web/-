@@ -49,6 +49,15 @@ export interface DesiredTrigger {
   readonly type: SyncedTriggerType
   readonly config: Record<string, unknown>
   /**
+   * Whether the row fires. A schedule is what its node's switch says
+   * (`data.active === true`) — a new schedule starts PAUSED, saving is not
+   * enough, and the graph decides on every save (the panel's switch, the
+   * editor's top-bar button, or an API write of `active`). A webhook is
+   * always armed: its token is minted on save and there is no switch for it
+   * yet.
+   */
+  readonly isActive: boolean
+  /**
    * The node is on the graph but cannot run (no usable rule, a timezone the
    * runtime cannot read): keep an EXISTING row — paused, its schedule keys
    * cleared, its `executionCount` and `owner_initiated` intact for the day
@@ -128,10 +137,14 @@ export function desiredTriggersFromGraph(nodes: readonly GraphNode[] | undefined
     if (nodeType === SCHEDULE_TRIGGER_NODE_TYPE) {
       seen.add(nodeId)
       const config = normalizeScheduleConfig(data)
-      desired.push(config ? { nodeId, type: "schedule", config } : { nodeId, type: "schedule", config: {}, parked: true })
+      desired.push(
+        config
+          ? { nodeId, type: "schedule", config, isActive: data.active === true }
+          : { nodeId, type: "schedule", config: {}, isActive: false, parked: true },
+      )
     } else if (nodeType === WEBHOOK_TRIGGER_NODE_TYPE) {
       seen.add(nodeId)
-      desired.push({ nodeId, type: "webhook", config: {} })
+      desired.push({ nodeId, type: "webhook", config: {}, isActive: true })
     }
   }
   return desired
@@ -219,7 +232,11 @@ export function planTriggerSync(
     }
     matched.add(key)
     const config = mergeTriggerConfig(row.config, want.config, want.nodeId)
-    const wantActive = !want.parked
+    // The graph decides whether the row fires: a switch flipped in the editor
+    // reaches the row here, a row paused or resumed through the API is
+    // brought back to what the node says on the next save, and a node that
+    // cannot run keeps its row paused whatever its switch says.
+    const wantActive = want.parked ? false : want.isActive
     if (!isDeepStrictEqual(config, row.config) || row.is_active !== wantActive) {
       update.push({ id: row.id, config, isActive: wantActive })
     }
@@ -298,7 +315,7 @@ export async function reconcileWorkflowTriggers(params: {
         // The token IS the auth for a webhook, so it is minted once here and
         // then left alone by every later save.
         webhook_token: t.type === "webhook" ? randomBytes(32).toString("hex") : null,
-        is_active: true,
+        is_active: t.isActive,
       }))
       // `owner_initiated` rides only on the rows the caller vouched for (see
       // the param), and only on the wire when true — the default is already

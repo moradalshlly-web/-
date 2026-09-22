@@ -708,6 +708,14 @@ row's link to its node and its run count are kept. The older
 triggers you create by hand; a Schedule Trigger node saved with them is
 converted to rules on save.
 
+A Schedule Trigger **node** fires only while its data says `"active": true`
+— the node's switch. A node written through the API, the SDK or MCP with no
+`active` is registered paused; the editor's switch and its top-bar Schedule
+button set the same field. `PATCH /v1/workflow-triggers/<id>` with
+`isActive` overrides the row until the next save applies the node's switch
+again; a schedule you created by hand has no node and keeps whatever you
+set.
+
 ## 7. Rate limits
 
 Per-token, in-memory bucket:

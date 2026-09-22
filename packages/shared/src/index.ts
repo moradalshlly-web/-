@@ -647,6 +647,8 @@ export {
   isProjectedTriggerNodeType,
 } from "./trigger-node-types.js"
 
+export { buildFeedMaps, nodeFeedsAnything, type FeedNode, type FeedEdge, type FeedMaps } from "./trigger-feeds.js"
+
 export {
   SCHEDULE_RULE_KINDS,
   SCHEDULE_EVERY_LIMITS,

@@ -6,6 +6,7 @@ import type { WardrobeValue, TransitionPosition, TransitionDuration, TransitionI
 import type { ReferencePhotoKind } from "@/lib/reference-photo-routing"
 import { IMAGE_STYLE_PRESETS, GVP_PROVIDERS, getAspectRatiosForVideoModel, getVideoResolutionOptions } from "@/components/editor/config-panels/model-options"
 import type { FrameFit, FrameDelivery } from "@nodaro/shared"
+import type { ScheduleRule } from "@nodaro/shared"
 
 export type NodeCategory = "input" | "parameter" | "ai" | "processing" | "output" | "scene" | "character" | "face" | "object" | "creature" | "location" | "utility"
 
@@ -6149,10 +6150,24 @@ export type WebhookTriggerData = {
 export type ScheduleTriggerData = {
   [key: string]: unknown
   label: string
-  cron?: string
+  /**
+   * The schedule: rules read in `timezone`; the workflow runs whenever any
+   * rule matches the current minute (model: `@nodaro/shared` schedule-rules).
+   */
+  rules?: ScheduleRule[]
+  /** IANA timezone the rules are read in; UTC when missing. */
   timezone?: string
-  interval?: string
+  /** Stop after this many runs; missing = unlimited. */
   maxExecutions?: number
+  /**
+   * The switch. The schedule fires only while this is `true` — a new schedule
+   * starts paused; saving alone never arms it.
+   */
+  active?: boolean
+  /** @deprecated pre-rules schedule ("5m", or a preset cron) — converted to `rules` on the panel's first edit and on save. */
+  interval?: string
+  /** @deprecated pre-rules custom cron — converted to `rules` on the panel's first edit and on save. */
+  cron?: string
 }
 
 export type TelegramTriggerData = {
@@ -6790,7 +6805,14 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
     creditCost: 0,
     inputs: [],
     outputs: ["payload"],
-    defaultData: { label: "Schedule Trigger" } as unknown as SceneNodeData,
+    // One quiet rule and the switch OFF: a schedule is configured the moment
+    // it is placed (so the card and the panel have something to show) and
+    // runs nothing until somebody turns it on.
+    defaultData: {
+      label: "Schedule Trigger",
+      rules: [{ id: "rule-1", kind: "days", every: 1, hour: 9, minute: 0 }],
+      active: false,
+    } as unknown as SceneNodeData,
   },
   // Parameter
   {

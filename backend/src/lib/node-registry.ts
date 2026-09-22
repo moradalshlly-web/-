@@ -1412,7 +1412,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
   { type: "composite", label: "Composite", category: "composition", description: "Multi-layer video compositor (up to 4 layers) with per-layer positioning, scale, blending, and opacity. Client-side plan, no AI — deterministic and free.", outputType: "video", creditCost: 0 },
 
   { type: "webhook-trigger", label: "Webhook Trigger", category: "trigger", description: "Trigger the workflow via HTTP POST.", outputType: "data" },
-  { type: "schedule-trigger", label: "Schedule Trigger", category: "trigger", description: "Trigger the workflow on a cron/interval.", outputType: "data" },
+  { type: "schedule-trigger", label: "Schedule Trigger", category: "trigger", description: "Run the workflow on a schedule: a list of rules (every N minutes / hours / days / weeks / months, or a cron expression) read in a timezone. Fires only while `active` is true — a new schedule starts paused. A wired trigger runs only the branch behind it.", outputType: "data" },
   { type: "telegram-trigger", label: "Telegram Trigger", category: "trigger", description: "Trigger the workflow when a connected Telegram bot receives a message. Emits text + chatId + messageId + messageType (+ imageUrl/videoUrl/audioUrl for media). Free — downstream nodes incur their own costs.", outputType: "data" },
 
   { type: "save-to-storage", label: "Save to Storage", category: "output", description: "Persist a node output to user storage.", outputType: "none" },

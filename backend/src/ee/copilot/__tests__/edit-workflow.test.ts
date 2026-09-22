@@ -122,6 +122,40 @@ describe("edit_workflow — guards", () => {
     expect(args.p_upsert_nodes[0]!.data.prompt).toBe("a dog")
   })
 
+  it("a Schedule Trigger's switch is the person's: an edit that omits `active` keeps it, one that arms a schedule is refused, a new schedule lands paused", async () => {
+    graphState.nodes = [
+      { id: "sched", type: "schedule-trigger", position: { x: 0, y: 0 }, data: { label: "Daily", rules: [{ id: "rule-1", kind: "days", every: 1, hour: 9, minute: 0 }], active: true } },
+    ]
+    // "Move it to 10am" — the model resends the node without `active`.
+    await runEditWorkflow(ctx, {
+      note: "10am",
+      patchNodes: [{ id: "sched", data: { rules: [{ id: "rule-1", kind: "days", every: 1, hour: 10, minute: 0 }] } }],
+    })
+    const patched = (rpcMock.mock.calls[0]![1] as { p_upsert_nodes: Array<{ data: Record<string, unknown> }> }).p_upsert_nodes[0]!.data
+    expect(patched.active).toBe(true)
+    expect(patched.rules).toEqual([{ id: "rule-1", kind: "days", every: 1, hour: 10, minute: 0 }])
+
+    // A paused schedule cannot be armed by the model.
+    graphState.nodes = [{ id: "sched", type: "schedule-trigger", position: { x: 0, y: 0 }, data: { label: "Daily", rules: [], active: false } }]
+    await expect(runEditWorkflow(ctx, { note: "arm", patchNodes: [{ id: "sched", data: { active: true } }] })).rejects.toBeInstanceOf(EditRejected)
+
+    // A brand-new schedule lands paused however it was sent.
+    graphState.nodes = []
+    rpcMock.mockClear()
+    await expect(
+      runEditWorkflow(ctx, {
+        note: "new",
+        upsertNodes: [{ id: "sched2", type: "schedule-trigger", data: { label: "Hourly", rules: [{ id: "rule-1", kind: "hours", every: 1, minute: 0 }], active: true } }],
+      }),
+    ).rejects.toBeInstanceOf(EditRejected)
+    await runEditWorkflow(ctx, {
+      note: "new",
+      upsertNodes: [{ id: "sched2", type: "schedule-trigger", data: { label: "Hourly", rules: [{ id: "rule-1", kind: "hours", every: 1, minute: 0 }], active: false } }],
+    })
+    const created = (rpcMock.mock.calls.at(-1)![1] as { p_upsert_nodes: Array<{ data: Record<string, unknown> }> }).p_upsert_nodes[0]!.data
+    expect(created).not.toHaveProperty("active")
+  })
+
   it("allows preserving a URL the user already put on the node", async () => {
     graphState.nodes = [{ id: "img", type: "upload-image", data: { imageUrl: "https://mine.test/x.png" } }]
     await runEditWorkflow(ctx, {

@@ -110,11 +110,23 @@ describe("desiredTriggersFromGraph", () => {
       { id: "g1", type: "generate-image", data: { prompt: "a cat" } },
       scheduleNode("s2", { interval: "custom" }),
     ])).toEqual([
-      { nodeId: "s1", type: "schedule", config: { rules: [WEEKDAYS_6AM], timezone: "Asia/Jerusalem" } },
-      { nodeId: "w1", type: "webhook", config: {} },
+      { nodeId: "s1", type: "schedule", config: { rules: [WEEKDAYS_6AM], timezone: "Asia/Jerusalem" }, isActive: false },
+      { nodeId: "w1", type: "webhook", config: {}, isActive: true },
       // Half-configured: on the graph, cannot run — PARKED (see planTriggerSync).
-      { nodeId: "s2", type: "schedule", config: {}, parked: true },
+      { nodeId: "s2", type: "schedule", config: {}, isActive: false, parked: true },
     ])
+  })
+
+  it("a schedule fires only when its node's switch is on — a new schedule starts paused; a webhook is always armed", () => {
+    const [off, on, onByString] = desiredTriggersFromGraph([
+      scheduleNode("s1", { rules: [{ kind: "days", hour: 9 }] }),
+      scheduleNode("s2", { rules: [{ kind: "days", hour: 9 }], active: true }),
+      scheduleNode("s3", { rules: [{ kind: "days", hour: 9 }], active: "true" }),
+    ])
+    expect(off.isActive).toBe(false)
+    expect(on.isActive).toBe(true)
+    // Only the boolean arms a schedule — an API write of a truthy string does not.
+    expect(onByString.isActive).toBe(false)
   })
 
   it("survives an empty, missing or malformed graph", () => {
@@ -122,7 +134,7 @@ describe("desiredTriggersFromGraph", () => {
     expect(desiredTriggersFromGraph([])).toEqual([])
     expect(desiredTriggersFromGraph([{ type: "schedule-trigger" }])).toEqual([])
     expect(desiredTriggersFromGraph([{ id: "s1", type: "schedule-trigger", data: null }])).toEqual([
-      { nodeId: "s1", type: "schedule", config: {}, parked: true },
+      { nodeId: "s1", type: "schedule", config: {}, isActive: false, parked: true },
     ])
   })
 
@@ -189,10 +201,12 @@ describe("mergeTriggerConfig", () => {
 describe("planTriggerSync", () => {
   const owned = (id: string, nodeId: string, config: Record<string, unknown>, isActive = true): ExistingTrigger =>
     ({ id, type: "schedule", config: { ...config, nodeId }, is_active: isActive })
+  const wanted = (nodeId: string, config: Record<string, unknown>, isActive = true) =>
+    ({ nodeId, type: "schedule" as const, config, isActive })
 
   it("creates a row for a new schedule node", () => {
     const plan = planTriggerSync(
-      [{ nodeId: "s1", type: "schedule", config: { cron: "0 6 * * 0-4" } }],
+      [wanted("s1", { cron: "0 6 * * 0-4" })],
       [],
     )
     expect(plan.create).toHaveLength(1)
@@ -200,21 +214,31 @@ describe("planTriggerSync", () => {
     expect(plan.remove).toEqual([])
   })
 
-  it("is a no-op when nothing changed (every later save)", () => {
-    const plan = planTriggerSync(
-      [{ nodeId: "s1", type: "schedule", config: { cron: "0 6 * * 0-4" } }],
+  it("is a no-op when nothing changed (every later save) — a paused node with a paused row included", () => {
+    expect(planTriggerSync(
+      [wanted("s1", { cron: "0 6 * * 0-4" })],
       [owned("t1", "s1", { cron: "0 6 * * 0-4" })],
-    )
-    expect(plan).toEqual({ create: [], update: [], remove: [] })
+    )).toEqual({ create: [], update: [], remove: [] })
+    expect(planTriggerSync(
+      [wanted("s1", { cron: "0 6 * * 0-4" }, false)],
+      [owned("t1", "s1", { cron: "0 6 * * 0-4" }, false)],
+    )).toEqual({ create: [], update: [], remove: [] })
   })
 
-  it("reactivates a paused row without losing its execution count", () => {
-    const plan = planTriggerSync(
-      [{ nodeId: "s1", type: "schedule", config: { cron: "0 6 * * 0-4" } }],
+  it("the node's switch reaches the row — on resumes a paused row, off pauses an armed one — without losing its execution count", () => {
+    const resumed = planTriggerSync(
+      [wanted("s1", { cron: "0 6 * * 0-4" }, true)],
       [owned("t1", "s1", { cron: "0 6 * * 0-4", executionCount: 9 }, false)],
     )
-    expect(plan.update).toEqual([
+    expect(resumed.update).toEqual([
       { id: "t1", config: { cron: "0 6 * * 0-4", nodeId: "s1", executionCount: 9 }, isActive: true },
+    ])
+    const paused = planTriggerSync(
+      [wanted("s1", { cron: "0 6 * * 0-4" }, false)],
+      [owned("t1", "s1", { cron: "0 6 * * 0-4", executionCount: 9 }, true)],
+    )
+    expect(paused.update).toEqual([
+      { id: "t1", config: { cron: "0 6 * * 0-4", nodeId: "s1", executionCount: 9 }, isActive: false },
     ])
   })
 
@@ -224,15 +248,22 @@ describe("planTriggerSync", () => {
     expect(plan.create).toEqual([])
   })
 
+  it("a parked node stays paused whatever its switch says", () => {
+    const armedButUnrunnable = [{ nodeId: "s1", type: "schedule" as const, config: {}, isActive: true, parked: true as const }]
+    const plan = planTriggerSync(armedButUnrunnable, [owned("t1", "s1", { rules: [{ id: "rule-1", kind: "minutes", every: 5 }], executionCount: 2 }, true)])
+    expect(plan.update).toEqual([{ id: "t1", config: { nodeId: "s1", executionCount: 2 }, isActive: false }])
+    expect(planTriggerSync(armedButUnrunnable, []).create).toEqual([])
+  })
+
   it("a node that cannot run is PARKED: its row is kept paused with the schedule cleared and the count intact; none is created", () => {
-    const parked = [{ nodeId: "s1", type: "schedule" as const, config: {}, parked: true as const }]
+    const parked = [{ nodeId: "s1", type: "schedule" as const, config: {}, isActive: false, parked: true as const }]
     expect(planTriggerSync(parked, [])).toEqual({ create: [], update: [], remove: [] })
     const plan = planTriggerSync(parked, [owned("t1", "s1", { rules: [{ id: "rule-1", kind: "minutes", every: 5 }], timezone: "UTC", executionCount: 4 }, true)])
     expect(plan.update).toEqual([{ id: "t1", config: { nodeId: "s1", executionCount: 4 }, isActive: false }])
     expect(plan.remove).toEqual([])
     // ...and once it is fixed, the same row wakes up with its count.
     const fixed = planTriggerSync(
-      [{ nodeId: "s1", type: "schedule", config: { rules: [{ id: "rule-1", kind: "minutes", every: 5 }] } }],
+      [wanted("s1", { rules: [{ id: "rule-1", kind: "minutes", every: 5 }] })],
       [owned("t1", "s1", { executionCount: 4 }, false)],
     )
     expect(fixed.update).toEqual([{ id: "t1", config: { rules: [{ id: "rule-1", kind: "minutes", every: 5 }], nodeId: "s1", executionCount: 4 }, isActive: true }])
@@ -249,7 +280,7 @@ describe("planTriggerSync", () => {
 
     // ...and it does not satisfy a graph node either: the node still gets its own row.
     const plan = planTriggerSync(
-      [{ nodeId: "s1", type: "schedule", config: { cron: "0 6 * * 0-4" } }],
+      [wanted("s1", { cron: "0 6 * * 0-4" })],
       [byHand],
     )
     expect(plan.create).toHaveLength(1)
@@ -258,16 +289,16 @@ describe("planTriggerSync", () => {
 
   it("keys on type as well as node id", () => {
     const plan = planTriggerSync(
-      [{ nodeId: "n1", type: "webhook", config: {} }],
+      [{ nodeId: "n1", type: "webhook", config: {}, isActive: true }],
       [owned("t1", "n1", { cron: "0 6 * * 0-4" })],
     )
-    expect(plan.create).toEqual([{ nodeId: "n1", type: "webhook", config: {} }])
+    expect(plan.create).toEqual([{ nodeId: "n1", type: "webhook", config: {}, isActive: true }])
     expect(plan.remove).toEqual(["t1"])
   })
 
   it("sweeps duplicate owned rows for the same node", () => {
     const plan = planTriggerSync(
-      [{ nodeId: "s1", type: "schedule", config: { cron: "0 6 * * 0-4" } }],
+      [wanted("s1", { cron: "0 6 * * 0-4" })],
       [owned("t1", "s1", { cron: "0 6 * * 0-4" }), owned("t2", "s1", { cron: "0 6 * * 0-4" })],
     )
     expect(plan.remove).toEqual(["t2"])

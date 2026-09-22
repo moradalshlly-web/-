@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select"
 import { useT, tx } from "@/lib/i18n"
 import { useLocalizeNodeLabel } from "@/lib/i18n/labels"
-import type { WebhookParam, ScheduleTriggerData, TelegramTriggerData, TelegramChannelFeedData } from "@/types/nodes"
+import type { WebhookParam, TelegramTriggerData, TelegramChannelFeedData } from "@/types/nodes"
 import type { ConfigProps } from "./types"
 import { useSocialConnections } from "./social-configs"
 
@@ -161,113 +161,7 @@ export function WebhookTriggerConfig({ data, onUpdate }: ConfigProps<WebhookTrig
 }
 
 // ── Schedule Trigger ───────────────────────────────────────────
-
-// ScheduleTriggerData comes from @/types/nodes on purpose. A local copy used
-// to shadow it here, and because it spelled the expression `cronExpression`
-// while the canonical type, the node card and `workflow_triggers.config` all
-// say `cron`, the panel wrote a field nothing downstream ever read — a custom
-// schedule vanished on save with no error. Importing the one type makes that
-// drift a compile error instead of silence.
-
-// A function, not a const: a module-level table built at import time would
-// freeze the labels to whatever locale booted first.
-function INTERVAL_OPTIONS(): ReadonlyArray<{ value: string; label: string }> {
-  return [
-    { value: "*/5 * * * *", label: tx("cfgext.trigEvery5Minutes") },
-    { value: "*/15 * * * *", label: tx("cfgext.trigEvery15Minutes") },
-    { value: "0 * * * *", label: tx("cfgext.trigEveryHour") },
-    { value: "0 0 * * *", label: tx("cfgext.trigEveryDayMidnight") },
-    { value: "custom", label: tx("cfgext.trigCustomCron") },
-  ]
-}
-
-export function ScheduleTriggerConfig({ data, onUpdate }: ConfigProps<ScheduleTriggerData>) {
-  const t = useT()
-  const currentInterval = data.interval || ""
-  const isCustom = currentInterval === "custom" || (
-    currentInterval !== "" && !INTERVAL_OPTIONS().some((o) => o.value === currentInterval)
-  )
-  const selectValue = isCustom ? "custom" : currentInterval || ""
-  const cronValue = (data.cron as string | undefined) || (data.cronExpression as string | undefined) || ""
-
-  // The expression is written to `cron` — the name ScheduleTriggerData, the
-  // node card and `workflow_triggers.config` all use. This panel used to write
-  // it to `cronExpression`, which nothing downstream ever read, so a custom
-  // schedule was silently dropped on save. Old graphs still carrying
-  // `cronExpression` keep working: the backend normaliser reads it as a
-  // fallback (see lib/workflow-trigger-sync.ts).
-  const handleIntervalChange = (value: string) => {
-    if (value === "custom") {
-      onUpdate({ interval: "custom", cron: cronValue })
-    } else {
-      onUpdate({ interval: value, cron: value })
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div>
-        <Label>{t("cfgext.trigInterval")}</Label>
-        <Select value={selectValue} onValueChange={handleIntervalChange}>
-          <SelectTrigger>
-            <SelectValue placeholder={t("cfgext.trigSelectInterval")} />
-          </SelectTrigger>
-          <SelectContent>
-            {INTERVAL_OPTIONS().map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isCustom && (
-        <div>
-          <Label htmlFor="cron-expression">{t("cfgext.trigCronExpression")}</Label>
-          <Input
-            id="cron-expression"
-            value={cronValue}
-            onChange={(e) => onUpdate({ cron: e.target.value })}
-            placeholder="*/5 * * * *"
-            className="font-mono text-sm"
-          />
-          <p className="text-[10px] text-muted-foreground mt-1">
-            {t("cfgext.trigCronFormat")}
-          </p>
-        </div>
-      )}
-
-      <div>
-        <Label htmlFor="timezone">{t("cfgext.trigTimezone")}</Label>
-        <Input
-          id="timezone"
-          value={data.timezone || ""}
-          onChange={(e) => onUpdate({ timezone: e.target.value })}
-          placeholder="UTC"
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="max-executions">{t("cfgext.trigMaxExecutions")}</Label>
-        <Input
-          id="max-executions"
-          type="number"
-          min={0}
-          value={data.maxExecutions ?? ""}
-          onChange={(e) => {
-            const val = e.target.value
-            onUpdate({ maxExecutions: val === "" ? undefined : parseInt(val, 10) })
-          }}
-          placeholder={t("cfgext.trigUnlimited")}
-        />
-        <p className="text-[10px] text-muted-foreground mt-1">
-          {t("cfgext.trigLeaveEmptyUnlimited")}
-        </p>
-      </div>
-    </div>
-  )
-}
+// Lives in ./schedule-trigger-config.tsx (rules, preview, Active/Paused).
 
 // ── Telegram Trigger ────────────────────────────────────────────
 

@@ -46,6 +46,26 @@ function table(existing: Array<Record<string, unknown>>, insertErrors: Array<{ c
 
 beforeEach(() => vi.clearAllMocks())
 
+describe("reconcileWorkflowTriggers — whether a created row fires is the node's switch", () => {
+  it("a schedule node without the switch on is created PAUSED; one with it on is armed; a webhook is always armed", async () => {
+    const { inserts } = table([])
+    await reconcileWorkflowTriggers({
+      workflowId: WF,
+      userId: OWNER,
+      nodes: [
+        schedule("paused"),
+        { id: "armed", type: "schedule-trigger", data: { rules: [{ kind: "days", hour: 9 }], active: true } },
+        { id: "hook", type: "webhook-trigger", data: { label: "Webhook" } },
+      ],
+    })
+    const rows = inserts.flat()
+    const byNode = (nodeId: string) => rows.find((r) => (r.config as { nodeId?: string }).nodeId === nodeId)
+    expect(byNode("paused")).toMatchObject({ type: "schedule", is_active: false })
+    expect(byNode("armed")).toMatchObject({ type: "schedule", is_active: true })
+    expect(byNode("hook")).toMatchObject({ type: "webhook", is_active: true })
+  })
+})
+
 describe("reconcileWorkflowTriggers — provenance on the rows it creates", () => {
   it("a vouched node id (the owner's session says it just added it) creates the row owner-initiated", async () => {
     const { inserts } = table([])
