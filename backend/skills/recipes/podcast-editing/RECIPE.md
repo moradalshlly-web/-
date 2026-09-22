@@ -175,19 +175,25 @@ than failing mid-render, so keep these invariants when editing by hand:
 - A segment must exist on the media it reads. Its `inMs` must be at or after the
   `offsetMs` of each source it reads (the picture source for a video render; the sound
   source always) — the render cannot reach before a source starts. And it may not run more
-  than one second past the END of a track it reads: that can only be checked against the
-  file itself, so it runs after the sources are downloaded, and a violation **fails the
-  job** (credits refunded) naming the segment and the source.
+  than one second past the END of a track it reads (measured from the file's own
+  timestamps): that can only be checked against the file itself, so it runs after the
+  sources are downloaded, and a violation **fails the job immediately** (credits refunded,
+  not retried) naming the segment, the source and the track. A reach of up to one second is
+  treated as rounding: the segment still renders to its exact length (last frame held,
+  silence padded), so picture and sound stay in step.
+- A segment's picture source must have a real video track — an audio file, or an mp3 whose
+  only "video" is embedded cover art, fails the job the same way.
 - A `layout` is accepted only when it describes what this renderer does anyway: `mode`
-  `"single"`, at most one slot and that slot IS the segment's `video`, no `emphasis`, a
-  `cut`. Anything else (a multi-camera mode, another slot source, a `pan`/`zoom`/`xfade`
-  transition, an emphasis, a region crop) is refused rather than rendered as something the
-  EDL does not describe.
+  `"single"`, at most one slot and that slot IS the segment's `video`, no `emphasis` other
+  than `"none"`, a `cut`. Anything else (a multi-camera mode, another slot source, a
+  `pan`/`zoom`/`xfade` transition, an emphasis other than `"none"`, a region crop) is
+  refused rather than rendered as something the EDL does not describe.
 
 When `apply_edl` reports an issue at ingress, it quotes the offending segment id and rule —
 fix that and re-render; nothing was spent on the rejected attempt beyond the validation. The
-one check that cannot run at ingress — a segment reaching past the end of its media — fails
-the job after download, and the credits are refunded.
+checks that need the files themselves — a segment reaching past the end of its media, a
+picture source with no video track — fail the job right after download, once, and the
+credits are refunded.
 
 ## Notes
 

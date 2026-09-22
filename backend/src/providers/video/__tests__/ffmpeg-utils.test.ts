@@ -162,8 +162,8 @@ import {
   BROWSER_SAFE_VIDEO_ARGS,
   REMOTION_INPUT_VIDEO_ARGS,
   ffmpegFailureMessage,
-  packetEndSec,
-  pickRenderStreams,
+  parsePacketLine,
+  parseStreamListing,
   probeStreamEnds,
 } from "../ffmpeg-utils.js"
 
@@ -1228,91 +1228,119 @@ describe("probeMediaStreams", () => {
 })
 
 
-// ===========================================================================
-// probeStreamEnds — each track's REAL end, from its own packets
-// ===========================================================================
-// `format=duration` is a declaration a container can get wrong (a Xing-less
-// mp3 under-reports by seconds that grow with the file) or omit (a live-muxed
-// MediaRecorder WebM says N/A). A single `-c copy -f null` pass was wrong in
-// other ways: its out_time is the muxer's DTS clock (seconds short on a 1 fps
-// still-image encode with B-frames), cover art mapped as video made it N/A on
-// ffmpeg 8.1, and one number cannot describe a file whose picture and sound
-// differ in length. So: pick the real video stream (never `attached_pic`) and
-// the audio stream, then stream each one's packets and keep max(pts + dur).
-describe("pickRenderStreams", () => {
-  const listing = (streams: unknown[]) => JSON.stringify({ streams })
 
-  it("picks the first REAL video stream and the first audio stream by index", () => {
-    expect(pickRenderStreams(listing([
+// ===========================================================================
+// probeStreamEnds — each track's REAL end, on the render's clock
+// ===========================================================================
+// Per track (never one number for the file), from the track's own packets:
+// max(pts + duration), skipping packets the demuxer flags D (frames past a
+// tail-trimming edit list — `trim` never reaches them), DTS only for a stream
+// with no pts at all (AVI), minus the file's `format.start_time` (the ffmpeg
+// CLI shifts every input by it before `trim` / `atrim` see a frame — a `.ts`
+// or an offset MKV/MP4 over-reported by exactly that). The stream picked is
+// the one the render binds: the first REAL video stream (`[i:V]`, never cover
+// art) and the first audio stream.
+describe("parseStreamListing", () => {
+  const listing = (streams: unknown[], format?: unknown) => JSON.stringify({ streams, ...(format ? { format } : {}) })
+
+  it("picks the first REAL video stream and the first audio stream by index, and reads format.start_time", () => {
+    expect(parseStreamListing(listing([
       { index: 0, codec_type: "audio", disposition: { attached_pic: 0 } },
       { index: 1, codec_type: "video", disposition: { attached_pic: 0 } },
       { index: 2, codec_type: "audio", disposition: { attached_pic: 0 } },
-    ]))).toEqual({ video: 1, audio: 0 })
+    ], { start_time: "1.478667" }))).toEqual({ video: 1, audio: 0, startSec: 1.478667 })
   })
 
   it("never picks embedded cover art (attached_pic) as the picture — a podcast mp3 has no video track", () => {
-    expect(pickRenderStreams(listing([
+    expect(parseStreamListing(listing([
       { index: 0, codec_type: "audio", disposition: { attached_pic: 0 } },
       { index: 1, codec_type: "video", disposition: { attached_pic: 1 } },
-    ]))).toEqual({ audio: 0 })
+    ]))).toEqual({ audio: 0, startSec: 0 })
   })
 
-  it("reports only the tracks the file carries", () => {
-    expect(pickRenderStreams(listing([{ index: 0, codec_type: "video", disposition: { attached_pic: 0 } }]))).toEqual({ video: 0 })
-    expect(pickRenderStreams(listing([]))).toEqual({})
+  it("a missing, N/A or negative start_time: 0 for the first two, kept for the last (encoder priming shifts the other way)", () => {
+    expect(parseStreamListing(listing([], { start_time: "N/A" })).startSec).toBe(0)
+    expect(parseStreamListing(listing([])).startSec).toBe(0)
+    expect(parseStreamListing(listing([], { start_time: "-0.021333" })).startSec).toBeCloseTo(-0.021333, 6)
   })
 
   it("throws (never guesses) when the listing is not JSON", () => {
-    expect(() => pickRenderStreams("not json")).toThrow(/probeStreamEnds/)
+    expect(() => parseStreamListing("not json")).toThrow(/probeStreamEnds/)
   })
 })
 
-describe("packetEndSec (one csv line)", () => {
-  it("is pts + duration", () => {
-    expect(packetEndSec("29.984000,0.056816")).toBeCloseTo(30.040816, 6)
+describe("parsePacketLine — ffprobe's fixed field order pts_time,dts_time,duration_time,flags", () => {
+  it("reads pts, dts, duration and the discard flag", () => {
+    expect(parsePacketLine("5.933333,5.900000,0.033333,_D_")).toEqual({ pts: 5.933333, dts: 5.9, dur: 0.033333, discard: true })
+    expect(parsePacketLine("1.500000,1.433333,0.033333,K__")).toEqual({ pts: 1.5, dts: 1.433333, dur: 0.033333, discard: false })
   })
-  it("treats a missing duration as 0 and a missing pts as unmeasurable", () => {
-    expect(packetEndSec("12.000000,N/A")).toBe(12)
-    expect(packetEndSec("12.000000")).toBe(12)
-    expect(packetEndSec("N/A,0.04")).toBeUndefined()
-    expect(packetEndSec("")).toBeUndefined()
+  it("keeps a packet with no pts (AVI) for the DTS fallback, and treats a missing duration as 0", () => {
+    expect(parsePacketLine("N/A,12.000000,N/A,K__")).toEqual({ dts: 12, dur: 0, discard: false })
+  })
+  it("ignores a blank line", () => {
+    expect(parsePacketLine("")).toBeUndefined()
+    expect(parsePacketLine("   ")).toBeUndefined()
   })
 })
 
 describe("probeStreamEnds", () => {
-  const twoTracks = JSON.stringify({ streams: [
-    { index: 0, codec_type: "video", disposition: { attached_pic: 0 } },
-    { index: 1, codec_type: "audio", disposition: { attached_pic: 0 } },
-  ] })
+  const listingOf = (start: string | undefined, streams: unknown[]) =>
+    JSON.stringify({ streams, ...(start !== undefined ? { format: { start_time: start } } : {}) })
+  const V0 = { index: 0, codec_type: "video", disposition: { attached_pic: 0 } }
+  const A1 = { index: 1, codec_type: "audio", disposition: { attached_pic: 0 } }
 
-  it("lists the streams with ffprobe, then streams each chosen track's packets and keeps max(pts + duration)", async () => {
-    execFileOnce(twoTracks)
+  it("lists streams + start_time once, streams each chosen track's packets, keeps max(pts + dur) minus start_time", async () => {
+    execFileOnce(listingOf("1.500000", [V0, A1]))
     // Video packets in DTS order with B-frame reordering: the LAST line is not the max.
-    mocks.spawnScripts.push({ stdout: "0.000000,1.000000\n2.000000,1.000000\n1.000000,1.000000\n9.000000,1.000000\n8.000000,1.000000\n" })
-    mocks.spawnScripts.push({ stdout: "0.000000,0.021333\n2.986667,0.021333\n" })
+    mocks.spawnScripts.push({ stdout: "1.5,1.4,0.5,K__\n3.5,1.9,0.5,___\n2.5,2.4,0.5,___\n9.5,2.9,1,___\n8.5,3.9,1,___\n" })
+    mocks.spawnScripts.push({ stdout: "1.500000,1.500000,0.021333,K__\n4.486667,4.486667,0.021333,K__\n" })
 
-    const ends = await probeStreamEnds("/tmp/v6a3.mp4")
-    expect(ends).toEqual({ video: 10, audio: expect.closeTo(3.008, 3) })
+    const ends = await probeStreamEnds("/tmp/off15.mp4")
+    expect(ends.video).toEqual({ state: "measured", endSec: 9 }) // 10.5 − 1.5
+    expect(ends.audio).toMatchObject({ state: "measured" })
+    expect((ends.audio as { endSec: number }).endSec).toBeCloseTo(3.008, 3)
 
     expect(execCmd(0)).toBe("ffprobe")
-    expect(execArgs(0)).toEqual(expect.arrayContaining(["-show_entries", "stream=index,codec_type:stream_disposition=attached_pic", "-of", "json"]))
+    expect(execArgs(0)).toEqual(expect.arrayContaining(["-show_entries", "format=start_time:stream=index,codec_type:stream_disposition=attached_pic", "-of", "json"]))
     expect(mocks.spawn).toHaveBeenCalledTimes(2)
     const [, vArgs] = mocks.spawn.mock.calls[0]!
-    expect(vArgs).toEqual(expect.arrayContaining(["-select_streams", "0", "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0", "/tmp/v6a3.mp4"]))
+    expect(vArgs).toEqual(expect.arrayContaining(["-select_streams", "0", "-show_entries", "packet=pts_time,dts_time,duration_time,flags", "-of", "csv=p=0", "/tmp/off15.mp4"]))
     const [, aArgs] = mocks.spawn.mock.calls[1]!
     expect(aArgs).toEqual(expect.arrayContaining(["-select_streams", "1"]))
   })
 
-  it("leaves a track undefined when it has no readable packets, and skips tracks the file does not carry", async () => {
-    execFileOnce(JSON.stringify({ streams: [{ index: 0, codec_type: "audio", disposition: { attached_pic: 0 } }] }))
-    mocks.spawnScripts.push({ stdout: "N/A,N/A\n" })
-    expect(await probeStreamEnds("/tmp/odd.mp3")).toEqual({ audio: undefined })
+  it("skips packets flagged D (past a tail-trimming edit list — the decoder drops them, `trim` never reaches them)", async () => {
+    execFileOnce(listingOf("0.000000", [V0]))
+    mocks.spawnScripts.push({ stdout: "0,0,1,K__\n1,1,1,___\n2,2,1,___\n3,3,1,_D_\n4,4,1,_D_\n5,5,1,_D_\n" })
+    expect((await probeStreamEnds("/tmp/elst.mp4")).video).toEqual({ state: "measured", endSec: 3 })
+  })
+
+  it("falls back to DTS only for a stream with no pts on ANY packet (AVI)", async () => {
+    execFileOnce(listingOf(undefined, [V0]))
+    mocks.spawnScripts.push({ stdout: "N/A,0,0.04,K__\nN/A,5.96,0.04,___\n" })
+    expect((await probeStreamEnds("/tmp/clip.avi")).video).toEqual({ state: "measured", endSec: 6 })
+  })
+
+  it("an absent track is `absent` (no scan); a track with no timestamps at all is `unmeasured`", async () => {
+    execFileOnce(listingOf(undefined, [A1]))
+    mocks.spawnScripts.push({ stdout: "N/A,N/A,N/A,___\n" })
+    const ends = await probeStreamEnds("/tmp/odd.mp3")
+    expect(ends.video).toEqual({ state: "absent" })
+    expect(ends.audio).toEqual({ state: "unmeasured", reason: "stream 1 carries no packet timestamps" })
     expect(mocks.spawn).toHaveBeenCalledTimes(1)
   })
 
-  it("throws (never guesses) when a packet scan fails", async () => {
-    execFileOnce(twoTracks)
+  it("a failed scan leaves THAT track unmeasured with the reason — the other track is still measured", async () => {
+    execFileOnce(listingOf("0", [V0, A1]))
     mocks.spawnScripts.push({ stdout: "", code: 1, stderr: "Invalid data found when processing input" })
-    await expect(probeStreamEnds("/tmp/broken.mp4")).rejects.toThrow(/probeStreamEnds: ffprobe exit 1 on stream 0: Invalid data/)
+    mocks.spawnScripts.push({ stdout: "0,0,1,K__\n5,5,1,K__\n" })
+    const ends = await probeStreamEnds("/tmp/half-broken.mp4")
+    expect(ends.video).toMatchObject({ state: "unmeasured", reason: expect.stringMatching(/probeStreamEnds: ffprobe exit 1 on stream 0: Invalid data/) })
+    expect(ends.audio).toEqual({ state: "measured", endSec: 6 })
+  })
+
+  it("throws only when the stream listing itself cannot be read", async () => {
+    execFileOnce("", new Error("ffprobe exited 1") as NodeJS.ErrnoException, "moov atom not found")
+    await expect(probeStreamEnds("/tmp/garbage.mp4")).rejects.toThrow()
   })
 })
