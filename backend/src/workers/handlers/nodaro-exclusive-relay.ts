@@ -126,7 +126,7 @@ export async function finalizeExclusiveCloudOutput(args: {
   const { jobId, jobType, cloudJob, jobUserId, shouldWatermark } = args
   const output = (cloudJob.output_data ?? {}) as Record<string, unknown>
 
-  // Relay provenance, lane 4 (spec §8.2, migration 383). These five types are
+  // Relay provenance, lane 4 (spec §8.2, migration 383). These types are
   // the most expensive generations a self-host can run and EVERY one of them is
   // billed at the far end, so the pair has to reach the row here: the near end
   // settles its own user on `relay_credits`, and the delete paths read
@@ -204,7 +204,7 @@ export async function finalizeExclusiveCloudOutput(args: {
   )
 }
 
-/** The worker handler shared by all five exclusive types. */
+/** The worker handler shared by every exclusive type. */
 export function makeNodaroExclusiveHandler(jobType: string): HandlerFn {
   return async function handleNodaroExclusive(job: Job, ctx: JobContext): Promise<void> {
     const route = EXCLUSIVE_ROUTE_BY_JOB_TYPE[jobType]

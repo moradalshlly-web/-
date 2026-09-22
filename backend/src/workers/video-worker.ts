@@ -79,20 +79,26 @@ const allHandlers: Record<string, HandlerFn> = {
 // 4b: the exclusive-node RELAY handlers, self-hosted editions only. Merged
 // BEFORE privatePluginHandlers so that on cloud (where the loader returns
 // real handlers) the plugin implementations win the keys unconditionally —
-// on community the plugin map is empty and the relay serves the five types.
+// on community the plugin map is empty and the relay serves every exclusive type.
 if (!hasCredits()) {
   const { nodaroExclusiveRelayHandlers } = await import("./handlers/nodaro-exclusive-relay.js")
   Object.assign(allHandlers, nodaroExclusiveRelayHandlers)
 }
 const { handlers: privatePluginHandlers, engines } = await loadPrivatePlugins({})
 Object.assign(allHandlers, createSurroundHandlers(engines.surround))
-// Every plugin-contributed handler beats the `pre-task` sentinel while it runs
-// (`pre-task-heartbeat.ts`): the pickup below stamps it on every row, the
-// reconcile cron fails + refunds a row whose stamp is 30 minutes old, and a
-// plugin run can legitimately take longer (staging Pro 3D Render job 99ede351
-// was failed at minute 31 with its worker still running). Wrapping the loader's
-// map — not naming types — covers every plugin job type, present and future.
-Object.assign(allHandlers, withPreTaskHeartbeats(privatePluginHandlers))
+Object.assign(allHandlers, privatePluginHandlers)
+// Every handler in this worker beats the `pre-task` sentinel while it runs
+// (`pre-task-heartbeat.ts`): the pickup below stamps it on every row, and the
+// reconcile cron fails + refunds a row whose stamp is 30 minutes old — while a
+// run can legitimately take longer (staging Pro 3D Render job 99ede351 was
+// failed at minute 31 with its worker still running; an hour-long multicam
+// apply-edl render is a core ffmpeg job with the same exposure). Wrapping the
+// WHOLE final map — not the plugin map, not a list of types — covers every job
+// type present and future; a short handler never beats (the first tick is a
+// minute out), and a handler that replaced or cleared the sentinel is a CAS
+// no-op. This is the LAST merge: anything assigned after it would run unwrapped
+// (pinned by __tests__/video-worker-heartbeat-wiring.test.ts).
+Object.assign(allHandlers, withPreTaskHeartbeats(allHandlers))
 // `engines.smartCut` (2026-07-24): the combine-videos boundary matcher —
 // the cut-point algorithms moved private, so `combineVideos` (and the
 // gvp/evp stitches that reach it through the plugin toolkit, which run in

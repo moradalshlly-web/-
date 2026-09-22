@@ -199,7 +199,7 @@ vi.mock("@/providers/kie/client.js", () => {
 // ---------------------------------------------------------------------------
 
 import { createVideoWorker, DRAIN_REQUEUE_DELAY_MS } from "../video-worker.js"
-import { PRE_TASK_HEARTBEAT_MS } from "../pre-task-heartbeat.js"
+import { PRE_TASK_HEARTBEAT_MS, PRE_TASK_HEARTBEAT_MAX_MS } from "../pre-task-heartbeat.js"
 import { STALE_THRESHOLD_MS } from "../../lib/reconcile/types.js"
 import { SCENE3D_HEARTBEAT_MS } from "../handlers/scene3d.js"
 import { LLM_STRUCTURED_HEARTBEAT_MS } from "../handlers/llm-structured.js"
@@ -882,7 +882,7 @@ describe("video worker processor", () => {
   // derived from the loader's map, so a plugin job type nobody listed is
   // covered the day it ships.
   // -------------------------------------------------------------------------
-  describe("private-plugin liveness (pre-task heartbeat)", () => {
+  describe("handler liveness (pre-task heartbeat)", () => {
     afterEach(() => { vi.useRealTimers() })
 
     const runsFor = (ms: number) => () => new Promise<void>((resolve) => { setTimeout(resolve, ms) })
@@ -905,16 +905,55 @@ describe("video worker processor", () => {
       expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBe(beats)
     })
 
-    it("a core handler is NOT wrapped: its own heartbeat, or the 30-minute hung-handler backstop, stays its business", async () => {
+    // The wrap used to cover ONLY the plugin map; a core ffmpeg long-runner
+    // (an hour-long multicam apply-edl cut) aged into the 30-minute sweep with
+    // its worker still rendering. Every handler in the final map beats now.
+    it("a CORE handler is wrapped too: a long ffmpeg run beats the sentinel for as long as it runs", async () => {
       vi.useFakeTimers()
-      mocks.mockHandler.mockImplementationOnce(runsFor(5 * 60_000))
+      mocks.mockHandler.mockImplementationOnce(runsFor(35 * 60_000))
+      const job = makeBullJob("combine-videos")
+
+      const run = processor(job, "lock-token")
+      await vi.advanceTimersByTimeAsync(35 * 60_000)
+      await run
+
+      expect(mocks.mockHandler).toHaveBeenCalledWith(job, expect.objectContaining({ jobId: "job-1" }))
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBeGreaterThanOrEqual(34)
+      expect(new Set(mocks.mockRefreshPreTaskSentinel.mock.calls.map(([id]) => id))).toEqual(new Set(["job-1"]))
+
+      const beats = mocks.mockRefreshPreTaskSentinel.mock.calls.length
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBe(beats)
+    })
+
+    it("a short core handler settles before the first beat — nothing is refreshed for it", async () => {
+      vi.useFakeTimers()
+      mocks.mockHandler.mockImplementationOnce(runsFor(PRE_TASK_HEARTBEAT_MS - 1))
 
       const run = processor(makeBullJob("generate-image"), "lock-token")
-      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      await vi.advanceTimersByTimeAsync(PRE_TASK_HEARTBEAT_MS - 1)
       await run
 
       expect(mocks.mockHandler).toHaveBeenCalled()
       expect(mocks.mockRefreshPreTaskSentinel).not.toHaveBeenCalled()
+    })
+
+    it("the hung-handler backstop survives the wrap: beats stop at the cap and a core handler that never settles ages into the sweep", async () => {
+      vi.useFakeTimers()
+      mocks.mockHandler.mockImplementationOnce(runsFor(PRE_TASK_HEARTBEAT_MAX_MS + 60 * 60_000))
+
+      const run = processor(makeBullJob("generate-image"), "lock-token")
+      await vi.advanceTimersByTimeAsync(PRE_TASK_HEARTBEAT_MAX_MS)
+      const beatsAtCap = mocks.mockRefreshPreTaskSentinel.mock.calls.length
+      expect(beatsAtCap).toBeGreaterThan(0)
+
+      // A full sweep threshold past the cap: not one more beat, so the stamp
+      // has aged past STALE_THRESHOLD_MS["pre-task"] by the time the run ends.
+      await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS["pre-task"] + PRE_TASK_HEARTBEAT_MS)
+      expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBe(beatsAtCap)
+
+      await vi.advanceTimersByTimeAsync(60 * 60_000)
+      await run
     })
 
     it("a drain hand-off stops the beats and still goes back to the queue at no attempt cost", async () => {

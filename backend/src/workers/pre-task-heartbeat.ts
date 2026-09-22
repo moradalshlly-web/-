@@ -1,5 +1,5 @@
 /**
- * Host-side liveness for the video worker's private-plugin queue jobs.
+ * Host-side liveness for every job the video worker runs.
  *
  * THE GAP (staging 2026-09-15, Pro 3D Render job 99ede351). The video worker
  * stamps `provider_kind = "pre-task"` + `provider_call_started_at = now` on
@@ -15,10 +15,14 @@
  * runs 30–35 minutes, and was failed at minute 31 by the cron while its worker
  * was still rendering on the one container that ran it.
  *
- * THE INVARIANT. Every handler the plugin loader contributes is wrapped here
- * before it reaches the worker's dispatch map, so liveness is a property of the
- * registry the worker actually runs, not of each plugin's memory: a future
- * plugin job type is covered the day it ships, with no list to update.
+ * THE INVARIANT. The worker wraps its WHOLE final dispatch map here — core
+ * handlers, the relay, the plugin map — as the last merge before dispatch, so
+ * liveness is a property of the registry the worker actually runs, not of each
+ * handler's memory: a future job type is covered the day it ships, with no list
+ * to update. (The wrap once covered only the plugin map; a core ffmpeg
+ * long-runner — an hour-long multicam apply-edl cut — had the same exposure.)
+ * A core handler with its own heartbeat is unaffected: both refresh the same
+ * stamp, and the refresh is idempotent.
  *
  * WHAT "LIVE" MEANS. The refresh beats while the handler's promise is
  * unsettled in THIS process. If the process dies (deploy, OOM, SIGKILL) the
