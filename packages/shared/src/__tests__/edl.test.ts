@@ -15,6 +15,9 @@ import {
   transcriptDurationSec,
   type Edl,
   type Transcript,
+  clampEditPlanClipCount,
+  EDIT_PLAN_DEFAULT_CLIP_COUNT,
+  EDIT_PLAN_MAX_CLIP_COUNT,
 } from "../edl.js"
 import { editPlanSourceDurationSec } from "../video-duration.js"
 
@@ -657,5 +660,23 @@ describe("transcriptDurationSec — the URL-source reserve fallback (beneath the
     expect(transcriptDurationSec("not-an-object")).toBeUndefined()
     expect(transcriptDurationSec({ words: [{ endMs: "x" }, { endMs: NaN }] })).toBeUndefined()
     expect(buildEditPlanCreditId("tighten", "standard", transcriptDurationSec({ words: [] }))).toBe("edit-plan:tighten:standard:180m")
+  })
+})
+
+describe("clampEditPlanClipCount", () => {
+  it("clamps into [1, EDIT_PLAN_MAX_CLIP_COUNT] and floors", () => {
+    expect(clampEditPlanClipCount(5)).toBe(5)
+    expect(clampEditPlanClipCount(7.9)).toBe(7)
+    expect(clampEditPlanClipCount(0.4)).toBe(1)
+    expect(clampEditPlanClipCount(9000)).toBe(EDIT_PLAN_MAX_CLIP_COUNT)
+  })
+  it("is undefined for anything that is not a positive finite number", () => {
+    for (const bad of [undefined, null, 0, -3, Number.NaN, Number.POSITIVE_INFINITY, "12", {}]) {
+      expect(clampEditPlanClipCount(bad)).toBeUndefined()
+    }
+  })
+  it("the default sits inside the allowed range", () => {
+    expect(EDIT_PLAN_DEFAULT_CLIP_COUNT).toBeGreaterThanOrEqual(1)
+    expect(EDIT_PLAN_DEFAULT_CLIP_COUNT).toBeLessThanOrEqual(EDIT_PLAN_MAX_CLIP_COUNT)
   })
 })

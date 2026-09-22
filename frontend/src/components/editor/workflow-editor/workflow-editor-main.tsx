@@ -81,7 +81,8 @@ import {
   NODE_CREDIT_COSTS,
   estimateNodeCredits,
   isExecutableNode,
-  getFanOutMultiplier,
+  getCostMultiplier,
+  NO_RERUNS,
   type ExecutionContext,
 } from "./types";
 import {
@@ -487,6 +488,8 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
   useEffect(() => {
     if (!hasCredits()) return;
     const executableNodes = storeNodes.filter((n) => isExecutableNode(n) && !isExpandedClone(n));
+    // The whole-workflow badge: every executable node re-runs, planners included.
+    const rerunIds = new Set(executableNodes.map((n) => n.id));
 
     // Use composite model identifiers (e.g. "gpt-image:high") for accurate per-model lookup
     const computeEstimate = () => {
@@ -494,7 +497,7 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
         const modelId = getModelIdentifier(node, storeEdges, storeNodes);
         const cached = getCachedCredits(modelId);
         const cost = cached !== undefined ? cached : estimateNodeCredits({ id: node.id, type: node.type, data: node.data as Record<string, unknown> }, storeEdges);
-        const multiplier = getFanOutMultiplier(node, storeNodes, storeEdges);
+        const multiplier = getCostMultiplier(node, storeNodes, storeEdges, rerunIds);
         return sum + cost * multiplier;
       }, 0);
       setWorkflowCreditEstimate(total);
@@ -961,7 +964,8 @@ export function WorkflowEditor({ projectId, workflowId }: WorkflowEditorProps) {
     const cost = cached !== undefined
       ? cached
       : estimateNodeCredits({ id: node.id, type: node.type, data: node.data as Record<string, unknown> }, storeEdges);
-    return cost * getFanOutMultiplier(node, storeNodes, storeEdges);
+    // One node's own cost: nothing upstream re-runs, so its inputs are what they are.
+    return cost * getCostMultiplier(node, storeNodes, storeEdges, NO_RERUNS);
   }
 
   // Stop, from the Copilot's run card. `handleExecutionDiscarded` is only the

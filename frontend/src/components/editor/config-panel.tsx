@@ -40,6 +40,7 @@ import { IterationResultsPanel } from "./iteration-results-panel"
 import { getUpstreamNodes, buildNodeRefMap } from "@/lib/node-refs"
 import { isTileGridPickerType } from "@/lib/picker-handles"
 import { REPEATABLE_NODE_TYPES, getEffectiveRepeatCount } from "@nodaro/shared"
+import { getOutputMinuteUnits, NO_RERUNS } from "@/components/editor/workflow-editor/types"
 import {
   getConnectedSources,
   getModelIdentifier,
@@ -825,9 +826,13 @@ export function ConfigPanel() {
     && (_earlyData.providers as unknown[]).length >= 2
   const _providersForSum = _isMultiProviderNode ? (_earlyData.providers as readonly string[]) : []
   const _providerSum = useProvidersCreditsSum(_providersForSum, _earlyData)
-  const _repeatMultiplier = _earlyType && REPEATABLE_NODE_TYPES.has(_earlyType)
+  // × the per-output-minute units: a per-minute node's model cost is a RATE, so
+  // the Run button must price every minute it will reserve, not one (1 for every
+  // other node). This is a SINGLE-node run, so nothing upstream re-plans and the
+  // persisted upstream result is exactly what renders — the cost is exact.
+  const _repeatMultiplier = (_earlyType && REPEATABLE_NODE_TYPES.has(_earlyType)
     ? getEffectiveRepeatCount(_earlyData)
-    : 1
+    : 1) * (displayNode ? getOutputMinuteUnits(displayNode, nodes, edges, NO_RERUNS) : 1)
 
   if (!displayNode) {
     // On mobile, render nothing when no node selected (bottom sheet simply gone)

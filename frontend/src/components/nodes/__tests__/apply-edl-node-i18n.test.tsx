@@ -35,7 +35,10 @@ vi.mock("lucide-react", () => new Proxy({}, {
 vi.mock("@/hooks/use-workflow-store", () => ({
   useWorkflowStore: (selector: any) => selector({ updateNodeData: () => {}, runSingleNode: () => {} }),
 }))
-vi.mock("@/hooks/use-estimated-credits", () => ({ useEstimatedCredits: () => 0 }))
+// The pill is `rate × minutes`: the core cost hook (react-query) and the minutes
+// resolver (workflow store) are irrelevant to the copy under test.
+vi.mock("@/hooks/use-model-credit-cost", () => ({ useModelCredits: () => 10 }))
+vi.mock("@/hooks/use-apply-edl-estimate-minutes", () => ({ useApplyEdlEstimateMinutes: () => 1 }))
 vi.mock("@/hooks/use-result-aspect-ratio", () => ({
   useResultAspectRatio: () => ({ aspectRatio: undefined, onLoadDimensions: () => {} }),
 }))
