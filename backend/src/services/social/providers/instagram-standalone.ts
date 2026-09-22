@@ -26,6 +26,7 @@ export const instagramStandaloneProvider: SocialProvider = {
   id: "instagram-standalone",
   label: "Instagram (no Facebook Page)",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: {
     schedule: true,

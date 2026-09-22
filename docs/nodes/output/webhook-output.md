@@ -21,15 +21,19 @@ credential, pick it in the node, and every run attaches it — the value is
 decrypted on the server at send time and is never shown again (rotating it is
 saving a new value over the old one).
 
-A credential is **plain** or **locked**:
+When you save a key, Integrations asks **who can use this key**, and the answer
+is one of two:
 
-- **Plain** — no address. Works on runs you start yourself: a run from the
-  editor, and a schedule you set up in the editor. It is refused on a
-  published app, a shared workflow, a collaborator's run, a run started with
-  an API token, a webhook trigger and a schedule created through the API,
-  because the runner (or nobody) could otherwise aim it. The node fails with
-  a clear message instead of sending.
-- **Locked** — tied to an address. Publishing an app or sharing a workflow for
+- **Any address** (a **plain** credential) — no address attached. Works on runs
+  you start yourself: a run from the editor, and a schedule you set up in the
+  editor. It is refused on a published app, a shared workflow, a collaborator's
+  run, a run started with an API token, a webhook trigger and a schedule created
+  through the API, because the runner (or nobody) could otherwise aim it. The
+  node fails with a clear message instead of sending. Best while you are still
+  building.
+- **Only one address** (a **locked** credential) — tied to an address, with an
+  optional *Also allow paths under this address* for a whole service. Publishing
+  an app or sharing a workflow for
   run requires every credential it sends with — sub-workflows included — to be
   locked first, to an address the node actually sends to; the publish / share
   dialog offers to lock a plain one to the node's current URL in one click,
@@ -37,7 +41,8 @@ A credential is **plain** or **locked**:
   default the lock is the exact address (`https://` only — origin and path);
   optionally it covers everything under a path (`prefix`), so one key can serve
   several routines of the same service. Locking is one-way: the address can be
-  changed but not removed.
+  changed but not removed — the dialog shows "Any address" greyed out, with the
+  reason, on a key that already has one.
 
 What the lock enforces at send time, on every hop:
 

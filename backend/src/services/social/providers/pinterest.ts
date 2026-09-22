@@ -5,6 +5,7 @@ export const pinterestProvider: SocialProvider = {
   id: "pinterest",
   label: "Pinterest",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: { schedule: true, comment: false, media: ["image"], refresh: "real" },
   requiredEnv: ["PINTEREST_CLIENT_ID", "PINTEREST_CLIENT_SECRET"],

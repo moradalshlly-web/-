@@ -74,6 +74,28 @@ describe("WebhookOutputConfig — credential picker", () => {
     expect(screen.getByText(/locked to this address/i)).toBeInTheDocument()
   })
 
+  /**
+   * "From the credential" is a STATE, not the node's permanent shape. It marks
+   * the one case where the address is not the user's to set — an exact lock —
+   * and must not appear when they can still type, or it reads as a field that
+   * is broken rather than one that is spoken for.
+   */
+  it("marks the destination as coming from the credential only when it actually is", () => {
+    renderPanel({ credentialId: EXACT.id, url: EXACT.boundUrl })
+    expect(screen.getByText(/from the credential/i)).toBeInTheDocument()
+  })
+
+  it("does not mark it for a prefix lock, where the address is still editable", () => {
+    renderPanel({ credentialId: PREFIX.id, url: `${PREFIX.boundUrl}/retry` })
+    expect(screen.queryByText(/from the credential/i)).toBeNull()
+    expect(screen.getByLabelText(/webhook url/i)).not.toBeDisabled()
+  })
+
+  it("does not mark it when there is no credential at all", () => {
+    renderPanel({ url: "https://example.com/hook" })
+    expect(screen.queryByText(/from the credential/i)).toBeNull()
+  })
+
   it("a URL that differs from the lock only by its query (or host case) is the SAME address — no warning, the token stays", () => {
     const onUpdate = renderPanel({ credentialId: EXACT.id, url: "https://CRM.example.com/hooks/in?token=abc" })
     expect(onUpdate).not.toHaveBeenCalled()

@@ -1,7 +1,7 @@
 "use client"
 
 import { Link } from "react-router-dom"
-import { AlertTriangle, Plus, Trash2 } from "lucide-react"
+import { AlertTriangle, Lock, Plus, Trash2 } from "lucide-react"
 import { nanoid } from "nanoid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,14 @@ import type { WebhookOutputData, WebhookParam } from "@/types/nodes"
 import type { ConfigProps } from "./types"
 
 const NO_CREDENTIAL = "__none__"
+
+/** One letter per parameter type — the handoff's typed chips, on the rows. */
+const PARAM_TYPE_MARK: Record<WebhookParam["type"], string> = {
+  text: "T",
+  imageUrl: "I",
+  videoUrl: "V",
+  audioUrl: "A",
+}
 
 /**
  * Webhook Output — the URL, the stored credential it sends with, and the
@@ -91,19 +99,40 @@ export function WebhookOutputConfig({ data, onUpdate, nodes }: ConfigProps<Webho
         ? (runsUnattended ? t("utilcfg.webhookCredentialPlainUnattended") : t("utilcfg.webhookCredentialPlain"))
         : t("utilcfg.webhookCredentialHint")
 
+  const statusCode = typeof data.webhookStatusCode === "number" ? data.webhookStatusCode : null
+
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <Label htmlFor="webhook-url">{t("utilcfg.webhookUrl")}</Label>
-        <Input
-          id="webhook-url"
-          value={data.url}
-          onChange={(e) => onUpdate({ url: e.target.value })}
-          placeholder="https://example.com/webhook"
-          className="text-xs font-mono"
-          disabled={urlDisabled}
-          aria-readonly={urlDisabled}
-        />
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <Label htmlFor="webhook-url">{t("utilcfg.webhookUrl")}</Label>
+          {/* The handoff's "Preset · locked" chip. It is a STATE, not the
+              node's permanent shape: only an exact-locked credential pins the
+              address. A prefix lock or no credential leaves it editable. */}
+          {lockedUrl !== null && (
+            <span className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+              <Lock className="h-2.5 w-2.5" />
+              {t("utilcfg.webhookLockedChip")}
+            </span>
+          )}
+        </div>
+        {/* POST sits OUTSIDE the field rather than replacing it: the input
+            stays a real, labelled input even when disabled, which is what the
+            locked state is — a field you cannot edit, not a picture of one. */}
+        <div className="relative">
+          <span className="pointer-events-none absolute inset-y-0 start-2 flex items-center text-[9.5px] font-bold tracking-[0.06em] text-emerald-700 dark:text-emerald-400">
+            POST
+          </span>
+          <Input
+            id="webhook-url"
+            value={data.url}
+            onChange={(e) => onUpdate({ url: e.target.value })}
+            placeholder="https://example.com/webhook"
+            className="ps-11 text-xs font-mono"
+            disabled={urlDisabled}
+            aria-readonly={urlDisabled}
+          />
+        </div>
         {urlMismatch ? (
           <div role="alert" className="mt-1 flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 dark:bg-amber-950/20 px-2 py-1.5">
             <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
@@ -135,7 +164,16 @@ export function WebhookOutputConfig({ data, onUpdate, nodes }: ConfigProps<Webho
             })
           }}
         >
-          <SelectTrigger id="webhook-credential" className="h-8 text-xs">
+          <SelectTrigger id="webhook-credential" className="h-9 text-xs">
+            {/* A health dot on the trigger, so the lock state of the chosen
+                key is readable without opening the menu: green once it is
+                tied to an address, amber while it is still plain. */}
+            {credential && (
+              <span
+                aria-hidden
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${credential.boundUrl ? "bg-emerald-500" : "bg-amber-500"}`}
+              />
+            )}
             <SelectValue placeholder={t("utilcfg.webhookCredentialNone")} />
           </SelectTrigger>
           <SelectContent>
@@ -178,6 +216,13 @@ export function WebhookOutputConfig({ data, onUpdate, nodes }: ConfigProps<Webho
         <div className="flex flex-col gap-2">
           {params.map((param, i) => (
             <div key={param.id} className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[9.5px] font-bold text-white"
+                title={param.type}
+              >
+                {PARAM_TYPE_MARK[param.type]}
+              </span>
               <Input
                 value={param.name}
                 onChange={(e) => updateParam(i, { name: e.target.value })}
@@ -209,6 +254,34 @@ export function WebhookOutputConfig({ data, onUpdate, nodes }: ConfigProps<Webho
             </div>
           ))}
         </div>
+
+        {params.length > 0 && (
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            {params.length === 1
+              ? t("utilcfg.webhookParamCountOne")
+              : t("utilcfg.webhookParamCount", { n: params.length })}
+          </p>
+        )}
+      </div>
+
+      {/* The handoff's footer status. The code is real — the executor writes
+          `webhookStatusCode` — but there is deliberately no "2m ago" beside
+          it: nothing records WHEN, and a guessed time on a delivery receipt
+          is the worst place to guess. Cleared by Clear Results along with the
+          rest of the run data, so it never outlives what it describes. */}
+      <div className="flex items-center gap-2 border-t border-border pt-3 text-[10px] text-muted-foreground">
+        <span>{t("utilcfg.webhookLastRun")}</span>
+        {statusCode === null ? (
+          <span>{t("utilcfg.webhookNoRunYet")}</span>
+        ) : (
+          <span
+            className={`font-mono font-bold ${
+              data.webhookSuccess === false ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"
+            }`}
+          >
+            {statusCode}
+          </span>
+        )}
       </div>
     </div>
   )

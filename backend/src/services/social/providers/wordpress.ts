@@ -5,6 +5,7 @@ export const wordpressProvider: SocialProvider = {
   id: "wordpress",
   label: "WordPress",
   connectKind: "custom_fields",
+  category: "publishing",
   editor: "html",
   capabilities: { schedule: true, comment: false, media: ["image", "text"], refresh: "none" },
   requiredEnv: [],

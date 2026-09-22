@@ -23,6 +23,12 @@ interface DeleteConfirmationDialogProps {
   readonly className?: string
   /** Extra classes for the backdrop overlay (pair with `className`). */
   readonly overlayClassName?: string
+  /**
+   * Word on the confirming button. Defaults to "Delete" — pass the real verb
+   * when the action is not a deletion ("Disconnect"), so the dialog does not
+   * name one action in its question and a different one on its button.
+   */
+  readonly confirmLabel?: string
 }
 
 export function DeleteConfirmationDialog({
@@ -33,6 +39,7 @@ export function DeleteConfirmationDialog({
   description = "This action cannot be undone. The generated result will be permanently removed.",
   className,
   overlayClassName,
+  confirmLabel = "Delete",
 }: DeleteConfirmationDialogProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -50,7 +57,7 @@ export function DeleteConfirmationDialog({
               onClose()
             }}
           >
-            Delete
+            {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

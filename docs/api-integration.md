@@ -2717,7 +2717,7 @@ Connect flows are popup-based and meant for the web app; publishing is available
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/v1/social/providers` | Registry of supported networks with per-deployment availability: `{ id, label, connectKind, editor, capabilities, available, missingEnv?, setupHint? }`. Unconfigured networks are listed with `available: false` — never hidden. |
+| `GET` | `/v1/social/providers` | Registry of supported networks with per-deployment availability: `{ id, label, connectKind, editor, category, capabilities, available, missingEnv?, setupHint? }`. `category` is `social` (a feed you post to) or `publishing` (a site you publish articles on) — every network declares one. Unconfigured networks are listed with `available: false` — never hidden. |
 | `GET` | `/v1/social/auth-url?platform=` | Start an OAuth connect (popup URL). `400 provider_not_configured` (with the missing env var names) when the deployment lacks that network's app credentials. |
 | `GET` | `/v1/social/callback/:platform` | OAuth redirect target (public). For Facebook/Instagram logins managing multiple Pages/accounts, responds with an **account picker** page instead of silently connecting the first account. |
 | `POST` | `/v1/social/connect/finalize` | Completes an account-picker selection (`{ token, accountId }`; the one-time token authorizes the call — public route, popup-internal). |

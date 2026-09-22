@@ -6,6 +6,7 @@ export const facebookProvider: SocialProvider = {
   id: "facebook",
   label: "Facebook",
   connectKind: "oauth2_between_steps",
+  category: "social",
   editor: "normal",
   capabilities: {
     schedule: true,

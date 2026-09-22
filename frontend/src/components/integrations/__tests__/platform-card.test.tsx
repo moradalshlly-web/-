@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, fireEvent, screen, waitFor } from "@testing-library/react"
+import { render, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { toast } from "sonner"
 import { PlatformCard } from "../platform-card"
 import { disconnectSocial, type SocialProviderInfo } from "@/lib/api"
 import type { SocialConnection } from "@/types/nodes"
 
+// `asChild` must be honoured, not dropped: the real Button renders a Radix
+// Slot that MERGES into its child, and AlertDialogAction/Cancel use that form.
+// A mock that wraps regardless produces <button><button>, which doubles every
+// dialog button and makes an accessible-name query ambiguous — a DOM shape the
+// app never has.
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+  Button: ({ children, asChild, ...props }: any) =>
+    asChild ? children : <button {...props}>{children}</button>,
 }))
 vi.mock("@/components/ui/input", () => ({
   Input: (props: any) => <input {...props} />,
@@ -17,6 +23,17 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogHeader: ({ children }: any) => <div>{children}</div>,
   DialogTitle: ({ children }: any) => <h2>{children}</h2>,
   DialogDescription: ({ children }: any) => <p>{children}</p>,
+}))
+// Radix DropdownMenu → plain DOM (jsdom lacks the pointer machinery), same
+// shells as gvp-continue-control.test.tsx. The account row uses `onSelect`,
+// which is the Radix spelling, so the shell maps that too.
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: any) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children, ...props }: any) => <button type="button" {...props}>{children}</button>,
+  DropdownMenuContent: ({ children }: any) => <div data-testid="menu">{children}</div>,
+  DropdownMenuItem: ({ children, onSelect, onClick }: any) => (
+    <button type="button" onClick={onSelect ?? onClick}>{children}</button>
+  ),
 }))
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -49,6 +66,7 @@ function provider(overrides: Partial<SocialProviderInfo> = {}): SocialProviderIn
     label: "Bluesky",
     connectKind: "custom_fields",
     editor: "normal",
+    category: "social",
     capabilities: { schedule: true, comment: false, media: ["image", "text"], refresh: "none" },
     available: true,
     customFields: [
@@ -65,19 +83,9 @@ describe("PlatformCard (provider-driven)", () => {
     cloudEdition = false
   })
 
-  it("renders an unavailable provider disabled, with the missing env names", () => {
-    render(
-      <PlatformCard
-        provider={provider({ id: "reddit", label: "Reddit", connectKind: "oauth2", available: false, missingEnv: ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"], customFields: undefined })}
-        connections={[]}
-        onConnectionChange={() => {}}
-      />,
-    )
-    expect(screen.getAllByText(/Requires setup/i).length).toBeGreaterThan(0)
-    expect(screen.getByText(/REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET/)).toBeTruthy()
-    const btn = screen.getByRole("button", { name: /Requires setup/i })
-    expect((btn as HTMLButtonElement).disabled).toBe(true)
-  })
+  // An unavailable network is no longer this component's job — it renders as
+  // ComingSoonCard, and the edition-specific assertions moved with it to
+  // coming-soon-card.test.tsx rather than being dropped.
 
   it("opens the FieldSpec-driven form and submits trimmed values", async () => {
     render(<PlatformCard provider={provider()} connections={[]} onConnectionChange={() => {}} />)
@@ -113,26 +121,9 @@ describe("PlatformCard (provider-driven)", () => {
   })
 })
 
-describe("PlatformCard (cloud edition — Coming soon)", () => {
+describe("PlatformCard (cloud edition)", () => {
   beforeEach(() => {
     cloudEdition = true
-  })
-
-  it("shows Coming soon and hides deployment internals for an unconfigured network", () => {
-    render(
-      <PlatformCard
-        provider={provider({ id: "reddit", label: "Reddit", connectKind: "oauth2", available: false, missingEnv: ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"], customFields: undefined })}
-        connections={[]}
-        onConnectionChange={() => {}}
-      />,
-    )
-    // Cloud customers can't set env vars — the setup internals are noise to
-    // them and must not render: not the env names, not "Requires setup".
-    expect(screen.getAllByText(/Coming soon/i).length).toBeGreaterThan(0)
-    expect(screen.queryByText(/REDDIT_CLIENT_ID/)).toBeNull()
-    expect(screen.queryByText(/Requires setup/i)).toBeNull()
-    const btn = screen.getByRole("button", { name: /Coming soon/i })
-    expect((btn as HTMLButtonElement).disabled).toBe(true)
   })
 
   it("leaves available networks untouched on cloud", () => {
@@ -169,8 +160,19 @@ describe("PlatformCard (disconnecting an already-removed account)", () => {
       customFields: undefined,
       capabilities: { schedule: true, comment: false, media: ["image", "video"], refresh: "reconnect" },
     })
-  const disconnectButton = () =>
-    screen.getAllByRole("button").find((b) => b.className.includes("text-red-600"))!
+  /**
+   * Disconnect now sits in the row's menu and asks before it severs. The menu
+   * item and the confirming button deliberately carry the SAME word, so each
+   * click is scoped to its own container rather than matched by name alone.
+   */
+  const openDisconnect = () =>
+    fireEvent.click(within(screen.getByTestId("menu")).getByRole("button", { name: /^Disconnect$/i }))
+
+  const disconnect = async () => {
+    openDisconnect()
+    const confirm = await screen.findByRole("alertdialog")
+    fireEvent.click(within(confirm).getByRole("button", { name: /^Disconnect$/i }))
+  }
 
   beforeEach(() => {
     vi.mocked(toast.success).mockClear()
@@ -178,11 +180,21 @@ describe("PlatformCard (disconnecting an already-removed account)", () => {
     vi.mocked(disconnectSocial).mockReset()
   })
 
+  it("asks before severing an account, and does nothing until confirmed", async () => {
+    vi.mocked(disconnectSocial).mockResolvedValueOnce(undefined as never)
+    render(<PlatformCard provider={meta()} connections={[connection()]} onConnectionChange={vi.fn()} />)
+
+    openDisconnect()
+    expect(await screen.findByRole("alertdialog")).toBeTruthy()
+    // The menu item alone must not have called anything.
+    expect(disconnectSocial).not.toHaveBeenCalled()
+  })
+
   it("treats a 404 as already gone: success toast + list refresh, no error", async () => {
     vi.mocked(disconnectSocial).mockRejectedValueOnce(Object.assign(new Error("Connection not found"), { code: "not_found" }))
     const onConnectionChange = vi.fn()
     render(<PlatformCard provider={meta()} connections={[connection()]} onConnectionChange={onConnectionChange} />)
-    fireEvent.click(disconnectButton())
+    await disconnect()
     await waitFor(() => expect(onConnectionChange).toHaveBeenCalledTimes(1))
     expect(toast.success).toHaveBeenCalledTimes(1)
     expect(toast.error).not.toHaveBeenCalled()
@@ -192,7 +204,7 @@ describe("PlatformCard (disconnecting an already-removed account)", () => {
     vi.mocked(disconnectSocial).mockRejectedValueOnce(new Error("boom"))
     const onConnectionChange = vi.fn()
     render(<PlatformCard provider={meta()} connections={[connection()]} onConnectionChange={onConnectionChange} />)
-    fireEvent.click(disconnectButton())
+    await disconnect()
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
     expect(toast.success).not.toHaveBeenCalled()
     expect(onConnectionChange).not.toHaveBeenCalled()
@@ -215,6 +227,11 @@ describe("PlatformCard (reconnect surfacing)", () => {
     vi.stubGlobal("open", vi.fn(() => ({ closed: false })))
   })
 
+  // The redesign replaces the inline "session expired" sentence with a health
+  // dot, so the words now live in the dot's accessible name — still announced,
+  // and still never colour alone.
+  const expiredDots = () => screen.queryAllByRole("img", { name: /Session expired/i })
+
   it("warns and offers Reconnect for an account the worker flagged", () => {
     render(
       <PlatformCard
@@ -223,13 +240,13 @@ describe("PlatformCard (reconnect surfacing)", () => {
         onConnectionChange={() => {}}
       />,
     )
-    expect(screen.getByText(/Session expired/i)).toBeTruthy()
+    expect(expiredDots()).toHaveLength(1)
     expect(screen.getByRole("button", { name: /Reconnect/i })).toBeTruthy()
   })
 
   it("stays quiet for a healthy account", () => {
     render(<PlatformCard provider={meta()} connections={[connection()]} onConnectionChange={() => {}} />)
-    expect(screen.queryByText(/Session expired/i)).toBeNull()
+    expect(expiredDots()).toHaveLength(0)
     expect(screen.queryByRole("button", { name: /Reconnect/i })).toBeNull()
   })
 
@@ -244,7 +261,7 @@ describe("PlatformCard (reconnect surfacing)", () => {
         onConnectionChange={() => {}}
       />,
     )
-    expect(screen.getAllByText(/Session expired/i)).toHaveLength(1)
+    expect(expiredDots()).toHaveLength(1)
     expect(screen.getAllByRole("button", { name: /Reconnect/i })).toHaveLength(1)
   })
 

@@ -5,6 +5,7 @@ export const youtubeProvider: SocialProvider = {
   id: "youtube",
   label: "YouTube",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: {
     schedule: true,
