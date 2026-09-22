@@ -1,7 +1,7 @@
 ---
 node_type: ai-avatar
-generated_at: 2026-09-21T19:12:10.040Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:31.599Z
+generated_from: 65b4cddf2
 ---
 
 # AI Avatar
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `ai-avatar`
 **Category:** ai
-**Credit cost:** `135-4050` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `150-90000` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `script`, `audio`, `image`
 **Outputs (source handles):** `video`
 

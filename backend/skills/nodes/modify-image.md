@@ -1,7 +1,7 @@
 ---
 node_type: modify-image
-generated_at: 2026-09-21T19:12:09.181Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:30.721Z
+generated_from: 65b4cddf2
 ---
 
 # Modify Image
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `modify-image`
 **Category:** ai
-**Credit cost:** `1-18` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `10-620` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `image`, `mask`, `cinematography`
 **Outputs (source handles):** `out`
 

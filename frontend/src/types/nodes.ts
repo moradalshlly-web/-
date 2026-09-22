@@ -2266,7 +2266,7 @@ export interface EditVideoProNodeData extends PromptAffixFields {
  *  using zsxkib/mmaudio (single-shot Replicate dispatch — see
  *  `backend/src/providers/replicate/sfx.ts`).
  *
- *  Pricing: duration-bucketed BASE credits (1cr ≤15s → 11cr ≤300s, pre-markup)
+ *  Pricing: duration-bucketed BASE credits (10cr ≤15s → 110cr ≤300s, pre-markup)
  *  scaled by `versions` (1-4). The route's `probeDurationPreHandler` ffprobes
  *  the resolved video URL up front; credit reservation uses
  *  `bucketBaseCreditsFor(duration) * versions`. Backend Zod schema is
@@ -7553,7 +7553,7 @@ export const NODE_DEFINITIONS: ReadonlyArray<NodeTypeDefinition> = [
   },
   {
     // Replicate mmaudio — synchronized SFX/foley for a video clip.
-    // Duration-bucketed credit cost (1cr ≤15s → 11cr ≤300s pre-markup, ×versions).
+    // Duration-bucketed credit cost (10cr ≤15s → 110cr ≤300s pre-markup, ×versions).
     // The `creditCost: 2` here is a coarse popup-time display fallback only;
     // real cost is computed at run-time by the route's `creditGuard.computeCredits`
     // (see `backend/src/routes/video-sfx.ts`) and surfaced via `useModelCredits()`.

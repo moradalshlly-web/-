@@ -1,7 +1,7 @@
 ---
 node_type: assemble-narrated-video
-generated_at: 2026-09-21T19:12:09.691Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:31.251Z
+generated_from: 65b4cddf2
 ---
 
 # Assemble Narrated Video
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `assemble-narrated-video`
 **Category:** processing
-**Credit cost:** `4` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `40` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `video`, `audio`
 **Outputs (source handles):** `video`
 

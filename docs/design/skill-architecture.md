@@ -88,7 +88,7 @@ generated_from: <git-commit-sha>
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `generate-image`
 **Category:** ai
-**Credit cost:** `1-8` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `2-620` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `image`
 

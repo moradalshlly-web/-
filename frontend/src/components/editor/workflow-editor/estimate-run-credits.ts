@@ -24,8 +24,16 @@ export function estimateRunCredits(
   // single-node / run-from-here render is priced on the plan that will render.
   const rerunIds = new Set(executable.map((n) => n.id))
   return executable.reduce((sum, node) => {
-    const cached = cachedCost(getModelIdentifier(node, edges, allNodes))
-    const cost = cached !== undefined ? cached : (NODE_CREDIT_COSTS[node.type ?? ""] ?? 1)
+    const modelId = getModelIdentifier(node, edges, allNodes)
+    const cached = cachedCost(modelId)
+    // Cold cache: prefer the row for the identifier this run will actually
+    // reserve on, and only then the coarse node-type row. `getModelIdentifier`
+    // is already renderer- and graph-aware (add-captions:kinetic vs
+    // add-captions), so skipping straight to the node type quoted the cheap
+    // variant's price for a run that reserves the dear one.
+    const cost = cached !== undefined
+      ? cached
+      : (NODE_CREDIT_COSTS[modelId] ?? NODE_CREDIT_COSTS[node.type ?? ""] ?? 1)
     return sum + cost * getCostMultiplier(node, allNodes, edges, rerunIds)
   }, 0)
 }
