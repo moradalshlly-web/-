@@ -429,8 +429,8 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
     // shortened segment would deliver a shorter render than the EDL (and than
     // the reserve and the caption remap) describes, with no error anywhere.
     // Overshoot inside SOURCE_END_TOLERANCE_SEC is rounding — a transcript's
-    // last word can end a beat after the audio — and `renderSlice` pads it to
-    // the segment's exact length.
+    // last word can end a beat after the audio — and renders to whatever the
+    // track has.
     const skipped = assertSegmentsWithinSources(edl, masterAudioId, wantVideo, sourceEnds)
     for (const s of skipped) {
       console.warn(
