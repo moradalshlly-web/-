@@ -366,3 +366,50 @@ describe("WordHighlightOverlay honours maxWordsPerLine", () => {
     expect(html).toContain("four")
   })
 })
+
+// A PHRASE-level entry — one Caption whose text is a whole phrase — used to
+// render on the kinetic styles as ONE atomic `white-space: pre` inline-block:
+// a box wider than the frame, cut off at both edges (staging frame, 2026-09-22:
+// "No re-prompti", "Same wor"). The width budget closed lines BETWEEN entries
+// and never split one. `splitToWidth` is the gate, and WHICH overlays pass it is
+// the invariant: the three that paint atomic word boxes do, the subtitle — which
+// joins the line into one `white-space: pre-line` string the browser really
+// wraps, and deliberately shows a segment's words as one block — does not.
+describe("a phrase entry wider than the line budget", () => {
+  // 49 chars against the ~40-char budget at 40px on a 1080 frame.
+  const PHRASE: Caption[] = [w("the quick brown fox jumps over the lazy dog today", 0, 3000)]
+  const SPLITTING = [
+    ["WordHighlightOverlay", WordHighlightOverlay],
+    ["KaraokeOverlay", KaraokeOverlay],
+    ["BouncyOverlay", BouncyOverlay],
+  ] as const
+
+  describe.each(SPLITTING)("%s splits it into lines that fit", (_name, Overlay) => {
+    const render = (ms: number): string =>
+      renderAt(ms, <Overlay captions={PHRASE} position="bottom" fontSize={40} color="#ffffff" />)
+
+    it("shows only the first sub-phrase while it is being spoken", () => {
+      const html = render(500)
+      expect(html).toContain("the quick brown fox")
+      expect(html).not.toContain("today")
+    })
+
+    it("hands over to the rest of the phrase later in the same entry's span", () => {
+      const html = render(2600)
+      expect(html).toContain("today")
+      expect(html).not.toContain("quick")
+    })
+  })
+
+  it("SubtitleOverlay keeps the whole phrase as one wrapping block (it must NOT split)", () => {
+    const html = renderAt(500, <SubtitleOverlay captions={PHRASE} position="bottom" fontSize={40} color="#ffffff" />)
+    expect(html).toContain("the quick brown fox jumps over the lazy dog today")
+    expect(html).toContain("white-space:pre-line")
+  })
+
+  it("a caller-authored \\n block is never re-cut, even on a splitting overlay", () => {
+    const block: Caption[] = [w("SALE ENDS FRIDAY\nFree shipping on everything we sell", 0, 30000)]
+    const html = renderAt(500, <WordHighlightOverlay captions={block} position="bottom" fontSize={40} color="#ffffff" />)
+    expect(html).toContain("SALE ENDS FRIDAY\nFree shipping on everything we sell")
+  })
+})

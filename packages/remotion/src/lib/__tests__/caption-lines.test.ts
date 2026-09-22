@@ -542,6 +542,116 @@ describe("groupCaptionLines — the word cap counts WORDS on phrase-level input"
   })
 })
 
+// The width budget closes a line BETWEEN entries, so an ENTRY wider than the
+// budget was never split at all. On the overlays that paint each entry as one
+// atomic `white-space: pre` inline-block (word-highlight, karaoke, bouncy) that
+// is a box wider than the frame, cut off at both edges — seen on a staging
+// frame as "No re-prompti" / "Same wor". `splitToWidth` re-cuts such an entry.
+describe("groupCaptionLines — splitToWidth: an entry wider than the budget is split into lines that fit", () => {
+  // (d) One entry holding a whole phrase, the shape that produced the defect.
+  const PHRASE = "the quick brown fox jumps over the lazy dog today" // 49 chars
+  const entry = [w(PHRASE, 0, 3000)]
+
+  it("without the option the entry stays ONE over-wide line (the defect)", () => {
+    const lines = groupCaptionLines(entry, 19)
+    expect(lines).toHaveLength(1)
+    // The caller's own object, untouched — nothing split it.
+    expect(lines[0]!.words[0]).toBe(entry[0])
+    expect(texts(lines[0]!.words).join(" ").length).toBe(49)
+  })
+
+  it("with the option every line fits the budget", () => {
+    const lines = groupCaptionLines(entry, 19, { splitToWidth: true })
+    expect(lines.map((l) => texts(l.words).join(" "))).toEqual([
+      "the quick brown fox", "jumps over the lazy", "dog today",
+    ])
+    for (const line of lines) expect(texts(line.words).join(" ").length).toBeLessThanOrEqual(19)
+  })
+
+  it("the sub-phrases tile the entry's span in proportion to their characters", () => {
+    // 19 / 19 / 9 chars of 47 → the 3000 ms span divides at round(3000·19/47)
+    // and round(3000·38/47) — the same division splitToWordCap always made.
+    const lines = groupCaptionLines(entry, 19, { splitToWidth: true })
+    expect(lines.map((l) => [l.startMs, l.endMs])).toEqual([
+      [0, Math.round((3000 * 19) / 47)],
+      [Math.round((3000 * 19) / 47), Math.round((3000 * 38) / 47)],
+      [Math.round((3000 * 38) / 47), 3000],
+    ])
+    const parts = lines.flatMap((l) => l.words)
+    expect(parts[0]!.startMs).toBe(0)
+    expect(parts[parts.length - 1]!.endMs).toBe(3000)
+    for (const part of parts) {
+      expect(Number.isInteger(part.startMs)).toBe(true)
+      expect(Number.isInteger(part.endMs)).toBe(true)
+      expect(part.timestampMs).toBe(part.startMs)
+    }
+    for (let i = 1; i < parts.length; i++) expect(parts[i]!.startMs).toBe(parts[i - 1]!.endMs)
+    // …and the whole phrase is on screen across that span, in order and complete.
+    expect(parts.map((c) => c.text.trim()).join(" ")).toBe(PHRASE)
+  })
+
+  it("keeps the @remotion/captions delimiter, exactly as the word cap does", () => {
+    const bare = groupCaptionLines([w("aaaa bbbb cccc", 0, 400)], 9, { splitToWidth: true }).flatMap((l) => l.words)
+    expect(bare.map((c) => c.text)).toEqual(["aaaa bbbb", " cccc"])
+    const delimited = groupCaptionLines([w(" aaaa bbbb cccc", 0, 400)], 9, { splitToWidth: true }).flatMap((l) => l.words)
+    expect(delimited.map((c) => c.text)).toEqual([" aaaa bbbb", " cccc"])
+  })
+
+  it("a zero-length or inverted entry keeps its own window on every sub-phrase", () => {
+    const zero = groupCaptionLines([w("aaaa bbbb cccc", 500, 500)], 9, { splitToWidth: true }).flatMap((l) => l.words)
+    expect(zero.map((c) => [c.text, c.startMs, c.endMs])).toEqual([["aaaa bbbb", 500, 500], [" cccc", 500, 500]])
+    const inverted = groupCaptionLines([w("aaaa bbbb cccc", 500, 100)], 9, { splitToWidth: true }).flatMap((l) => l.words)
+    expect(inverted.map((c) => [c.startMs, c.endMs])).toEqual([[500, 500], [500, 100]])
+  })
+
+  // (b) A caller-authored block: "\n" IS the caller's line breaking, and the
+  // static `subtitle` text of the S1 rule is burned as one unit for the whole
+  // video. The width rule must never reflow it — on ANY overlay that passes it.
+  it("an entry containing \\n is a caller-authored block and is NEVER split by the width rule", () => {
+    const block = [w("SALE ENDS FRIDAY\nFree shipping on everything and then some", 0, 30000)]
+    const lines = groupCaptionLines(block, 10, { splitToWidth: true })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]!.words).toEqual([block[0]])
+    expect(lines[0]!.words[0]).toBe(block[0])
+    for (const ms of [0, 15000, 30000]) {
+      expect(activeCaptionLine(lines, ms)?.line.words[0]!.text).toBe(block[0]!.text)
+    }
+  })
+
+  it("composes with maxWords — BOTH caps hold on the same entry", () => {
+    for (const maxWords of [1, 2, 3, 5]) {
+      for (const maxChars of [8, 12, 19, 40]) {
+        const lines = groupCaptionLines(entry, maxChars, { maxWords, splitToWidth: true })
+        for (const line of lines) {
+          const label = `${maxWords}/${maxChars}: ${texts(line.words).join(" ")}`
+          expect(wordsOn(line.words), label).toBeLessThanOrEqual(maxWords)
+          // A single word wider than the budget is the one allowed overflow.
+          if (wordsOn(line.words) > 1) expect(texts(line.words).join(" ").length, label).toBeLessThanOrEqual(maxChars)
+        }
+        // Nothing is dropped or reordered, whichever caps fire.
+        expect(lines.flatMap((l) => texts(l.words)).join(" ")).toBe(PHRASE)
+      }
+    }
+  })
+
+  it("a word wider than the budget keeps a line of its own instead of being chopped", () => {
+    const lines = groupCaptionLines([w("ok extraordinarily ok", 0, 300)], 6, { splitToWidth: true })
+    expect(lines.map((l) => texts(l.words).join(" "))).toEqual(["ok", "extraordinarily", "ok"])
+  })
+
+  it("the sentence end and the pause still close a line inside a split entry's neighbourhood", () => {
+    const lines = groupCaptionLines([
+      w("alpha bravo charlie delta.", 0, 1000), w("echo foxtrot golf hotel", 2000, 3000),
+    ], 14, { splitToWidth: true })
+    // Each entry is cut to the budget, and the two entries never share a line:
+    // the first ends a sentence AND a 1 s pause follows it.
+    for (const line of lines) expect(texts(line.words).join(" ").length).toBeLessThanOrEqual(14)
+    expect(lines.map((l) => texts(l.words).join(" "))).toEqual([
+      "alpha bravo", "charlie delta.", "echo foxtrot", "golf hotel",
+    ])
+  })
+})
+
 describe("splitCaptionRuns — the word cap counts WORDS there too (the tiktok pages)", () => {
   const PHRASES: Caption[] = [w("Hello there my good friend", 0, 2000), w(" how are you doing today", 2100, 4000)]
 
@@ -596,13 +706,35 @@ describe("the word cap leaves per-word input byte-identical to the entry-countin
     expect(lines.map((l) => [l.startMs, l.endMs, texts(l.words)])).toEqual(LINES_BEFORE[key])
   })
 
+  // (a) The WIDTH split must be invisible on per-word input: one word per entry
+  // is never wider than the budget except for a single over-long word, which
+  // keeps its own line either way. Same literals, `splitToWidth` on.
+  it.each(CAPS)("groupCaptionLines is unchanged at cap %s with splitToWidth on", (key, maxWords) => {
+    const lines = groupCaptionLines(CLIP, budget, { maxWords, splitToWidth: true })
+    expect(lines.map((l) => [l.startMs, l.endMs, texts(l.words)])).toEqual(LINES_BEFORE[key])
+  })
+
   it.each(CAPS)("splitCaptionRuns is unchanged at cap %s", (key, maxWords) => {
     expect(splitCaptionRuns(CLIP, { maxWords }).map(texts)).toEqual(RUNS_BEFORE[key])
+  })
+
+  // splitCaptionRuns takes no budget, so the option is inert there by design —
+  // the tiktok pages keep exactly the runs they had.
+  it.each(CAPS)("splitCaptionRuns ignores splitToWidth at cap %s", (key, maxWords) => {
+    expect(splitCaptionRuns(CLIP, { maxWords, splitToWidth: true }).map(texts)).toEqual(RUNS_BEFORE[key])
   })
 
   it("hands back the caller's own Caption objects — a word entry is never reshaped", () => {
     expect(groupCaptionLines(CLIP, budget, { maxWords: 2 })[0]!.words[0]).toBe(CLIP[0])
     expect(splitCaptionRuns(CLIP, { maxWords: 2 })[0]![0]).toBe(CLIP[0])
+    expect(groupCaptionLines(CLIP, budget, { maxWords: 2, splitToWidth: true })[0]!.words[0]).toBe(CLIP[0])
+  })
+
+  it("a single word WIDER than the budget is still handed back untouched, not chopped", () => {
+    const long = [w("extraordinarily", 0, 400)]
+    const lines = groupCaptionLines(long, 6, { splitToWidth: true })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]!.words[0]).toBe(long[0])
   })
 })
 
