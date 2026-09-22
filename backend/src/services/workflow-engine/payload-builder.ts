@@ -1,4 +1,5 @@
 import { dubbingModelIdentifier } from "../../lib/dubbing-model.js"
+import { imageCollageCreditModelIdentifier } from "../../lib/image-collage-credit-id.js"
 import {
   pro3DRenderShotStills, assertCanvasExecutionAllowed, OVERLAY_MAX_VARIANTS, overlayVariantIdFromHandle, clampEditPlanClipCount } from "@nodaro/shared"
 import type { Scene3DReference } from "@nodaro/shared"
@@ -5813,9 +5814,9 @@ export function buildPayload(
           backgroundColor: (data.backgroundColor as string | undefined) ?? "#ffffff",
           usageLogId,
         },
-        // Composite id so workflow-run reservations price 4K correctly (the
-        // single-node route uses the creditGuard computeCredits hook instead).
-        `image-collage:${resolution}`,
+        // The same resolution-priced composite id the single-node route's
+        // guard and reservation use (lib/image-collage-credit-id.ts).
+        imageCollageCreditModelIdentifier(resolution),
       )
     }
 
