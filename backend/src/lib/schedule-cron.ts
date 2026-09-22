@@ -232,6 +232,9 @@ export async function checkScheduledTriggers(): Promise<void> {
         userId: trigger.user_id,
         triggerType: "schedule",
         ownerInitiated,
+        // The node this row was projected from: the worker runs the branch
+        // behind it (`triggerRunScope`). A hand-made row names none.
+        ...(nodeId ? { triggerNodeId: nodeId } : {}),
         triggerData: {
           timestamp: now.toISOString(),
           last_triggered_at: previousLastTriggeredAt,

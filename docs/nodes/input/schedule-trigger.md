@@ -8,6 +8,12 @@ The Schedule Trigger node runs workflows automatically on a time-based schedule.
 
 The schedule becomes active when the workflow is **saved** with the node on the canvas — from the editor, or through the API / SDK / MCP — and stops when the node is removed and the workflow saved again (a row whose node is gone is also dropped by the scheduler itself). A schedule whose node **you added in the editor** counts as your own run for a stored HTTP credential (see [Webhook Output](../output/webhook-output.md)); one created through the API, or one that was already in the workflow when you opened it, does not.
 
+## What a triggered run executes
+
+A trigger that is **wired to something** runs only the branch behind it — the nodes downstream of the trigger, plus every node those nodes need as input (so a branch that also reads from a node off to the side gets a fresh result). Nodes the trigger does not reach are left alone. A trigger **wired to nothing** runs the whole workflow. This is what lets one workflow carry several triggers, each starting its own branch. A manual run from the editor, an API run and a published app are not scoped by triggers.
+
+"Wired" is anything that feeds another node: a drawn connection, a node inside a Group (it feeds the group), or a field mapping. The run starts from the node the schedule was saved from; a schedule created by hand through the API names no node, so the only Schedule Trigger on the canvas is used — with two such nodes there is no honest answer, and the whole workflow runs.
+
 ## Configuration
 
 | Field | Type | Default | Description |

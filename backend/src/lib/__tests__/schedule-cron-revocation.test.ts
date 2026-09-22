@@ -36,7 +36,7 @@ const DUE_TRIGGER = {
   workflow_id: WF,
   user_id: OWNER,
   // A bare interval with no prior fire is due immediately.
-  config: { interval: "5m" },
+  config: { interval: "5m", nodeId: "sched-node" },
   last_triggered_at: null,
 }
 
@@ -114,7 +114,8 @@ describe("checkScheduledTriggers — access is re-checked before every fire", ()
     await checkScheduledTriggers()
 
     expect(execInsert).toHaveBeenCalled()
-    enqueuedWith({ triggerType: "schedule" })
+    // …naming the node the row was projected from, so the worker runs its branch.
+    enqueuedWith({ triggerType: "schedule", triggerNodeId: "sched-node" })
     // The already-running check is scoped to the owner, not workflow-wide —
     // otherwise one member's manual run suppresses another member's schedule.
     expect(collisionEq1).toHaveBeenCalledWith("workflow_id", WF)

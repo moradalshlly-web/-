@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import {
+  triggerRunScope,
   buildExecutionLevels,
   getEffectivelySkippedIds,
   isSourceNode,
@@ -228,5 +229,143 @@ describe("media type sets", () => {
     expect(TEXT_SOURCE_TYPES.has("text-prompt")).toBe(true)
     expect(TEXT_SOURCE_TYPES.has("ai-writer")).toBe(true)
     expect(TEXT_SOURCE_TYPES.has("list")).toBe(true)
+  })
+})
+
+describe("triggerRunScope — what a triggered run executes", () => {
+  const graph = () => {
+    const nodes = [
+      node("sched", "schedule-trigger"),
+      node("text", "text-prompt"),
+      node("img"),
+      node("side-img"),
+      node("vid", "image-to-video"),
+      node("other-text", "text-prompt"),
+      node("other-img"),
+    ]
+    const edges = [
+      edge("sched", "text"),
+      edge("text", "img"),
+      edge("img", "vid"),
+      edge("side-img", "vid"), // a node the branch NEEDS, off to the side of the trigger
+      edge("other-text", "other-img"), // a branch the trigger does not reach
+    ]
+    return { nodes, edges }
+  }
+
+  it("a wired trigger runs its branch and everything that branch needs — nothing else", () => {
+    const { nodes, edges } = graph()
+    const scope = triggerRunScope(nodes, edges, { triggerType: "schedule", triggerNodeId: "sched" })
+    expect(scope && [...scope].sort()).toEqual(["img", "sched", "side-img", "text", "vid"])
+  })
+
+  it("a trigger wired to nothing runs the whole workflow", () => {
+    const { nodes } = graph()
+    expect(triggerRunScope(nodes, [edge("other-text", "other-img")], { triggerType: "schedule", triggerNodeId: "sched" })).toBeNull()
+  })
+
+  it("a row that names no node falls back to the ONLY node of its lane's type; two such nodes mean the whole workflow", () => {
+    const { nodes, edges } = graph()
+    expect(triggerRunScope(nodes, edges, { triggerType: "schedule" })?.has("sched")).toBe(true)
+    const two = [...nodes, node("sched-2", "schedule-trigger")]
+    expect(triggerRunScope(two, [...edges, edge("sched-2", "other-text")], { triggerType: "schedule" })).toBeNull()
+  })
+
+  it("a named node that is no longer on the graph falls back the same way", () => {
+    const { nodes, edges } = graph()
+    expect(triggerRunScope(nodes, edges, { triggerType: "schedule", triggerNodeId: "gone" })?.has("sched")).toBe(true)
+  })
+
+  it("manual, API and app runs are never scoped by a trigger", () => {
+    const { nodes, edges } = graph()
+    expect(triggerRunScope(nodes, edges, { triggerType: "manual", triggerNodeId: "sched" })).toBeNull()
+    expect(triggerRunScope(nodes, edges, { triggerType: "api" })).toBeNull()
+    expect(triggerRunScope(nodes, edges, { triggerType: "app_run" })).toBeNull()
+  })
+
+  it("a named node of the WRONG type is not the trigger — the lane falls back to its own type", () => {
+    // Node ids are re-minted per workflow; a delete + re-add can alias a row's
+    // stored node id onto an unrelated node.
+    const nodes = [node("sched", "schedule-trigger"), node("n1"), node("n2")]
+    const edges = [edge("sched", "n1"), edge("n1", "n2")]
+    const scope = triggerRunScope(nodes, edges, { triggerType: "schedule", triggerNodeId: "n2" })
+    expect(scope && [...scope].sort()).toEqual(["n1", "n2", "sched"])
+  })
+
+  it("webhook and telegram lanes start from their own node types", () => {
+    const nodes = [node("hook", "webhook-trigger"), node("tg", "telegram-trigger"), node("a"), node("b")]
+    const edges = [edge("hook", "a"), edge("tg", "b")]
+    const hook = triggerRunScope(nodes, edges, { triggerType: "webhook" })
+    const tg = triggerRunScope(nodes, edges, { triggerType: "telegram" })
+    expect(hook && [...hook].sort()).toEqual(["a", "hook"])
+    expect(tg && [...tg].sort()).toEqual(["b", "tg"])
+  })
+
+  it("a cycle behind the trigger terminates, and the trigger is always in its own scope", () => {
+    const nodes = [node("sched", "schedule-trigger"), node("a"), node("b")]
+    const edges = [edge("sched", "a"), edge("a", "b"), edge("b", "a")]
+    const scope = triggerRunScope(nodes, edges, { triggerType: "schedule" })
+    expect(scope && [...scope].sort()).toEqual(["a", "b", "sched"])
+    expect(scope?.has("sched")).toBe(true)
+  })
+
+  it("an edge whose end is gone from the graph feeds nothing — a trigger wired only to a deleted node runs the whole workflow", () => {
+    // A delta that deletes a node leaves its edges behind; counting the
+    // phantom target would scope the run to {trigger, phantom} and execute
+    // nothing, silently, forever.
+    const nodes = [node("sched", "schedule-trigger"), node("a"), node("b")]
+    expect(triggerRunScope(nodes, [edge("sched", "gone"), edge("a", "b")], { triggerType: "schedule" })).toBeNull()
+    // ...and a phantom edge beside a real one never enters the scope.
+    const scope = triggerRunScope(nodes, [edge("sched", "a"), edge("gone", "a"), edge("a", "gone")], { triggerType: "schedule" })
+    expect(scope && [...scope].sort()).toEqual(["a", "sched"])
+  })
+
+  it("a node inside a Group feeds the group (parentId, no edge) — the group and what follows it are in scope", () => {
+    const nodes = [
+      node("sched", "schedule-trigger"),
+      { ...node("img1"), parentId: "G" },
+      { ...node("img2"), parentId: "G" },
+      node("G", "group"),
+      node("best", "choose-best"),
+      node("other"),
+    ]
+    const edges = [edge("sched", "img1"), edge("sched", "img2"), edge("G", "best")]
+    const scope = triggerRunScope(nodes, edges, { triggerType: "schedule" })
+    expect(scope && [...scope].sort()).toEqual(["G", "best", "img1", "img2", "sched"])
+    // The other direction too: a trigger feeding the group pulls its members in as ancestors.
+    const viaGroup = triggerRunScope(
+      [node("sched", "schedule-trigger"), { ...node("m1"), parentId: "G" }, node("G", "group"), node("after")],
+      [edge("sched", "G"), edge("G", "after")],
+      { triggerType: "schedule" },
+    )
+    expect(viaGroup && [...viaGroup].sort()).toEqual(["G", "after", "m1", "sched"])
+  })
+
+  it("a field mapping feeds its node by sourceNodeId even without the edge it was made from", () => {
+    const nodes = [
+      node("sched", "schedule-trigger"),
+      node("style", "text-prompt"),
+      node("img", "generate-image", { fieldMappings: { prompt: { sourceNodeId: "style", sourceField: "text" } } }),
+      node("other"),
+    ]
+    const scope = triggerRunScope(nodes, [edge("sched", "img")], { triggerType: "schedule" })
+    expect(scope && [...scope].sort()).toEqual(["img", "sched", "style"])
+    // A mapping to a node that is gone is ignored like a dangling edge.
+    const dangling = triggerRunScope(
+      [node("sched", "schedule-trigger"), node("img", "generate-image", { fieldMappings: { prompt: { sourceNodeId: "gone" } } })],
+      [edge("sched", "img")],
+      { triggerType: "schedule" },
+    )
+    expect(dangling && [...dangling].sort()).toEqual(["img", "sched"])
+  })
+
+  it("field and reference edges are walked like any other edge", () => {
+    const nodes = [node("sched", "schedule-trigger"), node("img"), node("ref", "text-prompt")]
+    const edges = [
+      edge("sched", "img"),
+      { ...edge("ref", "img"), sourceHandle: "text", targetHandle: "field-prompt" },
+    ]
+    const scope = triggerRunScope(nodes, edges, { triggerType: "schedule" })
+    expect(scope && [...scope].sort()).toEqual(["img", "ref", "sched"])
   })
 })

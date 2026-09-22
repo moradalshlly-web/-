@@ -211,6 +211,12 @@ export interface WorkflowExecutionJob {
   triggerData?: Record<string, unknown>
   /** Optional subset of node IDs to execute (for "run from here" / "run selected"). */
   nodeIds?: string[]
+  /**
+   * For a triggered run: the trigger node that fired (the trigger row's
+   * `config.nodeId`). The worker runs the branch behind it — see
+   * `triggerRunScope` — or the whole workflow when the node is wired to nothing.
+   */
+  triggerNodeId?: string
   /** Presentation mode: override source node data before execution.
    *  Keys are node IDs, values are partial data to merge into node.data. */
   inputOverrides?: Record<string, Record<string, unknown>>

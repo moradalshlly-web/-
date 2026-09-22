@@ -290,6 +290,99 @@ export function getUploadDescendantIds(
 }
 
 // ---------------------------------------------------------------------------
+// Trigger run scope
+// ---------------------------------------------------------------------------
+
+/** The node type each trigger lane starts from. Manual / API / app runs have none: they run what they are asked. */
+const TRIGGER_NODE_TYPE_BY_LANE: Readonly<Record<string, string>> = {
+  schedule: "schedule-trigger",
+  webhook: "webhook-trigger",
+  telegram: "telegram-trigger",
+}
+
+/**
+ * What a TRIGGERED run executes. A trigger wired to something runs only the
+ * branch behind it — its descendants, plus every node those descendants need
+ * (their ancestors), so a branch that also reads from a node off to the side
+ * still gets a fresh result rather than a stale one. A trigger wired to
+ * nothing runs the whole workflow, as before. This is what lets one workflow
+ * carry several triggers, each starting its own branch.
+ *
+ * The trigger node is the one the trigger row names (`triggerNodeId`, from
+ * the row's `config.nodeId`); a row that names none (hand-made through the
+ * API, or a lane whose rows carry no node id) falls back to the ONLY node of
+ * that lane's type — with two such nodes there is no honest answer, so the
+ * whole workflow runs.
+ *
+ * "Wired" means every way one node feeds another, not only a drawn edge: a
+ * node inside a Group feeds the group (`parentId` — the engine models that
+ * dependency without an edge, see `buildExecutionLevels`), and a field
+ * mapping feeds its node by `sourceNodeId` even after the edge it was made
+ * from is gone. An edge whose end is no longer on the graph (a delta that
+ * deleted a node leaves its edges behind) feeds nothing and is ignored —
+ * otherwise it would make an unwired trigger look wired and the run would
+ * execute nothing at all.
+ *
+ * Returns `null` for "the whole workflow"; otherwise the node ids to execute
+ * (the trigger node included).
+ */
+export function triggerRunScope(
+  nodes: ReadonlyArray<{ id: string; type: string; parentId?: string | null; data?: unknown }>,
+  edges: ReadonlyArray<{ source: string; target: string }>,
+  trigger: { readonly triggerType: string; readonly triggerNodeId?: string | null },
+): Set<string> | null {
+  const nodeType = TRIGGER_NODE_TYPE_BY_LANE[trigger.triggerType]
+  if (!nodeType) return null
+
+  let triggerNode = trigger.triggerNodeId
+    ? nodes.find((n) => n.id === trigger.triggerNodeId && n.type === nodeType)
+    : undefined
+  if (!triggerNode) {
+    const candidates = nodes.filter((n) => n.type === nodeType)
+    if (candidates.length !== 1) return null
+    triggerNode = candidates[0]
+  }
+
+  const live = new Set(nodes.map((n) => n.id))
+  const children = new Map<string, string[]>()
+  const parents = new Map<string, string[]>()
+  const feeds = (source: string, target: string) => {
+    if (!live.has(source) || !live.has(target) || source === target) return
+    children.set(source, [...(children.get(source) ?? []), target])
+    parents.set(target, [...(parents.get(target) ?? []), source])
+  }
+  for (const edge of edges) feeds(edge.source, edge.target)
+  for (const n of nodes) {
+    if (typeof n.parentId === "string" && n.parentId) feeds(n.id, n.parentId)
+    const mappings = (n.data as { fieldMappings?: unknown } | null | undefined)?.fieldMappings
+    if (mappings && typeof mappings === "object") {
+      for (const mapping of Object.values(mappings as Record<string, unknown>)) {
+        const sourceNodeId = (mapping as { sourceNodeId?: unknown } | null)?.sourceNodeId
+        if (typeof sourceNodeId === "string" && sourceNodeId) feeds(sourceNodeId, n.id)
+      }
+    }
+  }
+  if ((children.get(triggerNode.id) ?? []).length === 0) return null
+
+  const scope = new Set<string>([triggerNode.id])
+  const walk = (start: string, next: Map<string, string[]>) => {
+    const queue = [start]
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      for (const id of next.get(current) ?? []) {
+        if (!scope.has(id)) {
+          scope.add(id)
+          queue.push(id)
+        }
+      }
+    }
+  }
+  walk(triggerNode.id, children)
+  for (const id of [...scope]) walk(id, parents)
+  return scope
+}
+
+// ---------------------------------------------------------------------------
 // Media type sets — used for routing inputs
 // ---------------------------------------------------------------------------
 

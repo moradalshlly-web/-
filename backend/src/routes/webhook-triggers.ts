@@ -263,11 +263,15 @@ export async function webhookTriggerRoutes(app: FastifyInstance) {
     // Enqueue orchestration (payer resolved above, before the row; moving a
     // workflow into a workspace re-points its triggers' payer on the next
     // fire — the run predicate above refused a creator who lost access).
+    const triggerNodeId = (trigger.config as Record<string, unknown> | null)?.nodeId
     const jobData: WorkflowExecutionJob = {
       executionId: execution.id,
       workflowId: trigger.workflow_id,
       userId: trigger.user_id,
       triggerType: "webhook",
+      // The node this row was projected from: the worker runs the branch
+      // behind it (`triggerRunScope`). A hand-made row names none.
+      ...(typeof triggerNodeId === "string" ? { triggerNodeId } : {}),
       triggerData,
       billingContext,
     }

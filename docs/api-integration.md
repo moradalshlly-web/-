@@ -648,6 +648,13 @@ If you need scheduled triggers (cron-like) without an external system,
 use the Schedule Trigger node instead — Nodaro polls the schedule
 internally every 60 seconds.
 
+A trigger wired to something runs only the branch behind it (its downstream
+nodes plus whatever they need as input); a trigger wired to nothing runs the
+whole workflow — so one workflow can carry several triggers, each starting
+its own branch. "Wired" covers a drawn connection, Group membership and a
+field mapping. A trigger row created by hand names no node, so its branch
+is found by node type; with two nodes of that type the whole workflow runs.
+
 Both node types register on **save**, whichever way the workflow was
 written (editor, API, SDK, import, MCP). The editor saves through the
 database directly and then asks `POST /v1/workflows/<id>/sync-triggers` to
