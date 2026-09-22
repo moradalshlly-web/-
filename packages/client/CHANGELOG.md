@@ -1,5 +1,143 @@
 # @nodaro/sdk
 
+## 2.13.0
+
+### Minor Changes
+
+- 81be5f2: Captions: named "look" presets + a typed SDK `media.addCaptions()`.
+
+  `@nodaro/shared` gains `CAPTION_LOOK_IDS`, `CAPTION_LOOKS`, `DEFAULT_CAPTION_LOOK`, `KINETIC_ONLY_CAPTION_LEVER_KEYS`, `autoStrokeWidth`, `resolveCaptionLook`, and the types `CaptionLookId`, `CaptionLookLevers`, `KineticOnlyCaptionLeverKey`. A look is a bundle of visual levers (font, weight, colour, outline, spoken-word colour, casing) so a kinetic caption reads well from one field: `outline` (Montserrat 900, uppercase, white on a black outline sized `max(2, round(fontSize·0.1))`px, yellow spoken word — the TikTok/CapCut read) and `clean` (Inter, soft shadow, no casing/outline). `resolveCaptionLook(look, explicit, fontSize)` merges an explicit lever over the look; an UNSET look resolves to `outline`. Structural/config vocabulary only — no creative doctrine.
+
+  `@nodaro/sdk`: new `client.media.addCaptions(input)` — burns captions into a video via `POST /v1/add-captions`, with the `look` preset, the explicit look levers, and per-segment captions. New exported types `AddCaptionsInput`, `CaptionLookInput`, `CaptionSegmentInput`, `CaptionEntry`.
+
+- a3e000a: `media.addCaptions()` gains `animate` (freeze per-word motion on kinetic styles).
+- 65b4cdd: `media.addCaptions()` gains `maxWordsPerLine`, and `audio.transcribe()` takes
+  every engine the route does.
+
+  `maxWordsPerLine` (1-20) caps how many words one caption LINE — or one
+  `tiktok-words` page — may hold, on top of the frame-width budget, sentence ends
+  and pauses that already close a line; 1-2 gives the short, punchy read, and an
+  unset value fits the width as before. It lives on `CaptionLookInput`, so it
+  exists top-level AND on every `segments[]` entry, and a segment that does not
+  name its own inherits the top-level value. It applies to `word-highlight`,
+  `karaoke`, `bouncy` and `tiktok-words`, and — like the other STYLING levers — to
+  the static `subtitle` style, which then renders through Remotion (the only path
+  that groups lines at all). It is inert on `word-pop`, which is always one word.
+
+  `audio.transcribe()`'s `provider` is `TranscribeProvider`, which now accepts
+  `elevenlabs-stt`, `whisper` and `incredibly-fast-whisper` — the re-widened
+  `/v1/transcribe` enum. Only the type moved; the capability did not, and the
+  JSDoc now says which is which: `whisper` returns NO word timings whether you
+  name it or reach it by omitting `provider`, so asking it for them
+  (`wordTimestamps: true`) is a `400` at ingress, while `elevenlabs-stt` (always
+  word-level, and the lane that honours `diarize` / `tagAudioEvents`) and
+  `incredibly-fast-whisper` can answer. A word-timed caption render has to name
+  one of those two.
+
+  Additive — no existing call changes shape.
+
+- a7774fc: Add the `edit` resource for the phase-1 editorial (podcast-editing) primitives.
+  `client.edit` exposes:
+
+  - `silenceDetect(input)` → `POST /v1/silence-detect` — detect silence ranges in
+    an audio/video source (keyless ffmpeg pass).
+  - `applyEdl(input)` → `POST /v1/apply-edl` — render an edit decision list into a
+    video or audio cut, with optional positional source overrides, a transcript to
+    remap, output/quality and a default crossfade.
+  - `editPlan(input)` → `POST /v1/edit-plan` (Cloud edition) — plan a
+    transcript-driven cut / clips / chapters from a timed transcript and media
+    sources.
+  - `remapTranscript(edl, transcript)` — a PURE client-side helper (no request)
+    that runs `@nodaro/shared`'s `remapTranscriptThroughEdl`.
+
+  The EDL / transcript / result vocabulary (`Edl`, `Transcript`, `EditPlanMode`,
+  `EditPlanTier`, `EdlClipSet`, `ChapterSet`, `SilenceRanges`) and the
+  `unwrapEditPlanOutput` result-normalizer are re-exported for one-dependency use.
+  Additive — no existing surface changes.
+
+  The `@nodaro/shared` patch bump carries no source change: it exists only to lift
+  the SDK's `@nodaro/shared` floor to a version that ships `edl.ts`. The new
+  resource static-imports `remapTranscriptThroughEdl` / `unwrapEditPlanOutput` from
+  `@nodaro/shared`, so pairing this SDK with an older shared (pre-`edl.ts`) would
+  fail the whole SDK at import — the changeset rewrites the dependency range so a
+  consumer can never resolve that stale sibling.
+
+- a610640: Add `client.audio.transcribe(input)` — the SDK's first way to reach
+  `POST /v1/transcribe`.
+
+  `transcribe({ audioUrl, provider?, language?, diarize?, tagAudioEvents?,
+wordTimestamps? })` returns a job id to poll. `provider` is typed as
+  `TranscribeProvider` (the ENABLED enum from `@nodaro/shared`), which holds all
+  three engines the route serves. The types do not pick for you, so the JSDoc
+  does: `elevenlabs-stt` is always word-level and is the lane that honours
+  `diarize` / `tagAudioEvents`, `incredibly-fast-whisper` returns word timings when
+  asked, and `whisper` returns none at all — named explicitly or reached by
+  omitting `provider`, which still falls back to it. Asking `whisper` for word
+  timings is a `400` at ingress, before any credit is spent.
+
+  `TranscribeProvider` itself is re-exported from `@nodaro/shared` (same pattern
+  as `AudioFxPreset`), so a consumer can name the type without a second
+  dependency.
+
+  Two new exported result types describe what comes back on the job:
+  `TranscribeWord` (one word: `text`/`startMs`/`endMs`, plus `speaker` on a
+  diarized run) and `TranscribeJobOutput` (`text`, `language`, `words`, `json` —
+  the normalized `Transcript` — and `segments`). The units are the trap and are
+  documented on both: `words` and `json` are in MILLISECONDS, the top-level
+  `segments` are in SECONDS.
+
+  `TranscribeWord` is deliberately the same shape as `media.addCaptions()`'s
+  `CaptionEntry`, so a transcribe job's `output_data.words` can be handed to
+  `addCaptions({ captions, autoTranscribe: false })` verbatim — correct a word's
+  `text` in between and the correction is what burns in. `addCaptions`' JSDoc
+  gained one sentence pointing at that composition and at the fact that a word's
+  `startMs`/`endMs` is its SPOKEN window (what times the `word-highlight`
+  highlight), not how long its line is on screen.
+
+  Additive — no existing surface changes.
+
+- 1c8b7de: Video URL node + social-video import: `@nodaro/shared` gains `video-link.ts` — the social-video host allowlist (`SOCIAL_VIDEO_HOSTS`, `YOUTUBE_HOSTS`, `INSTAGRAM_HOSTS`, `hostnameMatchesAllowlist`, `isSocialVideoUrl`, `detectVideoLinkPlatform`; exact-host matching, one list for the server's download gate and the editor), `hasUrlParserHazard` (a link carrying a backslash or a control character is one that URL parsers read differently, and is refused as a video link), the node's output rule (`resolveVideoLinkOutput`, `videoLinkDownloadedFile`, `videoLinkNeedsDownload` — a downloaded file is emitted only when it belongs to the node's current link) and `VIDEO_LINK_TOLERANT_CONSUMER_TYPES` (the node types that read a Video URL node without its file). `downloadPercent` / `downloadPhase` join `TRANSIENT_RUNTIME_KEYS`, so a download's progress ticks no longer dirty or reach a saved workflow. `@nodaro/sdk`: `media.downloadVideo()` accepts `requireAudio?: boolean` — a result with no audio stream fails by default; `false` accepts a clip that really has no sound. The route also answers `429 too_many_downloads` past 4 running downloads per account.
+
+### Patch Changes
+
+- 06d7acf: Expose the optional shared-wallet balance on credit balance responses.
+- Updated dependencies [e37fe27]
+- Updated dependencies [81be5f2]
+- Updated dependencies [a3e000a]
+- Updated dependencies [65b4cdd]
+- Updated dependencies [f75ebfe]
+- Updated dependencies [00ac720]
+- Updated dependencies [d1c71f3]
+- Updated dependencies [2263cf6]
+- Updated dependencies [a48b462]
+- Updated dependencies [a48b462]
+- Updated dependencies [dcaaa20]
+- Updated dependencies [a7774fc]
+- Updated dependencies [d4b3145]
+- Updated dependencies [2b32c90]
+- Updated dependencies [a49c7c6]
+- Updated dependencies [6ad3d61]
+- Updated dependencies [6a69e7d]
+- Updated dependencies [368e95a]
+- Updated dependencies [c79489e]
+- Updated dependencies [a976e32]
+- Updated dependencies [1126801]
+- Updated dependencies [7f5159d]
+- Updated dependencies [9e25b67]
+- Updated dependencies [ccb8a93]
+- Updated dependencies [5b9f5ed]
+- Updated dependencies [a436fab]
+- Updated dependencies [8efa462]
+- Updated dependencies [5c672cb]
+- Updated dependencies [a610640]
+- Updated dependencies [8e97188]
+- Updated dependencies [ccb8a93]
+- Updated dependencies [74e4373]
+- Updated dependencies [d4b3145]
+- Updated dependencies [1c8b7de]
+  - @nodaro/shared@3.12.0
+  - @nodaro/prompts@1.22.0
+
 ## 2.12.0
 
 ### Minor Changes
