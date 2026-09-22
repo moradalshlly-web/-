@@ -32,6 +32,8 @@ import {
   createWorkDir,
   cleanupWorkDir,
   COMBINE_DELIVERY_CRF,
+  DEFAULT_FFMPEG_TIMEOUT_MS,
+  DOWNLOAD_TIMEOUT_MS,
 } from "./ffmpeg-utils.js"
 import { pickTargetResolution, pickTargetFps } from "./combine-videos.js"
 
@@ -60,8 +62,14 @@ export interface ApplyEdlResult {
   readonly durationMs: number
 }
 
-const DEFAULT_MAX_SEGMENTS_PER_CHUNK = 100
-const DEFAULT_CHUNK_THRESHOLD = 200
+export const DEFAULT_MAX_SEGMENTS_PER_CHUNK = 100
+export const DEFAULT_CHUNK_THRESHOLD = 200
+
+/** ffmpeg kill budget per chunk: this many seconds of wall clock per second of
+ *  output, with `CHUNK_RENDER_TIMEOUT_FLOOR_MS` as the floor — a hung encode
+ *  is killed by its own spawn, not by anything watching from outside. */
+export const CHUNK_RENDER_SECS_PER_OUTPUT_SEC = 6
+export const CHUNK_RENDER_TIMEOUT_FLOOR_MS = 20 * 60_000
 
 const secs = (ms: number): number => ms / 1000
 const offsetOf = (s: EdlSource | undefined): number => s?.offsetMs ?? 0
@@ -268,16 +276,59 @@ async function renderSlice(
   }
 
   // Explicit longer timeout: the default 10-min per-spawn would kill a long
-  // chunk. Budget = 6× the chunk's output seconds, floor 20 min.
-  const chunkOutSec = durs.reduce((a, b, i) => a + b - (i > 0 ? boundaryOverlapSecs(segs[i], segs[i - 1]) : 0), 0)
-  const timeoutMs = Math.max(20 * 60_000, Math.ceil(chunkOutSec * 6) * 1000)
-  await runFfmpeg(args, timeoutMs)
+  // chunk. The SAME number the handler declares as its liveness budget
+  // (`applyEdlRenderBudgetMs`), so "hung" means one thing to both.
+  await runFfmpeg(args, chunkRenderTimeoutMs(segs))
+}
+
+/** The output seconds one chunk renders (D17: crossfade overlaps subtracted). */
+function chunkOutputSec(segs: readonly EdlSegment[]): number {
+  return segs.reduce((acc, s, i) => acc + secs(s.outMs - s.inMs) - (i > 0 ? boundaryOverlapSecs(segs[i], segs[i - 1]) : 0), 0)
+}
+
+/** The ffmpeg kill budget `renderSlice` gives one chunk. */
+export function chunkRenderTimeoutMs(segs: readonly EdlSegment[]): number {
+  return Math.max(CHUNK_RENDER_TIMEOUT_FLOOR_MS, Math.ceil(chunkOutputSec(segs) * CHUNK_RENDER_SECS_PER_OUTPUT_SEC) * 1000)
+}
+
+/** Bounded work `applyEdl` does per source before the first chunk: one fetch
+ *  at `downloadFile`'s ceiling, then a couple of probes / a demux pass at the
+ *  default ffmpeg ceiling. Two default ceilings cover them with room. */
+export const APPLY_EDL_PER_SOURCE_PREP_MS = DOWNLOAD_TIMEOUT_MS + 2 * DEFAULT_FFMPEG_TIMEOUT_MS
+
+/**
+ * How long `applyEdl` can legitimately run for this EDL — the handler's
+ * liveness budget (`HandlerFn.livenessBudgetMs`), composed from the budgets
+ * the render gives its OWN steps: every chunk's ffmpeg kill budget
+ * (`chunkRenderTimeoutMs`, over the same chunk plan `applyEdl` renders), each
+ * referenced source's bounded prep, and the final stream-copy concat at the
+ * default ceiling. One source of truth: a render can be failed by its own
+ * timeouts, never by the pre-task sweep while it still works. What this does
+ * NOT bound is time spent waiting for an ffmpeg slot — see the wrapper doc.
+ */
+export function applyEdlRenderBudgetMs(
+  edl: Edl,
+  options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> = {},
+): number {
+  const maxPerChunk = options.maxSegmentsPerChunk ?? DEFAULT_MAX_SEGMENTS_PER_CHUNK
+  const threshold = options.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD
+  const chunks = edl.segments.length > threshold ? planChunks(edl.segments, maxPerChunk) : [edl.segments as EdlSegment[]]
+  const render = chunks.reduce((acc, chunk) => acc + chunkRenderTimeoutMs(chunk), 0)
+  const referenced = new Set<string>()
+  for (const seg of edl.segments) {
+    if (seg.video) referenced.add(seg.video)
+    if (seg.audio) referenced.add(seg.audio)
+  }
+  for (const s of edl.sources) if (s.role === "master-audio") referenced.add(s.id)
+  const prep = Math.max(1, referenced.size) * APPLY_EDL_PER_SOURCE_PREP_MS
+  const concat = chunks.length > 1 ? DEFAULT_FFMPEG_TIMEOUT_MS : 0
+  return render + prep + concat
 }
 
 /** Split the timeline into contiguous slices closed ONLY at hard-cut boundaries
  *  (index i is a cut when segment i has no time-consuming transition). A run of
  *  xfaded segments stays whole even if it overshoots `maxPerChunk`. */
-function planChunks(segs: readonly EdlSegment[], maxPerChunk: number): EdlSegment[][] {
+export function planChunks(segs: readonly EdlSegment[], maxPerChunk: number): EdlSegment[][] {
   const chunks: EdlSegment[][] = []
   let current: EdlSegment[] = []
   for (let i = 0; i < segs.length; i++) {

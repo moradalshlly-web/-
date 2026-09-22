@@ -910,7 +910,7 @@ describe("video worker processor", () => {
 
     // The wrap used to cover ONLY the plugin map; a core ffmpeg long-runner
     // (an hour-long multicam apply-edl cut) aged into the 30-minute sweep with
-    // its worker still rendering. Every handler in the final map beats now.
+    // its worker still rendering. Every handler the worker dispatches beats now.
     it("a CORE handler is wrapped too: a long ffmpeg run beats the sentinel for as long as it runs", async () => {
       vi.useFakeTimers()
       mocks.mockHandler.mockImplementationOnce(runsFor(35 * 60_000))
@@ -959,6 +959,43 @@ describe("video worker processor", () => {
 
       await vi.advanceTimersByTimeAsync(60 * 60_000)
       await run
+    })
+
+    // A handler whose legitimate run outlives the default cap (apply-edl on a
+    // direct lane, hours of ffmpeg) declares its own budget — the one it gives
+    // its own work — and the dispatch site honours it: the beats continue past
+    // the default cap and stop at the declared budget instead.
+    it("a handler that declares its own liveness budget beats past the default cap, up to that budget", async () => {
+      vi.useFakeTimers()
+      const budgetMs = PRE_TASK_HEARTBEAT_MAX_MS + 3 * 60 * 60_000
+      const declared = Object.assign(
+        vi.fn(async (_job: unknown, _ctx: unknown) => { await runsFor(budgetMs + 60 * 60_000)() }),
+        { livenessBudgetMs: vi.fn(() => budgetMs) },
+      )
+      mocks.mockHandler.mockImplementationOnce((job: unknown, ctx: unknown) => declared(job, ctx))
+      ;(mocks.mockHandler as unknown as { livenessBudgetMs?: unknown }).livenessBudgetMs = declared.livenessBudgetMs
+      try {
+        const job = makeBullJob("combine-videos")
+        const run = processor(job, "lock-token")
+
+        await vi.advanceTimersByTimeAsync(PRE_TASK_HEARTBEAT_MAX_MS + 60 * 60_000)
+        // The dispatch site asked the handler for its budget, with the job.
+        expect(declared.livenessBudgetMs).toHaveBeenCalledWith(job)
+        const pastDefault = mocks.mockRefreshPreTaskSentinel.mock.calls.length
+        expect(pastDefault).toBeGreaterThan(Math.floor(PRE_TASK_HEARTBEAT_MAX_MS / PRE_TASK_HEARTBEAT_MS))
+
+        await vi.advanceTimersByTimeAsync(2 * 60 * 60_000) // → the declared budget
+        const atBudget = mocks.mockRefreshPreTaskSentinel.mock.calls.length
+        expect(atBudget).toBeGreaterThanOrEqual(Math.floor(budgetMs / PRE_TASK_HEARTBEAT_MS) - 1)
+
+        await vi.advanceTimersByTimeAsync(STALE_THRESHOLD_MS["pre-task"] + PRE_TASK_HEARTBEAT_MS)
+        expect(mocks.mockRefreshPreTaskSentinel.mock.calls.length).toBe(atBudget)
+
+        await vi.advanceTimersByTimeAsync(60 * 60_000)
+        await run
+      } finally {
+        delete (mocks.mockHandler as unknown as { livenessBudgetMs?: unknown }).livenessBudgetMs
+      }
     })
 
     it("a drain hand-off stops the beats and still goes back to the queue at no attempt cost", async () => {

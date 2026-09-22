@@ -8,7 +8,7 @@ import { renderQueue } from "../../lib/render-queue.js"
 import { supabase } from "../../lib/supabase.js"
 import { cleanupWorkDir, createWorkDir, downloadFile, runFfmpeg, BROWSER_SAFE_VIDEO_ARGS, probeVideoSource } from "../../providers/video/ffmpeg-utils.js"
 import { combineVideos } from "../../providers/video/combine-videos.js"
-import { applyEdl } from "../../providers/video/apply-edl.js"
+import { applyEdl, applyEdlRenderBudgetMs } from "../../providers/video/apply-edl.js"
 import { assembleNarratedVideo } from "../../providers/video/assemble-narrated-video.js"
 import { createImageCollage } from "../../providers/image/collage.js"
 import { createImageOverlay, type ImageOverlayParams } from "../../providers/image/overlay.js"
@@ -209,6 +209,16 @@ const handleApplyEdl: HandlerFn = async function handleApplyEdl(job, ctx) {
 
   await commitJobCredits(ctx.usageLogId, ctx.jobId)
   console.log(`[worker] Job ${ctx.jobId} completed: ${mediaUrl}${remapped ? " (+ remapped transcript)" : ""}`)
+}
+// A final-quality render of a long episode is hours of ffmpeg — far past the
+// pre-task heartbeat's default cap (the orchestrator's 90-min node ceiling),
+// and on a direct lane (`POST /v1/apply-edl`, the MCP verb) nothing else bounds
+// it. The handler's liveness budget is the budget it gives its own work: the
+// per-chunk ffmpeg kill budget `applyEdl` hands `runFfmpeg`, plus the bounded
+// prep — so the sweep can never fail a render its own timeouts still allow.
+handleApplyEdl.livenessBudgetMs = (job) => {
+  const { edl } = job.data as { edl?: Edl }
+  return edl && Array.isArray(edl.segments) && Array.isArray(edl.sources) ? applyEdlRenderBudgetMs(edl) : undefined
 }
 
 const handleAssembleNarratedVideo: HandlerFn = async function handleAssembleNarratedVideo(job, ctx) {

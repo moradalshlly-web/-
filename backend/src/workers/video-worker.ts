@@ -215,9 +215,13 @@ export function createVideoWorker() {
         // its first `onTaskCreated`. If the handler crashes between this
         // UPDATE and createKieTask (R2 download OOM, unhandled rejection in
         // preprocessing, segfault, etc.), the sync-sweep marks failed +
-        // refunds reserved credits at the 30-min threshold. The real handler
-        // overwrites both fields via `makeOnTaskCreated` once it has a
-        // taskId, so the pre-task sentinel survives only on crash.
+        // refunds reserved credits at the 30-min threshold. An ASYNC-provider
+        // handler overwrites both fields via `makeOnTaskCreated` /
+        // `markProviderCallStart` once it has a task id, so for it the
+        // sentinel survives only on crash. A SYNC handler (every ffmpeg job,
+        // apply-edl, TTS, the plugin renders) keeps the sentinel for its WHOLE
+        // run — the dispatch-site heartbeat below keeps it fresh, and the
+        // 30-min sweep is then the dead-worker backstop, never a live one's.
         const nowIso = new Date().toISOString()
         // A1 (audit 2026-06-10): CAS on live statuses + abort on 0 rows.
         // Queue removal on cancel is best-effort (BullMQ ids are auto-
@@ -317,12 +321,15 @@ export function createVideoWorker() {
         // with the same exposure). Wrapping HERE, at the one place a handler is
         // dispatched — not the plugin map, not the final map, not a list of
         // types — covers every job type present and future by construction: a
-        // handler merged later, or looked up from anywhere, still runs wrapped.
+        // handler merged later still runs wrapped, because THIS is the only
+        // lookup (pinned by __tests__/video-worker-heartbeat-wiring.test.ts).
         // A short handler never beats (the first tick is a minute out); one that
-        // replaced or cleared the sentinel is a CAS no-op; beats stop at the cap
-        // so a hung handler still ages into the sweep. Pinned by
-        // __tests__/video-worker-heartbeat-wiring.test.ts.
-        const handler = withPreTaskHeartbeat(found)
+        // replaced or cleared the sentinel is a CAS no-op; beats stop at a cap
+        // so a hung handler still ages into the sweep. The cap is the
+        // orchestrator's per-node ceiling unless the handler declares its own
+        // budget from the budget it gives its own work (`livenessBudgetMs` —
+        // apply-edl's ffmpeg kill budget), so "hung" means one thing to both.
+        const handler = withPreTaskHeartbeat(found, { maxMs: found.livenessBudgetMs?.(job) })
 
         // Bind a cancellation context so provider poll loops abort the moment
         // the user cancels — instead of polling the upstream job to completion.

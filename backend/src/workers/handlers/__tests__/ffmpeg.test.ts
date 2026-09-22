@@ -112,6 +112,9 @@ vi.mock("@/providers/video/ffmpeg-utils.js", () => ({
   cleanupWorkDir: mocks.mockCleanupWorkDir,
   probeVideoSource: mocks.mockProbeVideoSource,
   BROWSER_SAFE_VIDEO_ARGS: mocks.BROWSER_SAFE_VIDEO_ARGS,
+  // Real values: apply-edl composes its liveness budget from these at import.
+  DEFAULT_FFMPEG_TIMEOUT_MS: 10 * 60 * 1000,
+  DOWNLOAD_TIMEOUT_MS: 120_000,
 }))
 
 vi.mock("@/providers/audio/transcribe.js", () => ({
@@ -193,6 +196,7 @@ vi.mock("../../shared.js", () => ({
 // ---------------------------------------------------------------------------
 
 import { ffmpegHandlers } from "../ffmpeg.js"
+import { applyEdlRenderBudgetMs } from "@/providers/video/apply-edl.js"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -742,6 +746,34 @@ describe("add-captions handler — maxWordsPerLine reaches the render plan", () 
 // ---------------------------------------------------------------------------
 // combine-videos
 // ---------------------------------------------------------------------------
+
+// The pre-task heartbeat's default cap is the orchestrator's 90-min node
+// ceiling; a final-quality apply-edl render of a long episode outlives it, and
+// on a direct lane nothing else bounds the run. The handler declares its own
+// liveness budget — the SAME per-chunk ffmpeg kill budget the render gives
+// itself — so the sweep can never fail a render its own timeouts still allow.
+describe("apply-edl handler liveness budget", () => {
+  const edl = {
+    version: 1, clock: "master",
+    sources: [{ id: "A", url: "https://f.test/a.mp4", kind: "video" }],
+    segments: Array.from({ length: 180 }, (_, i) => ({ id: `s${i}`, inMs: i * 60_000, outMs: (i + 1) * 60_000, video: "A" })),
+  }
+
+  it("declares applyEdlRenderBudgetMs(edl) for the job's own EDL — well past the 90-minute default cap", () => {
+    const budget = ffmpegHandlers["apply-edl"]!.livenessBudgetMs!(makeJob("apply-edl", { edl }) as never)
+    expect(budget).toBe(applyEdlRenderBudgetMs(edl as never))
+    expect(budget!).toBeGreaterThan(90 * 60_000)
+  })
+
+  it("declares nothing (keeps the default cap) when the payload carries no EDL", () => {
+    expect(ffmpegHandlers["apply-edl"]!.livenessBudgetMs!(makeJob("apply-edl", {}) as never)).toBeUndefined()
+  })
+
+  it("is the only ffmpeg handler that declares one — every other spawn runs at the default ffmpeg ceiling", () => {
+    const declaring = Object.entries(ffmpegHandlers).filter(([, h]) => typeof h.livenessBudgetMs === "function").map(([k]) => k)
+    expect(declaring).toEqual(["apply-edl"])
+  })
+})
 
 describe("combine-videos handler", () => {
   const handler = ffmpegHandlers["combine-videos"]

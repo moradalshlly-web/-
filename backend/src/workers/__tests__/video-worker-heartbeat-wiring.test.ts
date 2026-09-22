@@ -22,24 +22,34 @@ const src = readFileSync(resolve(__dirname, "../video-worker.ts"), "utf8")
 const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
 
 describe("video-worker pre-task heartbeat wiring", () => {
+  const WRAP = "const handler = withPreTaskHeartbeat(found, { maxMs: found.livenessBudgetMs?.(job) })"
+
   it("wraps the looked-up handler at the dispatch site, before it is invoked", () => {
     // The lookup binds `found`; the invoked `handler` is the wrapped one.
     expect(code).toMatch(/const found = allHandlers\[job\.name\]/)
-    expect(code).toMatch(/const handler = withPreTaskHeartbeat\(found\)/)
     const lookupAt = code.indexOf("const found = allHandlers[job.name]")
-    const wrapAt = code.indexOf("const handler = withPreTaskHeartbeat(found)")
+    const wrapAt = code.indexOf(WRAP)
+    expect(wrapAt, "the dispatch site must wrap the looked-up handler").toBeGreaterThan(-1)
     expect(wrapAt).toBeGreaterThan(lookupAt)
   })
 
   it("never invokes the bare lookup — every call goes through the wrapped handler", () => {
-    // `found(` would be a direct invocation of the unwrapped handler.
-    expect(code).not.toMatch(/\bfound\s*\(/)
+    // `found` appears exactly where the dispatch site needs it: the lookup, the
+    // unknown-type guard, the budget read and the wrap argument. Any other use
+    // — `found(`, `found?.(`, `found.call(` — is a bare invocation.
+    expect(code.match(/\bfound\b/g)?.length).toBe(4)
+    expect(code).not.toMatch(/\bfound\s*(\?\.)?\s*\(/)
+    expect(code).not.toMatch(/\bfound\.(call|apply|bind)\b/)
     // Exactly one lookup of the map by job name: a second dispatch path would
     // need its own wrap and its own guard.
     expect(code.match(/allHandlers\[job\.name\]/g)?.length).toBe(1)
   })
 
-  it("does not ALSO wrap a map (double-wrapping a handler would beat twice per interval)", () => {
-    expect(code).not.toMatch(/withPreTaskHeartbeats\(/)
+  it("wraps exactly once in the whole worker — no map wrap beside the dispatch site, no nested wrap (each would beat twice per interval)", () => {
+    expect(code.match(/withPreTaskHeartbeat\(/g)?.length).toBe(1)
+  })
+
+  it("honours a handler's own liveness budget at the dispatch site (apply-edl declares its ffmpeg kill budget)", () => {
+    expect(code).toContain(WRAP)
   })
 })

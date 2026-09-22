@@ -31,7 +31,19 @@ export interface JobContext {
   shouldWatermark: boolean
 }
 
-export type HandlerFn = (job: Job, ctx: JobContext) => Promise<void>
+/**
+ * A video-worker job handler. The processor wraps every handler it dispatches
+ * in the `pre-task` heartbeat (`workers/pre-task-heartbeat.ts`), which stops
+ * beating at a default cap so a hung handler still ages into the reconcile
+ * sweep. A handler whose LEGITIMATE run can outlive that cap declares its own
+ * bound through `livenessBudgetMs` — derived from the budget it gives its own
+ * work (apply-edl: the ffmpeg kill budget it computes from the EDL), never a
+ * guess — so "hung" means the same thing to the heartbeat and to the work.
+ * Return `undefined` to keep the default.
+ */
+export type HandlerFn = ((job: Job, ctx: JobContext) => Promise<void>) & {
+  livenessBudgetMs?: (job: Job) => number | undefined
+}
 
 /**
  * True when a thrown error is terminal for THIS BullMQ job — i.e. no further

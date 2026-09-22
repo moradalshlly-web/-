@@ -35,14 +35,22 @@
  *
  * WHY IT STOPS. A handler whose promise never settles would otherwise be kept
  * alive forever, and the 30-minute sweep is also the backstop for a HUNG
- * handler. The beats stop after `PRE_TASK_HEARTBEAT_MAX_MS`, so a hung job is
- * still failed and refunded, one threshold later. The cap is sized to the
- * longest LEGITIMATE run this worker performs, not to the orchestrator's
- * per-node ceiling: a job reached through a direct lane (`POST /v1/apply-edl`,
- * the MCP verb) has no orchestrator watching it, and a final-quality render
- * of a maximum-length episode is hours of ffmpeg on a shared box. A run that
- * outlives the cap is still failed and refunded one threshold later — that is
- * the residual, stated here so "covered" is not read as unbounded.
+ * handler. The beats stop after a cap, so a hung job is still failed and
+ * refunded one threshold later. The default cap is the orchestrator's own
+ * per-node ceiling (`PRE_TASK_HEARTBEAT_MAX_MS`), which every handler but one
+ * runs well inside. The one — apply-edl, reached through a direct lane
+ * (`POST /v1/apply-edl`, the MCP verb) with no orchestrator watching, whose
+ * final-quality render of a long episode is hours of ffmpeg — declares its own
+ * budget (`HandlerFn.livenessBudgetMs`, honoured by the dispatch site through
+ * `maxMs`), and that budget IS the kill budget it gives its own ffmpeg
+ * spawns: one number decides "hung" for the heartbeat and for the work, so a
+ * render can only ever be failed by its own timeout, never by this sweep. The
+ * residual neither detector bounds is time spent WAITING for an ffmpeg slot
+ * (`FFMPEG_CONCURRENCY` slots shared by `VIDEO_WORKER_CONCURRENCY` jobs): the
+ * kill budget starts when the spawn starts, the beats when the handler does.
+ *
+ * Import note: `NODE_TIMEOUT_MS` is a pure constant from the workflow engine's
+ * types module — no engine code is pulled into the worker by it.
  *
  * DRAIN HAND-OFF (app PR #1436). A drain hand-off leaves the handler with
  * `DrainAbortError`; the `finally` below stops the beats, the row keeps a stamp
@@ -51,32 +59,42 @@
  * tests pin interval + requeue delay far below the threshold.
  */
 import { refreshPreTaskSentinel } from "../lib/reconcile/persistence.js"
+import { NODE_TIMEOUT_MS } from "../services/workflow-engine/types.js"
 
 /** Beat cadence. Same as the core long-runners (`SCENE3D_HEARTBEAT_MS`) and the
  *  video-analysis plugin: one missed write still leaves 28 minutes of margin. */
 export const PRE_TASK_HEARTBEAT_MS = 60_000
 
-/** How long the host keeps a still-running job looking live. Past this a run
- *  is treated as hung and left to age into the ordinary sweep. Sized above the
- *  longest legitimate run on this worker: the longest deliverable is a
- *  maximum-length episode (`EDIT_PLAN_MAX_MINUTES`) cut by apply-edl, whose
- *  final-quality render runs at roughly 1–2× real time on a shared 2-vCPU
- *  box — the cap clears that envelope with margin, and the orchestrator's own
- *  per-node ceiling (`NODE_TIMEOUT_MS`) sits well inside it. A hung handler is
- *  a bug, and a bug is caught a shift later rather than a live render being
- *  failed while it still works; the guard test pins both bounds. */
-export const PRE_TASK_HEARTBEAT_MAX_MS = 8 * 60 * 60_000
+/** The DEFAULT cap on how long the host keeps a still-running job looking
+ *  live: the orchestrator's own per-node ceiling, past which a workflow has
+ *  given up on the node. Every handler that does not declare its own budget
+ *  is bounded well inside it (the relay polls for 85 min, the plugin renders
+ *  for ~35, scene3d / llm-structured beat for themselves, every other ffmpeg
+ *  spawn has a 10-min ceiling). A handler that legitimately runs longer —
+ *  apply-edl on a direct lane, where no orchestrator is watching — declares
+ *  its own bound (`HandlerFn.livenessBudgetMs`); this constant never has to
+ *  stretch to cover it. */
+export const PRE_TASK_HEARTBEAT_MAX_MS = NODE_TIMEOUT_MS
 
 type QueueHandler<J, C extends { jobId: string }> = (job: J, ctx: C) => Promise<void>
+
+export interface PreTaskHeartbeatOptions {
+  /** How long to keep beating before the run is treated as hung. Defaults to
+   *  `PRE_TASK_HEARTBEAT_MAX_MS`; a handler that knows its own work's budget
+   *  passes that same number so the two hung-detectors cannot disagree. */
+  readonly maxMs?: number
+}
 
 /** One handler, beating while it runs. */
 export function withPreTaskHeartbeat<J, C extends { jobId: string }>(
   handler: QueueHandler<J, C>,
+  options: PreTaskHeartbeatOptions = {},
 ): QueueHandler<J, C> {
+  const maxMs = options.maxMs ?? PRE_TASK_HEARTBEAT_MAX_MS
   return async (job, ctx) => {
     const startedAt = Date.now()
     const timer = setInterval(() => {
-      if (Date.now() - startedAt >= PRE_TASK_HEARTBEAT_MAX_MS) {
+      if (Date.now() - startedAt >= maxMs) {
         clearInterval(timer)
         return
       }

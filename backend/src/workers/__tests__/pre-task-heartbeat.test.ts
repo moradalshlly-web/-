@@ -22,7 +22,6 @@ import {
 import { STALE_THRESHOLD_MS, isSyncKind } from "../../lib/reconcile/types.js"
 import { NODE_TIMEOUT_MS } from "../../services/workflow-engine/types.js"
 import { DrainAbortError } from "../../lib/worker-drain.js"
-import { EDIT_PLAN_MAX_MINUTES } from "@nodaro/shared"
 
 const MIN = 60_000
 const THRESHOLD = STALE_THRESHOLD_MS["pre-task"]
@@ -48,6 +47,24 @@ describe("withPreTaskHeartbeat", () => {
     const beats = refresh.mock.calls.length
     await vi.advanceTimersByTimeAsync(30 * MIN)
     expect(refresh.mock.calls.length).toBe(beats)
+  })
+
+  it("honours a handler's own budget: beats continue past the default cap and stop at `maxMs`", async () => {
+    const budget = PRE_TASK_HEARTBEAT_MAX_MS + 4 * 60 * MIN
+    const run = withPreTaskHeartbeat(async () => { await sleep(budget + 60 * MIN) }, { maxMs: budget })({}, { jobId: "job-1" })
+
+    await vi.advanceTimersByTimeAsync(PRE_TASK_HEARTBEAT_MAX_MS + 60 * MIN)
+    expect(refresh.mock.calls.length).toBeGreaterThan(PRE_TASK_HEARTBEAT_MAX_MS / PRE_TASK_HEARTBEAT_MS)
+
+    await vi.advanceTimersByTimeAsync(3 * 60 * MIN) // → the declared budget
+    const atBudget = refresh.mock.calls.length
+    expect(atBudget).toBeGreaterThanOrEqual(budget / PRE_TASK_HEARTBEAT_MS - 1)
+
+    await vi.advanceTimersByTimeAsync(THRESHOLD + PRE_TASK_HEARTBEAT_MS)
+    expect(refresh.mock.calls.length).toBe(atBudget)
+
+    await vi.advanceTimersByTimeAsync(60 * MIN)
+    await run
   })
 
   it("no gap between beats across a 35-minute run comes anywhere near the sweep threshold", async () => {
@@ -123,16 +140,12 @@ describe("liveness budget", () => {
     expect(2 * PRE_TASK_HEARTBEAT_MS).toBeLessThan(THRESHOLD)
   })
 
-  // The cap is what bounds a job on a DIRECT lane (no orchestrator ceiling), so
-  // it must clear the longest legitimate run on this worker — a final-quality
-  // apply-edl render of a maximum-length episode at ~2× real time — and it must
-  // outlast the orchestrator's own per-node ceiling, or a DAG node would lose
-  // its beats before the orchestrator gave up on it. A run past the cap is the
-  // stated residual: failed + refunded one threshold later.
-  it("the cap outlasts the threshold (or it would re-open the gap), the orchestrator's per-node ceiling, and the longest legitimate render", () => {
+  // The DEFAULT cap is the orchestrator's own per-node ceiling: every handler
+  // that declares no budget runs well inside it, and a DAG node must not lose
+  // its beats before the orchestrator gives up on it. A handler that runs
+  // longer declares its own budget (`maxMs`) — the cap never stretches for it.
+  it("the default cap outlasts the threshold (or it would re-open the gap) and is the orchestrator's own per-node ceiling", () => {
     expect(PRE_TASK_HEARTBEAT_MAX_MS).toBeGreaterThan(THRESHOLD)
-    expect(PRE_TASK_HEARTBEAT_MAX_MS).toBeGreaterThanOrEqual(NODE_TIMEOUT_MS)
-    const longestRenderAtTwiceRealTime = 2 * EDIT_PLAN_MAX_MINUTES * MIN
-    expect(PRE_TASK_HEARTBEAT_MAX_MS).toBeGreaterThanOrEqual(longestRenderAtTwiceRealTime)
+    expect(PRE_TASK_HEARTBEAT_MAX_MS).toBe(NODE_TIMEOUT_MS)
   })
 })
