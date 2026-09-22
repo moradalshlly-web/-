@@ -5687,7 +5687,9 @@ export function buildPayload(
       const effectiveEdl = buildEffectiveEdl(rawEdl, { crossfadeMs, sourceOverrides: resolvedInputs.sources })
       const validation = validateEffectiveEdl(effectiveEdl, output)
       if (!validation.ok) {
-        throw new Error(`apply-edl: invalid EDL — ${validation.issues.slice(0, 3).join("; ")}`)
+        const shown = validation.issues.slice(0, 3)
+        const more = validation.issues.length - shown.length
+        throw new Error(`apply-edl: invalid EDL — ${shown.join("; ")}${more > 0 ? ` (+${more} more)` : ""}`)
       }
       const transcript = resolvedInputs.transcript ?? (typeof data.transcript === "string" ? data.transcript : undefined)
       return ffmpegResult("apply-edl", {

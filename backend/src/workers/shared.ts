@@ -54,7 +54,9 @@ export type HandlerFn = (job: Job, ctx: JobContext) => Promise<void>
  * itself would skip a retry early.
  *
  * PR9 exception: `video-worker.ts` now throws `UnrecoverableError` on a FINAL
- * content-policy block (`lib/safety-block.ts`'s bounded retry policy, which
+ * content-policy block, and on a `DeterministicJobError` (a refusal that is a
+ * pure function of the job's inputs — `lib/deterministic-job-error.ts`), after
+ * failing + refunding the row (`lib/safety-block.ts`'s bounded retry policy, which
  * can cap a flagged model at fewer attempts than the queue's global
  * `opts.attempts`). That throw only ever happens after the block's own policy
  * — or this function as its fallback — has already decided the attempt is
