@@ -1,33 +1,219 @@
-import { IMAGE_GEN_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_GEN_PROVIDERS, LIP_SYNC_PROVIDERS, VOICE_CHANGER_MODEL_IDS, GVP_SUPPORTED_PROVIDERS, SEEDANCE_2_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, MUSIC_PROVIDERS, TRANSCRIBE_PROVIDERS, hasContiguousSegmentDurations, isMinimaxH3Provider, MODEL_CATALOG, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, OVERLAY_PLATFORM_IDS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
+import { IMAGE_GEN_PROVIDERS, IMAGE_TO_VIDEO_PROVIDERS, TEXT_TO_VIDEO_PROVIDERS, VIDEO_GEN_PROVIDERS, LIP_SYNC_PROVIDERS, VOICE_CHANGER_MODEL_IDS, GVP_SUPPORTED_PROVIDERS, SEEDANCE_2_PROVIDERS, VIDEO_ANALYSIS_TIER_ORDER, MUSIC_PROVIDERS, TRANSCRIBE_PROVIDERS, MODIFY_IMAGE_PROVIDERS, UPSCALE_IMAGE_PROVIDERS, REFERENCE_BOARD_PROVIDERS, TTS_PROVIDERS, MOTION_TRANSFER_PROVIDERS, buildMotionCreditModelIdentifier, hasContiguousSegmentDurations, isMinimaxH3Provider, MODEL_CATALOG, PROMPT_PREFIX_KEY, PROMPT_SUFFIX_KEY, OVERLAY_PLATFORM_IDS, EDIT_PLAN_MODES, EDIT_PLAN_TIERS } from "@nodaro/shared"
 import type { OutputType } from "@nodaro/shared"
 import { nodeSupportsPromptAffixes } from "@nodaro/prompts"
 import { STATIC_CREDIT_COSTS } from "../ee/billing/credits.js"
 import { hasCredits } from "./config.js"
 
-/** Authoring prices exclude the separately priced optional video-analysis job. */
-const scene3DAuthoringCosts = ["3d-scene:economy", "3d-scene", "3d-scene:premium"]
-  .map((id) => STATIC_CREDIT_COSTS[id])
-const scene3DMinCost = Math.min(...scene3DAuthoringCosts)
-const scene3DMaxCost = Math.max(...scene3DAuthoringCosts)
+// ===========================================================================
+// Credit bands — DERIVED from the price table, never hand-typed
+// ===========================================================================
+//
+// `creditCost` on a descriptor is the discovery contract: it is what
+// `GET /v1/nodes` serves and what `backend/skills/nodes/*.md` prints as
+// "**Credit cost:**" for every MCP agent. It is NOT what bills — the route's
+// `creditGuard` and the orchestrator's payload-builder resolve a specific
+// identifier and price it against `model_pricing` (falling back to
+// `STATIC_CREDIT_COSTS`).
+//
+// Hand-written bands therefore fail SILENTLY: nothing breaks, the number is
+// just a lie. Most of them were, before this file started deriving them — the
+// 2026-07-30 ×10 credit re-denomination swept `STATIC_CREDIT_COSTS`,
+// `model_pricing` and `MODEL_CATALOG`, and left every literal here at a tenth
+// of the real price for over a month.
+//
+// So a band is now stated ONCE, as the set of identifiers the node can
+// actually reserve on, and the min/max is read off the price table at module
+// load. Add a model to a provider enum, reprice a bucket, add a tier composite
+// — the advertised band follows with no edit here. `CREDIT_BAND_SOURCES` is
+// exported so `__tests__/node-registry-credit-bands.test.ts` can prove every
+// declared band is the derivation and every named id is really priced.
 
-/** Render Video spans a frame-size ladder for 3D scene plans — advertise the
- *  whole range rather than one end of it. Read from the price table so a
- *  reprice cannot leave the discovery API quoting a number nobody charges. */
-const renderVideoBaseCost = STATIC_CREDIT_COSTS["render-video"]
-const renderVideoMaxCost = STATIC_CREDIT_COSTS["render-video:3d-xlarge"]
+/** Snapshot of the price table's keys, for the prefix scans below. */
+const STATIC_CREDIT_IDS = Object.keys(STATIC_CREDIT_COSTS)
 
-/** Add Captions prices by RENDERER, not by node: the cheap FFmpeg drawtext burn
- *  vs the Remotion render anything styled / timed / transcribed / segmented
- *  needs. Both ends read from the price table, same reason as Render Video. */
-const addCaptionsFfmpegCost = STATIC_CREDIT_COSTS["add-captions"]
-const addCaptionsRenderCost = STATIC_CREDIT_COSTS["add-captions:kinetic"]
+/**
+ * The bare id `base` (when it is priced) plus every composite under it
+ * (`base:*`) — i.e. "this provider/feature's whole priced family".
+ *
+ * The colon is required, so `familyIds("grok")` does not swallow `grok-2` and
+ * `familyIds("voice-changer")` does not swallow `voice-changer-pro`.
+ */
+function familyIds(...bases: string[]): string[] {
+  const out: string[] = []
+  for (const base of bases) {
+    if (typeof STATIC_CREDIT_COSTS[base] === "number") out.push(base)
+    const prefix = `${base}:`
+    for (const id of STATIC_CREDIT_IDS) if (id.startsWith(prefix)) out.push(id)
+  }
+  return [...new Set(out)]
+}
 
-/** Transcribe reserves on the ENGINE id (the guard and the reservation both
- *  resolve `provider ?? default`), so the advertised band is the one the three
- *  engines span — not the node-type fallback key. */
-const transcribeEngineCosts = TRANSCRIBE_PROVIDERS.map((p) => STATIC_CREDIT_COSTS[p])
-const transcribeMinCost = Math.min(...transcribeEngineCosts)
-const transcribeMaxCost = Math.max(...transcribeEngineCosts)
+/** Every priced id matching a shape — for families whose members are generated
+ *  (one row per engine × resolution × bucket) rather than named. */
+function idsMatching(pattern: RegExp): string[] {
+  return STATIC_CREDIT_IDS.filter((id) => pattern.test(id))
+}
+
+/**
+ * Motion Transfer's ids are built, not named: `buildMotionCreditModelIdentifier`
+ * folds provider + resolution + duration into one of four base families
+ * (`motion-transfer`, `kling-3.0-motion`, `wan-animate-move`,
+ * `wan-animate-replace`), each with its own suffix scheme. Enumerating the
+ * builder over the route's own input space is the only derivation that stays
+ * right when a tier moves: the resolutions and the 60s duration ceiling mirror
+ * `motionTransferBody` in `routes/motion-transfer.ts`.
+ */
+const MOTION_TRANSFER_RESOLUTIONS = ["480p", "580p", "720p", "1080p"] as const
+const MOTION_TRANSFER_MAX_DURATION_SEC = 60
+function motionTransferIds(): string[] {
+  const out = new Set<string>()
+  for (const provider of MOTION_TRANSFER_PROVIDERS) {
+    for (const resolution of MOTION_TRANSFER_RESOLUTIONS) {
+      out.add(buildMotionCreditModelIdentifier(provider, resolution, undefined))
+      for (let sec = 1; sec <= MOTION_TRANSFER_MAX_DURATION_SEC; sec++) {
+        out.add(buildMotionCreditModelIdentifier(provider, resolution, sec))
+      }
+    }
+  }
+  return [...out]
+}
+
+/** Retake bills `ltx-2.3-pro-retake:per-second × retakeDuration`. 2s is the
+ *  model's hard minimum (`routes/video-retake.ts` Zod); 10s is the longest
+ *  window the public doc works through, NOT a cap — a longer window scales
+ *  linearly past the advertised ceiling. */
+const RETAKE_PER_SECOND_ID = "ltx-2.3-pro-retake:per-second"
+const RETAKE_BAND_SECONDS = [2, 10] as const
+
+/** How a node's advertised band is derived from the price table. */
+export interface CreditBandSource {
+  /** The `STATIC_CREDIT_COSTS` ids this node can reserve on. */
+  ids: readonly string[]
+  /**
+   * Units to multiply the cheapest/priciest row by, when the row is a RATE
+   * rather than a whole charge. Only video-retake needs one (a per-second
+   * row); everything else leaves it at the implicit `[1, 1]`.
+   */
+  span?: readonly [number, number]
+  /** Why this id set, when the answer is not "the node's provider enum". */
+  note?: string
+}
+
+/**
+ * Node type → the identifiers its price comes from.
+ *
+ * A node absent from this table keeps whatever `creditCost` its descriptor
+ * declares; the guard test fails the build if that is a hand-typed BAND (a
+ * `"min-max"` string), and fails it if a hand-typed NUMBER disagrees with the
+ * node-type row the enrichment pass would have supplied. `apply-edl` is the
+ * one deliberate non-numeric string (`"per-minute"`) — it is priced per minute
+ * of rendered output, so there is no band to state.
+ */
+export const CREDIT_BAND_SOURCES: Readonly<Record<string, CreditBandSource>> = {
+  // ── Image ──
+  "generate-image": { ids: familyIds(...IMAGE_GEN_PROVIDERS) },
+  "modify-image": { ids: familyIds(...MODIFY_IMAGE_PROVIDERS) },
+  "upscale-image": { ids: familyIds(...UPSCALE_IMAGE_PROVIDERS) },
+  "generate-mask": { ids: familyIds("generate-mask") },
+  "reference-board": {
+    ids: familyIds(...REFERENCE_BOARD_PROVIDERS),
+    note: "Pass-through: reserves under the chosen IMAGE provider's own row (routes/reference-board.ts), with no pricing row of its own.",
+  },
+  "reference-sheet": {
+    ids: familyIds("reference-sheet"),
+    note: "The flat assembly fee only (still vs motion). Panels the entity is missing are generated and priced by the entity's image provider on top.",
+  },
+  // ── Video ──
+  "image-to-video": { ids: familyIds(...IMAGE_TO_VIDEO_PROVIDERS) },
+  "text-to-video": { ids: familyIds(...TEXT_TO_VIDEO_PROVIDERS) },
+  "generate-video": {
+    ids: familyIds(...VIDEO_GEN_PROVIDERS),
+    note: "Inherits the i2v/t2v span — payload-builder routes to the same worker handlers and the same rows based on mode.",
+  },
+  "video-sfx": { ids: familyIds("replicate-mmaudio") },
+  "video-retake": { ids: [RETAKE_PER_SECOND_ID], span: RETAKE_BAND_SECONDS },
+  "speech-to-video": { ids: familyIds("speech-to-video") },
+  "motion-transfer": { ids: motionTransferIds() },
+  "ai-avatar": {
+    ids: idsMatching(/^heygen-avatar-[^:]+:/),
+    note: "One reserve-hold row per engine × resolution × duration bucket; the shape (not a fixed engine list) so a new HeyGen avatar engine joins the band on its own.",
+  },
+  "cinematic-avatar": { ids: familyIds("cinematic-avatar") },
+  "face-swap": { ids: familyIds("roop-face-swap") },
+  // ── Audio ──
+  "text-to-speech": {
+    ids: familyIds(...TTS_PROVIDERS),
+    note: "Reserves on the ElevenLabs model row, not a node-type row (the legacy `elevenlabs` alias prices as turbo).",
+  },
+  "audio-separation": { ids: familyIds("audio-separation") },
+  "audio-fx": { ids: familyIds("audio-fx") },
+  "voice-changer": { ids: familyIds("voice-changer") },
+  "suno-voice": { ids: familyIds("suno-voice-create") },
+  // ── Text / analysis ──
+  "llm-chat": { ids: familyIds("llm-chat") },
+  "generate-script": { ids: familyIds("generate-script") },
+  "image-critic": { ids: familyIds("image-critic") },
+  "transcribe": {
+    ids: familyIds(...TRANSCRIBE_PROVIDERS),
+    note: "Reserves on the ENGINE id (guard and reservation both resolve `provider ?? default`), never the node-type fallback key.",
+  },
+  "video-analysis": { ids: familyIds("video-analysis") },
+  "video-audit": { ids: familyIds("video-audit") },
+  "edit-plan": { ids: familyIds("edit-plan") },
+  // ── Processing / composition ──
+  "add-captions": {
+    ids: familyIds("add-captions"),
+    note: "Prices by RENDERER, not by node: the cheap FFmpeg drawtext burn vs the Remotion render anything styled / timed / transcribed / segmented needs.",
+  },
+  "image-collage": { ids: familyIds("image-collage") },
+  "speed-ramp": { ids: familyIds("speed-ramp") },
+  "assemble-narrated-video": { ids: familyIds("assemble-narrated-video") },
+  "after-effects": { ids: familyIds("after-effects") },
+  "motion-graphics": { ids: familyIds("motion-graphics") },
+  "video-composer": { ids: familyIds("video-composer") },
+  "lottie-overlay": { ids: familyIds("lottie-overlay") },
+  "3d-title": { ids: familyIds("3d-title") },
+  "render-video": {
+    ids: familyIds("render-video"),
+    note: "A frame-size ladder for 3D scene plans — advertise the whole range rather than one end of it.",
+  },
+  "generate-3d-scene": {
+    ids: ["3d-scene:economy", "3d-scene", "3d-scene:premium"],
+    note: "Authoring tiers only — the optional video-reference analysis job is priced separately.",
+  },
+  "edit-3d-scene": {
+    ids: ["3d-scene-ops", "3d-scene:economy", "3d-scene", "3d-scene:premium"],
+    note: "Deterministic edits reserve the free `3d-scene-ops` row; an instruction re-authors at the LLM tiers above.",
+  },
+  // ── Control ──
+  "reduce": { ids: familyIds("reduce") },
+  "generative-pipeline": { ids: familyIds("generative-pipeline") },
+}
+
+/**
+ * The advertised band for a node: `"min-max"`, or a single number when the
+ * whole id set prices identically.
+ *
+ * An id the table does not price is SKIPPED rather than thrown on — the
+ * discovery registry is built at boot and must not be able to take the process
+ * down over a pricing gap. The guard test is what refuses to let such a gap
+ * exist (a provider enum that gained a member with no row is already a runtime
+ * `price_not_configured`, which `hard-fail-coverage.test.ts` owns).
+ */
+function creditBandFor(type: string): number | string {
+  const source = CREDIT_BAND_SOURCES[type]
+  if (!source) throw new Error(`node-registry: no credit-band source declared for "${type}"`)
+  const [minUnits, maxUnits] = source.span ?? [1, 1]
+  const prices = source.ids
+    .map((id) => STATIC_CREDIT_COSTS[id])
+    .filter((cost): cost is number => typeof cost === "number")
+  if (prices.length === 0) {
+    throw new Error(`node-registry: credit-band source for "${type}" names no priced identifier`)
+  }
+  const min = Math.min(...prices) * minUnits
+  const max = Math.max(...prices) * maxUnits
+  return min === max ? min : `${min}-${max}`
+}
 
 export type NodeCategory =
   | "input"
@@ -277,7 +463,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     // unknown duration reserves the 600s ceiling. See @nodaro/shared video-analysis-pricing.ts.
     description: "Scene-segmented analysis of a video: prompt-ready visuals, camera language, mode-tagged audio, castable entity slots.",
     outputType: "data",
-    creditCost: "181-2081",
+    creditCost: creditBandFor("video-analysis"),
     inputSchema: {
       fields: [
         { key: "videoUrl", type: "string" },
@@ -309,7 +495,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     description:
       "Re-watches a clip against a wired analysis (or auto-runs a fast analysis first when none is wired), applies video-verified corrections under guards, and returns a disclosed report of what was checked, fixed, and left open.",
     outputType: "data",
-    creditCost: "215-1924",
+    creditCost: creditBandFor("video-audit"),
     inputSchema: {
       fields: [
         { key: "videoUrl", type: "video-url", required: true },
@@ -334,7 +520,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     description:
       "Turn a transcript into an edit-decision-list plan: tighten a recording, find short clips, or mark chapters. Reads the transcript, never pixels; emits an EDL that Apply Edit renders.",
     outputType: "data",
-    creditCost: "30-1480",
+    creditCost: creditBandFor("edit-plan"),
     inputSchema: {
       fields: [
         { key: "mode", type: "select", required: true, options: [...EDIT_PLAN_MODES] },
@@ -362,7 +548,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-image",
     description: "Generate an image from a text prompt using an AI provider.",
     outputType: "image",
-    creditCost: "1-8",
+    creditCost: creditBandFor("generate-image"),
     providers: [...IMAGE_GEN_PROVIDERS],
     capabilities: ["supports-reference-image", "supports-aspect-ratio"],
     inputSchema: {
@@ -379,9 +565,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-video",
     description: "Animate a still image into a video.",
     outputType: "video",
-    // Measured band over STATIC_CREDIT_COSTS for IMAGE_TO_VIDEO_PROVIDERS:
-    // floor runway-kie (30), ceiling seedance-2-5:30s:1080p (8550).
-    creditCost: "30-8550",
+    creditCost: creditBandFor("image-to-video"),
     providers: [...IMAGE_TO_VIDEO_PROVIDERS],
     capabilities: ["supports-end-frame", "supports-duration"],
     inputSchema: {
@@ -399,9 +583,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-video",
     description: "Generate video from a text prompt.",
     outputType: "video",
-    // Measured band over STATIC_CREDIT_COSTS for TEXT_TO_VIDEO_PROVIDERS:
-    // floor grok (10), ceiling seedance-2-5:30s:1080p (8550).
-    creditCost: "10-8550",
+    creditCost: creditBandFor("text-to-video"),
     providers: [...TEXT_TO_VIDEO_PROVIDERS],
     inputSchema: {
       fields: [
@@ -417,9 +599,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     description:
       "Unified video generation node — dispatches dynamically to image-to-video when a start frame is wired, otherwise text-to-video. One node, both modes, full VIDEO_GEN_PROVIDERS catalog.",
     outputType: "video",
-    // Inherits the i2v/t2v range — payload-builder routes to the same worker
-    // handlers and STATIC_CREDIT_COSTS entries based on mode.
-    creditCost: "10-8550",
+    creditCost: creditBandFor("generate-video"),
     providers: [...VIDEO_GEN_PROVIDERS],
     capabilities: ["supports-end-frame", "supports-duration", "supports-reference-image", "supports-reference-video", "supports-reference-audio"],
     inputSchema: {
@@ -536,13 +716,13 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     label: "Video SFX",
     category: "ai-video",
     description:
-      "Generate synchronized SFX / foley / ambient audio for a video clip using Replicate's mmaudio. Credit cost scales with input clip duration (1cr ≤15s → 11cr ≤300s, pre-markup).",
+      "Generate synchronized SFX / foley / ambient audio for a video clip using Replicate's mmaudio. Credit cost scales with input clip duration — one bucketed row per clip length (`replicate-mmaudio:<bucket>s`), spanning the advertised band pre-markup.",
     outputType: "video",
     // Duration-bucketed pricing — see `STATIC_CREDIT_COSTS["replicate-mmaudio:*"]`
     // in `ee/billing/credits.ts` and `bucketBaseCreditsFor` in `routes/video-sfx.ts`.
     // Range is pre-markup; the admin-configured markup and version count are
     // applied to the user-visible cost.
-    creditCost: "1-14",
+    creditCost: creditBandFor("video-sfx"),
     providers: ["replicate-mmaudio"],
     capabilities: ["sound-effect"],
     inputSchema: {
@@ -560,7 +740,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     description:
       "Composite a reference sheet (turnaround / expression board / variation board / detail) from a connected character, object, or location. Compose-only — uses panels the entity already has; emits the sheet image plus a clean panel set for downstream multi-image consistency.",
     outputType: "image",
-    creditCost: 4,
+    creditCost: creditBandFor("reference-sheet"),
     capabilities: ["reference-sheet"],
     inputSchema: { fields: [{ key: "entityRef", type: "image-url", required: true }] },
   },
@@ -571,8 +751,8 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     description:
       "Generate a dense reference board (hero + metadata + panels + 6-HEX palette) in one AI pass from reference image(s); refine globally, with a mask, or re-roll. Output is one cohesive board image for downstream consistency.",
     outputType: "image",
-    creditCost: 6,
-    providers: ["nano-banana-pro", "gpt-image-2", "gpt-image-2-5-flare", "gpt-image-2-5-sunburst"],
+    creditCost: creditBandFor("reference-board"),
+    providers: [...REFERENCE_BOARD_PROVIDERS],
     inputSchema: { fields: [
       { key: "referenceImageUrls", type: "image-url" },
       { key: "boardTemplate", type: "text", required: true },
@@ -584,7 +764,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-audio",
     description: "Synthesize speech from text using ElevenLabs.",
     outputType: "audio",
-    creditCost: 4,
+    creditCost: creditBandFor("text-to-speech"),
     providers: ["eleven_v3", "eleven_turbo_v2_5", "eleven_multilingual_v2"],
     inputSchema: {
       fields: [
@@ -615,7 +795,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     description:
       "Create a custom Suno voice persona from a short recording. Configured once via a setup modal that runs the 2-step KIE voice/validate + voice/generate flow; emits a voiceId for use as personaId in suno-generate / suno-cover / suno-extend.",
     outputType: "none",
-    creditCost: 20,
+    creditCost: creditBandFor("suno-voice"),
   },
   // ---- Additional ai-audio nodes (outputType: AUDIO_OUTPUT_NODE_TYPES in input-resolver.ts; creditCost auto-filled from STATIC_CREDIT_COSTS) ----
   { type: "text-to-audio", label: "Text to Audio", category: "ai-audio", description: "Generate sound effects and ambient audio from a text description using ElevenLabs SFX.", outputType: "audio" },
@@ -642,7 +822,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-audio",
     description: "Separate ANY audio into vocals + instrumental, or full stems (drums, bass, other, guitar, piano), using Demucs on Replicate. Unlike Suno Separate, works on uploaded or upstream audio with no Suno track required.",
     outputType: "audio",
-    creditCost: "3-8",
+    creditCost: creditBandFor("audio-separation"),
     capabilities: ["audio-to-audio", "multi-stem-output"],
     inputSchema: {
       fields: [
@@ -658,7 +838,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-audio",
     description: "Replace the voice in an audio recording — or in an entire talking video — with a different voice, preserving the original emotion, cadence, and timing. Audio in → audio out; video in → revoiced video out (plus the new audio track). Video wins when both inputs are wired.",
     outputType: "audio",
-    creditCost: 4,
+    creditCost: creditBandFor("voice-changer"),
     capabilities: ["audio-to-audio", "video-revoice", "dual-output-handles"],
     inputSchema: {
       fields: [
@@ -742,7 +922,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-text",
     description: "LLM text generation from a prompt (+ optional image/video/audio refs). Stream-capable. Two outputs: full text and a fan-out item list split on ===NEXT===.",
     outputType: "text",
-    creditCost: "3-15",
+    creditCost: creditBandFor("llm-chat"),
   },
   {
     type: "generate-script",
@@ -751,8 +931,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     // outputType: structured GeneratedScript (docs) — execution-graph TEXT_SOURCE_TYPES.
     description: "AI-powered multi-scene script generation with cinematography details, character actions, and structured scene breakdowns.",
     outputType: "text",
-    // Variable per LLM tier: economy 1, standard 2, premium 3 (generate-script:* in STATIC_CREDIT_COSTS).
-    creditCost: "1-3",
+    creditCost: creditBandFor("generate-script"),
   },
   {
     type: "image-to-text",
@@ -781,7 +960,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     // single primary type, same as video-analysis (json+text) declaring "data".
     description: "Convert spoken audio to text (plain transcript on `text`, a normalized Transcript with word/segment timings on `json`), with optional speaker diarization and audio event tagging. Three engines: `elevenlabs-stt` (Scribe — always word-level, the only lane that diarizes or tags audio events), `incredibly-fast-whisper` (word timings on request) and `whisper` (no word timings at all).",
     outputType: "text",
-    creditCost: `${transcribeMinCost}-${transcribeMaxCost}`,
+    creditCost: creditBandFor("transcribe"),
     providers: [...TRANSCRIBE_PROVIDERS],
   },
   {
@@ -809,7 +988,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-video",
     description: "Replace the face in a video with a face from a reference image.",
     outputType: "video",
-    creditCost: 16,
+    creditCost: creditBandFor("face-swap"),
     providers: ["roop"],
     inputSchema: {
       fields: [
@@ -825,10 +1004,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     description:
       "Replace a portion of an existing video — audio only, video only, or both — using Lightricks LTX 2.3 Pro's `retake` task. Billed per second of replaced material.",
     outputType: "video",
-    // Dynamic: `ltx-2.3-pro-retake:per-second × retakeDuration`. The route
-    // computes the final reservation; this range covers 2s (minimum) to
-    // ~10s of replacement at the seeded per-second rate.
-    creditCost: "100-500",
+    creditCost: creditBandFor("video-retake"),
     providers: ["ltx-2.3-pro"],
     capabilities: ["partial-replace", "audio-only", "video-only", "audio-and-video"],
     inputSchema: {
@@ -905,8 +1081,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-video",
     description: "Generate video driven by speech audio input using Wan 2.2.",
     outputType: "video",
-    // Resolution-tiered: 480p 3, 580p 5, 720p 6 (speech-to-video:* in STATIC_CREDIT_COSTS).
-    creditCost: "3-6",
+    creditCost: creditBandFor("speech-to-video"),
     inputSchema: {
       fields: [
         { key: "imageUrl", type: "image-url" },
@@ -921,9 +1096,11 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-video",
     description: "Generate a talking-avatar video from a HeyGen avatar + voice + script, or wired audio.",
     outputType: "video",
-    // Duration-bucketed (heygen-<engine>:<resolution>:<bucket>s in STATIC_CREDIT_COSTS).
-    // 2 engines × 3 resolutions × 7 buckets (30–900s); range shown is for avatar-iv 720p.
-    creditCost: "135-4050",
+    // Duration-bucketed (heygen-<engine>:<resolution>:<bucket>s in STATIC_CREDIT_COSTS):
+    // the band spans the WHOLE hold table, cheapest engine/resolution at the
+    // shortest bucket to priciest at the 900s ceiling. The real charge is
+    // metered at commit from the delivered clip and any surplus refunded.
+    creditCost: creditBandFor("ai-avatar"),
     providers: ["heygen"],
     capabilities: ["text-to-speech", "audio-input", "captions"],
     inputSchema: {
@@ -951,9 +1128,9 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
       "Generate a cinematic, prompt-driven avatar clip from 1-3 HeyGen avatar looks (generative Seedance pipeline). No script/voice — the prompt IS the direction.",
     outputType: "video",
     // Duration × resolution tiered (cinematic-avatar:<resolution>:<durationSec>s in
-    // STATIC_CREDIT_COSTS). 2 resolutions × 12 durations (4-15s); range is the
-    // 720p:4s reserve ceiling → 1080p:15s reserve ceiling.
-    creditCost: "45-248",
+    // STATIC_CREDIT_COSTS): 2 resolutions × 12 exact durations (4-15s), so the
+    // band runs 720p:4s → 1080p:15s.
+    creditCost: creditBandFor("cinematic-avatar"),
     providers: ["heygen"],
     capabilities: ["prompt-driven", "multi-avatar-look"],
     inputSchema: {
@@ -974,8 +1151,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-video",
     description: "Apply motion from a reference video to a static character image.",
     outputType: "video",
-    // Duration × resolution tiered (motion-transfer:5s 8 → motion-transfer:1080p:30s 68).
-    creditCost: "8-68",
+    creditCost: creditBandFor("motion-transfer"),
   },
   {
     type: "video-upscale",
@@ -1005,7 +1181,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "ai-image",
     description: "Produce a binary segmentation mask for a subject described by a text prompt (Grounded SAM).",
     outputType: "image",
-    creditCost: 5,
+    creditCost: creditBandFor("generate-mask"),
     providers: ["grounded-sam"],
     capabilities: ["segmentation", "inpainting-prep"],
     inputSchema: {
@@ -1030,8 +1206,8 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     },
   },
   // ---- Additional ai-image nodes (creditCost auto-filled from STATIC_CREDIT_COSTS; per-provider variable pricing) ----
-  { type: "modify-image", label: "Modify Image", category: "ai-image", description: "Transform an existing image with a text prompt across 20+ image-to-image / editing providers (Flux, GPT Image, Ideogram, Nano Banana, Qwen, Seedream, + Nano Banana Edit). Migrated successor of edit-image.", outputType: "image", creditCost: "1-18" },
-  { type: "upscale-image", label: "Upscale Image", category: "ai-image", description: "Increase image resolution with Recraft Upscale or Topaz Upscale (1x / 2x / 4x factor). No prompt — pure enhancement utility.", outputType: "image", creditCost: "1-10" },
+  { type: "modify-image", label: "Modify Image", category: "ai-image", description: "Transform an existing image with a text prompt across 20+ image-to-image / editing providers (Flux, GPT Image, Ideogram, Nano Banana, Qwen, Seedream, + Nano Banana Edit). Migrated successor of edit-image.", outputType: "image", creditCost: creditBandFor("modify-image") },
+  { type: "upscale-image", label: "Upscale Image", category: "ai-image", description: "Increase image resolution with Recraft Upscale or Topaz Upscale (1x / 2x / 4x factor). No prompt — pure enhancement utility.", outputType: "image", creditCost: creditBandFor("upscale-image") },
   { type: "remove-background", label: "Remove Background", category: "ai-image", description: "Remove the background from an image and output a transparent PNG (Recraft).", outputType: "image" },
 
   {
@@ -1040,7 +1216,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "processing",
     description: "Score an image on realism / character consistency / prompt adherence / anatomy / aesthetic / style match via VLM. Two output handles (approved/rejected) for self-correction loops.",
     outputType: "data",
-    creditCost: "3-15",
+    creditCost: creditBandFor("image-critic"),
     inputSchema: {
       fields: [
         { key: "imageUrl", type: "image-url", required: true },
@@ -1080,10 +1256,10 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     label: "Assemble Narrated Video",
     category: "processing",
     outputType: "video",
-    creditCost: 4,
+    creditCost: creditBandFor("assemble-narrated-video"),
     description: "Fit N ordered (clip, voice) blocks into one MP4: center short voice, slow-to-fit long voice, never crop audio.",
   },
-  { type: "image-collage", label: "Image Collage", category: "processing", description: "Composite N images into one 2K/4K image with a smart (justified) or grid layout. No image is cropped — smart floats the output height; grid letterboxes. Per-image size hints via imageSizes (0 auto / 1 big / 2 medium / 3 small, index-aligned with imageUrls; relative, smart layout only). Storyboard badges: set numbered to stamp 1-based sequence numbers, and imageLabels for per-image captions, at each image's top-left corner — or top-right via badgePosition (rendered as \"3 · Close-up\"). Local ffmpeg — priced by resolution (2K=2, 4K=4).", outputType: "image", creditCost: "2-4", inputSchema: { fields: [
+  { type: "image-collage", label: "Image Collage", category: "processing", description: "Composite N images into one 2K/4K image with a smart (justified) or grid layout. No image is cropped — smart floats the output height; grid letterboxes. Per-image size hints via imageSizes (0 auto / 1 big / 2 medium / 3 small, index-aligned with imageUrls; relative, smart layout only). Storyboard badges: set numbered to stamp 1-based sequence numbers, and imageLabels for per-image captions, at each image's top-left corner — or top-right via badgePosition (rendered as \"3 · Close-up\"). Local ffmpeg — priced by resolution (see the credit cost band; 4K is the dearer tier).", outputType: "image", creditCost: creditBandFor("image-collage"), inputSchema: { fields: [
     { key: "imageUrls", type: "image-url-array", required: true },
     { key: "imageSizes", type: "number-array" },
     { key: "numbered", type: "boolean" },
@@ -1136,8 +1312,8 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
   { type: "trim-video", label: "Trim Video", category: "processing", description: "Trim a video by start/end seconds.", outputType: "video" },
   { type: "resize-video", label: "Resize Video", category: "processing", description: "Resize a video.", outputType: "video" },
   { type: "extract-frame", label: "Extract Frame", category: "processing", description: "Extract a single frame as an image.", outputType: "image" },
-  { type: "add-captions", label: "Add Captions", category: "processing", description: "Burn captions into a video. A plain static subtitle is a cheap FFmpeg drawtext burn; a kinetic style (word-highlight, karaoke, tiktok-words, word-pop, bouncy) — or a subtitle that is styled, per-segment, or timed from a transcript / auto-transcription — renders via Remotion and bills at the higher end of the range.", outputType: "video", creditCost: `${addCaptionsFfmpegCost}-${addCaptionsRenderCost}` },
-  { type: "speed-ramp", label: "Adjust Speed", category: "processing", description: "Change playback speed (0.05x to 100x), reverse, choose audio treatment (pitch-preserve / pitch-shift / drop), opt into motion-compensated frame interpolation (smooth slow-mo), or define a piecewise speed ramp via segments. FFmpeg only.", outputType: "video", creditCost: "2-5" },
+  { type: "add-captions", label: "Add Captions", category: "processing", description: "Burn captions into a video. A plain static subtitle is a cheap FFmpeg drawtext burn; a kinetic style (word-highlight, karaoke, tiktok-words, word-pop, bouncy) — or a subtitle that is styled, per-segment, or timed from a transcript / auto-transcription — renders via Remotion and bills at the higher end of the range.", outputType: "video", creditCost: creditBandFor("add-captions") },
+  { type: "speed-ramp", label: "Adjust Speed", category: "processing", description: "Change playback speed (0.05x to 100x), reverse, choose audio treatment (pitch-preserve / pitch-shift / drop), opt into motion-compensated frame interpolation (smooth slow-mo), or define a piecewise speed ramp via segments. FFmpeg only.", outputType: "video", creditCost: creditBandFor("speed-ramp") },
   { type: "split-media", label: "Split into Chunks", category: "processing", description: "Split a video or audio file into equal-duration chunks for batch processing — emits a video clip and an audio file per chunk. (creditCost auto-filled from STATIC_CREDIT_COSTS = 2)", outputType: "video" },
   // ---- Additional processing nodes (video → VIDEO_OUTPUT_NODE_TYPES, audio → AUDIO_OUTPUT_NODE_TYPES in input-resolver.ts; creditCost auto-filled from STATIC_CREDIT_COSTS) ----
   { type: "gif-to-video", label: "Gif to Video", category: "processing", description: "Convert an animated GIF into a widely-compatible H.264 MP4 so it can be used as a motion reference for video models that reject GIF input. Optional loop-to-minimum, seam-aware looping (ping-pong for non-seamless GIFs), and 24fps interpolation. Local FFmpeg — no provider, zero credits.", outputType: "video", creditCost: 0 },
@@ -1160,7 +1336,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "processing",
     description: "Apply creative audio effects (FFmpeg) — scenario reverbs (Room, Bathroom, Car, Hall, Concert Hall, Church, Cave, Arena, Outdoor), Telephone, Megaphone, Echo, or Custom (delay + EQ). Places a dry voice into a believable space before mixing onto video.",
     outputType: "audio",
-    creditCost: 2,
+    creditCost: creditBandFor("audio-fx"),
     capabilities: ["audio-to-audio"],
     inputSchema: {
       fields: [
@@ -1174,14 +1350,14 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
   {
     type: "render-video", label: "Render Video", category: "composition",
     description: "Render a Remotion composition to MP4. A 3D scene plan is priced by frame size: the flat price up to 1920 px on the longest side, 1.5x above that, 2.5x for a large square frame.",
-    outputType: "video", creditCost: `${renderVideoBaseCost}-${renderVideoMaxCost}`,
+    outputType: "video", creditCost: creditBandFor("render-video"),
   },
-  { type: "after-effects", label: "After Effects", category: "composition", description: "AI-generated post-processing layer.", outputType: "video", creditCost: 2 },
-  { type: "motion-graphics", label: "Motion Graphics", category: "composition", description: "AI-generated 2D motion graphics (classic elements or AI-authored Lottie).", outputType: "video", creditCost: "1-8" },
+  { type: "after-effects", label: "After Effects", category: "composition", description: "AI-generated post-processing layer.", outputType: "video", creditCost: creditBandFor("after-effects") },
+  { type: "motion-graphics", label: "Motion Graphics", category: "composition", description: "AI-generated 2D motion graphics (classic elements or AI-authored Lottie).", outputType: "video", creditCost: creditBandFor("motion-graphics") },
   {
     type: "generate-3d-scene", label: "Generate 3D Scene", category: "composition",
     description: "Generate an editable animated 3D clay scene from a prompt and optional image/video references. Video reference analysis is charged separately.",
-    creditCost: `${scene3DMinCost}-${scene3DMaxCost}`,
+    creditCost: creditBandFor("generate-3d-scene"),
     outputType: "data", capabilities: ["supports-reference-image", "supports-reference-video", "editable-3d-scene", "scene3d-embed-v1"],
     inputSchema: { fields: [
       { key: "prompt", type: "string", required: true },
@@ -1196,7 +1372,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
   {
     type: "edit-3d-scene", label: "Edit 3D Scene", category: "composition",
     description: "Create a new 3D scene revision from an instruction or deterministic edits; preserve locked objects. Deterministic edits are free; optional video reference analysis is charged separately.",
-    creditCost: `0-${scene3DMaxCost}`,
+    creditCost: creditBandFor("edit-3d-scene"),
     outputType: "data", capabilities: ["supports-reference-image", "supports-reference-video", "editable-3d-scene"],
     inputSchema: { fields: [
       { key: "scenePlan", type: "object", required: true },
@@ -1229,14 +1405,14 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
       { key: "acceptedSceneSchemaVersions", type: "array" },
     ] },
   },
-  { type: "3d-title", label: "3D Title", category: "composition", description: "AI-generated 3D animated text.", outputType: "video", creditCost: 15 },
+  { type: "3d-title", label: "3D Title", category: "composition", description: "AI-generated 3D animated text.", outputType: "video", creditCost: creditBandFor("3d-title") },
   // composition siblings of after-effects / motion-graphics / 3d-title (rendered video output).
-  { type: "video-composer", label: "Video Composer", category: "composition", description: "AI-powered scene-graph video composition from natural language prompts.", outputType: "video", creditCost: "1-4" },
-  { type: "lottie-overlay", label: "Lottie Overlay", category: "composition", description: "AI-placed timed Lottie animations overlaid on video.", outputType: "video", creditCost: "1-2" },
+  { type: "video-composer", label: "Video Composer", category: "composition", description: "AI-powered scene-graph video composition from natural language prompts.", outputType: "video", creditCost: creditBandFor("video-composer") },
+  { type: "lottie-overlay", label: "Lottie Overlay", category: "composition", description: "AI-placed timed Lottie animations overlaid on video.", outputType: "video", creditCost: creditBandFor("lottie-overlay") },
   { type: "composite", label: "Composite", category: "composition", description: "Multi-layer video compositor (up to 4 layers) with per-layer positioning, scale, blending, and opacity. Client-side plan, no AI — deterministic and free.", outputType: "video", creditCost: 0 },
 
   { type: "webhook-trigger", label: "Webhook Trigger", category: "trigger", description: "Trigger the workflow via HTTP POST.", outputType: "data" },
-  { type: "schedule-trigger", label: "Schedule Trigger", category: "trigger", description: "Trigger the workflow on a cron/interval.", outputType: "data" },
+  { type: "schedule-trigger", label: "Schedule Trigger", category: "trigger", description: "Run the workflow on a schedule: a list of rules (every N minutes / hours / days / weeks / months, or a cron expression) read in a timezone. Fires only while `active` is true — a new schedule starts paused. A wired trigger runs only the branch behind it.", outputType: "data" },
   { type: "telegram-trigger", label: "Telegram Trigger", category: "trigger", description: "Trigger the workflow when a connected Telegram bot receives a message. Emits text + chatId + messageId + messageType (+ imageUrl/videoUrl/audioUrl for media). Free — downstream nodes incur their own costs.", outputType: "data" },
 
   { type: "save-to-storage", label: "Save to Storage", category: "output", description: "Persist a node output to user storage.", outputType: "none" },
@@ -1281,7 +1457,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "control",
     description: "Turns N candidate results into ONE: an AI judge picks the best against your criteria (pick-best-llm), or the candidates are joined (concat), the first non-empty is taken (first-non-empty), counted (count), voted (vote), or merged as JSON (merge-json). Credit cost varies per strategy via the `reduce:<strategyId>` composite key.",
     outputType: "text",
-    creditCost: "0-3",
+    creditCost: creditBandFor("reduce"),
     inputSchema: {
       fields: [
         { key: "strategyId", type: "select", required: true, options: ["pick-best-llm", "concat", "first-non-empty", "count", "vote", "merge-json"] },
@@ -1303,7 +1479,7 @@ const RAW_NODE_REGISTRY: NodeDescriptor[] = [
     category: "composition",
     description: "Conversational pipeline: prompt + duration + format → editable film graph. Runs in the pipeline orchestrator, not the workflow DAG.",
     outputType: "video",
-    creditCost: 30,
+    creditCost: creditBandFor("generative-pipeline"),
     inputSchema: {
       fields: [
         { key: "story_prompt", type: "text", required: true },

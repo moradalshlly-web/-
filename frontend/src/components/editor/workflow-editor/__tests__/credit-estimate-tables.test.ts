@@ -49,6 +49,24 @@ describe("credit estimate fallback tables track the catalog", () => {
     expect(compared, "no keys were compared — the catalog lookup broke").toBeGreaterThan(0)
   })
 
+  it("carries BOTH add-captions rows, with the Remotion render the dearer one", () => {
+    // Add Captions prices by RENDERER, not by node: `getModelIdentifier`
+    // resolves `add-captions:kinetic` for anything styled / timed /
+    // transcribed / segmented and plain `add-captions` for the cheap FFmpeg
+    // drawtext burn. `estimateRunCredits` looks the composite up here first, so
+    // a missing key silently quoted the burn price for a Remotion run.
+    //
+    // MODEL_CATALOG prices models, not node-type rows, so the loop above cannot
+    // reach these two — the authority is `STATIC_CREDIT_COSTS`, pinned against
+    // this whole table by
+    // `backend/src/lib/__tests__/frontend-credit-fallback-parity.test.ts`.
+    expect(NODE_CREDIT_COSTS["add-captions"]).toBeDefined()
+    expect(NODE_CREDIT_COSTS["add-captions:kinetic"]).toBeDefined()
+    expect(NODE_CREDIT_COSTS["add-captions:kinetic"]).toBeGreaterThan(
+      NODE_CREDIT_COSTS["add-captions"],
+    )
+  })
+
   it("the table is denominated in the CURRENT credit base, not a stale one", () => {
     // Anchored on a node whose price is well above the noise floor. At the old
     // $0.02 base this was 50; a re-denomination that forgets this file leaves it

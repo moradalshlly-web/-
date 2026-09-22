@@ -139,9 +139,9 @@ Cost depends on the selected model's tier.
 |------|----------------|---------|
 | Economy | Gemini Flash, Claude Haiku | **1** |
 | Standard | Claude Sonnet, GPT-5.2, Grok 4.6 | **2** |
-| Premium | Claude Opus, Claude Fable 5, GPT-5.4, GPT-6 Astra, Gemini Pro | **3** |
+| Premium | Claude Opus, Claude Fable 5, GPT-5.4, GPT-6 Astra, Gemini Pro | **6** |
 
-The credit identifier is `llm-chat` (standard), `llm-chat:economy`, or `llm-chat:premium`, built from the selected model at request time. These match the runtime `STATIC_CREDIT_COSTS` values (`llm-chat` = 2, `llm-chat:economy` = 1, `llm-chat:premium` = 3).
+The credit identifier is `llm-chat` (standard), `llm-chat:economy`, or `llm-chat:premium`, built from the selected model at request time. These match the runtime `STATIC_CREDIT_COSTS` values (`llm-chat` = 2, `llm-chat:economy` = 1, `llm-chat:premium` = 6).
 
 ## Reasoning effort
 

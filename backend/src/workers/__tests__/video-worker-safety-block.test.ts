@@ -173,6 +173,7 @@ vi.mock("@/providers/kie/client.js", () => {
 import { createVideoWorker } from "../video-worker.js"
 import { KieError } from "../../providers/kie/client.js"
 import { UnrecoverableError } from "bullmq"
+import { DeterministicJobError } from "../../lib/deterministic-job-error.js"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -326,5 +327,50 @@ describe("video worker — safety-block handling", () => {
       expect.objectContaining({ status: "failed" }),
     )
     expect(mocks.mockRefundJobCredits).not.toHaveBeenCalled()
+  })
+})
+
+// A refusal that is a pure function of the job's own inputs (apply-edl's
+// window check: a segment runs past the end of its media) fails the same way
+// on every retry — after re-downloading and re-probing every source. The
+// worker treats it like a content-policy block: final NOW (failed + refunded
+// with the handler's own message), then UnrecoverableError so BullMQ spends
+// no further attempt. Wrapped in another error's `cause`, it still counts.
+describe("video worker — deterministic refusals (lib/deterministic-job-error.ts)", () => {
+  let processor: (job: unknown, token?: string) => Promise<void>
+
+  beforeEach(() => {
+    createVideoWorker()
+    processor = mocks.getCapturedProcessor()!
+  })
+
+  it("is final on attempt 1 of 3: failed + refunded once with its message, then UnrecoverableError — no retry", async () => {
+    mocks.mockIsFinalJobAttempt.mockReturnValue(false) // BullMQ alone would still retry
+    const refusal = new DeterministicJobError(
+      `apply-edl: segment[0] "s0" ends at 9.00s on source "A", but its video track is only 6.00s long — shorten the segment or check the source's offsetMs`,
+    )
+    mocks.mockHandler.mockRejectedValueOnce(refusal)
+
+    const rejection = await processor(makeBullJob("combine-videos", {}, 0)).catch((e) => e)
+
+    expect(rejection).toBeInstanceOf(UnrecoverableError)
+    expect(rejection.message).toBe(refusal.message)
+    expect(mocks.mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: "failed", error_message: refusal.message }))
+    expect(mocks.mockRefundJobCredits).toHaveBeenCalledTimes(1)
+    expect(mocks.mockRefundJobCredits).toHaveBeenCalledWith("usage-1", "job-1", refusal)
+    expect(mocks.mockHandler).toHaveBeenCalledTimes(1)
+    mocks.mockIsFinalJobAttempt.mockReturnValue(true) // restore the file default
+  })
+
+  it("still counts when a wrapper carries it as `cause`", async () => {
+    mocks.mockIsFinalJobAttempt.mockReturnValue(false)
+    const wrapped = new Error("render failed", { cause: new DeterministicJobError("apply-edl: no video track") })
+    mocks.mockHandler.mockRejectedValueOnce(wrapped)
+
+    const rejection = await processor(makeBullJob("combine-videos", {}, 0)).catch((e) => e)
+
+    expect(rejection).toBeInstanceOf(UnrecoverableError)
+    expect(mocks.mockRefundJobCredits).toHaveBeenCalledTimes(1)
+    mocks.mockIsFinalJobAttempt.mockReturnValue(true) // restore the file default
   })
 })

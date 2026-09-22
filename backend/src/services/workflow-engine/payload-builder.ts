@@ -1,4 +1,5 @@
 import { dubbingModelIdentifier } from "../../lib/dubbing-model.js"
+import { imageCollageCreditModelIdentifier } from "../../lib/image-collage-credit-id.js"
 import {
   pro3DRenderShotStills, assertCanvasExecutionAllowed, OVERLAY_MAX_VARIANTS, overlayVariantIdFromHandle, clampEditPlanClipCount } from "@nodaro/shared"
 import type { Scene3DReference } from "@nodaro/shared"
@@ -5686,7 +5687,9 @@ export function buildPayload(
       const effectiveEdl = buildEffectiveEdl(rawEdl, { crossfadeMs, sourceOverrides: resolvedInputs.sources })
       const validation = validateEffectiveEdl(effectiveEdl, output)
       if (!validation.ok) {
-        throw new Error(`apply-edl: invalid EDL — ${validation.issues.slice(0, 3).join("; ")}`)
+        const shown = validation.issues.slice(0, 3)
+        const more = validation.issues.length - shown.length
+        throw new Error(`apply-edl: invalid EDL — ${shown.join("; ")}${more > 0 ? ` (+${more} more)` : ""}`)
       }
       const transcript = resolvedInputs.transcript ?? (typeof data.transcript === "string" ? data.transcript : undefined)
       return ffmpegResult("apply-edl", {
@@ -5813,9 +5816,9 @@ export function buildPayload(
           backgroundColor: (data.backgroundColor as string | undefined) ?? "#ffffff",
           usageLogId,
         },
-        // Composite id so workflow-run reservations price 4K correctly (the
-        // single-node route uses the creditGuard computeCredits hook instead).
-        `image-collage:${resolution}`,
+        // The same resolution-priced composite id the single-node route's
+        // guard and reservation use (lib/image-collage-credit-id.ts).
+        imageCollageCreditModelIdentifier(resolution),
       )
     }
 

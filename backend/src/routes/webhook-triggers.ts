@@ -11,6 +11,13 @@
 import { randomBytes } from "node:crypto"
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
+import {
+  SCHEDULE_EVERY_LIMITS,
+  SCHEDULE_RULE_KINDS,
+  isCronExpression,
+  isValidTimezone,
+  normalizeScheduleRules,
+} from "@nodaro/shared"
 import { supabase } from "../lib/supabase.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { deletedNothing, sendNotFound } from "../lib/scoped-delete.js"
@@ -24,6 +31,7 @@ import { billingPairColumns } from "../lib/insert-job.js"
 import { recordTriggerFireRefusal } from "../lib/trigger-fire-refusal.js"
 import { toAccessRow } from "../lib/workflow-route-access.js"
 import { isMissingColumnError } from "../lib/postgrest-errors.js"
+import { applyTriggerConfigPatch } from "../lib/workflow-trigger-sync.js"
 
 // ---------------------------------------------------------------------------
 // Rate limiter for webhook endpoint (in-memory, per-token)
@@ -63,25 +71,72 @@ const webhookTokenParams = z.object({
   token: z.string().min(16).max(128),
 })
 
+/**
+ * One schedule rule as the API takes it — the Schedule Trigger node's model
+ * (`@nodaro/shared` `schedule-rules`). Out-of-range values are refused, not
+ * clamped: a caller who asked for "every 24 months" must hear no, not be
+ * quietly scheduled for 12.
+ */
+const scheduleRuleBody = z
+  .object({
+    id: z.string().min(1).max(64).optional(),
+    kind: z.enum(SCHEDULE_RULE_KINDS),
+    every: z.number().int().min(1).max(366).optional(),
+    hour: z.number().int().min(0).max(23).optional(),
+    minute: z.number().int().min(0).max(59).optional(),
+    weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+    dayOfMonth: z.number().int().min(1).max(31).optional(),
+    cron: z.string().max(100).optional(),
+  })
+  .superRefine((rule, ctx) => {
+    if (rule.kind !== "cron" && rule.every !== undefined) {
+      const [lo, hi] = SCHEDULE_EVERY_LIMITS[rule.kind]
+      if (rule.every < lo || rule.every > hi) {
+        ctx.addIssue({ code: "custom", path: ["every"], message: `every must be between ${lo} and ${hi} for a ${rule.kind} rule` })
+      }
+    }
+    if (rule.kind === "weeks" && (rule.weekdays ?? []).length === 0) {
+      ctx.addIssue({ code: "custom", path: ["weekdays"], message: "a weeks rule needs at least one weekday" })
+    }
+    if (rule.kind === "cron" && !isCronExpression(rule.cron)) {
+      ctx.addIssue({ code: "custom", path: ["cron"], message: "a cron rule needs a 5-field cron expression" })
+    }
+  })
+
+/**
+ * A schedule's config: `rules` (the model the node uses), or the legacy
+ * `interval` / `cron` pair the cron still reads for rows made by hand. A
+ * timezone the runtime cannot read is refused here rather than stored — the
+ * schedule would otherwise run at UTC hours nobody asked for.
+ */
+const triggerConfigBody = z.object({
+  rules: z.array(scheduleRuleBody).min(1, "at least one rule").max(20).optional(),
+  cron: z.string().max(100).optional(),
+  timezone: z.string().max(64).refine((tz) => isValidTimezone(tz), "unknown timezone").optional(),
+  interval: z.string().max(50).optional(),
+  maxExecutions: z.number().int().min(0).optional(),
+})
+
+type TriggerConfigBody = z.infer<typeof triggerConfigBody>
+
+/** The config as the row stores it: rules normalised (ids filled, fields the kind does not read dropped). */
+function storedTriggerConfig(config: TriggerConfigBody): Record<string, unknown> {
+  if (!config.rules) return { ...config }
+  // Rules present means rules: a legacy key sent beside them is not stored,
+  // so nothing can shadow them later.
+  const { interval: _interval, cron: _cron, ...rest } = config
+  return { ...rest, rules: normalizeScheduleRules(config.rules) }
+}
+
 const createTriggerBody = z.object({
   workflowId: z.string().uuid(),
   type: z.enum(["webhook", "schedule"]),
-  config: z.object({
-    cron: z.string().max(100).optional(),
-    timezone: z.string().max(50).optional(),
-    interval: z.string().max(50).optional(),
-    maxExecutions: z.number().int().min(0).optional(),
-  }).optional(),
+  config: triggerConfigBody.optional(),
 })
 
 const updateTriggerBody = z.object({
   isActive: z.boolean().optional(),
-  config: z.object({
-    cron: z.string().max(100).optional(),
-    timezone: z.string().max(50).optional(),
-    interval: z.string().max(50).optional(),
-    maxExecutions: z.number().int().min(0).optional(),
-  }).optional(),
+  config: triggerConfigBody.optional(),
 })
 
 const triggerIdParams = z.object({
@@ -263,11 +318,15 @@ export async function webhookTriggerRoutes(app: FastifyInstance) {
     // Enqueue orchestration (payer resolved above, before the row; moving a
     // workflow into a workspace re-points its triggers' payer on the next
     // fire — the run predicate above refused a creator who lost access).
+    const triggerNodeId = (trigger.config as Record<string, unknown> | null)?.nodeId
     const jobData: WorkflowExecutionJob = {
       executionId: execution.id,
       workflowId: trigger.workflow_id,
       userId: trigger.user_id,
       triggerType: "webhook",
+      // The node this row was projected from: the worker runs the branch
+      // behind it (`triggerRunScope`). A hand-made row names none.
+      ...(typeof triggerNodeId === "string" ? { triggerNodeId } : {}),
       triggerData,
       billingContext,
     }
@@ -357,7 +416,7 @@ export async function webhookTriggerRoutes(app: FastifyInstance) {
       workflow_id: workflowId,
       user_id: req.userId,
       type,
-      config: triggerConfig ?? {},
+      config: triggerConfig ? storedTriggerConfig(triggerConfig) : {},
       webhook_token: webhookToken,
     }
     // The column's default is already false — only a "yes" needs the column,
@@ -446,18 +505,24 @@ export async function webhookTriggerRoutes(app: FastifyInstance) {
 
     const updates: Record<string, unknown> = {}
     if (bodyParsed.data.isActive !== undefined) updates.is_active = bodyParsed.data.isActive
-    if (bodyParsed.data.config !== undefined) updates.config = bodyParsed.data.config
 
-    // RE-ENABLING is minting run capability again, so it asks the same question
-    // creating a trigger asks. Without this, somebody whose access was revoked
-    // could flip their own dormant trigger back to active — the fire paths
-    // would still refuse it, but it has no business being re-armed by a person
-    // who may no longer run the workflow. Load the trigger's workflow first;
-    // the `.eq("user_id")` on the update keeps it to the owner's own trigger.
-    if (bodyParsed.data.isActive === true) {
+    // The row is read when the PATCH has to know it:
+    // - a `config` is MERGED into the stored one (`applyTriggerConfigPatch`):
+    //   a PATCH of the timezone alone keeps the rules, and the row's `nodeId`
+    //   and `executionCount` are not the caller's to drop — replacing the
+    //   config wholesale used to silence a schedule (rules gone) and orphan
+    //   the row from the node that manages it (nodeId gone: never removed
+    //   with the node, and a second row created on the next save);
+    // - RE-ENABLING is minting run capability again, so it asks the same
+    //   question creating a trigger asks. Without this, somebody whose access
+    //   was revoked could flip their own dormant trigger back to active — the
+    //   fire paths would still refuse it, but it has no business being
+    //   re-armed by a person who may no longer run the workflow.
+    // The `.eq("user_id")` on the update keeps it to the owner's own trigger.
+    if (bodyParsed.data.config !== undefined || bodyParsed.data.isActive === true) {
       const { data: trig } = await supabase
         .from("workflow_triggers")
-        .select("workflow_id")
+        .select("workflow_id, config")
         .eq("id", paramsParsed.data.id)
         .eq("user_id", req.userId)
         .maybeSingle()
@@ -466,10 +531,16 @@ export async function webhookTriggerRoutes(app: FastifyInstance) {
           error: { code: "not_found", message: "Trigger not found" },
         })
       }
-      if (!(await canRunWorkflow(req.userId, trig.workflow_id as string))) {
+      if (bodyParsed.data.isActive === true && !(await canRunWorkflow(req.userId, trig.workflow_id as string))) {
         return reply.status(403).send({
           error: { code: "forbidden", message: "You can no longer run this workflow" },
         })
+      }
+      if (bodyParsed.data.config !== undefined) {
+        updates.config = applyTriggerConfigPatch(
+          (trig.config as Record<string, unknown> | null) ?? null,
+          storedTriggerConfig(bodyParsed.data.config),
+        )
       }
     }
 

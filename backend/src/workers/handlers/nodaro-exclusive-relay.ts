@@ -1,8 +1,9 @@
 /**
  * Run a Nodaro-EXCLUSIVE node on the connected cloud (4b, PR 3).
  *
- * The exclusive nodes (voice-changer-pro, generate-video-pro, edit-video-pro,
- * video-analysis, video-audit) are implemented by @nodaroai/cloud-plugins,
+ * The exclusive nodes (every key of `EXCLUSIVE_ROUTE_BY_JOB_TYPE` below —
+ * voice-changer-pro, generate-video-pro, edit-video-pro, video-analysis,
+ * video-audit, edit-plan) are implemented by @nodaroai/cloud-plugins,
  * which never loads on a self-host — so unlike the vendor-direct relay
  * (cloud-video-relay.ts) there is no local implementation to fall back FROM:
  * the connection IS the implementation. A sibling of that relay rather than a
@@ -126,7 +127,7 @@ export async function finalizeExclusiveCloudOutput(args: {
   const { jobId, jobType, cloudJob, jobUserId, shouldWatermark } = args
   const output = (cloudJob.output_data ?? {}) as Record<string, unknown>
 
-  // Relay provenance, lane 4 (spec §8.2, migration 383). These five types are
+  // Relay provenance, lane 4 (spec §8.2, migration 383). These types are
   // the most expensive generations a self-host can run and EVERY one of them is
   // billed at the far end, so the pair has to reach the row here: the near end
   // settles its own user on `relay_credits`, and the delete paths read
@@ -204,7 +205,7 @@ export async function finalizeExclusiveCloudOutput(args: {
   )
 }
 
-/** The worker handler shared by all five exclusive types. */
+/** The worker handler shared by every exclusive type. */
 export function makeNodaroExclusiveHandler(jobType: string): HandlerFn {
   return async function handleNodaroExclusive(job: Job, ctx: JobContext): Promise<void> {
     const route = EXCLUSIVE_ROUTE_BY_JOB_TYPE[jobType]

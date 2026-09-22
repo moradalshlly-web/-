@@ -5,6 +5,7 @@ export const redditProvider: SocialProvider = {
   id: "reddit",
   label: "Reddit",
   connectKind: "oauth2",
+  category: "social",
   editor: "markdown",
   capabilities: { schedule: true, comment: false, media: ["image", "video", "text"], refresh: "real" },
   requiredEnv: ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"],

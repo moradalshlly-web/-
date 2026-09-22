@@ -64,7 +64,7 @@ const TRIGGER_ROW = {
   workflow_id: WF,
   user_id: OWNER,
   type: "webhook",
-  config: {},
+  config: { nodeId: "hook-node" },
   is_active: true,
   last_triggered_at: null,
 }
@@ -181,6 +181,12 @@ describe("POST /v1/webhooks/:token — a trigger must not outlive its access", (
     expect(res.statusCode).toBe(202)
     expect(execInsert).toHaveBeenCalled()
     expect(orchestrationQueue.add).toHaveBeenCalled()
+    // …naming the node the row was projected from, so the worker runs its branch.
+    expect(orchestrationQueue.add).toHaveBeenCalledWith(
+      "workflow-execution",
+      expect.objectContaining({ triggerType: "webhook", triggerNodeId: "hook-node" }),
+      expect.anything(),
+    )
     expect(mockRecordRefusal).not.toHaveBeenCalled()
     // P14: the fire resolves the payer under the TRIGGER OWNER and the
     // workflow's CURRENT home — a wrong identity here spends someone

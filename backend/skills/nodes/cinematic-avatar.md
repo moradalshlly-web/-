@@ -1,7 +1,7 @@
 ---
 node_type: cinematic-avatar
-generated_at: 2026-09-21T19:12:10.048Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:31.607Z
+generated_from: 65b4cddf2
 ---
 
 # Cinematic Avatar
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `cinematic-avatar`
 **Category:** ai
-**Credit cost:** `45-248` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `300-1650` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`, `ref-video`, `ref-audio`, `ref-image`
 **Outputs (source handles):** `video`
 

@@ -5,6 +5,7 @@ export const tiktokProvider: SocialProvider = {
   id: "tiktok",
   label: "TikTok",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: {
     schedule: true,

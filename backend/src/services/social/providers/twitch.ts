@@ -5,6 +5,7 @@ export const twitchProvider: SocialProvider = {
   id: "twitch",
   label: "Twitch",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: { schedule: true, comment: false, media: ["text"], refresh: "real" },
   requiredEnv: ["TWITCH_CLIENT_ID", "TWITCH_CLIENT_SECRET"],

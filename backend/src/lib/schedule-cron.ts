@@ -5,7 +5,14 @@
  * Runs in the server process (not a separate worker).
  */
 
-import { SCHEDULE_TRIGGER_NODE_TYPE } from "@nodaro/shared"
+import {
+  SCHEDULE_TRIGGER_NODE_TYPE,
+  localMinuteKey,
+  localTimeIn,
+  matchesCronField,
+  normalizeScheduleRules,
+  scheduleMatchesAt,
+} from "@nodaro/shared"
 import { supabase } from "./supabase.js"
 import { orchestrationQueue } from "./orchestration-queue.js"
 import { canRunWorkflow } from "./workflow-access.js"
@@ -14,38 +21,97 @@ import { billingPairColumns } from "./insert-job.js"
 import { recordTriggerFireRefusal } from "./trigger-fire-refusal.js"
 import type { WorkflowExecutionJob } from "../services/workflow-engine/types.js"
 
-let intervalId: ReturnType<typeof setInterval> | null = null
+export { matchesCronField }
+
+let timer: ReturnType<typeof setTimeout> | null = null
+let inFlight = false
+/** The last calendar minute a check evaluated (epoch minutes); null until the first. */
+let lastCheckedMinute: number | null = null
+
+/** Ticks land this long after each minute boundary. */
+const TICK_MARGIN_MS = 250
+
+/**
+ * How many minutes a late tick may evaluate after the fact — a check that
+ * overran a boundary, or an event loop stalled through a deploy. A longer
+ * gap (a restart) starts fresh: replaying an hour of schedules at once would
+ * be worse than the miss.
+ */
+const MAX_CATCH_UP_MINUTES = 5
+
+/** Until the next tick: just past the next minute boundary. */
+export function msUntilNextTick(nowMs = Date.now()): number {
+  return 60_000 - (nowMs % 60_000) + TICK_MARGIN_MS
+}
+
+/**
+ * One tick: every calendar minute since the last one evaluated, this minute
+ * included — so a check that ran long does not leave the minute after it
+ * unevaluated (with every rule a per-minute question, that is a missed run).
+ * A tick landing while the previous one is still running is skipped; the
+ * next tick catches its minutes up.
+ */
+async function tick(): Promise<void> {
+  if (inFlight) return
+  inFlight = true
+  try {
+    const nowMs = Date.now()
+    const thisMinute = Math.floor(nowMs / 60_000)
+    const firstMinute = lastCheckedMinute === null ? thisMinute : Math.max(lastCheckedMinute + 1, thisMinute - MAX_CATCH_UP_MINUTES)
+    for (let minute = firstMinute; minute <= thisMinute; minute += 1) {
+      try {
+        await checkScheduledTriggers(minute === thisMinute ? new Date(nowMs) : new Date(minute * 60_000))
+      } catch (err) {
+        console.error("[schedule-cron] Check failed:", err)
+      }
+      lastCheckedMinute = minute
+    }
+  } finally {
+    inFlight = false
+  }
+}
+
+function armNextTick(): void {
+  timer = setTimeout(() => {
+    if (timer === null) return
+    // Re-armed BEFORE the check runs, so the chain stays on the minute
+    // boundaries however long a check takes.
+    armNextTick()
+    void tick()
+  }, msUntilNextTick())
+}
 
 /**
  * Start the schedule cron. Called once after server starts listening.
+ *
+ * Every rule is a "does this wall-clock minute match" question, so the check
+ * has to see every minute exactly once. A fixed 60 s interval drifts with the
+ * event loop, and once its phase wraps past a minute boundary it skips a
+ * minute — a run silently missed. Each tick is therefore armed for just after
+ * the NEXT minute boundary, and a tick evaluates every minute since the last
+ * one (bounded). The first check runs at once so a restart does not miss the
+ * minute it started in; `scheduleDue` never fires a schedule twice in one
+ * wall-clock minute, so that cannot double a fire the replaced process
+ * already made.
  */
 export function startScheduleCron(): void {
-  if (intervalId) return
+  if (timer) return
 
-  console.log("[schedule-cron] Started, checking every 60 seconds")
+  console.log("[schedule-cron] Started, checking once a minute")
 
-  // Run once immediately, then every 60 seconds
-  checkScheduledTriggers().catch((err) =>
-    console.error("[schedule-cron] Initial check failed:", err),
-  )
-
-  intervalId = setInterval(async () => {
-    try {
-      await checkScheduledTriggers()
-    } catch (err) {
-      console.error("[schedule-cron] Check failed:", err)
-    }
-  }, 60_000)
+  armNextTick()
+  void tick()
 }
 
 /**
  * Stop the schedule cron.
  */
 export function stopScheduleCron(): void {
-  if (intervalId) {
-    clearInterval(intervalId)
-    intervalId = null
+  if (timer) {
+    clearTimeout(timer)
+    timer = null
   }
+  lastCheckedMinute = null
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +138,8 @@ function warnProvenanceUnreadableOnce(reason: string): void {
   console.warn(`[schedule-cron] workflow_triggers.owner_initiated unreadable (${reason}) — schedules run as not owner-initiated until migration 436 is on this database`)
 }
 
-export async function checkScheduledTriggers(): Promise<void> {
+/** Evaluate every active schedule at `now` (a tick passes the minute it is catching up on). */
+export async function checkScheduledTriggers(now: Date = new Date()): Promise<void> {
   // Fetch active schedule triggers
   const { data: triggers, error } = await supabase
     .from("workflow_triggers")
@@ -82,14 +149,10 @@ export async function checkScheduledTriggers(): Promise<void> {
 
   if (error || !triggers) return
 
-  const now = new Date()
-
   for (const trigger of triggers) {
     try {
       const config = trigger.config as Record<string, unknown>
-      const shouldFire = await shouldTriggerFire(trigger, config, now)
-
-      if (!shouldFire) continue
+      if (!scheduleDue(config, (trigger.last_triggered_at as string | null) ?? null, now)) continue
 
       // The graph is the single source of truth for a node-managed schedule:
       // a row whose Schedule Trigger node is gone from the stored graph is an
@@ -184,6 +247,7 @@ export async function checkScheduledTriggers(): Promise<void> {
           trigger_data: {
             timestamp: now.toISOString(),
             cron: config.cron,
+            rules: config.rules,
             last_triggered_at: previousLastTriggeredAt,
           },
           idempotency_key: idempotencyKey,
@@ -232,6 +296,9 @@ export async function checkScheduledTriggers(): Promise<void> {
         userId: trigger.user_id,
         triggerType: "schedule",
         ownerInitiated,
+        // The node this row was projected from: the worker runs the branch
+        // behind it (`triggerRunScope`). A hand-made row names none.
+        ...(nodeId ? { triggerNodeId: nodeId } : {}),
         triggerData: {
           timestamp: now.toISOString(),
           last_triggered_at: previousLastTriggeredAt,
@@ -257,29 +324,55 @@ export async function checkScheduledTriggers(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Determine if a trigger should fire now.
- * Supports both cron expressions and simple interval strings.
+ * Is this schedule due at `now`? Pure — the row's config, its previous fire,
+ * the clock — so it can be pinned directly. Lanes, the first one present wins:
+ *
+ * 1. `rules` — the Schedule Trigger node's model, shared with the editor
+ *    (`@nodaro/shared` `schedule-rules`), read in the config's timezone.
+ * 2. `interval` — a legacy "5m" / "1h" / "1d": due once that much time has
+ *    passed since the previous fire.
+ * 3. `cron` — a legacy 5-field expression.
+ *
+ * Rows the graph projection writes always carry `rules` (legacy node data is
+ * converted on the way through); 2 and 3 serve rows created by hand through
+ * `POST /v1/workflow-triggers` and rows not re-projected since the model
+ * changed. The minute-matching lanes (1 and 3) never fire twice in one
+ * wall-clock minute: a restart's immediate check, a second replica a moment
+ * behind, or the clocks falling back would otherwise double a fire under a
+ * fresh idempotency key.
  */
-async function shouldTriggerFire(
-  trigger: Record<string, unknown>,
+export function scheduleDue(
   config: Record<string, unknown>,
+  lastTriggeredAt: string | null,
   now: Date,
-): Promise<boolean> {
-  const lastTriggered = trigger.last_triggered_at as string | null
+): boolean {
+  const timezone = typeof config.timezone === "string" && config.timezone.trim() ? config.timezone.trim() : undefined
 
-  // Simple interval support (e.g., "5m", "1h", "1d")
-  const interval = config.interval as string | undefined
-  if (interval) {
-    return shouldFireByInterval(interval, lastTriggered, now)
+  if (Array.isArray(config.rules)) {
+    if (firedThisMinute(lastTriggeredAt, now, timezone)) return false
+    return scheduleMatchesAt({ rules: normalizeScheduleRules(config.rules), timezone }, now)
   }
 
-  // Cron expression support
-  const cron = config.cron as string | undefined
-  if (cron) {
-    return matchesCronMinute(cron, now, config.timezone as string | undefined)
+  const interval = config.interval
+  if (typeof interval === "string" && interval) {
+    return shouldFireByInterval(interval, lastTriggeredAt, now)
+  }
+
+  const cron = config.cron
+  if (typeof cron === "string" && cron) {
+    if (firedThisMinute(lastTriggeredAt, now, timezone)) return false
+    return matchesCronMinute(cron, now, timezone)
   }
 
   return false
+}
+
+/** The previous fire was in this same wall-clock minute (in the schedule's timezone). */
+function firedThisMinute(lastTriggeredAt: string | null, now: Date, timezone: string | undefined): boolean {
+  if (!lastTriggeredAt) return false
+  const last = new Date(lastTriggeredAt)
+  if (Number.isNaN(last.getTime())) return false
+  return localMinuteKey(localTimeIn(last, timezone)) === localMinuteKey(localTimeIn(now, timezone))
 }
 
 /**
@@ -362,57 +455,6 @@ export function matchesCronMinute(
   }
 }
 
-export function matchesCronField(field: string, value: number, min: number, max: number): boolean {
-  if (field === "*") return true
-
-  // Handle comma-separated values: "1,15,30"
-  if (field.includes(",")) {
-    return field.split(",").some((part) => matchesCronField(part.trim(), value, min, max))
-  }
-
-  // IMPORTANT: handle step values BEFORE ranges. Otherwise a field like
-  // "1-10/2" enters the range branch (which contains "-"), splits on "-"
-  // into ["1", "10/2"], and Number("10/2") is NaN — the range never matches
-  // and the trigger silently never fires. Standard cron syntax allows ranges
-  // with steps, so this branch must run first.
-  if (field.includes("/")) {
-    const [range, step] = field.split("/")
-    const stepNum = parseInt(step, 10)
-    if (Number.isNaN(stepNum) || stepNum <= 0) return false
-    if (range === "*") {
-      return value % stepNum === 0
-    }
-    if (range.includes("-")) {
-      const [start, end] = parseRange(range)
-      if (start == null || end == null) return false
-      return value >= start && value <= end && (value - start) % stepNum === 0
-    }
-    // "5/15" form (start with no end) — match start, start+step, start+2step, ...
-    // up to the field's max. Standard cron treats this as start-max/step.
-    const start = parseInt(range, 10)
-    if (Number.isNaN(start)) return false
-    return value >= start && value <= max && (value - start) % stepNum === 0
-  }
-
-  // Handle ranges: "1-5"
-  if (field.includes("-")) {
-    const [start, end] = parseRange(field)
-    if (start == null || end == null) return false
-    return value >= start && value <= end
-  }
-
-  // Simple number
-  const num = parseInt(field, 10)
-  if (Number.isNaN(num)) return false
-  return num === value
-}
-
-// parseInt (not Number) so empty strings — "" from "-5".split("-") or
-// "1-".split("-") — produce NaN instead of silently coercing to 0.
-function parseRange(range: string): [number | null, number | null] {
-  const parts = range.split("-")
-  if (parts.length !== 2) return [null, null]
-  const start = parseInt(parts[0], 10)
-  const end = parseInt(parts[1], 10)
-  return [Number.isNaN(start) ? null : start, Number.isNaN(end) ? null : end]
-}
+// `matchesCronField` (the per-field matcher: `*`, `N`, `a-b`, `a,b`, `*/N`,
+// `a-b/N`, `a/N`) lives in `@nodaro/shared` `schedule-rules` — the `cron`
+// rule kind needs it on the editor side too — and is re-exported above.

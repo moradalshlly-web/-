@@ -26,10 +26,10 @@ describe("nodaro-exclusive registration stays edition-gated", () => {
     const gate = src.indexOf("if (!hasCredits()) {")
     const relayImport = src.indexOf("nodaro-exclusive-relay.js")
     const relayMerge = src.indexOf("Object.assign(allHandlers, nodaroExclusiveRelayHandlers)")
-    // The plugin map may be WRAPPED before it is merged (pre-task heartbeats,
-    // and whatever wraps it next) — what this pin owns is the ORDER of the two
-    // merges, not the shape of the value, so it matches the merge itself and
-    // lets the wrapper vary.
+    // The plugin map is merged bare today (liveness is applied at the dispatch
+    // site, not to the map), but a wrapper around it would be legitimate —
+    // what this pin owns is the ORDER of the two merges, not the shape of the
+    // value, so it matches the merge itself and lets a wrapper vary.
     const pluginMerge = src.search(/Object\.assign\(allHandlers, (?:[A-Za-z0-9_]+\()*privatePluginHandlers/)
     expect(relayImport).toBeGreaterThan(-1)
     expect(relayMerge).toBeGreaterThan(-1)

@@ -648,6 +648,13 @@ If you need scheduled triggers (cron-like) without an external system,
 use the Schedule Trigger node instead — Nodaro polls the schedule
 internally every 60 seconds.
 
+A trigger wired to something runs only the branch behind it (its downstream
+nodes plus whatever they need as input); a trigger wired to nothing runs the
+whole workflow — so one workflow can carry several triggers, each starting
+its own branch. "Wired" covers a drawn connection, Group membership and a
+field mapping. A trigger row created by hand names no node, so its branch
+is found by node type; with two nodes of that type the whole workflow runs.
+
 Both node types register on **save**, whichever way the workflow was
 written (editor, API, SDK, import, MCP). The editor saves through the
 database directly and then asks `POST /v1/workflows/<id>/sync-triggers` to
@@ -660,6 +667,54 @@ Inspect a workflow's triggers with `GET /v1/workflows/<id>/triggers`; pause
 or resume one with `PATCH /v1/workflow-triggers/<id>`. Triggers you create directly with
 `POST /v1/workflow-triggers` are not managed by any node, so saving the
 workflow never changes or removes them.
+
+A schedule's `config` carries `rules` — the same model the Schedule Trigger
+node uses — plus an optional `timezone` (a zone name the server can read,
+such as `Asia/Jerusalem`; the clock the rules are read in, UTC when omitted)
+and `maxExecutions`:
+
+```json
+{
+  "workflowId": "…",
+  "type": "schedule",
+  "config": {
+    "rules": [
+      { "kind": "days", "every": 1, "hour": 9, "minute": 0 },
+      { "kind": "weeks", "every": 2, "weekdays": [1, 3], "hour": 18, "minute": 30 }
+    ],
+    "timezone": "Asia/Jerusalem"
+  }
+}
+```
+
+| `kind` | Fields | Runs |
+|--------|--------|------|
+| `minutes` | `every` 1–59 | at minute 0, N, 2N… of every hour |
+| `hours` | `every` 1–23, `minute` | at hour 0, N, 2N… of every day, at that minute |
+| `days` | `every` 1–31, `hour`, `minute` | every Nth calendar day at that time |
+| `weeks` | `every` 1–52, `weekdays` (0 = Sunday … 6 = Saturday), `hour`, `minute` | on those weekdays, every Nth week |
+| `months` | `every` 1–12, `dayOfMonth` 1–31, `hour`, `minute` | on that day (or the month's last day when it is shorter), every Nth month |
+| `cron` | `cron` — a 5-field expression | whenever the expression matches |
+
+The workflow runs whenever **any** rule matches the current minute. "Every
+Nth day / week / month" counts from a fixed origin (weeks start on Monday),
+so re-saving never shifts the phase. In a `cron` rule every field must
+match — day-of-month **and** day-of-week, where some crontabs read
+either/or — and `7` is Sunday like `0`. Values outside a kind's range are
+refused with a 400, as is a timezone the server cannot read. A `config` sent
+in a `PATCH` is merged into the stored one — send only what changes; the
+row's link to its node and its run count are kept. The older
+`interval` (`"5m"`, `"1h"`, `"1d"`) and `cron` forms are still accepted for
+triggers you create by hand; a Schedule Trigger node saved with them is
+converted to rules on save.
+
+A Schedule Trigger **node** fires only while its data says `"active": true`
+— the node's switch. A node written through the API, the SDK or MCP with no
+`active` is registered paused; the editor's switch and its top-bar Schedule
+button set the same field. `PATCH /v1/workflow-triggers/<id>` with
+`isActive` overrides the row until the next save applies the node's switch
+again; a schedule you created by hand has no node and keeps whatever you
+set.
 
 ## 7. Rate limits
 
@@ -2670,7 +2725,7 @@ Connect flows are popup-based and meant for the web app; publishing is available
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/v1/social/providers` | Registry of supported networks with per-deployment availability: `{ id, label, connectKind, editor, capabilities, available, missingEnv?, setupHint? }`. Unconfigured networks are listed with `available: false` — never hidden. |
+| `GET` | `/v1/social/providers` | Registry of supported networks with per-deployment availability: `{ id, label, connectKind, editor, category, capabilities, available, missingEnv?, setupHint? }`. `category` is `social` (a feed you post to) or `publishing` (a site you publish articles on) — every network declares one. Unconfigured networks are listed with `available: false` — never hidden. |
 | `GET` | `/v1/social/auth-url?platform=` | Start an OAuth connect (popup URL). `400 provider_not_configured` (with the missing env var names) when the deployment lacks that network's app credentials. |
 | `GET` | `/v1/social/callback/:platform` | OAuth redirect target (public). For Facebook/Instagram logins managing multiple Pages/accounts, responds with an **account picker** page instead of silently connecting the first account. |
 | `POST` | `/v1/social/connect/finalize` | Completes an account-picker selection (`{ token, accountId }`; the one-time token authorizes the call — public route, popup-internal). |

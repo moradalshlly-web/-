@@ -10,6 +10,7 @@ export const telegramProvider: SocialProvider = {
   id: "telegram",
   label: "Telegram",
   connectKind: "bot_token",
+  category: "social",
   editor: "html", // captions support parseMode Markdown/HTML
   capabilities: {
     schedule: true,

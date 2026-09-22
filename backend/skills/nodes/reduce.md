@@ -1,7 +1,7 @@
 ---
 node_type: reduce
-generated_at: 2026-09-21T19:12:10.450Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:32.011Z
+generated_from: 65b4cddf2
 ---
 
 # Reduce
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `reduce`
 **Category:** utility
-**Credit cost:** `0-3` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `0-25` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `out`
 

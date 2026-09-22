@@ -462,7 +462,7 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // precomputed VIDEO_AUDIT_BUCKET_CREDITS table in @nodaro/shared, written to
   // model_pricing by migration 302.
   ...VIDEO_AUDIT_STATIC,
-  // ── Edit Plan (podcast editing) — PROVISIONAL placeholder pricing (see the
+  // ── Edit Plan (podcast editing) — FINALIZED (see the
   // EDIT_PLAN_STATIC block above). Bare `edit-plan` + all 54 composites, written
   // to model_pricing by migration 432; the DB rows win at runtime.
   ...EDIT_PLAN_STATIC,
@@ -1512,7 +1512,7 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // the DAG's applyEdlCreditOverride both reserve `this × ceil(edlDurationMs/
   // 60000)`. The bare row here is the estimator fallback (1-minute floor).
   // Value is the single source of truth `APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE`
-  // (lib/apply-edl-plan.ts); the model_pricing row (migration 429) mirrors it.
+  // (lib/apply-edl-plan.ts); the model_pricing row (migration 431) mirrors it.
   // PROVISIONAL — the 3-hour staging probe sets the final per-minute number.
   "apply-edl": APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE,
   // Image Collage — composites N images into one 2K/4K image (local ffmpeg,

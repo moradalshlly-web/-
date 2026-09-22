@@ -5,6 +5,7 @@ export const blueskyProvider: SocialProvider = {
   id: "bluesky",
   label: "Bluesky",
   connectKind: "custom_fields",
+  category: "social",
   editor: "normal",
   capabilities: {
     schedule: true,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { NODE_REGISTRY } from "../node-registry.js"
+import { STATIC_CREDIT_COSTS } from "../../ee/billing/credits.js"
 import { VIDEO_ANALYSIS_BUCKET_CREDITS, VIDEO_AUDIT_BUCKET_CREDITS } from "@nodaro/shared"
 
 describe("NODE_REGISTRY: reduce", () => {
@@ -34,11 +35,19 @@ describe("NODE_REGISTRY: reduce", () => {
 
   it("declares a dynamic per-strategy credit cost", () => {
     const entry = NODE_REGISTRY.find((n) => n.type === "reduce")
-    // Range string "0-3" reflects the spread across strategies — concat /
-    // first-non-empty / count / vote / merge-json are 0cr; pick-best-llm is
-    // 3cr. The composite key `reduce:<strategyId>` does the real lookup at
-    // runtime (see backend/src/ee/billing/credits.ts).
-    expect(entry!.creditCost).toBe("0-3")
+    // The band spans the `reduce:<strategyId>` family: concat /
+    // first-non-empty / count / vote / merge-json are 0cr, and pick-best-llm
+    // tiers by its judge model. Derived from the price table here for the same
+    // reason the descriptor derives it — the literal "0-3" this line used to
+    // pin survived the ×10 re-denomination AND the judge-tier composites, so it
+    // was wrong twice over while the test stayed green.
+    const strategyPrices = Object.entries(STATIC_CREDIT_COSTS)
+      .filter(([id]) => id.startsWith("reduce:"))
+      .map(([, credits]) => credits)
+    expect(strategyPrices.length).toBeGreaterThan(0)
+    expect(entry!.creditCost).toBe(
+      `${Math.min(...strategyPrices)}-${Math.max(...strategyPrices)}`,
+    )
   })
 })
 

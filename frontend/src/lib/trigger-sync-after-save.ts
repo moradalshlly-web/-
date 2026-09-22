@@ -95,7 +95,9 @@ export async function syncTriggersAfterSave(
   workflowId: string,
   nodesBefore: Graph,
   nodesAfter: Graph,
-  onFailure?: () => void,
+  /** `reason` is the server's user-facing explanation when it has one (a
+   *  Telegram bot it could not register); absent for a plain failure. */
+  onFailure?: (reason?: string) => void,
 ): Promise<TriggerSyncOutcome> {
   const stored = triggerFingerprint(nodesBefore)
   const agreed = tracker.lastSynced ?? stored
@@ -123,9 +125,13 @@ export async function syncTriggersAfterSave(
 
   tracker.inFlight = true
   tracker.inFlightVouch = new Set(vouchNodeIds)
+  let refusalReason: string | undefined
   try {
     const result = await syncWorkflowTriggers(workflowId, vouchNodeIds)
-    if (!result.data.synced) throw new Error("sync refused")
+    if (!result.data.synced) {
+      refusalReason = result.data.reason
+      throw new Error("sync refused")
+    }
     tracker.lastSynced = after
     // Confirmed: what this sync vouched for. Anything a save added WHILE it
     // was in flight is still pending, for the chained run.
@@ -135,7 +141,7 @@ export async function syncTriggersAfterSave(
   } catch {
     tracker.pendingVouch = new Set([...tracker.pendingVouch, ...vouchNodeIds])
     tracker.pendingRetry = true
-    onFailure?.()
+    onFailure?.(refusalReason)
     return "failed"
   } finally {
     tracker.inFlight = false

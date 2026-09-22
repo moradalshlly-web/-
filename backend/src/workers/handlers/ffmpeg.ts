@@ -8,7 +8,7 @@ import { renderQueue } from "../../lib/render-queue.js"
 import { supabase } from "../../lib/supabase.js"
 import { cleanupWorkDir, createWorkDir, downloadFile, runFfmpeg, BROWSER_SAFE_VIDEO_ARGS, probeVideoSource } from "../../providers/video/ffmpeg-utils.js"
 import { combineVideos } from "../../providers/video/combine-videos.js"
-import { applyEdl } from "../../providers/video/apply-edl.js"
+import { applyEdl, applyEdlRenderBudgetMs } from "../../providers/video/apply-edl.js"
 import { assembleNarratedVideo } from "../../providers/video/assemble-narrated-video.js"
 import { createImageCollage } from "../../providers/image/collage.js"
 import { createImageOverlay, type ImageOverlayParams } from "../../providers/image/overlay.js"
@@ -209,6 +209,20 @@ const handleApplyEdl: HandlerFn = async function handleApplyEdl(job, ctx) {
 
   await commitJobCredits(ctx.usageLogId, ctx.jobId)
   console.log(`[worker] Job ${ctx.jobId} completed: ${mediaUrl}${remapped ? " (+ remapped transcript)" : ""}`)
+}
+// A final-quality render of a long episode is hours of ffmpeg — far past the
+// pre-task heartbeat's default cap (the orchestrator's 90-min node ceiling),
+// and on a direct lane (`POST /v1/apply-edl`, the MCP verb) nothing else bounds
+// it. The handler's liveness budget is the budget it gives its own bounded
+// work: the per-chunk ffmpeg kill budget `applyEdl` hands `runFfmpeg`, plus its
+// fetches and probes — so "hung" means one thing to the heartbeat and to those
+// steps. Storage I/O and ffmpeg-slot waits have no ceiling to add and are the
+// stated residual (see `workers/pre-task-heartbeat.ts`).
+handleApplyEdl.livenessBudgetMs = (job) => {
+  const { edl, output } = job.data as { edl?: Edl; output?: "video" | "audio" }
+  return edl && Array.isArray(edl.segments) && Array.isArray(edl.sources)
+    ? applyEdlRenderBudgetMs(edl, { output: output === "audio" ? "audio" : "video" })
+    : undefined
 }
 
 const handleAssembleNarratedVideo: HandlerFn = async function handleAssembleNarratedVideo(job, ctx) {
@@ -956,9 +970,8 @@ async function dispatchKineticCaptions(
   // BOTH reconcile paths (the main scan requires the timestamp non-null;
   // sweepNeverStartedJobs requires status="pending"). render-worker + BullMQ
   // stall-recovery now solely own the job's lifecycle. Without this the cron
-  // could refund a still-rendering job (free render) or spuriously fail it
-  // mid-render, after which markJobCompleted (CAS excludes only "cancelled")
-  // would flip failed→completed.
+  // would fail + refund a job that is still rendering, and markJobCompleted's
+  // live-status CAS would then discard the finished render.
   await supabase
     .from("jobs")
     .update({ provider_kind: null, provider_call_started_at: null })

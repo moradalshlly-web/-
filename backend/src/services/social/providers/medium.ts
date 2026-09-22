@@ -5,6 +5,7 @@ export const mediumProvider: SocialProvider = {
   id: "medium",
   label: "Medium",
   connectKind: "custom_fields",
+  category: "publishing",
   editor: "markdown",
   capabilities: { schedule: true, comment: false, media: ["text"], refresh: "none" },
   requiredEnv: [],

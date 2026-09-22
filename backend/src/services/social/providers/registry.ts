@@ -82,6 +82,8 @@ export interface ProviderPublicInfo {
   label: string
   connectKind: SocialProvider["connectKind"]
   editor: SocialProvider["editor"]
+  /** Grid tab family — the frontend keeps no network list of its own. */
+  category: SocialProvider["category"]
   capabilities: ProviderCapabilities
   available: boolean
   /** Present only when unavailable — env var NAMES only, never values. */
@@ -98,6 +100,7 @@ export function providerPublicInfo(provider: SocialProvider): ProviderPublicInfo
     label: provider.label,
     connectKind: provider.connectKind,
     editor: provider.editor,
+    category: provider.category,
     capabilities: provider.capabilities,
     available: missing.length === 0,
     ...(missing.length > 0 ? { missingEnv: missing } : {}),

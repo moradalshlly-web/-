@@ -5,6 +5,7 @@ export const linkedinProvider: SocialProvider = { // gitleaks:allow — type ann
   id: "linkedin",
   label: "LinkedIn",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: {
     schedule: true,

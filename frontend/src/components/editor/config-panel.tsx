@@ -276,6 +276,10 @@ export const GENERATE_BUTTON_TYPES = new Set([
 export const RUN_BUTTON_TYPES = new Set([
   "manual-edit", "composite",
   "sub-workflow", "router", "reduce",
+  // The handoff's "Test node": a Webhook Output is the one node you most want
+  // to fire once on its own before trusting a whole run to it. It costs no
+  // credits, so it belongs on this list rather than with the generate buttons.
+  "webhook-output",
 ])
 
 /** Nodes that show "Run from here" as primary action instead of "Run". */
@@ -297,7 +301,10 @@ const RESULT_PRODUCING_TYPES = new Set([
   t !== "instagram-post" && t !== "tiktok-post" && t !== "youtube-upload" &&
   t !== "linkedin-post" && t !== "x-post" && t !== "facebook-post" && t !== "telegram-post" && t !== "publish-social" &&
   t !== "image-to-text" && t !== "qa-check" && t !== "transcribe" && t !== "llm-chat" &&
-  t !== "describe-to-picker"
+  t !== "describe-to-picker" &&
+  // A webhook delivery produces a status code, not media — it has a Run
+  // button but nothing for a results gallery to show.
+  t !== "webhook-output"
 ))
 
 /** Extracted to isolate type checking scope — TS JSX children inference limit */

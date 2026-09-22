@@ -7313,7 +7313,7 @@ export async function listWorkflowTriggers(workflowId: string): Promise<Workflow
 export async function syncWorkflowTriggers(
   workflowId: string,
   vouchNodeIds: ReadonlyArray<string> = [],
-): Promise<{ data: { synced: boolean; created: number; updated: number; removed: number } }> {
+): Promise<{ data: { synced: boolean; created: number; updated: number; removed: number; reason?: string } }> {
   return apiRequest(`/v1/workflows/${encodeURIComponent(workflowId)}/sync-triggers`, "Failed to sync triggers", {
     method: "POST",
     body: { vouchNodeIds: [...vouchNodeIds] },
@@ -7811,6 +7811,13 @@ export interface SocialProviderInfo {
     | "web3"
     | "extension"
   editor: "none" | "normal" | "markdown" | "html"
+  /**
+   * Which tab the Integrations grid files this network under. Declared by the
+   * backend registry so the frontend keeps no network list of its own — and
+   * NOT derivable from `editor`, which describes the composer: Discord and
+   * Reddit take markdown but are feeds, WordPress takes html but is a site.
+   */
+  category: "social" | "publishing"
   capabilities: {
     schedule: boolean
     comment: boolean

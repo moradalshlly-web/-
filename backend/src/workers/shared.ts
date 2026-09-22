@@ -31,7 +31,22 @@ export interface JobContext {
   shouldWatermark: boolean
 }
 
-export type HandlerFn = (job: Job, ctx: JobContext) => Promise<void>
+/**
+ * A video-worker job handler. The processor wraps every handler it dispatches
+ * in the `pre-task` heartbeat (`workers/pre-task-heartbeat.ts`), which stops
+ * beating at a default cap so a hung handler still ages into the reconcile
+ * sweep. A handler whose LEGITIMATE run can outlive that cap declares its own
+ * bound through `livenessBudgetMs` — the sum of the kill budgets of its own
+ * bounded steps (apply-edl: its per-chunk ffmpeg budget, fetches and probes),
+ * never a guess — so "hung" means the same thing to the heartbeat and to
+ * those steps. Steps with no ceiling (storage I/O, ffmpeg-slot waits) cannot
+ * be summed; they are the residual the heartbeat doc states. Return
+ * `undefined` to keep the default. Core-only: the private-plugin contract
+ * does not carry this member.
+ */
+export type HandlerFn = ((job: Job, ctx: JobContext) => Promise<void>) & {
+  livenessBudgetMs?: (job: Job) => number | undefined
+}
 
 /**
  * True when a thrown error is terminal for THIS BullMQ job — i.e. no further
@@ -54,7 +69,9 @@ export type HandlerFn = (job: Job, ctx: JobContext) => Promise<void>
  * itself would skip a retry early.
  *
  * PR9 exception: `video-worker.ts` now throws `UnrecoverableError` on a FINAL
- * content-policy block (`lib/safety-block.ts`'s bounded retry policy, which
+ * content-policy block, and on a `DeterministicJobError` (a refusal that is a
+ * pure function of the job's inputs — `lib/deterministic-job-error.ts`), after
+ * failing + refunding the row (`lib/safety-block.ts`'s bounded retry policy, which
  * can cap a flagged model at fewer attempts than the queue's global
  * `opts.attempts`). That throw only ever happens after the block's own policy
  * — or this function as its fallback — has already decided the attempt is

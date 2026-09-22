@@ -79,35 +79,51 @@ export function HeygenCatalogCard() {
   // it too) — do not show non-admins a button that 403s.
   if (hasAdmin() && (!roleLoaded || !isAdmin)) return null
 
+  // A sibling card to the credentials one, in whichever theme is on. The
+  // handoff draws this panel near-black even on the light page, to mark it as
+  // maintenance rather than content — but a dark slab in the middle of a light
+  // page reads as a different app, not a different category. The CACHE eyebrow
+  // and the muted body carry that distinction instead.
   return (
     <section
       aria-labelledby="heygen-catalog-heading"
-      className="mb-6 rounded-xl border border-gray-200 dark:border-[#2D2D2D] bg-white dark:bg-[#1E1E1E] p-5 flex flex-col gap-3"
+      className="flex flex-col gap-4 rounded-[16px] border p-5"
+      style={{ borderColor: "var(--integ-line)", background: "var(--integ-surface)", color: "var(--integ-fg)" }}
     >
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#ff0073]/10 text-[#ff0073]">
-          <Users className="h-6 w-6" />
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2.5">
+          <Users className="h-3.5 w-3.5" style={{ color: "var(--integ-muted)" }} aria-hidden />
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--integ-muted)" }}>
+            Cache
+          </span>
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 id="heygen-catalog-heading" className="font-semibold text-gray-900 dark:text-white text-sm">
-            HeyGen avatar catalog
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            The avatar and voice lists the AI Avatar pickers show are cached on this server and refreshed from HeyGen
-            once a day; your own looks every couple of minutes. Refresh now to pull HeyGen&apos;s current lists at once —
-            the fill takes about two minutes, and pickers show the new lists the next time they open.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={busy} className="shrink-0">
-          {busy ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
-          Refresh now
-        </Button>
+        <h3 id="heygen-catalog-heading" className="text-[15px] font-bold tracking-[-0.01em]">
+          HeyGen avatar catalog
+        </h3>
+        {/* Deliberately not "synced 4h ago" as the handoff shows: the refresh
+            endpoint returns no timestamp, and a made-up one is worse than
+            none on a card whose whole job is telling you how stale a list is. */}
+        <p className="text-[12.5px] leading-[1.55] text-pretty" style={{ color: "var(--integ-muted)" }}>
+          Avatar and voice lists refresh once a day; your own looks every few minutes. Pull now if a new avatar is
+          missing from the picker — the fill takes about two minutes, and pickers show the new lists the next time
+          they open.
+        </p>
       </div>
+
       {lastResult && (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400" data-testid="heygen-catalog-refresh-result">
+        <p
+          className="text-[11px] leading-[1.5]"
+          style={{ color: "var(--integ-muted)" }}
+          data-testid="heygen-catalog-refresh-result"
+        >
           {lastResult}
         </p>
       )}
+
+      <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={busy} className="h-9 w-full shrink-0">
+        {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+        Refresh now
+      </Button>
     </section>
   )
 }

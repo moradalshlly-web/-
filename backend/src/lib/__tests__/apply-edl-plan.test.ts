@@ -150,3 +150,158 @@ describe("validateEffectiveEdl — output-aware picture requirement", () => {
     expect(r.issues.some((i) => i.includes("A"))).toBe(true)
   })
 })
+
+// What the phase-1 renderer cannot render is refused at ingress, never silently
+// dropped: it ignores layout/region fields, but `edlDurationMs` still subtracts a
+// layout xfade's overlap — so a dropped xfade meant a hard-cut render reserved
+// and caption-remapped as if it were shorter. A 400 naming the segment, instead.
+describe("validateEffectiveEdl — refuses what the renderer cannot render", () => {
+  const src = [
+    { id: "A", url: "https://m.test/a.mp4", kind: "video" as const },
+    { id: "B", url: "https://m.test/b.mp4", kind: "video" as const },
+  ]
+  const one = (seg: Record<string, unknown>): Edl =>
+    ({ version: 1, clock: "master", sources: src, segments: [{ id: "s0", inMs: 0, outMs: 2000, video: "A", ...seg }] }) as unknown as Edl
+
+  it("rejects a multi-slot layout, naming the segment", () => {
+    const r = validateEffectiveEdl(one({ layout: { mode: "side-by-side", slots: [{ source: "A" }, { source: "B" }] } }), "video")
+    expect(r.ok).toBe(false)
+    expect(r.issues.some((i) => /segment\[0\] "s0".*2 slots/.test(i))).toBe(true)
+  })
+
+  it("rejects a layout transition the renderer would drop (xfade / pan / zoom) — but accepts an explicit cut", () => {
+    // A transition is "into THIS segment", so it lives on a second segment
+    // (the structural validator refuses any transition on segments[0]).
+    const second = (transition: Record<string, unknown>): Edl =>
+      ({
+        version: 1, clock: "master", sources: src,
+        segments: [
+          { id: "s0", inMs: 0, outMs: 2000, video: "A" },
+          { id: "s1", inMs: 2000, outMs: 4000, video: "B", layout: { mode: "single", transition } },
+        ],
+      }) as unknown as Edl
+    for (const type of ["xfade:fade", "pan", "zoom"]) {
+      const r = validateEffectiveEdl(second({ type, durationMs: 500 }), "video")
+      expect(r.ok, type).toBe(false)
+      expect(r.issues.some((i) => i.includes(`segment[1] "s1"`) && i.includes(`layout transition "${type}"`)), type).toBe(true)
+    }
+    expect(validateEffectiveEdl(second({ type: "cut" }), "video").ok).toBe(true)
+  })
+
+  it("a layout xfade cannot slip through buildEffectiveEdl as a silent hard cut at a compressed reserve", () => {
+    const edl = buildEffectiveEdl(
+      {
+        version: 1, clock: "master", sources: src,
+        segments: [
+          { id: "s0", inMs: 0, outMs: 4000, video: "A" },
+          { id: "s1", inMs: 4000, outMs: 8000, video: "B", layout: { mode: "single", transition: { type: "xfade:fade", durationMs: 1000 } } },
+        ],
+      },
+      { crossfadeMs: 500 },
+    )
+    // buildEffectiveEdl leaves the editorial layout transition alone (no default
+    // crossfade injected under it) — and validation then refuses it outright.
+    expect(edl.segments[1]!.transition).toBeUndefined()
+    expect(validateEffectiveEdl(edl, "video").ok).toBe(false)
+  })
+
+  it("rejects region crops on a segment, a slot, or a source", () => {
+    const region = { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }
+    expect(validateEffectiveEdl(one({ region }), "video").ok).toBe(false)
+    expect(validateEffectiveEdl(one({ layout: { mode: "single", slots: [{ source: "A", region }] } }), "video").ok).toBe(false)
+    const withSourceRegion: Edl = { ...one({}), sources: [{ ...src[0]!, region }, src[1]!] } as Edl
+    const r = validateEffectiveEdl(withSourceRegion, "video")
+    expect(r.ok).toBe(false)
+    expect(r.issues.some((i) => /source "A": region/.test(i))).toBe(true)
+  })
+
+  // A layout is renderable only when it describes exactly what this renderer
+  // does anyway — "single", the one slot IS segment.video, no emphasis, a cut.
+  // Anything else would render as something other than what the EDL says.
+  it("rejects a layout mode other than \"single\" — one source full-frame is all this renderer shows", () => {
+    for (const mode of ["side-by-side", "pip", "grid"]) {
+      const r = validateEffectiveEdl(one({ layout: { mode, slots: [{ source: "A" }] } }), "video")
+      expect(r.ok, mode).toBe(false)
+      expect(r.issues.some((i) => i.includes(`segment[0] "s0"`) && i.includes(`layout mode "${mode}"`)), mode).toBe(true)
+    }
+  })
+
+  it("rejects a single slot that names a different source than segment.video (the renderer shows segment.video)", () => {
+    const r = validateEffectiveEdl(one({ layout: { mode: "single", slots: [{ source: "B" }] } }), "video")
+    expect(r.ok).toBe(false)
+    expect(r.issues.some((i) => i.includes(`slot shows "B"`) && i.includes(`video is "A"`))).toBe(true)
+  })
+
+  it("rejects a layout emphasis other than \"none\" (dropped by the renderer) — and accepts \"none\"", () => {
+    const r = validateEffectiveEdl(one({ layout: { mode: "single", emphasis: { style: "scale", durationMs: 300 } } }), "video")
+    expect(r.ok).toBe(false)
+    expect(r.issues.some((i) => i.includes(`layout emphasis "scale"`))).toBe(true)
+    expect(validateEffectiveEdl(one({ layout: { mode: "single", emphasis: { style: "none", durationMs: 0 } } }), "video").ok).toBe(true)
+  })
+
+  it("accepts a single-slot layout on segment.video with no transition, emphasis or region", () => {
+    expect(validateEffectiveEdl(one({ layout: { mode: "single", slots: [{ source: "A" }] } }), "video").ok).toBe(true)
+  })
+})
+
+// `masterMs = sourceMs + offsetMs`: a segment starting before a source's origin
+// would read negative source time. The renderer used to clamp that to 0 and
+// deliver the wrong picture; ingress now names the segment and the source.
+describe("validateEffectiveEdl — a segment must start on its source", () => {
+  const edlWith = (sources: Edl["sources"], seg: Record<string, unknown>): Edl =>
+    ({ version: 1, clock: "master", sources, segments: [{ id: "s0", ...seg }] }) as unknown as Edl
+
+  it("rejects a segment that starts before its VIDEO source's offset, naming both", () => {
+    const r = validateEffectiveEdl(
+      edlWith([{ id: "cam", url: "https://m.test/cam.mp4", kind: "video", offsetMs: 5000 }], { inMs: 2000, outMs: 9000, video: "cam" }),
+      "video",
+    )
+    expect(r.ok).toBe(false)
+    expect(r.issues.some((i) => /segment\[0\] "s0".*source "cam" begins at 5000ms/.test(i))).toBe(true)
+  })
+
+  it("checks the AUDIO source too — explicit, master-audio role, or the picture source by default", () => {
+    const explicit = edlWith(
+      [
+        { id: "cam", url: "https://m.test/cam.mp4", kind: "video" },
+        { id: "mic", url: "https://m.test/mic.m4a", kind: "audio", offsetMs: 3000 },
+      ],
+      { inMs: 1000, outMs: 6000, video: "cam", audio: "mic" },
+    )
+    expect(validateEffectiveEdl(explicit, "video").issues.some((i) => /source "mic" begins at 3000ms/.test(i))).toBe(true)
+    const master = edlWith(
+      [
+        { id: "cam", url: "https://m.test/cam.mp4", kind: "video" },
+        { id: "mic", url: "https://m.test/mic.m4a", kind: "audio", role: "master-audio", offsetMs: 3000 },
+      ],
+      { inMs: 1000, outMs: 6000, video: "cam" },
+    )
+    expect(validateEffectiveEdl(master, "video").issues.some((i) => /source "mic" begins at 3000ms/.test(i))).toBe(true)
+  })
+
+  it("accepts a segment that starts exactly at the source's offset, and any segment on an un-offset source", () => {
+    expect(validateEffectiveEdl(
+      edlWith([{ id: "cam", url: "https://m.test/cam.mp4", kind: "video", offsetMs: 5000 }], { inMs: 5000, outMs: 9000, video: "cam" }),
+      "video",
+    ).ok).toBe(true)
+    expect(validateEffectiveEdl(
+      edlWith([{ id: "cam", url: "https://m.test/cam.mp4", kind: "video" }], { inMs: 0, outMs: 9000, video: "cam" }),
+      "video",
+    ).ok).toBe(true)
+  })
+
+  // "Reads" is the executor's rule: an audio-only output never touches the
+  // picture source, so a late-starting camera cannot refuse an audio cut that
+  // reads only the master mic — while the same EDL as a video edit is refused.
+  it("for an audio-only output, checks only the sound source — a late-starting camera does not refuse the cut", () => {
+    const edl = edlWith(
+      [
+        { id: "cam", url: "https://m.test/cam.mp4", kind: "video", offsetMs: 5000 },
+        { id: "mic", url: "https://m.test/mic.m4a", kind: "audio", role: "master-audio" },
+      ],
+      { inMs: 2000, outMs: 9000, video: "cam" },
+    )
+    expect(validateEffectiveEdl(edl, "audio").ok).toBe(true)
+    expect(validateEffectiveEdl(edl, "video").issues.some((i) => /source "cam" begins at 5000ms/.test(i))).toBe(true)
+  })
+})

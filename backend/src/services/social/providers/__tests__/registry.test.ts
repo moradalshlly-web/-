@@ -143,4 +143,19 @@ describe("per-deployment availability (§2.5)", () => {
     expect(ok.available).toBe(true)
     expect(ok.missingEnv).toBeUndefined()
   })
+
+  /**
+   * The Integrations grid files every network under a tab from THIS field, so
+   * the frontend keeps no name list. A required member on the descriptor makes
+   * TypeScript the guard for the 21 descriptors — but the wire funnel is a
+   * hand-written object literal, so a `category` added to the type and
+   * forgotten in `providerPublicInfo` still compiles and the tabs go empty.
+   * This asserts the value survives the funnel, for every provider.
+   */
+  it("every provider declares a category, and it reaches the wire", () => {
+    for (const p of ALL) {
+      expect(["social", "publishing"], p.id).toContain(p.category)
+      expect(providerPublicInfo(p).category, `${p.id} lost its category on the wire`).toBe(p.category)
+    }
+  })
 })

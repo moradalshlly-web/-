@@ -5,6 +5,7 @@ export const xProvider: SocialProvider = {
   id: "x",
   label: "X (Twitter)",
   connectKind: "oauth2",
+  category: "social",
   editor: "normal",
   capabilities: {
     schedule: true,

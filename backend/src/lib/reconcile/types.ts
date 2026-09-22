@@ -130,11 +130,12 @@ export const STALE_THRESHOLD_MS: Record<ProviderKind, number> = {
   // input preprocessing (R2 download, JPEG re-encode for Hailuo, etc.) plenty
   // of headroom before the sync-sweep marks the row failed + refunds.
   // Not a runtime cap: a handler that legitimately runs longer keeps its stamp
-  // fresh. Core long-runners beat it themselves (`SCENE3D_HEARTBEAT_MS`), and
-  // the video worker beats it for EVERY private-plugin handler
-  // (`workers/pre-task-heartbeat.ts`) — so for those this threshold bounds a
-  // DEAD (or, past the beat cap, hung) worker, never a live one. Raising it is
-  // not the fix for a long run: it moves the backstop for every job type.
+  // fresh. The video worker beats it for EVERY handler it dispatches — core,
+  // relay and private-plugin alike (`workers/pre-task-heartbeat.ts`; the core
+  // long-runners' own beats, `SCENE3D_HEARTBEAT_MS`, refresh the same stamp) —
+  // so this threshold is meant to catch a DEAD (or, past the beat cap, hung)
+  // worker; the residuals no beat cap bounds are stated in that file. Raising
+  // it is not the fix for a long run: it moves the backstop for every job type.
   "pre-task":                 30 * MIN,
   // 4b exclusive-node relay. gvp/evp-class cloud runs legitimately take an
   // hour+, and the relay's own live poll budget is ~85 min — reconcile only

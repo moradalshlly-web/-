@@ -109,11 +109,16 @@ export interface ApplyEdlValidation {
 }
 
 /**
- * Full ingress validation: the structural `validateEdl` PLUS the two executor
- * pre-conditions that would otherwise fail mid-render (after credits are
- * reserved): every referenced source must have a non-empty url, and a
- * `video`-output edit must give every segment a picture source. Returns issues
- * so the route can 400 naming exactly what is wrong.
+ * Full ingress validation: the structural `validateEdl` PLUS the executor
+ * pre-conditions that would otherwise fail — or silently mis-render — after
+ * credits are reserved: every referenced source must have a non-empty url, a
+ * `video`-output edit must give every segment a picture source, nothing the
+ * phase-1 renderer cannot render may be present (multi-slot layouts, layout
+ * transitions other than "cut", regions), and no segment may start before its
+ * source's origin. Returns issues so the route can 400 naming exactly what is
+ * wrong. (Whether a segment runs PAST a source's end needs the file itself and
+ * is checked by the executor after download — it fails naming the segment,
+ * never clamps.)
  */
 export function validateEffectiveEdl(edl: Edl, output: "video" | "audio"): ApplyEdlValidation {
   const base = validateEdl(edl)
@@ -140,6 +145,69 @@ export function validateEffectiveEdl(edl: Edl, output: "video" | "audio"): Apply
       if (!seg.video) issues.push(`segment[${i}] "${seg.id}" has no video source (required for a video-output edit; use output:"audio" for an audio-only cut)`)
     })
   }
+
+  // What this executor cannot render is REFUSED here, never silently dropped.
+  // The contract carries phase-2 presentation fields (multi-slot layouts, pan /
+  // zoom / xfade switches, regions) that the phase-1 renderer ignores — and a
+  // layout xfade it ignored would still have its overlap subtracted by
+  // `edlDurationMs`, so the reserve and the caption remap would describe a
+  // shorter render than the one delivered. A user who wrote them gets a 400
+  // naming the segment, not a hard-cut full-frame render at the wrong price.
+  // A `layout` is renderable here only when it describes exactly what this
+  // renderer does anyway: mode "single", at most one slot and that slot IS
+  // `segment.video`, no emphasis, a cut. Anything else would render as
+  // something other than what the EDL says it shows.
+  edl.segments.forEach((seg, i) => {
+    const at = `segment[${i}] "${seg.id}"`
+    const layout = seg.layout
+    const slots = layout?.slots ?? []
+    if (layout && layout.mode !== "single") {
+      issues.push(`${at}: layout mode "${layout.mode}" — this renderer shows one source full-frame per segment (multi-camera layouts are a speaker-view feature)`)
+    }
+    if (slots.length > 1) {
+      issues.push(`${at}: layout with ${slots.length} slots — this renderer shows one source per segment (multi-slot layouts are a speaker-view feature)`)
+    } else if (slots.length === 1 && seg.video && slots[0].source !== seg.video) {
+      issues.push(`${at}: layout slot shows "${slots[0].source}" but the segment's video is "${seg.video}" — this renderer shows segment.video; make them agree or drop the layout`)
+    }
+    const emphasis = layout?.emphasis?.style
+    if (emphasis !== undefined && emphasis !== "none") {
+      issues.push(`${at}: layout emphasis "${emphasis}" is not renderable here (a speaker-view feature) — remove layout.emphasis`)
+    }
+    const lt = layout?.transition?.type
+    if (lt !== undefined && lt !== "cut") {
+      issues.push(`${at}: layout transition "${lt}" is not renderable here (only "cut", or a segment \`transition\` of type "crossfade", is) — remove it or use segment.transition`)
+    }
+    if (seg.region) issues.push(`${at}: region crops are not renderable here (a speaker-view feature) — remove segment.region`)
+    for (const slot of slots) {
+      if (slot.region) issues.push(`${at}: slot "${slot.source}" has a region crop — not renderable here (a speaker-view feature)`)
+    }
+  })
+  for (const s of edl.sources) {
+    if (s.region) issues.push(`source "${s.id}": region crops are not renderable here (a speaker-view feature) — remove source.region`)
+  }
+
+  // A segment must exist on the source it reads. `masterMs = sourceMs + offsetMs`,
+  // so a segment starting before a source's origin would ask for negative source
+  // time; the renderer clamps that to 0 (`renderSlice`) and would deliver the
+  // wrong picture — so it is refused here, before anything is reserved.
+  // "Reads" is the executor's rule exactly: the picture source only for a video
+  // output (an audio cut never touches it), the sound source always.
+  const masterAudioId = edl.sources.find((s) => s.role === "master-audio")?.id
+  edl.segments.forEach((seg, i) => {
+    const at = `segment[${i}] "${seg.id}"`
+    const reads = new Set<string>()
+    if (output === "video" && seg.video) reads.add(seg.video)
+    const audio = seg.audio ?? masterAudioId ?? seg.video
+    if (audio) reads.add(audio)
+    for (const id of reads) {
+      const src = byId.get(id)
+      if (!src) continue
+      const offset = src.offsetMs ?? 0
+      if (seg.inMs < offset) {
+        issues.push(`${at}: starts at ${seg.inMs}ms on the master clock but source "${id}" begins at ${offset}ms (offsetMs) — the segment would read before the source starts`)
+      }
+    }
+  })
 
   return { ok: issues.length === 0, issues }
 }

@@ -1,7 +1,7 @@
 ---
 node_type: 3d-title
-generated_at: 2026-09-21T19:12:09.903Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:31.459Z
+generated_from: 65b4cddf2
 ---
 
 # 3D Title
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `3d-title`
 **Category:** ai
-**Credit cost:** `15` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `10-40` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `background`
 **Outputs (source handles):** `composition`
 

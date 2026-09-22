@@ -3,7 +3,7 @@
  * Pure functions operating on SimpleNode/SimpleEdge arrays.
  */
 
-import { buildChildrenByParent, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES } from "@nodaro/shared"
+import { buildChildrenByParent, buildFeedMaps, VIDEO_PRODUCER_TYPES, AUDIO_PRODUCER_TYPES } from "@nodaro/shared"
 import type { SimpleNode, SimpleEdge, NodeExecutionState } from "./types.js"
 
 // The per-node legacy-type migration lives in normalize-node-types.ts (single
@@ -287,6 +287,84 @@ export function getUploadDescendantIds(
   }
 
   return descendants
+}
+
+// ---------------------------------------------------------------------------
+// Trigger run scope
+// ---------------------------------------------------------------------------
+
+/** The node type each trigger lane starts from. Manual / API / app runs have none: they run what they are asked. */
+const TRIGGER_NODE_TYPE_BY_LANE: Readonly<Record<string, string>> = {
+  schedule: "schedule-trigger",
+  webhook: "webhook-trigger",
+  telegram: "telegram-trigger",
+}
+
+/**
+ * What a TRIGGERED run executes. A trigger wired to something runs only the
+ * branch behind it — its descendants, plus every node those descendants need
+ * (their ancestors), so a branch that also reads from a node off to the side
+ * still gets a fresh result rather than a stale one. A trigger wired to
+ * nothing runs the whole workflow, as before. This is what lets one workflow
+ * carry several triggers, each starting its own branch.
+ *
+ * The trigger node is the one the trigger row names (`triggerNodeId`, from
+ * the row's `config.nodeId`); a row that names none (hand-made through the
+ * API, or a lane whose rows carry no node id) falls back to the ONLY node of
+ * that lane's type — with two such nodes there is no honest answer, so the
+ * whole workflow runs.
+ *
+ * "Wired" means every way one node feeds another, not only a drawn edge: a
+ * node inside a Group feeds the group (`parentId` — the engine models that
+ * dependency without an edge, see `buildExecutionLevels`), and a field
+ * mapping feeds its node by `sourceNodeId` even after the edge it was made
+ * from is gone. An edge whose end is no longer on the graph (a delta that
+ * deleted a node leaves its edges behind) feeds nothing and is ignored —
+ * otherwise it would make an unwired trigger look wired and the run would
+ * execute nothing at all.
+ *
+ * Returns `null` for "the whole workflow"; otherwise the node ids to execute
+ * (the trigger node included).
+ */
+export function triggerRunScope(
+  nodes: ReadonlyArray<{ id: string; type: string; parentId?: string | null; data?: unknown }>,
+  edges: ReadonlyArray<{ source: string; target: string }>,
+  trigger: { readonly triggerType: string; readonly triggerNodeId?: string | null },
+): Set<string> | null {
+  const nodeType = TRIGGER_NODE_TYPE_BY_LANE[trigger.triggerType]
+  if (!nodeType) return null
+
+  let triggerNode = trigger.triggerNodeId
+    ? nodes.find((n) => n.id === trigger.triggerNodeId && n.type === nodeType)
+    : undefined
+  if (!triggerNode) {
+    const candidates = nodes.filter((n) => n.type === nodeType)
+    if (candidates.length !== 1) return null
+    triggerNode = candidates[0]
+  }
+
+  // The SAME feed definition the editor's "is this trigger wired?" reads
+  // (`@nodaro/shared` trigger-feeds): live edges, Group membership, field
+  // mappings — so the card and the server never disagree on branch vs whole.
+  const { children, parents } = buildFeedMaps(nodes, edges)
+  if ((children.get(triggerNode.id) ?? []).length === 0) return null
+
+  const scope = new Set<string>([triggerNode.id])
+  const walk = (start: string, next: ReadonlyMap<string, ReadonlyArray<string>>) => {
+    const queue = [start]
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      for (const id of next.get(current) ?? []) {
+        if (!scope.has(id)) {
+          scope.add(id)
+          queue.push(id)
+        }
+      }
+    }
+  }
+  walk(triggerNode.id, children)
+  for (const id of [...scope]) walk(id, parents)
+  return scope
 }
 
 // ---------------------------------------------------------------------------

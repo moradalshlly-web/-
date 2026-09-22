@@ -1,7 +1,7 @@
 ---
 node_type: speed-ramp
-generated_at: 2026-09-21T19:12:09.970Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:31.530Z
+generated_from: 65b4cddf2
 ---
 
 # Adjust Speed
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `speed-ramp`
 **Category:** processing
-**Credit cost:** `2-5` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `20-50` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `video`
 

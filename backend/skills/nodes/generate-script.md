@@ -1,7 +1,7 @@
 ---
 node_type: generate-script
-generated_at: 2026-09-21T19:12:09.161Z
-generated_from: 09788c987
+generated_at: 2026-09-22T09:36:30.700Z
+generated_from: 65b4cddf2
 ---
 
 # Generate Script
@@ -9,7 +9,7 @@ generated_from: 09788c987
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `generate-script`
 **Category:** ai
-**Credit cost:** `1-3` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
+**Credit cost:** `10-30` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`
 **Outputs (source handles):** `scenes`, `images`, `dialogue`, `music`, `sfx`, `characters`, `locations`
 

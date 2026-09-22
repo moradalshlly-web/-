@@ -5,6 +5,7 @@ import { insertJob } from "../lib/insert-job.js"
 import { supabase } from "../lib/supabase.js"
 import { videoQueue } from "../lib/queue.js"
 import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js"
+import { imageCollageCreditModelIdentifier } from "../lib/image-collage-credit-id.js"
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
 import { extractMcpClient } from "../lib/extract-mcp-client.js"
 import { buildJobInputData } from "../lib/job-input-data.js"
@@ -135,11 +136,6 @@ export const collageLayoutBody = z.object({
  */
 const layoutRateLimit = rateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "collage-layout" })
 
-/** BASE credits (pre-markup) by output resolution. 4K costs more compute. */
-function estimateImageCollageCredits(resolution: unknown): number {
-  return resolution === "4K" ? 4 : 2
-}
-
 export async function imageCollageRoutes(app: FastifyInstance) {
   /**
    * Pure compute: no job, no queue, no credits, no storage. Answers "where
@@ -191,10 +187,13 @@ export async function imageCollageRoutes(app: FastifyInstance) {
   app.post(
     "/v1/image-collage",
     {
-      preHandler: creditGuard(() => "image-collage", {
-        computeCredits: (body) =>
-          estimateImageCollageCredits((body as Record<string, unknown>).resolution),
-      }),
+      // Priced by resolution through the SAME composite row the workflow run
+      // reserves on (lib/image-collage-credit-id.ts) — never a hand-typed
+      // number: the old `computeCredits` hook here returned 2 / 4 base credits
+      // long after the price table said 20 / 40.
+      preHandler: creditGuard((req) =>
+        imageCollageCreditModelIdentifier((req.body as Record<string, unknown> | undefined)?.resolution),
+      ),
     },
     async (req, reply) => {
       const parsed = imageCollageBody.safeParse(req.body)
@@ -219,7 +218,7 @@ export async function imageCollageRoutes(app: FastifyInstance) {
       // what is stored is exactly what gets drawn; all-empty → key omitted.
       const imageLabels = normalizeCollageLabels(rawImageLabels)
 
-      const modelIdentifier = "image-collage"
+      const modelIdentifier = imageCollageCreditModelIdentifier(resolution)
 
       const mcpClient = extractMcpClient(req.body)
       const { data: job, error } = await insertJob(req, {

@@ -14,6 +14,12 @@
  * run this AFTER the workflow row is persisted, and it never throws — a
  * failure here must not fail a save that already succeeded.
  *
+ * Telegram Trigger is the third projected type, and the only one with a side
+ * effect outside the table: a bot has to be TOLD where to deliver. That lives
+ * in `telegram-trigger-activation.ts`; the rule here is that the row is never
+ * written unless Telegram accepted the registration, so an active row always
+ * means a bot that is really talking to us.
+ *
  * Ownership: a row this module creates carries `config.nodeId`. Rows WITHOUT a
  * `nodeId` were created directly against `POST /v1/workflow-triggers` (curl, a
  * script, an integration) and are left strictly alone — reconciling them would
@@ -22,13 +28,32 @@
 
 import { randomBytes } from "node:crypto"
 import { isDeepStrictEqual } from "node:util"
-import { SCHEDULE_TRIGGER_NODE_TYPE, WEBHOOK_TRIGGER_NODE_TYPE } from "@nodaro/shared"
+import {
+  SCHEDULE_TRIGGER_NODE_TYPE,
+  TELEGRAM_TRIGGER_NODE_TYPE,
+  WEBHOOK_TRIGGER_NODE_TYPE,
+  isCronExpression,
+  isValidTimezone,
+  legacyScheduleToRules,
+  normalizeScheduleRules,
+  type ScheduleRule,
+} from "@nodaro/shared"
 import { supabase } from "./supabase.js"
 import { isMissingColumnError } from "./postgrest-errors.js"
+import {
+  ensureBotRegistration,
+  syncBotRegistration,
+  TelegramActivationError,
+  type BotRegistration,
+  type ReleasedUrl,
+} from "./telegram-trigger-activation.js"
 
-export { SCHEDULE_TRIGGER_NODE_TYPE, WEBHOOK_TRIGGER_NODE_TYPE }
+export { SCHEDULE_TRIGGER_NODE_TYPE, TELEGRAM_TRIGGER_NODE_TYPE, WEBHOOK_TRIGGER_NODE_TYPE, isCronExpression }
 
-export type SyncedTriggerType = "schedule" | "webhook"
+export type SyncedTriggerType = "schedule" | "webhook" | "telegram"
+
+/** The row types this module owns. A row of any other type is nobody's here. */
+const SYNCED_TRIGGER_TYPES: readonly SyncedTriggerType[] = ["schedule", "webhook", "telegram"]
 
 export interface GraphNode {
   readonly id?: unknown
@@ -40,6 +65,23 @@ export interface DesiredTrigger {
   readonly nodeId: string
   readonly type: SyncedTriggerType
   readonly config: Record<string, unknown>
+  /**
+   * Whether the row fires. A schedule is what its node's switch says
+   * (`data.active === true`) — a new schedule starts PAUSED, saving is not
+   * enough, and the graph decides on every save (the panel's switch, the
+   * editor's top-bar button, or an API write of `active`). A webhook is
+   * always armed: its token is minted on save and there is no switch for it
+   * yet.
+   */
+  readonly isActive: boolean
+  /**
+   * The node is on the graph but cannot run (no usable rule, a timezone the
+   * runtime cannot read): keep an EXISTING row — paused, its schedule keys
+   * cleared, its `executionCount` and `owner_initiated` intact for the day
+   * the node is fixed — and create none. Deleting it instead would restart
+   * the run count and lose the owner's vouch when it came back.
+   */
+  readonly parked?: true
 }
 
 export interface ExistingTrigger {
@@ -47,6 +89,9 @@ export interface ExistingTrigger {
   readonly type: string
   readonly config: Record<string, unknown> | null
   readonly is_active: boolean
+  /** Telegram only: the url this row holds for its bot, if it is the one
+   *  holding it. Read when the row leaves, so the url can be handed on. */
+  readonly webhook_token?: string | null
 }
 
 export interface TriggerPlan {
@@ -55,57 +100,83 @@ export interface TriggerPlan {
   readonly remove: readonly string[]
 }
 
-/**
- * `shouldTriggerFire` reads `config.interval` FIRST and ignores `config.cron`
- * when it is set, and `parseIntervalToMs` only understands `<n><s|m|h|d>`.
- * The editor panel stores its presets (`"0 * * * *"`, …) under `interval`, so
- * an un-normalised copy of node data would land a cron string in the key that
- * shadows cron and parses to 0 ms — a schedule that never fires and says
- * nothing. Everything below funnels into exactly ONE of `cron` / `interval`.
- */
-const INTERVAL_RE = /^\d+[smhd]$/
-
-/** A 5-field cron expression, the only shape `matchesCronMinute` understands. */
-export function isCronExpression(value: string): boolean {
-  return value.split(/\s+/).filter(Boolean).length === 5
-}
-
 function trimmed(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
 }
 
 /**
- * The schedule a `schedule-trigger` node is asking for, or null when the node
- * is not configured enough to schedule (a half-filled node must not quietly
- * start running). `cronExpression` is read because the editor panel wrote the
- * custom cron under that name while the node type, the node card and this
- * table all use `cron`.
+ * The schedule a `schedule-trigger` node is asking for, as the RULES the cron
+ * evaluates (`config.rules` — the model the editor shares, `@nodaro/shared`
+ * `schedule-rules`), or null when the node is not configured enough to
+ * schedule (a half-filled node must not quietly start running).
+ *
+ * A node written before the rules model carries `interval` ("5m", or one of
+ * the old panel's cron presets — `"0 * * * *"` stored under `interval`) and/or
+ * a custom `cron` (`cronExpression` — the name the old panel used). Those
+ * convert on the way through, so a row always holds rules and the legacy
+ * keys never reach it to shadow them (`scheduleDue` reads `interval` before
+ * `cron`, and a cron string under `interval` used to parse as 0 ms — a
+ * schedule that never fired and said nothing). Rules present means rules: a
+ * stale legacy key beside them is ignored.
+ *
+ * A timezone the runtime cannot read is a refusal, not a fallback — a
+ * schedule that ran at UTC hours its owner never asked for is worse than one
+ * that waits to be fixed.
  */
 export function normalizeScheduleConfig(
   data: Record<string, unknown>,
 ): Record<string, unknown> | null {
-  const interval = trimmed(data.interval)
-  const explicitCron = trimmed(data.cron) || trimmed(data.cronExpression)
-
-  let schedule: { cron: string } | { interval: string } | null = null
-  if (INTERVAL_RE.test(interval)) {
-    schedule = { interval }
-  } else {
-    // "custom" (or nothing) selected -> the typed expression; otherwise the
-    // preset itself already IS the cron string.
-    const expression = interval === "" || interval === "custom" ? explicitCron : interval
-    if (isCronExpression(expression)) schedule = { cron: expression }
-  }
-  if (!schedule) return null
+  const rules: ScheduleRule[] = Array.isArray(data.rules)
+    ? normalizeScheduleRules(data.rules)
+    : legacyScheduleToRules(data)
+  if (rules.length === 0) return null
 
   const timezone = trimmed(data.timezone)
+  if (timezone && !isValidTimezone(timezone)) return null
+
   const maxExecutions = data.maxExecutions
   return {
-    ...schedule,
+    rules,
     ...(timezone ? { timezone } : {}),
     ...(typeof maxExecutions === "number" && Number.isInteger(maxExecutions) && maxExecutions > 0
       ? { maxExecutions }
       : {}),
+  }
+}
+
+/** What the inbound handler falls back to, and what the panel ships checked. */
+export const DEFAULT_TELEGRAM_MESSAGE_TYPES = ["text", "photo", "video", "audio", "document"] as const
+
+/**
+ * The listener a `telegram-trigger` node is asking for, or null when it is
+ * not asking for one. Two conditions, both deliberate:
+ * - `connectionId` — WHICH bot. There is nothing to point at Telegram without it.
+ * - `isActive === true` — the panel's Activate button. A trigger that started
+ *   listening the moment a bot was picked would read the user's chats before
+ *   they asked for it; off (the default) projects nothing, and projecting
+ *   nothing is how a row is reconciled away. Deactivating IS removal here.
+ *
+ * Every filter is emitted, never omitted: `mergeTriggerConfig` keeps whatever
+ * the desired config does not mention, so an omitted `chatIdFilter` would
+ * leave a filter the user just cleared standing on the row.
+ */
+export function normalizeTelegramConfig(
+  data: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const connectionId = trimmed(data.connectionId)
+  if (!connectionId || data.isActive !== true) return null
+
+  const filters = Array.isArray(data.messageTypeFilters)
+    ? (data.messageTypeFilters as unknown[]).filter((v): v is string => typeof v === "string" && v.trim() !== "")
+    : []
+  const chatIdFilter = trimmed(data.chatIdFilter)
+
+  return {
+    connectionId,
+    chatIdFilter: chatIdFilter || null,
+    // Empty means "every type" to the inbound handler either way; spelling the
+    // default out keeps the row readable and matches the API lane.
+    messageTypeFilters: filters.length > 0 ? filters : [...DEFAULT_TELEGRAM_MESSAGE_TYPES],
   }
 }
 
@@ -120,29 +191,42 @@ export function desiredTriggersFromGraph(nodes: readonly GraphNode[] | undefined
     const data = (node?.data && typeof node.data === "object" ? node.data : {}) as Record<string, unknown>
 
     if (nodeType === SCHEDULE_TRIGGER_NODE_TYPE) {
+      seen.add(nodeId)
       const config = normalizeScheduleConfig(data)
-      if (config) {
-        seen.add(nodeId)
-        desired.push({ nodeId, type: "schedule", config })
-      }
+      desired.push(
+        config
+          ? { nodeId, type: "schedule", config, isActive: data.active === true }
+          : { nodeId, type: "schedule", config: {}, isActive: false, parked: true },
+      )
     } else if (nodeType === WEBHOOK_TRIGGER_NODE_TYPE) {
       seen.add(nodeId)
-      desired.push({ nodeId, type: "webhook", config: {} })
+      desired.push({ nodeId, type: "webhook", config: {}, isActive: true })
+    } else if (nodeType === TELEGRAM_TRIGGER_NODE_TYPE) {
+      const config = normalizeTelegramConfig(data)
+      if (config) {
+        seen.add(nodeId)
+        // Always armed once it is desired at all: normalizeTelegramConfig
+        // returns null until the node's Activate button was pressed, so an
+        // un-activated node never reaches this list and its row is released.
+        desired.push({ nodeId, type: "telegram", config, isActive: true })
+      }
     }
   }
   return desired
 }
 
 /**
- * Runtime state the cron writes back onto `config` and a re-save must not
- * clobber — `schedule-cron.ts` increments `executionCount` there.
+ * Every key that describes the schedule. Runtime state the cron writes back
+ * onto `config` (`executionCount`) is everything else, and a re-save must not
+ * clobber it.
  */
-const SCHEDULE_CONFIG_KEYS = ["cron", "interval", "timezone", "maxExecutions"] as const
+const SCHEDULE_CONFIG_KEYS = ["rules", "cron", "interval", "timezone", "maxExecutions"] as const
 
 /**
  * Desired config merged onto the stored one: runtime state (`executionCount`)
- * survives, and EVERY schedule key is dropped first so a switch from interval
- * to cron cannot leave the old key behind to shadow the new one.
+ * survives, and EVERY schedule key is dropped first so a row written before
+ * the rules model cannot keep its `interval` / `cron` beside the new rules,
+ * and a switch of timezone cannot leave the old one behind.
  */
 export function mergeTriggerConfig(
   existing: Record<string, unknown> | null,
@@ -155,6 +239,56 @@ export function mergeTriggerConfig(
     preserved[key] = value
   }
   return { ...preserved, ...desired, nodeId }
+}
+
+/**
+ * A change the row cannot absorb in place. A Telegram row IS a registration at
+ * one bot, so re-pointing the node at another bot is a new registration plus an
+ * old one to take down — replace the row rather than edit it, and the create
+ * and remove paths do both halves for free. An INACTIVE Telegram row is
+ * replaced too: deactivation gives its url up (the API lane clears the token,
+ * and may have taken the bot's webhook down with it), and only the create
+ * path registers one — flipping `is_active` back would leave a trigger that
+ * is active on paper and reachable by nothing. A PARKED schedule row is the
+ * opposite case and never comes here: it is kept, paused, on purpose.
+ */
+function requiresReplacement(
+  type: SyncedTriggerType,
+  row: ExistingTrigger,
+  desired: Record<string, unknown>,
+): boolean {
+  if (type !== "telegram") return false
+  if (!row.is_active) return true
+  return trimmed((row.config ?? {}).connectionId) !== trimmed(desired.connectionId)
+}
+
+/**
+ * `PATCH /v1/workflow-triggers/:id` config semantics: the submitted keys land
+ * ON TOP of the stored config — a PATCH of the timezone alone keeps the
+ * rules — and the row's `nodeId` (its link to the node that manages it) and
+ * `executionCount` (the cron's own count) are never the caller's to change.
+ * One family of schedule keys at a time: submitting `rules` drops a stored
+ * `interval` / `cron`; submitting either of those without rules drops stored
+ * `rules` — whichever the caller just said is what runs, never a stale key
+ * shadowing it.
+ */
+export function applyTriggerConfigPatch(
+  existing: Record<string, unknown> | null,
+  submitted: Record<string, unknown>,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = { ...(existing ?? {}) }
+  if (submitted.rules !== undefined) {
+    delete base.interval
+    delete base.cron
+  } else if (submitted.interval !== undefined || submitted.cron !== undefined) {
+    delete base.rules
+  }
+  const merged: Record<string, unknown> = { ...base, ...submitted }
+  if (existing && typeof existing.nodeId === "string") merged.nodeId = existing.nodeId
+  else delete merged.nodeId
+  if (existing && existing.executionCount !== undefined) merged.executionCount = existing.executionCount
+  else delete merged.executionCount
+  return merged
 }
 
 /** Pure diff: what to create, update and delete. Rows without `nodeId` are not ours. */
@@ -173,23 +307,33 @@ export function planTriggerSync(
 
   const create: DesiredTrigger[] = []
   const update: Array<{ id: string; config: Record<string, unknown>; isActive: boolean }> = []
+  const remove: string[] = []
   const matched = new Set<string>()
 
   for (const want of desired) {
     const key = `${want.type}:${want.nodeId}`
     const row = owned.get(key)
     if (!row) {
-      create.push(want)
+      if (!want.parked) create.push(want)
       continue
     }
     matched.add(key)
+    if (requiresReplacement(want.type, row, want.config)) {
+      remove.push(row.id)
+      create.push(want)
+      continue
+    }
     const config = mergeTriggerConfig(row.config, want.config, want.nodeId)
-    if (!isDeepStrictEqual(config, row.config) || !row.is_active) {
-      update.push({ id: row.id, config, isActive: true })
+    // The graph decides whether the row fires: a switch flipped in the editor
+    // reaches the row here, a row paused or resumed through the API is
+    // brought back to what the node says on the next save, and a node that
+    // cannot run keeps its row paused whatever its switch says.
+    const wantActive = want.parked ? false : want.isActive
+    if (!isDeepStrictEqual(config, row.config) || row.is_active !== wantActive) {
+      update.push({ id: row.id, config, isActive: wantActive })
     }
   }
 
-  const remove: string[] = []
   for (const [key, row] of owned) {
     if (!matched.has(key)) remove.push(row.id)
   }
@@ -208,10 +352,166 @@ export interface ReconcileResult {
   readonly created: number
   readonly updated: number
   readonly removed: number
+  /** What went wrong, for the caller's log. Internal — never shown to a user. */
   readonly error?: string
+  /**
+   * The one failure a USER can act on — a Telegram bot that could not be
+   * registered — in the words `TelegramActivationError` chose for them
+   * (reconnect the bot, set `PUBLIC_URL`, fix the address Telegram refused).
+   * Anything else stays in `error`.
+   */
+  readonly reason?: string
 }
 
 const EMPTY: ReconcileResult = { created: 0, updated: 0, removed: 0 }
+
+/** Shown when a Telegram registration failed for a reason that is ours, not the user's. */
+const GENERIC_TELEGRAM_REASON = "A Telegram bot could not be registered"
+
+/**
+ * Bots a reconcile touched, with the urls their removed rows held. Settled ONCE
+ * at the end, from the rows that remain — so a create, an edit and a removal
+ * on the same bot cannot race each other into a half-published state.
+ */
+type TouchedBots = Map<string, ReleasedUrl[]>
+
+function noteBot(touched: TouchedBots, connectionId: string, released?: ReleasedUrl): void {
+  if (!connectionId) return
+  const prior = touched.get(connectionId) ?? []
+  touched.set(connectionId, released ? [...prior, released] : prior)
+}
+
+interface TelegramCreates {
+  readonly creatable: readonly DesiredTrigger[]
+  readonly registrations: ReadonlyMap<string, BotRegistration>
+  readonly error?: string
+  readonly reason?: string
+}
+
+/**
+ * Register every Telegram create at its bot BEFORE any row is written. A bot
+ * that could not be registered gets NO row — a listening trigger nothing
+ * delivers to is exactly the silent decoration this module exists to end —
+ * and the other creates in the same save still go through.
+ */
+async function registerTelegramCreates(
+  userId: string,
+  creates: readonly DesiredTrigger[],
+  touched: TouchedBots,
+): Promise<TelegramCreates> {
+  const registrations = new Map<string, BotRegistration>()
+  const creatable: DesiredTrigger[] = []
+  let error: string | undefined
+  let reason: string | undefined
+  for (const want of creates) {
+    if (want.type !== "telegram") {
+      creatable.push(want)
+      continue
+    }
+    const connectionId = trimmed(want.config.connectionId)
+    try {
+      registrations.set(want.nodeId, await ensureBotRegistration({ userId, connectionId }))
+      creatable.push(want)
+      noteBot(touched, connectionId)
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err)
+      // Only OUR words reach the user; a database or network message is an
+      // internal detail that would leak and could not be acted on anyway.
+      reason = err instanceof TelegramActivationError ? err.message : GENERIC_TELEGRAM_REASON
+    }
+  }
+  return { creatable, registrations, error, reason }
+}
+
+interface TriggerRowInsert {
+  readonly workflow_id: string
+  readonly user_id: string
+  readonly type: SyncedTriggerType
+  readonly config: Record<string, unknown>
+  readonly webhook_token: string | null
+  readonly is_active: boolean
+}
+
+function buildTriggerRow(
+  workflowId: string,
+  userId: string,
+  want: DesiredTrigger,
+  registration: BotRegistration | undefined,
+): TriggerRowInsert {
+  return {
+    workflow_id: workflowId,
+    user_id: userId,
+    type: want.type,
+    config: registration
+      ? { ...want.config, nodeId: want.nodeId, secretToken: registration.secretToken }
+      : { ...want.config, nodeId: want.nodeId },
+    // The token IS the auth for a webhook, so it is minted once here and then
+    // left alone by every later save. A Telegram row carries one only when it
+    // is the row holding its bot's url; a second trigger on the same bot rides
+    // that url and stores none.
+    webhook_token: want.type === "webhook"
+      ? randomBytes(32).toString("hex")
+      : registration?.webhookToken ?? null,
+    // What the graph decided (see DesiredTrigger.isActive): a schedule
+    // starts paused until its switch is on; webhook and telegram are armed.
+    is_active: want.isActive,
+  }
+}
+
+/**
+ * `owner_initiated` rides only on the rows the caller vouched for, and only on
+ * the wire when true — the default is already false, so a database that does
+ * not have the column yet (migration 436 not landed) only ever sees it on a
+ * "yes"; that write is retried without it. Two inserts because PostgREST wants
+ * one key set per batch.
+ *
+ * A Telegram row is never vouched: the flag means "this run carries no
+ * external input", and every one of these runs is a message somebody else sent.
+ *
+ * Returns the failing insert's message, or undefined when every row landed.
+ */
+async function insertTriggerRows(
+  rows: readonly TriggerRowInsert[],
+  vouched: ReadonlySet<string>,
+): Promise<string | undefined> {
+  const isVouched = (r: TriggerRowInsert): boolean => r.type !== "telegram" && vouched.has(String(r.config.nodeId))
+  const vouchedRows = rows.filter(isVouched)
+  const plainRows = rows.filter((r) => !isVouched(r))
+
+  if (plainRows.length > 0) {
+    const { error } = await supabase.from("workflow_triggers").insert(plainRows)
+    if (error) return error.message
+  }
+  if (vouchedRows.length > 0) {
+    let { error } = await supabase
+      .from("workflow_triggers")
+      .insert(vouchedRows.map((r) => ({ ...r, owner_initiated: true })))
+    if (error && isMissingColumnError(error)) {
+      ;({ error } = await supabase.from("workflow_triggers").insert(vouchedRows))
+    }
+    if (error) return error.message
+  }
+  return undefined
+}
+
+/** The urls the removed Telegram rows held — read BEFORE they go, because a
+ *  bot's url outlives the row that held it whenever another trigger remains. */
+function collectTelegramReleases(
+  removeIds: readonly string[],
+  byId: ReadonlyMap<string, ExistingTrigger>,
+  touched: TouchedBots,
+): void {
+  for (const id of removeIds) {
+    const row = byId.get(id)
+    if (row?.type !== "telegram") continue
+    const cfg = row.config ?? {}
+    noteBot(
+      touched,
+      trimmed(cfg.connectionId),
+      row.webhook_token ? { token: row.webhook_token, secret: trimmed(cfg.secretToken) } : undefined,
+    )
+  }
+}
 
 /**
  * Project the graph's trigger nodes onto `workflow_triggers`. Call AFTER the
@@ -240,10 +540,10 @@ export async function reconcileWorkflowTriggers(params: {
 
     const { data: rows, error: listError } = await supabase
       .from("workflow_triggers")
-      .select("id, type, config, is_active")
+      .select("id, type, config, is_active, webhook_token")
       .eq("workflow_id", workflowId)
       .eq("user_id", userId)
-      .in("type", ["schedule", "webhook"])
+      .in("type", SYNCED_TRIGGER_TYPES)
 
     if (listError) return { ...EMPTY, error: listError.message }
 
@@ -252,39 +552,15 @@ export async function reconcileWorkflowTriggers(params: {
     if (desired.length === 0 && existing.length === 0) return EMPTY
 
     const plan = planTriggerSync(desired, existing)
+    const byId = new Map(existing.map((r) => [r.id, r] as const))
+    const touched: TouchedBots = new Map()
 
-    if (plan.create.length > 0) {
-      const rows = plan.create.map((t) => ({
-        workflow_id: workflowId,
-        user_id: userId,
-        type: t.type,
-        config: { ...t.config, nodeId: t.nodeId },
-        // The token IS the auth for a webhook, so it is minted once here and
-        // then left alone by every later save.
-        webhook_token: t.type === "webhook" ? randomBytes(32).toString("hex") : null,
-        is_active: true,
-      }))
-      // `owner_initiated` rides only on the rows the caller vouched for (see
-      // the param), and only on the wire when true — the default is already
-      // false, so a database that does not have the column yet (migration 436
-      // not landed) only ever sees it on a "yes"; that write is retried
-      // without it. Two inserts because PostgREST wants one key set per batch.
-      const vouchedRows = rows.filter((r) => vouched.has(String(r.config.nodeId)))
-      const plainRows = rows.filter((r) => !vouched.has(String(r.config.nodeId)))
-      if (plainRows.length > 0) {
-        const { error } = await supabase.from("workflow_triggers").insert(plainRows)
-        if (error) return { ...EMPTY, error: error.message }
-      }
-      if (vouchedRows.length > 0) {
-        let { error } = await supabase
-          .from("workflow_triggers")
-          .insert(vouchedRows.map((r) => ({ ...r, owner_initiated: true })))
-        if (error && isMissingColumnError(error)) {
-          ;({ error } = await supabase.from("workflow_triggers").insert(vouchedRows))
-        }
-        if (error) return { ...EMPTY, error: error.message }
-      }
-    }
+    const creates = await registerTelegramCreates(userId, plan.create, touched)
+    const inserted = creates.creatable.map((want) =>
+      buildTriggerRow(workflowId, userId, want, creates.registrations.get(want.nodeId)),
+    )
+    const insertError = await insertTriggerRows(inserted, vouched)
+    if (insertError) return { ...EMPTY, error: insertError }
 
     for (const row of plan.update) {
       const { error } = await supabase
@@ -293,9 +569,11 @@ export async function reconcileWorkflowTriggers(params: {
         .eq("id", row.id)
         .eq("user_id", userId)
       if (error) return { ...EMPTY, error: error.message }
+      if (byId.get(row.id)?.type === "telegram") noteBot(touched, trimmed(row.config.connectionId))
     }
 
     if (plan.remove.length > 0) {
+      collectTelegramReleases(plan.remove, byId, touched)
       const { error } = await supabase
         .from("workflow_triggers")
         .delete()
@@ -304,7 +582,17 @@ export async function reconcileWorkflowTriggers(params: {
       if (error) return { ...EMPTY, error: error.message }
     }
 
-    return { created: plan.create.length, updated: plan.update.length, removed: plan.remove.length }
+    for (const [connectionId, releasedUrls] of touched) {
+      await syncBotRegistration({ userId, connectionId, releasedUrls })
+    }
+
+    return {
+      created: inserted.length,
+      updated: plan.update.length,
+      removed: plan.remove.length,
+      ...(creates.error ? { error: creates.error } : {}),
+      ...(creates.reason ? { reason: creates.reason } : {}),
+    }
   } catch (err) {
     return { ...EMPTY, error: err instanceof Error ? err.message : String(err) }
   }

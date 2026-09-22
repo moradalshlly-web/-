@@ -27,22 +27,26 @@ vi.mock("@/lib/orchestration-queue.js", () => ({
   orchestrationQueue: { add: mockQueueAdd },
 }))
 vi.mock("@/lib/telegram-router.js", () => ({
-  getTriggersForToken: () => [
-    {
-      triggerId: "trig-1",
-      userId: "owner-1",
-      workflowId: "wf-1",
-      secretToken: "shh",
-      chatIdFilter: undefined,
-      messageTypeFilters: undefined,
-    },
-  ],
-  generateWebhookToken: vi.fn(),
-  registerTelegramWebhook: vi.fn(),
-  unregisterTelegramWebhook: vi.fn(),
+  // The secret belongs to the URL; the triggers are every listener on that bot.
+  getRouteForToken: () => ({
+    secretToken: "shh",
+    triggers: [
+      {
+        triggerId: "trig-1",
+        userId: "owner-1",
+        workflowId: "wf-1",
+        connectionId: "conn-1",
+        nodeId: "tg-node-1",
+        chatIdFilter: undefined,
+        messageTypeFilters: undefined,
+      },
+    ],
+  }),
   downloadTelegramFile: vi.fn(),
-  addTriggerToRoute: vi.fn(),
-  removeTriggerFromRoute: vi.fn(),
+}))
+vi.mock("@/lib/telegram-trigger-activation.js", () => ({
+  ensureBotRegistration: vi.fn(),
+  syncBotRegistration: vi.fn(async () => undefined),
 }))
 vi.mock("@/services/social/encryption.js", () => ({ decryptToken: vi.fn(() => "bot-token") }))
 vi.mock("@/lib/storage.js", () => ({ uploadBufferToR2: vi.fn() }))
@@ -146,6 +150,11 @@ describe("telegram fire gate (P14/W6)", () => {
       expect.objectContaining({
         userId: "owner-1",
         triggerType: "telegram",
+        // The node the row was projected from rides the run, so the worker
+        // executes the branch behind THIS trigger (`triggerRunScope`) — two
+        // Telegram Triggers on one canvas are two branch runs, not two runs
+        // of the whole workflow.
+        triggerNodeId: "tg-node-1",
         billingContext: { payer: "user", userId: "owner-1" },
       }),
       expect.anything(),

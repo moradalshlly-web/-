@@ -222,9 +222,18 @@ jobs:
     # Every one of those was the runner's apt mirror stalling inside the old
     # `apt-get install ffmpeg` step — vitest was never reached — so that step
     # is now a pinned static download (below) and the cap only has to catch a
-    # genuine test hang. Normal duration is ~12 min (≈9 of it vitest); 25 makes
-    # a real hang self-terminate instead of eating an hour of a PR's life.
-    timeout-minutes: 25
+    # genuine test hang.
+    #
+    # Sized to the SLOW end of the disposable pool, not the fast one. Measured
+    # 2026-09-22 on nodaro-ci runners an hour apart, same suite: one instance
+    # ran the job in 10m37s (vitest 9m), two others took 25m+ (vitest 21-23m)
+    # with EVERY step 2-3x slower — npm ci 19s vs 70s, the ffmpeg download 8s
+    # vs 18s — i.e. a slower host, not a hung test. A 25-minute cap killed
+    # both healthy runs to the second (#1583), reported as "canceled" with all
+    # 25k tests already green in the log. 40 clears the slow instance with
+    # margin and still self-terminates a real hang inside the hour #801 was
+    # about. If the pool gets faster, lower it back with the numbers.
+    timeout-minutes: 40
     env:
       SUPABASE_URL: https://test.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: test-key
