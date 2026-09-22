@@ -52,8 +52,9 @@ import { makeOnTaskCreated, markProviderCallStart } from "../../lib/reconcile/pe
 // task), there is no `makeOnTaskCreated`/reconcile wiring for TTS jobs going
 // forward — the row keeps the worker's pickup sentinel (`provider_kind =
 // "pre-task"`, stamped on every row in `video-worker.ts` and kept fresh by the
-// dispatch-site heartbeat while this handler runs), so the only sweep that can
-// touch it is the 30-minute pre-task backstop for a DEAD worker.
+// dispatch-site heartbeat while this handler runs, up to its cap), so the sweep
+// that can touch it is the 30-minute pre-task backstop for a dead or hung
+// worker.
 
 /**
  * What a cloud audio helper hands back: the bytes, plus the relay provenance

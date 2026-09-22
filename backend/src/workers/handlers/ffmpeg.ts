@@ -219,8 +219,10 @@ const handleApplyEdl: HandlerFn = async function handleApplyEdl(job, ctx) {
 // steps. Storage I/O and ffmpeg-slot waits have no ceiling to add and are the
 // stated residual (see `workers/pre-task-heartbeat.ts`).
 handleApplyEdl.livenessBudgetMs = (job) => {
-  const { edl } = job.data as { edl?: Edl }
-  return edl && Array.isArray(edl.segments) && Array.isArray(edl.sources) ? applyEdlRenderBudgetMs(edl) : undefined
+  const { edl, output } = job.data as { edl?: Edl; output?: "video" | "audio" }
+  return edl && Array.isArray(edl.segments) && Array.isArray(edl.sources)
+    ? applyEdlRenderBudgetMs(edl, { output: output === "audio" ? "audio" : "video" })
+    : undefined
 }
 
 const handleAssembleNarratedVideo: HandlerFn = async function handleAssembleNarratedVideo(job, ctx) {

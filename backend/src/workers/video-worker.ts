@@ -220,8 +220,9 @@ export function createVideoWorker() {
         // `markProviderCallStart` once it has a task id, so for it the
         // sentinel survives only on crash. A SYNC handler (every ffmpeg job,
         // apply-edl, TTS, the plugin renders) keeps the sentinel for its WHOLE
-        // run — the dispatch-site heartbeat below keeps it fresh, and the
-        // 30-min sweep is then the dead-worker backstop, never a live one's.
+        // run — the dispatch-site heartbeat below keeps it fresh up to its cap,
+        // so the 30-min sweep is the backstop for a dead or hung worker; the
+        // residuals no cap bounds are stated in `pre-task-heartbeat.ts`.
         const nowIso = new Date().toISOString()
         // A1 (audit 2026-06-10): CAS on live statuses + abort on 0 rows.
         // Queue removal on cancel is best-effort (BullMQ ids are auto-
@@ -327,8 +328,9 @@ export function createVideoWorker() {
         // replaced or cleared the sentinel is a CAS no-op; beats stop at a cap
         // so a hung handler still ages into the sweep. The cap is the
         // orchestrator's per-node ceiling unless the handler declares its own
-        // budget from the budget it gives its own work (`livenessBudgetMs` —
-        // apply-edl's ffmpeg kill budget), so "hung" means one thing to both.
+        // budget (`livenessBudgetMs` — apply-edl sums the kill budgets of its
+        // bounded steps), so "hung" means one thing to the heartbeat and to
+        // those steps.
         const handler = withPreTaskHeartbeat(found, { maxMs: found.livenessBudgetMs?.(job) })
 
         // Bind a cancellation context so provider poll loops abort the moment

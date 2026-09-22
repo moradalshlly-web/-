@@ -18,6 +18,7 @@ import {
   PRE_TASK_HEARTBEAT_MAX_MS,
   PRE_TASK_HEARTBEAT_MS,
   withPreTaskHeartbeat,
+  effectiveHeartbeatMaxMs,
 } from "../pre-task-heartbeat.js"
 import { STALE_THRESHOLD_MS, isSyncKind } from "../../lib/reconcile/types.js"
 import { NODE_TIMEOUT_MS } from "../../services/workflow-engine/types.js"
@@ -63,6 +64,26 @@ describe("withPreTaskHeartbeat", () => {
     await vi.advanceTimersByTimeAsync(THRESHOLD + PRE_TASK_HEARTBEAT_MS)
     expect(refresh.mock.calls.length).toBe(atBudget)
 
+    await vi.advanceTimersByTimeAsync(60 * MIN)
+    await run
+  })
+
+  // A declared budget can only EXTEND the default: storage I/O sits outside
+  // every budget, so a shorter cap would only take slack away from a live run,
+  // and a non-finite one would switch the hung backstop off.
+  it("a declared budget only extends the default — shorter, zero, negative, NaN and Infinity all keep the default cap", async () => {
+    for (const bad of [10 * MIN, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined]) {
+      expect(effectiveHeartbeatMaxMs(bad), String(bad)).toBe(PRE_TASK_HEARTBEAT_MAX_MS)
+    }
+    expect(effectiveHeartbeatMaxMs(PRE_TASK_HEARTBEAT_MAX_MS + 1)).toBe(PRE_TASK_HEARTBEAT_MAX_MS + 1)
+
+    // Through the wrapper: a 10-minute budget still beats to the DEFAULT cap, then stops.
+    const run = withPreTaskHeartbeat(async () => { await sleep(PRE_TASK_HEARTBEAT_MAX_MS + 60 * MIN) }, { maxMs: 10 * MIN })({}, { jobId: "job-1" })
+    await vi.advanceTimersByTimeAsync(PRE_TASK_HEARTBEAT_MAX_MS)
+    const atCap = refresh.mock.calls.length
+    expect(atCap).toBeGreaterThanOrEqual(PRE_TASK_HEARTBEAT_MAX_MS / PRE_TASK_HEARTBEAT_MS - 1)
+    await vi.advanceTimersByTimeAsync(THRESHOLD + PRE_TASK_HEARTBEAT_MS)
+    expect(refresh.mock.calls.length).toBe(atCap)
     await vi.advanceTimersByTimeAsync(60 * MIN)
     await run
   })
@@ -140,10 +161,11 @@ describe("liveness budget", () => {
     expect(2 * PRE_TASK_HEARTBEAT_MS).toBeLessThan(THRESHOLD)
   })
 
-  // The DEFAULT cap is the orchestrator's own per-node ceiling: every handler
-  // that declares no budget runs well inside it, and a DAG node must not lose
-  // its beats before the orchestrator gives up on it. A handler that runs
-  // longer declares its own budget (`maxMs`) — the cap never stretches for it.
+  // The DEFAULT cap is the orchestrator's own per-node ceiling — a DAG node
+  // must not lose its beats before the orchestrator gives up on it. Today's
+  // handlers that declare no budget fit inside it by an empirical margin, not a
+  // derived bound. A handler that runs longer declares its own budget
+  // (`maxMs`) — the cap never stretches for it.
   it("the default cap outlasts the threshold (or it would re-open the gap) and is the orchestrator's own per-node ceiling", () => {
     expect(PRE_TASK_HEARTBEAT_MAX_MS).toBeGreaterThan(THRESHOLD)
     expect(PRE_TASK_HEARTBEAT_MAX_MS).toBe(NODE_TIMEOUT_MS)

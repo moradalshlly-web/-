@@ -745,14 +745,16 @@ describe("add-captions handler — maxWordsPerLine reaches the render plan", () 
 })
 
 // ---------------------------------------------------------------------------
-// combine-videos
+// apply-edl — liveness budget
 // ---------------------------------------------------------------------------
 
 // The pre-task heartbeat's default cap is the orchestrator's 90-min node
 // ceiling; a final-quality apply-edl render of a long episode outlives it, and
 // on a direct lane nothing else bounds the run. The handler declares its own
-// liveness budget — the SAME per-chunk ffmpeg kill budget the render gives
-// itself — so the sweep can never fail a render its own timeouts still allow.
+// liveness budget — the sum of the kill budgets of its bounded steps, the
+// per-chunk ffmpeg budget being the SAME one the render gives itself — so
+// "hung" means one thing to the heartbeat and to those steps. (Storage I/O
+// and slot waits have no ceiling to add; they are the stated residual.)
 describe("apply-edl handler liveness budget", () => {
   const edl = {
     version: 1, clock: "master",

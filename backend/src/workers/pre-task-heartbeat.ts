@@ -53,14 +53,17 @@
  *    handler, and apply-edl's multi-hour slot holds are its dominant cause.
  *  - Steps with no ceiling of their own. The R2 client carries no request
  *    timeout, so storage I/O — apply-edl's chunk checkpoints, the 404
- *    fallback download, the deliverable upload and thumbnail after the render
- *    — is outside every budget. It rides in the slack between a real run and
- *    its kill budgets plus the 30 minutes after the last beat; that is a
- *    margin, not a bound.
+ *    fallback download, the deliverable upload after the render — has none;
+ *    nor does the thumbnail step that follows every video handler
+ *    (`utils/thumbnail.ts`: its frame-extract ffmpeg and ffprobe run with no
+ *    timeout and outside the ffmpeg slot). These are outside every budget.
+ *    They ride in the slack between a real run and its kill budgets plus the
+ *    30 minutes after the last beat; that is a margin, not a bound.
  *  - The default cap itself is an empirical margin over today's inventory
  *    (relay polls ≤ 85 min; the media-proxy encode behind silence-detect runs
- *    at a 45-min ceiling; other ffmpeg spawns at the 10-min default), not a
- *    derived bound. A handler that outgrows it declares a budget.
+ *    at a 45-min ceiling; other slot-gated ffmpeg spawns at the 10-min
+ *    default), not a derived bound. A handler that outgrows it declares a
+ *    budget.
  *  - The DAG lane: the orchestrator cancels a node at `NODE_TIMEOUT_MS`
  *    regardless of any handler budget, so a long apply-edl inside a workflow
  *    is cancelled at 90 minutes while its worker keeps rendering. Pre-existing;
@@ -87,7 +90,7 @@ export const PRE_TASK_HEARTBEAT_MS = 60_000
  *  given up on the node. Today's handlers that declare nothing fit inside it
  *  (the relay polls ≤ 85 min, the plugin renders run ~35, scene3d /
  *  llm-structured beat for themselves, the media-proxy encode runs at a
- *  45-min ceiling, other ffmpeg spawns at the 10-min default) — an empirical
+ *  45-min ceiling, other slot-gated ffmpeg spawns at the 10-min default) — an empirical
  *  margin, not a derived bound. A handler that legitimately runs longer —
  *  apply-edl on a direct lane, where no orchestrator is watching — declares
  *  its own bound (`HandlerFn.livenessBudgetMs`); this constant never has to
@@ -97,10 +100,22 @@ export const PRE_TASK_HEARTBEAT_MAX_MS = NODE_TIMEOUT_MS
 type QueueHandler<J, C extends { jobId: string }> = (job: J, ctx: C) => Promise<void>
 
 export interface PreTaskHeartbeatOptions {
-  /** How long to keep beating before the run is treated as hung. Defaults to
-   *  `PRE_TASK_HEARTBEAT_MAX_MS`; a handler that knows its own work's budget
-   *  passes that same number so the two hung-detectors cannot disagree. */
+  /** How long to keep beating before the run is treated as hung. A handler
+   *  that knows its own work's budget passes that number so the two
+   *  hung-detectors cannot disagree. It can only EXTEND the default
+   *  (`PRE_TASK_HEARTBEAT_MAX_MS`): a shorter, zero, negative or non-finite
+   *  value is ignored — the default is the floor every handler gets, and with
+   *  storage I/O outside every budget a shorter cap would only take slack
+   *  away from a live run. */
   readonly maxMs?: number
+}
+
+/** The cap a run actually gets: the declared budget when it extends the
+ *  default, the default otherwise. Exported for its unit test. */
+export function effectiveHeartbeatMaxMs(declared: number | undefined): number {
+  return typeof declared === "number" && Number.isFinite(declared) && declared > PRE_TASK_HEARTBEAT_MAX_MS
+    ? declared
+    : PRE_TASK_HEARTBEAT_MAX_MS
 }
 
 /** One handler, beating while it runs. */
@@ -108,7 +123,7 @@ export function withPreTaskHeartbeat<J, C extends { jobId: string }>(
   handler: QueueHandler<J, C>,
   options: PreTaskHeartbeatOptions = {},
 ): QueueHandler<J, C> {
-  const maxMs = options.maxMs ?? PRE_TASK_HEARTBEAT_MAX_MS
+  const maxMs = effectiveHeartbeatMaxMs(options.maxMs)
   return async (job, ctx) => {
     const startedAt = Date.now()
     const timer = setInterval(() => {

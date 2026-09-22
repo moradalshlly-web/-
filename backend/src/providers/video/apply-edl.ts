@@ -308,17 +308,32 @@ export function chunkRenderTimeoutMs(segs: readonly EdlSegment[]): number {
  *  `downloadFile`'s ceiling, then `hasAudioStream` (an ffprobe at its ceiling). */
 export const APPLY_EDL_PER_SOURCE_PREP_MS = DOWNLOAD_TIMEOUT_MS + FFPROBE_TIMEOUT_MS
 
-/** Once per render, before the first chunk: the picture-canvas probes —
+/** Once per VIDEO render, before the first chunk: the picture-canvas probes —
  *  resolution, then fps, each run across every video source in parallel, each
- *  at the ffprobe ceiling. */
+ *  at the ffprobe ceiling. An audio-only render skips them. */
 export const APPLY_EDL_CANVAS_PROBE_MS = 2 * FFPROBE_TIMEOUT_MS
+
+/** The sources `applyEdl` downloads for this output — the picture source of
+ *  each segment for a video render, and each segment's sound source
+ *  (`audioSourceId`) always. The one read set the render and its budget share. */
+export function referencedSourceIds(edl: Edl, output: "video" | "audio"): Set<string> {
+  const masterAudioId = edl.sources.find((s) => s.role === "master-audio")?.id
+  const referenced = new Set<string>()
+  for (const seg of edl.segments) {
+    if (output === "video" && seg.video) referenced.add(seg.video)
+    const aId = audioSourceId(edl, seg, masterAudioId)
+    if (aId) referenced.add(aId)
+  }
+  return referenced
+}
 
 /**
  * The handler's liveness budget (`HandlerFn.livenessBudgetMs`): the sum of the
- * kill budgets of every BOUNDED step `applyEdl` runs for this EDL, in the
- * order it runs them — each referenced source's fetch + audio probe, the
- * canvas probes, every chunk's ffmpeg budget (`chunkRenderTimeoutMs`, over
- * `resolveChunks` — the same plan the render uses), and the final
+ * kill budgets of every BOUNDED step `applyEdl` runs for this EDL and output,
+ * in the order it runs them — each referenced source's fetch + audio probe
+ * (`referencedSourceIds`, the same read set the render uses), the canvas
+ * probes (video only), every chunk's ffmpeg budget (`chunkRenderTimeoutMs`,
+ * over `resolveChunks` — the same plan the render uses), and the final
  * stream-copy concat at the default ceiling when there is more than one chunk.
  * One number decides "hung" for the heartbeat and for those steps.
  *
@@ -331,17 +346,13 @@ export const APPLY_EDL_CANVAS_PROBE_MS = 2 * FFPROBE_TIMEOUT_MS
  */
 export function applyEdlRenderBudgetMs(
   edl: Edl,
-  options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> = {},
+  options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> & { readonly output?: "video" | "audio" } = {},
 ): number {
+  const output = options.output === "audio" ? "audio" : "video"
   const chunks = resolveChunks(edl.segments, options)
   const render = chunks.reduce((acc, chunk) => acc + chunkRenderTimeoutMs(chunk), 0)
-  const referenced = new Set<string>()
-  for (const seg of edl.segments) {
-    if (seg.video) referenced.add(seg.video)
-    if (seg.audio) referenced.add(seg.audio)
-  }
-  for (const s of edl.sources) if (s.role === "master-audio") referenced.add(s.id)
-  const prep = Math.max(1, referenced.size) * APPLY_EDL_PER_SOURCE_PREP_MS + APPLY_EDL_CANVAS_PROBE_MS
+  const prep = referencedSourceIds(edl, output).size * APPLY_EDL_PER_SOURCE_PREP_MS
+    + (output === "video" ? APPLY_EDL_CANVAS_PROBE_MS : 0)
   const concat = chunks.length > 1 ? DEFAULT_FFMPEG_TIMEOUT_MS : 0
   return render + prep + concat
 }
@@ -374,12 +385,7 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
     // Which sources do we actually touch? Download each ONCE.
     const masterAudio = edl.sources.find((s) => s.role === "master-audio")
     const masterAudioId = masterAudio?.id
-    const referenced = new Set<string>()
-    for (const seg of edl.segments) {
-      if (wantVideo && seg.video) referenced.add(seg.video)
-      const aId = audioSourceId(edl, seg, masterAudioId)
-      if (aId) referenced.add(aId)
-    }
+    const referenced = referencedSourceIds(edl, output)
 
     const sourcePaths = new Map<string, string>()
     const audioPresent = new Map<string, boolean>()

@@ -1,4 +1,5 @@
-// apply-edl's liveness budget IS its ffmpeg kill budget. The video worker's
+// apply-edl's liveness budget is built from the kill budgets of its own
+// bounded steps. The video worker's
 // pre-task heartbeat stops beating at a cap so a hung handler ages into the
 // reconcile sweep; the DEFAULT cap (the orchestrator's 90-min node ceiling)
 // is far shorter than a legitimate final-quality render of a long episode on a
@@ -15,6 +16,7 @@ import {
   applyEdlRenderBudgetMs,
   chunkRenderTimeoutMs,
   planChunks,
+  referencedSourceIds,
   resolveChunks,
   APPLY_EDL_CANVAS_PROBE_MS,
   APPLY_EDL_PER_SOURCE_PREP_MS,
@@ -95,6 +97,21 @@ describe("applyEdlRenderBudgetMs — the handler's liveness budget", () => {
       sources: [...one.sources, { id: "MIC", url: "https://f.test/mic.m4a", kind: "audio", role: "master-audio" }],
     } as Edl
     expect(applyEdlRenderBudgetMs(withMic) - applyEdlRenderBudgetMs(one)).toBe(APPLY_EDL_PER_SOURCE_PREP_MS)
+  })
+
+  // The read set is the render's own (`referencedSourceIds`): an audio-only cut
+  // never downloads the picture sources and never runs the canvas probes.
+  it("an audio-only render counts only the sound sources and no canvas probes — exactly what applyEdl runs", () => {
+    const one = cuts(1, 60)
+    const withMic: Edl = {
+      ...one,
+      sources: [...one.sources, { id: "MIC", url: "https://f.test/mic.m4a", kind: "audio", role: "master-audio" }],
+    } as Edl
+    const render = chunkRenderTimeoutMs(withMic.segments)
+    expect(referencedSourceIds(withMic, "video")).toEqual(new Set(["A", "MIC"]))
+    expect(referencedSourceIds(withMic, "audio")).toEqual(new Set(["MIC"]))
+    expect(applyEdlRenderBudgetMs(withMic, { output: "video" })).toBe(render + 2 * APPLY_EDL_PER_SOURCE_PREP_MS + APPLY_EDL_CANVAS_PROBE_MS)
+    expect(applyEdlRenderBudgetMs(withMic, { output: "audio" })).toBe(render + APPLY_EDL_PER_SOURCE_PREP_MS)
   })
 
   it("outlives the orchestrator's 90-minute node ceiling for a long final render — the case the default cap could not cover", () => {
