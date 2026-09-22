@@ -137,6 +137,8 @@ import {
   BROWSER_SAFE_VIDEO_ARGS,
   REMOTION_INPUT_VIDEO_ARGS,
   ffmpegFailureMessage,
+  parseProgressEndSec,
+  probeStreamEndSec,
 } from "../ffmpeg-utils.js"
 
 beforeEach(() => {
@@ -1196,5 +1198,52 @@ describe("probeMediaStreams", () => {
   it("throws (never guesses) when ffprobe output is not parseable", async () => {
     execFileOnce("not json")
     await expect(probeMediaStreams("/tmp/v.mp4")).rejects.toThrow(/probeMediaStreams/)
+  })
+})
+
+// ===========================================================================
+// probeStreamEndSec — the REAL stream end, demuxed, not the container's word
+// ===========================================================================
+// `format=duration` is a declaration a container can get wrong (an mp3 with no
+// Xing/Info header extrapolates from bitrate and under-reports by seconds that
+// grow with the file) or omit (a live-muxed MediaRecorder WebM says N/A). This
+// helper reads every packet through the null muxer and takes the last
+// timestamp ffmpeg wrote — what a render will actually read.
+describe("parseProgressEndSec", () => {
+  it("returns the LAST out_time_us a progress stream reported, in seconds", () => {
+    const progress = [
+      "frame=10", "out_time_us=1000000", "progress=continue",
+      "frame=900", "out_time_us=30040816", "progress=end", "",
+    ].join("\n")
+    expect(parseProgressEndSec(progress)).toBeCloseTo(30.040816, 6)
+  })
+
+  it("accepts the older out_time_ms spelling (which has always carried microseconds)", () => {
+    expect(parseProgressEndSec("out_time_ms=12000000\nprogress=end\n")).toBe(12)
+  })
+
+  it("is undefined when ffmpeg never reported an end (an unreadable input) — not 0, not NaN", () => {
+    expect(parseProgressEndSec("")).toBeUndefined()
+    expect(parseProgressEndSec("progress=end\n")).toBeUndefined()
+    expect(parseProgressEndSec("out_time_us=N/A\nprogress=end\n")).toBeUndefined()
+  })
+})
+
+describe("probeStreamEndSec", () => {
+  it("demuxes with -c copy into the null muxer (no decode) and returns the last written timestamp", async () => {
+    execFileOnce("out_time_us=500000\nprogress=continue\nout_time_us=30040816\nprogress=end\n")
+    const end = await probeStreamEndSec("/tmp/vbr.mp3")
+    expect(end).toBeCloseTo(30.040816, 6)
+    expect(execCmd()).toBe("ffmpeg")
+    const args = execArgs()
+    expect(args).toEqual(expect.arrayContaining(["-progress", "pipe:1", "-c", "copy", "-f", "null", "-"]))
+    expect(args[args.indexOf("-i") + 1]).toBe("/tmp/vbr.mp3")
+    // Only the streams a render reads — a data or subtitle track must not fail the probe.
+    expect(args).toEqual(expect.arrayContaining(["-map", "0:v?", "-map", "0:a?"]))
+  })
+
+  it("throws (never guesses) when ffmpeg reports no stream end", async () => {
+    execFileOnce("progress=end\n")
+    await expect(probeStreamEndSec("/tmp/broken.bin")).rejects.toThrow(/probeStreamEndSec/)
   })
 })

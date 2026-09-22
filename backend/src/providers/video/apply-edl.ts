@@ -29,7 +29,7 @@ import {
   downloadFile,
   runFfmpeg,
   runFfprobe,
-  probeMediaDuration,
+  probeStreamEndSec,
   createWorkDir,
   cleanupWorkDir,
   COMBINE_DELIVERY_CRF,
@@ -87,13 +87,14 @@ function audioSourceId(edl: Edl, seg: EdlSegment, masterAudioId: string | undefi
   return seg.video
 }
 
-/** How far past a source's probed length a segment may reach before it is a
- *  refusal rather than rounding — see `assertSegmentsWithinSources`. */
+/** How far past a source's measured end a segment may reach before it is a
+ *  refusal rather than skew — see `assertSegmentsWithinSources`. */
 export const SOURCE_END_TOLERANCE_SEC = 1
 
 /** Throws, naming the segment and the source, when a segment's window reaches
  *  more than `SOURCE_END_TOLERANCE_SEC` past the media it reads. Pure; the
- *  probe results are passed in so the rule is unit-testable without ffprobe. */
+ *  measured stream ends (`probeStreamEndSec`) are passed in so the rule is
+ *  unit-testable without ffmpeg, and a source with no entry is skipped. */
 export function assertSegmentsWithinSources(
   edl: Edl,
   masterAudioId: string | undefined,
@@ -356,8 +357,19 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       await downloadFile(src.url, localPath)
       sourcePaths.set(id, localPath)
       audioPresent.set(id, await hasAudioStream(localPath))
-      // The one probe per source that lets the window check below be honest.
-      sourceLengthSec.set(id, await probeMediaDuration(localPath))
+      // The one per-source measurement that lets the window check below be
+      // honest: the stream's REAL end, demuxed — not the container's declared
+      // duration, which a Xing-less VBR mp3 under-reports by seconds and a
+      // live-muxed MediaRecorder WebM omits, while both render fine. A file
+      // this cannot read stays unmeasured: the check skips it and the render
+      // proceeds as it always has, rather than failing a paid job over a probe.
+      try {
+        sourceLengthSec.set(id, await probeStreamEndSec(localPath))
+      } catch (err) {
+        console.warn(
+          `[apply-edl] source "${id}": could not measure its length, the window check skips it (${err instanceof Error ? err.message : String(err)})`,
+        )
+      }
       dl++
       onProgress?.(0.05 + 0.15 * (dl / referenced.size))
     }
@@ -368,9 +380,10 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
     // the sources are local, and the job FAILS naming the segment. It never
     // clamps: a silently shortened segment would deliver a shorter render than
     // the EDL (and than the reserve and the caption remap) describes, with no
-    // error anywhere. Overshoot inside SOURCE_END_TOLERANCE_SEC is a container
-    // rounding artefact (a transcript's last word can end a beat after the
-    // probed length) and renders to the stream's real end, as before.
+    // error anywhere. Overshoot inside SOURCE_END_TOLERANCE_SEC is skew, not an
+    // overrun — a clip's audio track outlasts its picture by a frame or two, a
+    // transcript's last word can end a beat after the audio — and renders to
+    // the stream's real end, as before.
     assertSegmentsWithinSources(edl, masterAudioId, wantVideo, sourceLengthSec)
 
     // Picture canvas (video output only): majority resolution / fps of the

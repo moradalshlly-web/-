@@ -153,13 +153,27 @@ export function validateEffectiveEdl(edl: Edl, output: "video" | "audio"): Apply
   // `edlDurationMs`, so the reserve and the caption remap would describe a
   // shorter render than the one delivered. A user who wrote them gets a 400
   // naming the segment, not a hard-cut full-frame render at the wrong price.
+  // A `layout` is renderable here only when it describes exactly what this
+  // renderer does anyway: mode "single", at most one slot and that slot IS
+  // `segment.video`, no emphasis, a cut. Anything else would render as
+  // something other than what the EDL says it shows.
   edl.segments.forEach((seg, i) => {
     const at = `segment[${i}] "${seg.id}"`
-    const slots = seg.layout?.slots ?? []
+    const layout = seg.layout
+    const slots = layout?.slots ?? []
+    if (layout && layout.mode !== "single") {
+      issues.push(`${at}: layout mode "${layout.mode}" — this renderer shows one source full-frame per segment (multi-camera layouts are a speaker-view feature)`)
+    }
     if (slots.length > 1) {
       issues.push(`${at}: layout with ${slots.length} slots — this renderer shows one source per segment (multi-slot layouts are a speaker-view feature)`)
+    } else if (slots.length === 1 && seg.video && slots[0].source !== seg.video) {
+      issues.push(`${at}: layout slot shows "${slots[0].source}" but the segment's video is "${seg.video}" — this renderer shows segment.video; make them agree or drop the layout`)
     }
-    const lt = seg.layout?.transition?.type
+    const emphasis = layout?.emphasis?.style
+    if (emphasis !== undefined && emphasis !== "none") {
+      issues.push(`${at}: layout emphasis "${emphasis}" is not renderable here (a speaker-view feature) — remove layout.emphasis`)
+    }
+    const lt = layout?.transition?.type
     if (lt !== undefined && lt !== "cut") {
       issues.push(`${at}: layout transition "${lt}" is not renderable here (only a segment \`transition\` of type "crossfade" is) — remove it or use segment.transition`)
     }
@@ -175,11 +189,13 @@ export function validateEffectiveEdl(edl: Edl, output: "video" | "audio"): Apply
   // A segment must exist on the source it reads. `masterMs = sourceMs + offsetMs`,
   // so a segment starting before a source's origin would ask for negative source
   // time; the renderer used to clamp that to 0 and deliver the wrong picture.
+  // "Reads" is the executor's rule exactly: the picture source only for a video
+  // output (an audio cut never touches it), the sound source always.
   const masterAudioId = edl.sources.find((s) => s.role === "master-audio")?.id
   edl.segments.forEach((seg, i) => {
     const at = `segment[${i}] "${seg.id}"`
     const reads = new Set<string>()
-    if (seg.video) reads.add(seg.video)
+    if (output === "video" && seg.video) reads.add(seg.video)
     const audio = seg.audio ?? masterAudioId ?? seg.video
     if (audio) reads.add(audio)
     for (const id of reads) {

@@ -215,7 +215,31 @@ describe("validateEffectiveEdl — refuses what the renderer cannot render", () 
     expect(r.issues.some((i) => /source "A": region/.test(i))).toBe(true)
   })
 
-  it("accepts a single-slot layout with no transition and no region (mode alone is harmless)", () => {
+  // A layout is renderable only when it describes exactly what this renderer
+  // does anyway — "single", the one slot IS segment.video, no emphasis, a cut.
+  // Anything else would render as something other than what the EDL says.
+  it("rejects a layout mode other than \"single\" — one source full-frame is all this renderer shows", () => {
+    for (const mode of ["side-by-side", "pip", "grid"]) {
+      const r = validateEffectiveEdl(one({ layout: { mode, slots: [{ source: "A" }] } }), "video")
+      expect(r.ok, mode).toBe(false)
+      expect(r.issues.some((i) => i.includes(`segment[0] "s0"`) && i.includes(`layout mode "${mode}"`)), mode).toBe(true)
+    }
+  })
+
+  it("rejects a single slot that names a different source than segment.video (the renderer shows segment.video)", () => {
+    const r = validateEffectiveEdl(one({ layout: { mode: "single", slots: [{ source: "B" }] } }), "video")
+    expect(r.ok).toBe(false)
+    expect(r.issues.some((i) => i.includes(`slot shows "B"`) && i.includes(`video is "A"`))).toBe(true)
+  })
+
+  it("rejects a layout emphasis other than \"none\" (dropped by the renderer) — and accepts \"none\"", () => {
+    const r = validateEffectiveEdl(one({ layout: { mode: "single", emphasis: { style: "scale", durationMs: 300 } } }), "video")
+    expect(r.ok).toBe(false)
+    expect(r.issues.some((i) => i.includes(`layout emphasis "scale"`))).toBe(true)
+    expect(validateEffectiveEdl(one({ layout: { mode: "single", emphasis: { style: "none", durationMs: 0 } } }), "video").ok).toBe(true)
+  })
+
+  it("accepts a single-slot layout on segment.video with no transition, emphasis or region", () => {
     expect(validateEffectiveEdl(one({ layout: { mode: "single", slots: [{ source: "A" }] } }), "video").ok).toBe(true)
   })
 })
@@ -264,5 +288,20 @@ describe("validateEffectiveEdl — a segment must start on its source", () => {
       edlWith([{ id: "cam", url: "https://m.test/cam.mp4", kind: "video" }], { inMs: 0, outMs: 9000, video: "cam" }),
       "video",
     ).ok).toBe(true)
+  })
+
+  // "Reads" is the executor's rule: an audio-only output never touches the
+  // picture source, so a late-starting camera cannot refuse an audio cut that
+  // reads only the master mic — while the same EDL as a video edit is refused.
+  it("for an audio-only output, checks only the sound source — a late-starting camera does not refuse the cut", () => {
+    const edl = edlWith(
+      [
+        { id: "cam", url: "https://m.test/cam.mp4", kind: "video", offsetMs: 5000 },
+        { id: "mic", url: "https://m.test/mic.m4a", kind: "audio", role: "master-audio" },
+      ],
+      { inMs: 2000, outMs: 9000, video: "cam" },
+    )
+    expect(validateEffectiveEdl(edl, "audio").ok).toBe(true)
+    expect(validateEffectiveEdl(edl, "video").issues.some((i) => /source "cam" begins at 5000ms/.test(i))).toBe(true)
   })
 })

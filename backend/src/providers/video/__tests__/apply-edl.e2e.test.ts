@@ -46,6 +46,16 @@ function isFfmpegAvailable(): boolean {
 }
 const ffmpegAvailable = isFfmpegAvailable()
 
+/** The VBR-mp3 fixture needs libmp3lame; a build without it skips that one case. */
+function isMp3EncoderAvailable(): boolean {
+  try {
+    return execFileSync("ffmpeg", ["-hide_banner", "-encoders"], { stdio: ["ignore", "pipe", "ignore"] }).toString().includes("libmp3lame")
+  } catch {
+    return false
+  }
+}
+const mp3EncoderAvailable = ffmpegAvailable && isMp3EncoderAvailable()
+
 async function makeSource(path: string, color: string, freq: number, durationSec: number): Promise<void> {
   await runFfmpeg([
     "-y",
@@ -103,15 +113,28 @@ async function probeTone(path: string, t: number, candidates: number[]): Promise
 
 describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
   let dir: string
-  let srcA: string, srcB: string, srcC: string
+  let srcA: string, srcB: string, srcC: string, srcVbr: string, srcLive: string
 
   beforeAll(async () => {
     dir = await fs.mkdtemp(join(tmpdir(), "apply-edl-test-"))
     process.env.APPLY_EDL_FIXTURE_DIR = dir
     srcA = join(dir, "a.mp4"); srcB = join(dir, "b.mp4"); srcC = join(dir, "c.mp4")
+    srcVbr = join(dir, "vbr.mp3"); srcLive = join(dir, "live.mkv")
     await makeSource(srcA, "red", 440, 6)
     await makeSource(srcB, "blue", 880, 6)
     await makeSource(srcC, "green", 660, 6)
+    // A 30 s VBR mp3 with NO Xing/Info header — its container under-reports.
+    if (mp3EncoderAvailable) {
+      await runFfmpeg(["-y", "-f", "lavfi", "-i", "sine=f=440:r=44100:d=30", "-c:a", "libmp3lame", "-q:a", "9", "-write_xing", "0", srcVbr])
+    }
+    // A 6 s live-muxed Matroska (what a MediaRecorder writes) — no duration element.
+    await runFfmpeg([
+      "-y",
+      "-f", "lavfi", "-i", "color=c=red:s=320x240:r=30:d=6",
+      "-f", "lavfi", "-i", "sine=f=440:r=48000:d=6",
+      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
+      "-f", "matroska", "-live", "1", srcLive,
+    ])
   }, 120_000)
 
   afterAll(async () => {
@@ -148,7 +171,7 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
       .rejects.toThrow(/segment\[0\] "s0" ends at 9\.00s on source "A"/)
   })
 
-  it("tolerates a sub-second overrun (container rounding) and renders to the source's real end", async () => {
+  it("tolerates a sub-second overrun (track skew) and renders to the source's real end", async () => {
     const edl: Edl = {
       version: 1, clock: "master",
       sources: [{ id: "A", url: "https://fixtures.test/a.mp4", kind: "video" }],
@@ -158,6 +181,54 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
     const dur = await probeDurationSec(outputPath)
     expect(dur).toBeGreaterThan(5.7)
     expect(dur).toBeLessThan(6.6)
+  })
+
+  // The window check measures each source's REAL stream end, not the length
+  // its container declares. Two containers that lie, both of which render
+  // fine and both of which reach this executor from ordinary uploads:
+  //   - an mp3 without a Xing/Info header (a re-cut / ad-stitched podcast
+  //     file): ffprobe extrapolates from bitrate and UNDER-reports — a 30 s
+  //     VBR encode declares ~27.85 s, and the gap grows with the file;
+  //   - a live-muxed Matroska/WebM (a browser MediaRecorder recording):
+  //     no duration element at all (`N/A`).
+  // A check that trusted the declaration refused the first (a correct edit,
+  // "source is only 27.85s long") and threw on the second, after reserve.
+  it.skipIf(!mp3EncoderAvailable)("renders an edit to the real end of a VBR mp3 whose container under-reports its length", async () => {
+    // Precondition — the fixture must actually lie, or this proves nothing.
+    expect(await probeDurationSec(srcVbr)).toBeLessThan(29)
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "MIC", url: "https://fixtures.test/vbr.mp3", kind: "audio", role: "master-audio" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 30_000 }],
+    }
+    const { outputPath } = await applyEdl({ edl, output: "audio", quality: "final", jobId: "t-vbr", checkpoint: false })
+    const dur = await probeDurationSec(outputPath)
+    expect(dur).toBeGreaterThan(29.5)
+    expect(dur).toBeLessThan(30.6)
+  })
+
+  it("renders from a live-muxed recording whose container declares no duration at all", async () => {
+    // Precondition — the container really has nothing to declare.
+    expect(Number.isNaN(await probeDurationSec(srcLive))).toBe(true)
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "CAM", url: "https://fixtures.test/live.mkv", kind: "video" }],
+      segments: [{ id: "s0", inMs: 1000, outMs: 5000, video: "CAM", audio: "CAM" }],
+    }
+    const { outputPath } = await applyEdl({ edl, output: "video", quality: "final", jobId: "t-live", checkpoint: false })
+    const dur = await probeDurationSec(outputPath)
+    expect(dur).toBeGreaterThan(3.7)
+    expect(dur).toBeLessThan(4.4)
+  })
+
+  it("still fails an overrun on a live-muxed recording — the real end is measured, not skipped", async () => {
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "CAM", url: "https://fixtures.test/live.mkv", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 9000, video: "CAM", audio: "CAM" }],
+    }
+    await expect(applyEdl({ edl, output: "video", quality: "final", jobId: "t-live-overrun", checkpoint: false }))
+      .rejects.toThrow(/segment\[0\] "s0" ends at 9\.00s on source "CAM"/)
   })
 
   it("renders segment order (colour) + audio continuity (tone) + duration", async () => {

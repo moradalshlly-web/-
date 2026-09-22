@@ -533,6 +533,54 @@ export async function probeMediaDuration(srcUrlOrPath: string): Promise<number> 
   return duration
 }
 
+/**
+ * The REAL end of a local media file's streams, in seconds — measured by
+ * demuxing every packet (no decode) and reading the last timestamp ffmpeg
+ * writes, never by trusting the container's declared duration.
+ *
+ * `format=duration` (what `probeMediaDuration` returns) is a declaration the
+ * container can get wrong or leave out: an mp3 without a Xing/Info header (or
+ * with a stale one — a re-cut or ad-stitched podcast file) is bitrate-
+ * extrapolated and under-reports by seconds that GROW with the file (a 30 s
+ * VBR encode declares 27.85 s; 600 s declares 554 s); a live-muxed WebM /
+ * Matroska (a browser MediaRecorder recording) declares nothing at all
+ * (`N/A`). Both render fine — ffmpeg reads a stream to its real end — so any
+ * check that trusts the declaration either refuses a correct edit or throws
+ * on a good file. This reads exactly what the render will read. Cost is I/O
+ * only (`-c copy` into the null muxer): it scales with file size, not decode
+ * work.
+ *
+ * Local paths only (no network, no SSRF surface). Throws when ffmpeg reports
+ * no progress at all (an unreadable file) — a caller that wants to fail open
+ * catches it.
+ */
+export async function probeStreamEndSec(filePath: string): Promise<number> {
+  const progress = await runFfmpeg([
+    "-v", "error", "-nostats", "-progress", "pipe:1",
+    "-i", filePath,
+    "-map", "0:v?", "-map", "0:a?",
+    "-c", "copy", "-f", "null", "-",
+  ])
+  const end = parseProgressEndSec(progress)
+  if (end === undefined) throw new Error(`probeStreamEndSec: ffmpeg reported no stream end for "${filePath}"`)
+  return end
+}
+
+/**
+ * The last `out_time_us=` an ffmpeg `-progress` stream reported, in seconds —
+ * `undefined` when it never reported one (an unreadable input). `out_time_ms`
+ * is accepted as the same field: older ffmpeg emitted only that name, and it
+ * has always carried microseconds. Exported for its unit test.
+ */
+export function parseProgressEndSec(progress: string): number | undefined {
+  let last: number | undefined
+  for (const line of progress.split("\n")) {
+    const m = /^out_time_(?:us|ms)=(\d+)\s*$/.exec(line.trim())
+    if (m) last = Number(m[1]) / 1_000_000
+  }
+  return last !== undefined && Number.isFinite(last) ? last : undefined
+}
+
 export interface MediaStreams {
   /** At least one REAL video stream — embedded cover art (attached_pic) does not count. */
   readonly hasVideo: boolean
