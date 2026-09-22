@@ -29,7 +29,8 @@ import {
   downloadFile,
   runFfmpeg,
   runFfprobe,
-  probeStreamEndSec,
+  probeStreamEnds,
+  type StreamEnds,
   createWorkDir,
   cleanupWorkDir,
   COMBINE_DELIVERY_CRF,
@@ -87,34 +88,38 @@ function audioSourceId(edl: Edl, seg: EdlSegment, masterAudioId: string | undefi
   return seg.video
 }
 
-/** How far past a source's measured end a segment may reach before it is a
- *  refusal rather than skew — see `assertSegmentsWithinSources`. */
+/** How far past a track's measured end a segment may reach before it is a
+ *  refusal rather than rounding — see `assertSegmentsWithinSources`. */
 export const SOURCE_END_TOLERANCE_SEC = 1
 
-/** Throws, naming the segment and the source, when a segment's window reaches
- *  more than `SOURCE_END_TOLERANCE_SEC` past the media it reads. Pure; the
- *  measured stream ends (`probeStreamEndSec`) are passed in so the rule is
- *  unit-testable without ffmpeg, and a source with no entry is skipped. */
+/** Throws, naming the segment, the source and the TRACK, when a segment's
+ *  window reaches more than `SOURCE_END_TOLERANCE_SEC` past the media it
+ *  reads. Each read is checked against the track the render actually reads:
+ *  the picture source's VIDEO track (video output only) and the sound
+ *  source's AUDIO track — a file whose tracks differ in length is two lengths,
+ *  not one. Pure; the measured ends (`probeStreamEnds`) are passed in so the
+ *  rule is unit-testable without ffmpeg, and a track with no measurement is
+ *  skipped. */
 export function assertSegmentsWithinSources(
   edl: Edl,
   masterAudioId: string | undefined,
   wantVideo: boolean,
-  sourceLengthSec: ReadonlyMap<string, number>,
+  sourceEnds: ReadonlyMap<string, StreamEnds>,
 ): void {
   edl.segments.forEach((seg, i) => {
-    const reads = new Set<string>()
-    if (wantVideo && seg.video) reads.add(seg.video)
+    const reads: Array<{ id: string; track: "video" | "audio" }> = []
+    if (wantVideo && seg.video) reads.push({ id: seg.video, track: "video" })
     const aId = audioSourceId(edl, seg, masterAudioId)
-    if (aId) reads.add(aId)
-    for (const id of reads) {
-      const length = sourceLengthSec.get(id)
-      if (length === undefined) continue
+    if (aId) reads.push({ id: aId, track: "audio" })
+    for (const { id, track } of reads) {
+      const end = sourceEnds.get(id)?.[track]
+      if (end === undefined) continue
       const src = edl.sources.find((s) => s.id === id)
       const endSec = secs(seg.outMs - offsetOf(src))
-      if (endSec > length + SOURCE_END_TOLERANCE_SEC) {
+      if (endSec > end + SOURCE_END_TOLERANCE_SEC) {
         throw new Error(
           `apply-edl: segment[${i}] "${seg.id}" ends at ${endSec.toFixed(2)}s on source "${id}", ` +
-            `but that source is only ${length.toFixed(2)}s long — shorten the segment or check the source's offsetMs`,
+            `but its ${track} track is only ${end.toFixed(2)}s long — shorten the segment or check the source's offsetMs`,
         )
       }
     }
@@ -348,7 +353,7 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
 
     const sourcePaths = new Map<string, string>()
     const audioPresent = new Map<string, boolean>()
-    const sourceLengthSec = new Map<string, number>()
+    const sourceEnds = new Map<string, StreamEnds>()
     let dl = 0
     for (const id of referenced) {
       const src = edl.sources.find((s) => s.id === id)
@@ -358,16 +363,18 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       sourcePaths.set(id, localPath)
       audioPresent.set(id, await hasAudioStream(localPath))
       // The one per-source measurement that lets the window check below be
-      // honest: the stream's REAL end, demuxed — not the container's declared
-      // duration, which a Xing-less VBR mp3 under-reports by seconds and a
-      // live-muxed MediaRecorder WebM omits, while both render fine. A file
-      // this cannot read stays unmeasured: the check skips it and the render
-      // proceeds as it always has, rather than failing a paid job over a probe.
+      // honest: each track's REAL end, from its own packets — not the
+      // container's declared duration (a Xing-less VBR mp3 under-reports it
+      // by seconds; a live-muxed MediaRecorder WebM omits it; both render
+      // fine), and not one blended number for a file whose picture and sound
+      // differ in length. A file this cannot read stays unmeasured: the check
+      // skips it and the render proceeds as it always has, rather than
+      // failing a paid job over a probe.
       try {
-        sourceLengthSec.set(id, await probeStreamEndSec(localPath))
+        sourceEnds.set(id, await probeStreamEnds(localPath))
       } catch (err) {
         console.warn(
-          `[apply-edl] source "${id}": could not measure its length, the window check skips it (${err instanceof Error ? err.message : String(err)})`,
+          `[apply-edl] source "${id}": could not measure its tracks, the window check skips it (${err instanceof Error ? err.message : String(err)})`,
         )
       }
       dl++
@@ -376,15 +383,15 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
 
     // Every segment must exist on the media it reads. Ingress already refused a
     // segment that starts before its source's origin; only the file itself can
-    // say whether one runs PAST the source's end — so it is checked here, once
-    // the sources are local, and the job FAILS naming the segment. It never
-    // clamps: a silently shortened segment would deliver a shorter render than
-    // the EDL (and than the reserve and the caption remap) describes, with no
-    // error anywhere. Overshoot inside SOURCE_END_TOLERANCE_SEC is skew, not an
-    // overrun — a clip's audio track outlasts its picture by a frame or two, a
-    // transcript's last word can end a beat after the audio — and renders to
-    // the stream's real end, as before.
-    assertSegmentsWithinSources(edl, masterAudioId, wantVideo, sourceLengthSec)
+    // say whether one runs PAST the end of the track it reads — so it is
+    // checked here, once the sources are local, per track, and the job FAILS
+    // naming the segment. It never clamps: a silently shortened segment would
+    // deliver a shorter render than the EDL (and than the reserve and the
+    // caption remap) describes, with no error anywhere. Overshoot inside
+    // SOURCE_END_TOLERANCE_SEC is rounding, not an overrun — a transcript's
+    // last word can end a beat after the audio — and renders to the track's
+    // real end, as before.
+    assertSegmentsWithinSources(edl, masterAudioId, wantVideo, sourceEnds)
 
     // Picture canvas (video output only): majority resolution / fps of the
     // referenced VIDEO sources, then proxy-capped.

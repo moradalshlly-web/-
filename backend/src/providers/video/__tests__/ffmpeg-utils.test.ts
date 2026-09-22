@@ -49,14 +49,39 @@ const mocks = vi.hoisted(() => {
   const createWriteStream = vi.fn(() => ({}))
   const pipeline = vi.fn().mockResolvedValue(undefined)
   const readableFromWeb = vi.fn(() => ({}))
+  // spawn (streamed ffprobe packet scans): each call pops a script
+  // `{ stdout, code }` and replays it as chunked data + close events.
+  const spawnScripts: Array<{ stdout: string; code?: number; stderr?: string }> = []
+  const spawn = vi.fn((_cmd: string, _args: string[]) => {
+    const script = spawnScripts.shift() ?? { stdout: "", code: 0 }
+    const listeners: Record<string, Array<(...a: unknown[]) => void>> = {}
+    const on = (bucket: Record<string, Array<(...a: unknown[]) => void>>) => (ev: string, cb: (...a: unknown[]) => void) => {
+      ;(bucket[ev] ??= []).push(cb)
+    }
+    const stdoutL: Record<string, Array<(...a: unknown[]) => void>> = {}
+    const stderrL: Record<string, Array<(...a: unknown[]) => void>> = {}
+    const proc = { stdout: { on: on(stdoutL) }, stderr: { on: on(stderrL) }, on: on(listeners), kill: vi.fn() }
+    setImmediate(() => {
+      // Deliver in two chunks split mid-line so the line buffering is exercised.
+      const cut = Math.floor(script.stdout.length / 2)
+      for (const part of [script.stdout.slice(0, cut), script.stdout.slice(cut)]) {
+        if (part) for (const cb of stdoutL.data ?? []) cb(Buffer.from(part))
+      }
+      if (script.stderr) for (const cb of stderrL.data ?? []) cb(Buffer.from(script.stderr))
+      for (const cb of listeners.close ?? []) cb(script.code ?? 0)
+    })
+    return proc
+  })
   return {
     execFile, fsMkdir, fsRm, safeFetch, dnsLookup,
     createWriteStream, pipeline, readableFromWeb,
+    spawn, spawnScripts,
   }
 })
 
 vi.mock("node:child_process", () => ({
   execFile: mocks.execFile,
+  spawn: mocks.spawn,
 }))
 
 vi.mock("node:fs", () => ({
@@ -137,8 +162,9 @@ import {
   BROWSER_SAFE_VIDEO_ARGS,
   REMOTION_INPUT_VIDEO_ARGS,
   ffmpegFailureMessage,
-  parseProgressEndSec,
-  probeStreamEndSec,
+  packetEndSec,
+  pickRenderStreams,
+  probeStreamEnds,
 } from "../ffmpeg-utils.js"
 
 beforeEach(() => {
@@ -1201,49 +1227,92 @@ describe("probeMediaStreams", () => {
   })
 })
 
+
 // ===========================================================================
-// probeStreamEndSec — the REAL stream end, demuxed, not the container's word
+// probeStreamEnds — each track's REAL end, from its own packets
 // ===========================================================================
-// `format=duration` is a declaration a container can get wrong (an mp3 with no
-// Xing/Info header extrapolates from bitrate and under-reports by seconds that
-// grow with the file) or omit (a live-muxed MediaRecorder WebM says N/A). This
-// helper reads every packet through the null muxer and takes the last
-// timestamp ffmpeg wrote — what a render will actually read.
-describe("parseProgressEndSec", () => {
-  it("returns the LAST out_time_us a progress stream reported, in seconds", () => {
-    const progress = [
-      "frame=10", "out_time_us=1000000", "progress=continue",
-      "frame=900", "out_time_us=30040816", "progress=end", "",
-    ].join("\n")
-    expect(parseProgressEndSec(progress)).toBeCloseTo(30.040816, 6)
+// `format=duration` is a declaration a container can get wrong (a Xing-less
+// mp3 under-reports by seconds that grow with the file) or omit (a live-muxed
+// MediaRecorder WebM says N/A). A single `-c copy -f null` pass was wrong in
+// other ways: its out_time is the muxer's DTS clock (seconds short on a 1 fps
+// still-image encode with B-frames), cover art mapped as video made it N/A on
+// ffmpeg 8.1, and one number cannot describe a file whose picture and sound
+// differ in length. So: pick the real video stream (never `attached_pic`) and
+// the audio stream, then stream each one's packets and keep max(pts + dur).
+describe("pickRenderStreams", () => {
+  const listing = (streams: unknown[]) => JSON.stringify({ streams })
+
+  it("picks the first REAL video stream and the first audio stream by index", () => {
+    expect(pickRenderStreams(listing([
+      { index: 0, codec_type: "audio", disposition: { attached_pic: 0 } },
+      { index: 1, codec_type: "video", disposition: { attached_pic: 0 } },
+      { index: 2, codec_type: "audio", disposition: { attached_pic: 0 } },
+    ]))).toEqual({ video: 1, audio: 0 })
   })
 
-  it("accepts the older out_time_ms spelling (which has always carried microseconds)", () => {
-    expect(parseProgressEndSec("out_time_ms=12000000\nprogress=end\n")).toBe(12)
+  it("never picks embedded cover art (attached_pic) as the picture — a podcast mp3 has no video track", () => {
+    expect(pickRenderStreams(listing([
+      { index: 0, codec_type: "audio", disposition: { attached_pic: 0 } },
+      { index: 1, codec_type: "video", disposition: { attached_pic: 1 } },
+    ]))).toEqual({ audio: 0 })
   })
 
-  it("is undefined when ffmpeg never reported an end (an unreadable input) — not 0, not NaN", () => {
-    expect(parseProgressEndSec("")).toBeUndefined()
-    expect(parseProgressEndSec("progress=end\n")).toBeUndefined()
-    expect(parseProgressEndSec("out_time_us=N/A\nprogress=end\n")).toBeUndefined()
+  it("reports only the tracks the file carries", () => {
+    expect(pickRenderStreams(listing([{ index: 0, codec_type: "video", disposition: { attached_pic: 0 } }]))).toEqual({ video: 0 })
+    expect(pickRenderStreams(listing([]))).toEqual({})
+  })
+
+  it("throws (never guesses) when the listing is not JSON", () => {
+    expect(() => pickRenderStreams("not json")).toThrow(/probeStreamEnds/)
   })
 })
 
-describe("probeStreamEndSec", () => {
-  it("demuxes with -c copy into the null muxer (no decode) and returns the last written timestamp", async () => {
-    execFileOnce("out_time_us=500000\nprogress=continue\nout_time_us=30040816\nprogress=end\n")
-    const end = await probeStreamEndSec("/tmp/vbr.mp3")
-    expect(end).toBeCloseTo(30.040816, 6)
-    expect(execCmd()).toBe("ffmpeg")
-    const args = execArgs()
-    expect(args).toEqual(expect.arrayContaining(["-progress", "pipe:1", "-c", "copy", "-f", "null", "-"]))
-    expect(args[args.indexOf("-i") + 1]).toBe("/tmp/vbr.mp3")
-    // Only the streams a render reads — a data or subtitle track must not fail the probe.
-    expect(args).toEqual(expect.arrayContaining(["-map", "0:v?", "-map", "0:a?"]))
+describe("packetEndSec (one csv line)", () => {
+  it("is pts + duration", () => {
+    expect(packetEndSec("29.984000,0.056816")).toBeCloseTo(30.040816, 6)
+  })
+  it("treats a missing duration as 0 and a missing pts as unmeasurable", () => {
+    expect(packetEndSec("12.000000,N/A")).toBe(12)
+    expect(packetEndSec("12.000000")).toBe(12)
+    expect(packetEndSec("N/A,0.04")).toBeUndefined()
+    expect(packetEndSec("")).toBeUndefined()
+  })
+})
+
+describe("probeStreamEnds", () => {
+  const twoTracks = JSON.stringify({ streams: [
+    { index: 0, codec_type: "video", disposition: { attached_pic: 0 } },
+    { index: 1, codec_type: "audio", disposition: { attached_pic: 0 } },
+  ] })
+
+  it("lists the streams with ffprobe, then streams each chosen track's packets and keeps max(pts + duration)", async () => {
+    execFileOnce(twoTracks)
+    // Video packets in DTS order with B-frame reordering: the LAST line is not the max.
+    mocks.spawnScripts.push({ stdout: "0.000000,1.000000\n2.000000,1.000000\n1.000000,1.000000\n9.000000,1.000000\n8.000000,1.000000\n" })
+    mocks.spawnScripts.push({ stdout: "0.000000,0.021333\n2.986667,0.021333\n" })
+
+    const ends = await probeStreamEnds("/tmp/v6a3.mp4")
+    expect(ends).toEqual({ video: 10, audio: expect.closeTo(3.008, 3) })
+
+    expect(execCmd(0)).toBe("ffprobe")
+    expect(execArgs(0)).toEqual(expect.arrayContaining(["-show_entries", "stream=index,codec_type:stream_disposition=attached_pic", "-of", "json"]))
+    expect(mocks.spawn).toHaveBeenCalledTimes(2)
+    const [, vArgs] = mocks.spawn.mock.calls[0]!
+    expect(vArgs).toEqual(expect.arrayContaining(["-select_streams", "0", "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0", "/tmp/v6a3.mp4"]))
+    const [, aArgs] = mocks.spawn.mock.calls[1]!
+    expect(aArgs).toEqual(expect.arrayContaining(["-select_streams", "1"]))
   })
 
-  it("throws (never guesses) when ffmpeg reports no stream end", async () => {
-    execFileOnce("progress=end\n")
-    await expect(probeStreamEndSec("/tmp/broken.bin")).rejects.toThrow(/probeStreamEndSec/)
+  it("leaves a track undefined when it has no readable packets, and skips tracks the file does not carry", async () => {
+    execFileOnce(JSON.stringify({ streams: [{ index: 0, codec_type: "audio", disposition: { attached_pic: 0 } }] }))
+    mocks.spawnScripts.push({ stdout: "N/A,N/A\n" })
+    expect(await probeStreamEnds("/tmp/odd.mp3")).toEqual({ audio: undefined })
+    expect(mocks.spawn).toHaveBeenCalledTimes(1)
+  })
+
+  it("throws (never guesses) when a packet scan fails", async () => {
+    execFileOnce(twoTracks)
+    mocks.spawnScripts.push({ stdout: "", code: 1, stderr: "Invalid data found when processing input" })
+    await expect(probeStreamEnds("/tmp/broken.mp4")).rejects.toThrow(/probeStreamEnds: ffprobe exit 1 on stream 0: Invalid data/)
   })
 })

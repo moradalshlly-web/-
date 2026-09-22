@@ -113,20 +113,51 @@ async function probeTone(path: string, t: number, candidates: number[]): Promise
 
 describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
   let dir: string
-  let srcA: string, srcB: string, srcC: string, srcVbr: string, srcLive: string
+  let srcA: string, srcB: string, srcC: string, srcVbr: string, srcArt: string, srcLive: string
+  let srcLowFps: string, srcV6A3: string, srcV3A6: string
 
   beforeAll(async () => {
     dir = await fs.mkdtemp(join(tmpdir(), "apply-edl-test-"))
     process.env.APPLY_EDL_FIXTURE_DIR = dir
     srcA = join(dir, "a.mp4"); srcB = join(dir, "b.mp4"); srcC = join(dir, "c.mp4")
-    srcVbr = join(dir, "vbr.mp3"); srcLive = join(dir, "live.mkv")
+    srcVbr = join(dir, "vbr.mp3"); srcArt = join(dir, "art.mp3"); srcLive = join(dir, "live.mkv")
+    srcLowFps = join(dir, "lowfps.mp4"); srcV6A3 = join(dir, "v6a3.mp4"); srcV3A6 = join(dir, "v3a6.mp4")
     await makeSource(srcA, "red", 440, 6)
     await makeSource(srcB, "blue", 880, 6)
     await makeSource(srcC, "green", 660, 6)
     // A 30 s VBR mp3 with NO Xing/Info header — its container under-reports.
     if (mp3EncoderAvailable) {
       await runFfmpeg(["-y", "-f", "lavfi", "-i", "sine=f=440:r=44100:d=30", "-c:a", "libmp3lame", "-q:a", "9", "-write_xing", "0", srcVbr])
+      // The same, with embedded cover art (an ID3 `attached_pic` video stream —
+      // what almost every real podcast mp3 carries). Mapping that "video" into
+      // a `-c copy -f null` pass made ffmpeg 8.1 report N/A, so the file went
+      // unmeasured; the per-track probe must skip cover art and measure the sound.
+      const cover = join(dir, "cover.png")
+      await runFfmpeg(["-y", "-f", "lavfi", "-i", "color=c=blue:s=64x64:r=1:d=1", "-frames:v", "1", cover])
+      await runFfmpeg(["-y", "-i", srcVbr, "-i", cover, "-map", "0:a", "-map", "1:v", "-c:a", "copy", "-c:v", "png", "-disposition:v", "attached_pic", "-id3v2_version", "3", srcArt])
     }
+    // A 1 fps still-image video (an audiogram) with a 10 s sound track. With
+    // B-frames the muxer's clock (`-c copy -f null` out_time) trails the real
+    // picture end by the reorder delay in FRAME SPACING — seconds at 1 fps —
+    // so a single-number probe refused a segment that ends where the picture
+    // really ends. Per-track packet ends read 10 s for both.
+    await runFfmpeg([
+      "-y",
+      "-f", "lavfi", "-i", "color=c=red:s=320x240:r=1:d=10",
+      "-f", "lavfi", "-i", "sine=f=440:r=48000:d=10",
+      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", srcLowFps,
+    ])
+    // Tracks of DIFFERENT lengths in one file (no -shortest): picture 6 s +
+    // sound 3 s, and picture 3 s + sound 6 s. One number per file cannot
+    // describe either; the render reads each track to its own end.
+    await runFfmpeg([
+      "-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:r=30:d=6", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=3",
+      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", srcV6A3,
+    ])
+    await runFfmpeg([
+      "-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:r=30:d=3", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=6",
+      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", srcV3A6,
+    ])
     // A 6 s live-muxed Matroska (what a MediaRecorder writes) — no duration element.
     await runFfmpeg([
       "-y",
@@ -228,7 +259,65 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
       segments: [{ id: "s0", inMs: 0, outMs: 9000, video: "CAM", audio: "CAM" }],
     }
     await expect(applyEdl({ edl, output: "video", quality: "final", jobId: "t-live-overrun", checkpoint: false }))
-      .rejects.toThrow(/segment\[0\] "s0" ends at 9\.00s on source "CAM"/)
+      .rejects.toThrow(/segment\[0\] "s0" ends at 9\.00s on source "CAM", but its video track is only 6\.\d\ds long/)
+  })
+
+  it.skipIf(!mp3EncoderAvailable)("measures a podcast mp3 with embedded cover art — an overrun on it is refused, a full-length cut renders", async () => {
+    const sources: Edl["sources"] = [{ id: "MIC", url: "https://fixtures.test/art.mp3", kind: "audio", role: "master-audio" }]
+    const over: Edl = { version: 1, clock: "master", sources, segments: [{ id: "s0", inMs: 0, outMs: 40_000 }] }
+    // Refused ⇒ the sound track WAS measured (an unmeasured file would render short, silently).
+    await expect(applyEdl({ edl: over, output: "audio", quality: "final", jobId: "t-art-overrun", checkpoint: false }))
+      .rejects.toThrow(/source "MIC", but its audio track is only 30\.\d\ds long/)
+    const full: Edl = { version: 1, clock: "master", sources, segments: [{ id: "s0", inMs: 0, outMs: 30_000 }] }
+    const { outputPath } = await applyEdl({ edl: full, output: "audio", quality: "final", jobId: "t-art", checkpoint: false })
+    const dur = await probeDurationSec(outputPath)
+    expect(dur).toBeGreaterThan(29.5)
+    expect(dur).toBeLessThan(30.6)
+  })
+
+  it("renders a 1 fps still-image video to its full length — the picture's PTS end, not the muxer's clock", async () => {
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "CAM", url: "https://fixtures.test/lowfps.mp4", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 10_000, video: "CAM", audio: "CAM" }],
+    }
+    const { outputPath } = await applyEdl({ edl, output: "video", quality: "final", jobId: "t-lowfps", checkpoint: false })
+    const dur = await probeDurationSec(outputPath)
+    expect(dur).toBeGreaterThan(9.5)
+    expect(dur).toBeLessThan(10.6)
+  })
+
+  it("a file whose picture outlasts its sound: refused on the AUDIO track for a video render, unless the sound comes from a longer source", async () => {
+    const own: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "CAM", url: "https://fixtures.test/v6a3.mp4", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 6000, video: "CAM", audio: "CAM" }],
+    }
+    await expect(applyEdl({ edl: own, output: "video", quality: "final", jobId: "t-v6a3-own", checkpoint: false }))
+      .rejects.toThrow(/source "CAM", but its audio track is only 3\.\d\ds long/)
+    const mic: Edl = {
+      version: 1, clock: "master",
+      sources: [
+        { id: "CAM", url: "https://fixtures.test/v6a3.mp4", kind: "video" },
+        { id: "MIC", url: "https://fixtures.test/a.mp4", kind: "audio", role: "master-audio" },
+      ],
+      segments: [{ id: "s0", inMs: 0, outMs: 6000, video: "CAM" }],
+    }
+    const { outputPath } = await applyEdl({ edl: mic, output: "video", quality: "final", jobId: "t-v6a3-mic", checkpoint: false })
+    const dur = await probeDurationSec(outputPath)
+    expect(dur).toBeGreaterThan(5.7)
+    expect(dur).toBeLessThan(6.4)
+  })
+
+  it("a file whose sound outlasts its picture: an audio-only cut renders to the sound's end, a video render is refused on the VIDEO track", async () => {
+    const sources: Edl["sources"] = [{ id: "CAM", url: "https://fixtures.test/v3a6.mp4", kind: "video" }]
+    const edl: Edl = { version: 1, clock: "master", sources, segments: [{ id: "s0", inMs: 0, outMs: 6000, video: "CAM", audio: "CAM" }] }
+    const { outputPath } = await applyEdl({ edl, output: "audio", quality: "final", jobId: "t-v3a6-audio", checkpoint: false })
+    const dur = await probeDurationSec(outputPath)
+    expect(dur).toBeGreaterThan(5.7)
+    expect(dur).toBeLessThan(6.4)
+    await expect(applyEdl({ edl, output: "video", quality: "final", jobId: "t-v3a6-video", checkpoint: false }))
+      .rejects.toThrow(/source "CAM", but its video track is only 3\.\d\ds long/)
   })
 
   it("renders segment order (colour) + audio continuity (tone) + duration", async () => {

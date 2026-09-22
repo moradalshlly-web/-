@@ -533,52 +533,135 @@ export async function probeMediaDuration(srcUrlOrPath: string): Promise<number> 
   return duration
 }
 
-/**
- * The REAL end of a local media file's streams, in seconds — measured by
- * demuxing every packet (no decode) and reading the last timestamp ffmpeg
- * writes, never by trusting the container's declared duration.
- *
- * `format=duration` (what `probeMediaDuration` returns) is a declaration the
- * container can get wrong or leave out: an mp3 without a Xing/Info header (or
- * with a stale one — a re-cut or ad-stitched podcast file) is bitrate-
- * extrapolated and under-reports by seconds that GROW with the file (a 30 s
- * VBR encode declares 27.85 s; 600 s declares 554 s); a live-muxed WebM /
- * Matroska (a browser MediaRecorder recording) declares nothing at all
- * (`N/A`). Both render fine — ffmpeg reads a stream to its real end — so any
- * check that trusts the declaration either refuses a correct edit or throws
- * on a good file. This reads exactly what the render will read. Cost is I/O
- * only (`-c copy` into the null muxer): it scales with file size, not decode
- * work.
- *
- * Local paths only (no network, no SSRF surface). Throws when ffmpeg reports
- * no progress at all (an unreadable file) — a caller that wants to fail open
- * catches it.
- */
-export async function probeStreamEndSec(filePath: string): Promise<number> {
-  const progress = await runFfmpeg([
-    "-v", "error", "-nostats", "-progress", "pipe:1",
-    "-i", filePath,
-    "-map", "0:v?", "-map", "0:a?",
-    "-c", "copy", "-f", "null", "-",
-  ])
-  const end = parseProgressEndSec(progress)
-  if (end === undefined) throw new Error(`probeStreamEndSec: ffmpeg reported no stream end for "${filePath}"`)
-  return end
+/** The REAL end of each track a render can read, in seconds — `undefined`
+ *  for a track the file does not carry (or whose packets could not be read). */
+export interface StreamEnds {
+  /** The first REAL video stream (embedded cover art — `attached_pic` — is not one). */
+  readonly video?: number
+  /** The first audio stream. */
+  readonly audio?: number
 }
 
 /**
- * The last `out_time_us=` an ffmpeg `-progress` stream reported, in seconds —
- * `undefined` when it never reported one (an unreadable input). `out_time_ms`
- * is accepted as the same field: older ffmpeg emitted only that name, and it
- * has always carried microseconds. Exported for its unit test.
+ * The REAL end of a local media file's picture and sound tracks — measured
+ * from the packets themselves, per track, as max(pts + duration) over every
+ * packet of that stream (demux only, no decode), never from anything the
+ * container declares and never from a single number for the whole file.
+ *
+ * Why not `format=duration` (`probeMediaDuration`): it is a declaration the
+ * container can get wrong or leave out. An mp3 without a Xing/Info header (or
+ * with a stale one — a re-cut or ad-stitched podcast file) is bitrate-
+ * extrapolated and under-reports by seconds that GROW with the file (a 30 s
+ * VBR encode declares 27.85 s; 600 s declares 554 s); a live-muxed WebM /
+ * Matroska (a browser MediaRecorder recording) declares nothing (`N/A`). Both
+ * render fine — ffmpeg reads a stream to its real end.
+ *
+ * Why not one number from a `-c copy -f null` pass: its `out_time` is the
+ * muxer's clock — the last packet's DTS plus its duration, blended across the
+ * mapped streams. With B-frames that trails the true (PTS) end by the reorder
+ * delay in that stream's frame spacing: negligible at 30 fps, SECONDS on a
+ * 1 fps still-image encode or a VFR screen recording that goes sparse at the
+ * end — so a correct edit to the real end was refused; on ffmpeg 8.1 an mp3's
+ * embedded cover art (mapped by `0:v?`) made the whole value N/A; and a file
+ * whose picture and sound differ in length got one number for two tracks.
+ * Per-track PTS ends are what the render's `trim` / `atrim` actually reach.
+ *
+ * Cost is I/O only and scales with file size, not decode work. Packet lines
+ * are STREAMED (a two-hour track is several MB of csv — past `runFfprobe`'s
+ * buffer). Local paths only (no network, no SSRF surface). Throws when the
+ * file cannot be probed at all; a track present but unreadable is left
+ * `undefined` — a caller that wants to fail open catches / skips.
  */
-export function parseProgressEndSec(progress: string): number | undefined {
-  let last: number | undefined
-  for (const line of progress.split("\n")) {
-    const m = /^out_time_(?:us|ms)=(\d+)\s*$/.exec(line.trim())
-    if (m) last = Number(m[1]) / 1_000_000
+export async function probeStreamEnds(filePath: string): Promise<StreamEnds> {
+  const listing = await runFfprobe([
+    "-v", "error",
+    "-show_entries", "stream=index,codec_type:stream_disposition=attached_pic",
+    "-of", "json",
+    filePath,
+  ])
+  const { video, audio } = pickRenderStreams(listing)
+  return {
+    ...(video !== undefined ? { video: await packetEndSec(filePath, video) } : {}),
+    ...(audio !== undefined ? { audio: await packetEndSec(filePath, audio) } : {}),
   }
-  return last !== undefined && Number.isFinite(last) ? last : undefined
+}
+
+/** From an ffprobe `-show_entries stream=index,codec_type:stream_disposition=attached_pic`
+ *  JSON listing: the first REAL video stream (not cover art) and the first
+ *  audio stream, by index. Exported for its unit test. */
+export function pickRenderStreams(listingJson: string): { video?: number; audio?: number } {
+  let streams: Array<{ index?: number; codec_type?: string; disposition?: { attached_pic?: number } }>
+  try {
+    streams = (JSON.parse(listingJson) as { streams?: typeof streams }).streams ?? []
+  } catch {
+    throw new Error(`probeStreamEnds: ffprobe stream listing is not JSON: "${listingJson.slice(0, 80)}"`)
+  }
+  const video = streams.find((s) => s.codec_type === "video" && !(s.disposition?.attached_pic ?? 0))?.index
+  const audio = streams.find((s) => s.codec_type === "audio")?.index
+  return { ...(typeof video === "number" ? { video } : {}), ...(typeof audio === "number" ? { audio } : {}) }
+}
+
+/** One `packet=pts_time,duration_time` csv line → that packet's end in seconds
+ *  (`undefined` for a packet with no pts). Exported for its unit test. */
+export function packetEndSec(line: string): number | undefined
+export function packetEndSec(filePath: string, streamIndex: number): Promise<number | undefined>
+export function packetEndSec(a: string, streamIndex?: number): number | undefined | Promise<number | undefined> {
+  if (streamIndex === undefined) {
+    const [pts, dur] = a.trim().split(",")
+    if (!pts || pts === "N/A") return undefined
+    const p = Number(pts)
+    if (!Number.isFinite(p)) return undefined
+    const d = dur === undefined || dur === "N/A" ? 0 : Number(dur)
+    return p + (Number.isFinite(d) ? d : 0)
+  }
+  return scanPacketEnd(a, streamIndex)
+}
+
+/** Stream one track's packet list through ffprobe and keep the max end. */
+function scanPacketEnd(filePath: string, streamIndex: number): Promise<number | undefined> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("ffprobe", [
+      "-v", "error",
+      "-select_streams", String(streamIndex),
+      "-show_entries", "packet=pts_time,duration_time",
+      "-of", "csv=p=0",
+      filePath,
+    ], { stdio: ["ignore", "pipe", "pipe"] })
+
+    let timedOut = false
+    const watchdog = setTimeout(() => {
+      timedOut = true
+      proc.kill("SIGKILL")
+    }, DEFAULT_FFMPEG_TIMEOUT_MS)
+
+    let max: number | undefined
+    let lineBuf = ""
+    const take = (line: string) => {
+      const end = packetEndSec(line)
+      if (end !== undefined && (max === undefined || end > max)) max = end
+    }
+    proc.stdout.on("data", (chunk: Buffer) => {
+      lineBuf += chunk.toString()
+      const lines = lineBuf.split("\n")
+      lineBuf = lines.pop() ?? ""
+      for (const line of lines) take(line)
+    })
+    let stderrTail = ""
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderrTail = (stderrTail + chunk.toString()).slice(-2048)
+    })
+    proc.on("error", (err) => {
+      clearTimeout(watchdog)
+      reject(new Error(`ffprobe failed to spawn: ${err.message}`))
+    })
+    proc.on("close", (code) => {
+      clearTimeout(watchdog)
+      if (lineBuf) take(lineBuf)
+      if (timedOut) reject(new Error(`probeStreamEnds: ffprobe timed out after ${DEFAULT_FFMPEG_TIMEOUT_MS}ms on stream ${streamIndex}`))
+      else if (code !== 0) reject(new Error(`probeStreamEnds: ffprobe exit ${code} on stream ${streamIndex}: ${stderrTail.trim() || "no output"}`))
+      else resolve(max)
+    })
+  })
 }
 
 export interface MediaStreams {

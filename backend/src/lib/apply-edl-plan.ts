@@ -175,7 +175,7 @@ export function validateEffectiveEdl(edl: Edl, output: "video" | "audio"): Apply
     }
     const lt = layout?.transition?.type
     if (lt !== undefined && lt !== "cut") {
-      issues.push(`${at}: layout transition "${lt}" is not renderable here (only a segment \`transition\` of type "crossfade" is) — remove it or use segment.transition`)
+      issues.push(`${at}: layout transition "${lt}" is not renderable here (only "cut", or a segment \`transition\` of type "crossfade", is) — remove it or use segment.transition`)
     }
     if (seg.region) issues.push(`${at}: region crops are not renderable here (a speaker-view feature) — remove segment.region`)
     for (const slot of slots) {
@@ -188,7 +188,8 @@ export function validateEffectiveEdl(edl: Edl, output: "video" | "audio"): Apply
 
   // A segment must exist on the source it reads. `masterMs = sourceMs + offsetMs`,
   // so a segment starting before a source's origin would ask for negative source
-  // time; the renderer used to clamp that to 0 and deliver the wrong picture.
+  // time; the renderer clamps that to 0 (`renderSlice`) and would deliver the
+  // wrong picture — so it is refused here, before anything is reserved.
   // "Reads" is the executor's rule exactly: the picture source only for a video
   // output (an audio cut never touches it), the sound source always.
   const masterAudioId = edl.sources.find((s) => s.role === "master-audio")?.id
