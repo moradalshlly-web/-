@@ -135,6 +135,31 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
     ],
   })
 
+  // A window past the source's end FAILS naming the segment — never a silently
+  // shortened render (the EDL, the reserve and the caption remap all describe
+  // the longer cut). The fixtures are 6 s long.
+  it("fails, naming the segment and source, when a window runs past the media", async () => {
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "A", url: "https://fixtures.test/a.mp4", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 9000, video: "A", audio: "A" }],
+    }
+    await expect(applyEdl({ edl, output: "video", quality: "final", jobId: "t-overrun", checkpoint: false }))
+      .rejects.toThrow(/segment\[0\] "s0" ends at 9\.00s on source "A"/)
+  })
+
+  it("tolerates a sub-second overrun (container rounding) and renders to the source's real end", async () => {
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "A", url: "https://fixtures.test/a.mp4", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 6400, video: "A", audio: "A" }],
+    }
+    const { outputPath } = await applyEdl({ edl, output: "video", quality: "final", jobId: "t-overrun-ok", checkpoint: false })
+    const dur = await probeDurationSec(outputPath)
+    expect(dur).toBeGreaterThan(5.7)
+    expect(dur).toBeLessThan(6.6)
+  })
+
   it("renders segment order (colour) + audio continuity (tone) + duration", async () => {
     const edl = threeSegmentEdl()
     const { outputPath, durationMs } = await applyEdl({ edl, output: "video", quality: "final", jobId: "t-order", checkpoint: false })

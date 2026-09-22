@@ -41,6 +41,8 @@ All processing is local FFmpeg. No provider key is required.
 - **Boundaries.** A `cut` boundary abuts the two segments; a `crossfade` boundary overlaps them (an FFmpeg `xfade` for video, `acrossfade` for audio), which *compresses* the timeline by the crossfade length.
 - **Master audio.** If one source is marked as the master audio, every segment's sound comes from it — a camera switch never touches the sound. Otherwise each segment uses its own audio.
 - **Validation up front.** The EDL is normalized and validated before any render starts, so a missing or unresolvable source, or a video edit with a picture-less segment, is reported immediately (with the offending id named) rather than failing mid-render.
+- **What this node refuses.** It renders one source per segment, full frame, with `cut` or `crossfade` boundaries. Anything else the EDL contract can describe is refused up front rather than silently dropped: a layout with more than one slot, a layout transition other than `cut` (`pan`, `zoom`, `xfade:…`), and region crops on a segment, a slot or a source — these are speaker-view features that belong to a different node. A segment that starts before its source's origin (`inMs` earlier than the source's `offsetMs`) is refused too.
+- **Segments must fit their sources.** Whether a segment runs past the end of its media can only be known from the file itself, so that is checked once the sources are downloaded — and the render **fails, naming the segment and the source**, rather than quietly delivering a shorter cut than the EDL (and its price) describes. An overrun of up to one second is treated as rounding and renders to the source's real end.
 
 ## Credit Cost
 

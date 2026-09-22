@@ -29,6 +29,7 @@ import {
   downloadFile,
   runFfmpeg,
   runFfprobe,
+  probeMediaDuration,
   createWorkDir,
   cleanupWorkDir,
   COMBINE_DELIVERY_CRF,
@@ -84,6 +85,39 @@ function audioSourceId(edl: Edl, seg: EdlSegment, masterAudioId: string | undefi
   if (seg.audio) return seg.audio
   if (masterAudioId) return masterAudioId
   return seg.video
+}
+
+/** How far past a source's probed length a segment may reach before it is a
+ *  refusal rather than rounding — see `assertSegmentsWithinSources`. */
+export const SOURCE_END_TOLERANCE_SEC = 1
+
+/** Throws, naming the segment and the source, when a segment's window reaches
+ *  more than `SOURCE_END_TOLERANCE_SEC` past the media it reads. Pure; the
+ *  probe results are passed in so the rule is unit-testable without ffprobe. */
+export function assertSegmentsWithinSources(
+  edl: Edl,
+  masterAudioId: string | undefined,
+  wantVideo: boolean,
+  sourceLengthSec: ReadonlyMap<string, number>,
+): void {
+  edl.segments.forEach((seg, i) => {
+    const reads = new Set<string>()
+    if (wantVideo && seg.video) reads.add(seg.video)
+    const aId = audioSourceId(edl, seg, masterAudioId)
+    if (aId) reads.add(aId)
+    for (const id of reads) {
+      const length = sourceLengthSec.get(id)
+      if (length === undefined) continue
+      const src = edl.sources.find((s) => s.id === id)
+      const endSec = secs(seg.outMs - offsetOf(src))
+      if (endSec > length + SOURCE_END_TOLERANCE_SEC) {
+        throw new Error(
+          `apply-edl: segment[${i}] "${seg.id}" ends at ${endSec.toFixed(2)}s on source "${id}", ` +
+            `but that source is only ${length.toFixed(2)}s long — shorten the segment or check the source's offsetMs`,
+        )
+      }
+    }
+  })
 }
 
 async function hasAudioStream(filePath: string): Promise<boolean> {
@@ -313,6 +347,7 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
 
     const sourcePaths = new Map<string, string>()
     const audioPresent = new Map<string, boolean>()
+    const sourceLengthSec = new Map<string, number>()
     let dl = 0
     for (const id of referenced) {
       const src = edl.sources.find((s) => s.id === id)
@@ -321,9 +356,22 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       await downloadFile(src.url, localPath)
       sourcePaths.set(id, localPath)
       audioPresent.set(id, await hasAudioStream(localPath))
+      // The one probe per source that lets the window check below be honest.
+      sourceLengthSec.set(id, await probeMediaDuration(localPath))
       dl++
       onProgress?.(0.05 + 0.15 * (dl / referenced.size))
     }
+
+    // Every segment must exist on the media it reads. Ingress already refused a
+    // segment that starts before its source's origin; only the file itself can
+    // say whether one runs PAST the source's end — so it is checked here, once
+    // the sources are local, and the job FAILS naming the segment. It never
+    // clamps: a silently shortened segment would deliver a shorter render than
+    // the EDL (and than the reserve and the caption remap) describes, with no
+    // error anywhere. Overshoot inside SOURCE_END_TOLERANCE_SEC is a container
+    // rounding artefact (a transcript's last word can end a beat after the
+    // probed length) and renders to the stream's real end, as before.
+    assertSegmentsWithinSources(edl, masterAudioId, wantVideo, sourceLengthSec)
 
     // Picture canvas (video output only): majority resolution / fps of the
     // referenced VIDEO sources, then proxy-capped.
