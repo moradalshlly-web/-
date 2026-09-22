@@ -50,8 +50,10 @@ import { makeOnTaskCreated, markProviderCallStart } from "../../lib/reconcile/pe
 // already maps every model (v3/turbo/multilingual) and resolves the 21
 // premade voice names to UUIDs. Because the call is synchronous (no polling
 // task), there is no `makeOnTaskCreated`/reconcile wiring for TTS jobs going
-// forward — the reconcile cron only ever picks up rows with a persisted
-// `provider_call_started_at`, which this path never sets.
+// forward — the row keeps the worker's pickup sentinel (`provider_kind =
+// "pre-task"`, stamped on every row in `video-worker.ts` and kept fresh by the
+// dispatch-site heartbeat while this handler runs), so the only sweep that can
+// touch it is the 30-minute pre-task backstop for a DEAD worker.
 
 /**
  * What a cloud audio helper hands back: the bytes, plus the relay provenance

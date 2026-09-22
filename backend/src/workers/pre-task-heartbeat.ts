@@ -15,14 +15,14 @@
  * runs 30–35 minutes, and was failed at minute 31 by the cron while its worker
  * was still rendering on the one container that ran it.
  *
- * THE INVARIANT. The worker wraps its WHOLE final dispatch map here — core
- * handlers, the relay, the plugin map — as the last merge before dispatch, so
- * liveness is a property of the registry the worker actually runs, not of each
- * handler's memory: a future job type is covered the day it ships, with no list
- * to update. (The wrap once covered only the plugin map; a core ffmpeg
- * long-runner — an hour-long multicam apply-edl cut — had the same exposure.)
- * A core handler with its own heartbeat is unaffected: both refresh the same
- * stamp, and the refresh is idempotent.
+ * THE INVARIANT. The worker wraps the handler AT ITS DISPATCH SITE — the one
+ * place a handler is looked up by job name and run (`video-worker.ts`) — so
+ * liveness is a property of dispatch itself, not of any map, merge order or
+ * handler's memory: a future job type is covered the day it ships, with no
+ * list to update. (The wrap once covered only the plugin loader's map; a core
+ * ffmpeg long-runner — an hour-long multicam apply-edl cut — had the same
+ * exposure.) A core handler with its own heartbeat is unaffected: both refresh
+ * the same stamp, and the refresh is idempotent.
  *
  * WHAT "LIVE" MEANS. The refresh beats while the handler's promise is
  * unsettled in THIS process. If the process dies (deploy, OOM, SIGKILL) the
@@ -35,9 +35,14 @@
  *
  * WHY IT STOPS. A handler whose promise never settles would otherwise be kept
  * alive forever, and the 30-minute sweep is also the backstop for a HUNG
- * handler. The beats stop after `PRE_TASK_HEARTBEAT_MAX_MS` — the orchestrator's
- * own per-node ceiling, past which a workflow has already given up on the node
- * — so a hung plugin job is still failed and refunded, one threshold later.
+ * handler. The beats stop after `PRE_TASK_HEARTBEAT_MAX_MS`, so a hung job is
+ * still failed and refunded, one threshold later. The cap is sized to the
+ * longest LEGITIMATE run this worker performs, not to the orchestrator's
+ * per-node ceiling: a job reached through a direct lane (`POST /v1/apply-edl`,
+ * the MCP verb) has no orchestrator watching it, and a final-quality render
+ * of a maximum-length episode is hours of ffmpeg on a shared box. A run that
+ * outlives the cap is still failed and refunded one threshold later — that is
+ * the residual, stated here so "covered" is not read as unbounded.
  *
  * DRAIN HAND-OFF (app PR #1436). A drain hand-off leaves the handler with
  * `DrainAbortError`; the `finally` below stops the beats, the row keeps a stamp
@@ -46,15 +51,21 @@
  * tests pin interval + requeue delay far below the threshold.
  */
 import { refreshPreTaskSentinel } from "../lib/reconcile/persistence.js"
-import { NODE_TIMEOUT_MS } from "../services/workflow-engine/types.js"
 
 /** Beat cadence. Same as the core long-runners (`SCENE3D_HEARTBEAT_MS`) and the
  *  video-analysis plugin: one missed write still leaves 28 minutes of margin. */
 export const PRE_TASK_HEARTBEAT_MS = 60_000
 
-/** How long the host keeps a still-running plugin job looking live. Past this a
- *  run is treated as hung and left to age into the ordinary sweep. */
-export const PRE_TASK_HEARTBEAT_MAX_MS = NODE_TIMEOUT_MS
+/** How long the host keeps a still-running job looking live. Past this a run
+ *  is treated as hung and left to age into the ordinary sweep. Sized above the
+ *  longest legitimate run on this worker: the longest deliverable is a
+ *  maximum-length episode (`EDIT_PLAN_MAX_MINUTES`) cut by apply-edl, whose
+ *  final-quality render runs at roughly 1–2× real time on a shared 2-vCPU
+ *  box — the cap clears that envelope with margin, and the orchestrator's own
+ *  per-node ceiling (`NODE_TIMEOUT_MS`) sits well inside it. A hung handler is
+ *  a bug, and a bug is caught a shift later rather than a live render being
+ *  failed while it still works; the guard test pins both bounds. */
+export const PRE_TASK_HEARTBEAT_MAX_MS = 8 * 60 * 60_000
 
 type QueueHandler<J, C extends { jobId: string }> = (job: J, ctx: C) => Promise<void>
 
@@ -80,13 +91,4 @@ export function withPreTaskHeartbeat<J, C extends { jobId: string }>(
       clearInterval(timer)
     }
   }
-}
-
-/** Every entry of a handler map, wrapped. Keys and count are preserved. */
-export function withPreTaskHeartbeats<J, C extends { jobId: string }>(
-  handlers: Readonly<Record<string, QueueHandler<J, C>>>,
-): Record<string, QueueHandler<J, C>> {
-  return Object.fromEntries(
-    Object.entries(handlers).map(([jobType, handler]) => [jobType, withPreTaskHeartbeat(handler)]),
-  )
 }

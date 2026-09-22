@@ -159,8 +159,9 @@ vi.mock("../handlers/entity.js", () => ({
 // suite never attempts a real `@nodaroai/cloud-plugins` import or builds the
 // real toolkit (which eagerly constructs a real BullMQ `Queue` via
 // lib/queue.js — this file's `bullmq` mock above only stubs `Worker`). It
-// contributes ONE handler, so the liveness tests can tell a loader-contributed
-// handler (wrapped in the pre-task heartbeat) from a core one (not wrapped);
+// contributes ONE handler, so the liveness tests can show a loader-contributed
+// handler and a core one beating the pre-task sentinel alike (the wrap covers
+// every handler the worker dispatches, not a map of them);
 // load.ts's own suite (lib/private-plugins/__tests__/load.test.ts) covers the
 // merge logic. `engines: {}` mirrors `emptyResult()`'s real shape (S8) —
 // `video-worker.ts` destructures `engines` off this result and reads
@@ -873,14 +874,16 @@ describe("video worker processor", () => {
   })
 
   // -------------------------------------------------------------------------
-  // Private-plugin liveness (2026-09-15, staging Pro 3D Render job 99ede351).
+  // Handler liveness (2026-09-15, staging Pro 3D Render job 99ede351; widened
+  // 2026-09-22 to every handler).
   //
   // The pickup above stamps `pre-task` on every row, and the reconcile cron
   // fails + refunds a row whose stamp is 30 minutes old. The Pro run never
-  // refreshed it and was failed at minute 31 with its worker alive. Every
-  // handler the plugin LOADER returns is wrapped in the pre-task heartbeat —
-  // derived from the loader's map, so a plugin job type nobody listed is
-  // covered the day it ships.
+  // refreshed it and was failed at minute 31 with its worker alive. The wrap
+  // first covered only the plugin loader's map; a core ffmpeg long-runner (an
+  // hour-long multicam apply-edl cut) had the same exposure. Every handler the
+  // worker DISPATCHES is wrapped now — plugin, relay or core — so a job type
+  // nobody listed is covered the day it ships.
   // -------------------------------------------------------------------------
   describe("handler liveness (pre-task heartbeat)", () => {
     afterEach(() => { vi.useRealTimers() })
@@ -944,8 +947,10 @@ describe("video worker processor", () => {
 
       const run = processor(makeBullJob("generate-image"), "lock-token")
       await vi.advanceTimersByTimeAsync(PRE_TASK_HEARTBEAT_MAX_MS)
+      // It beat the WHOLE way to the cap (every interval but the capped tick),
+      // not merely once — so a wrap that stopped early would fail here too.
       const beatsAtCap = mocks.mockRefreshPreTaskSentinel.mock.calls.length
-      expect(beatsAtCap).toBeGreaterThan(0)
+      expect(beatsAtCap).toBeGreaterThanOrEqual(Math.floor(PRE_TASK_HEARTBEAT_MAX_MS / PRE_TASK_HEARTBEAT_MS) - 1)
 
       // A full sweep threshold past the cap: not one more beat, so the stamp
       // has aged past STALE_THRESHOLD_MS["pre-task"] by the time the run ends.

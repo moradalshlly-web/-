@@ -1,11 +1,13 @@
 /**
- * The host-side `pre-task` heartbeat that keeps a live private-plugin run from
- * being failed + refunded by the reconcile sweep (staging Pro 3D Render job
- * 99ede351, failed at minute 31 while its worker was still running).
+ * The host-side `pre-task` heartbeat that keeps a live run from being failed +
+ * refunded by the reconcile sweep (staging Pro 3D Render job 99ede351, failed
+ * at minute 31 while its worker was still running).
  *
  * The end-to-end half — a real cron tick against a row the beats keep fresh —
  * lives in `lib/reconcile/__tests__/pre-task-liveness.test.ts`; that the video
- * worker wraps every loader-contributed handler lives in `video-worker.test.ts`.
+ * worker wraps EVERY handler it dispatches, core and plugin alike, lives in
+ * `video-worker.test.ts` (beats counted through the processor) and
+ * `video-worker-heartbeat-wiring.test.ts` (the dispatch-site wrap is present).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -16,11 +18,11 @@ import {
   PRE_TASK_HEARTBEAT_MAX_MS,
   PRE_TASK_HEARTBEAT_MS,
   withPreTaskHeartbeat,
-  withPreTaskHeartbeats,
 } from "../pre-task-heartbeat.js"
 import { STALE_THRESHOLD_MS, isSyncKind } from "../../lib/reconcile/types.js"
 import { NODE_TIMEOUT_MS } from "../../services/workflow-engine/types.js"
 import { DrainAbortError } from "../../lib/worker-drain.js"
+import { EDIT_PLAN_MAX_MINUTES } from "@nodaro/shared"
 
 const MIN = 60_000
 const THRESHOLD = STALE_THRESHOLD_MS["pre-task"]
@@ -112,26 +114,6 @@ describe("withPreTaskHeartbeat", () => {
   })
 })
 
-describe("withPreTaskHeartbeats — the loader's map", () => {
-  it("wraps every entry it is given, with keys and results preserved", async () => {
-    const seen: string[] = []
-    const handlers = {
-      "pro-3d-render": vi.fn(async (_job: unknown, ctx: { jobId: string }) => { seen.push(ctx.jobId); await sleep(2 * MIN) }),
-      "a-plugin-job-type-nobody-listed": vi.fn(async (_job: unknown, ctx: { jobId: string }) => { seen.push(ctx.jobId); await sleep(2 * MIN) }),
-    }
-    const wrapped = withPreTaskHeartbeats(handlers)
-    expect(Object.keys(wrapped)).toEqual(Object.keys(handlers))
-
-    const runs = Object.values(wrapped).map((handler, i) => handler({}, { jobId: `job-${i}` }))
-    await vi.advanceTimersByTimeAsync(2 * MIN)
-    await Promise.all(runs)
-
-    expect(seen).toEqual(["job-0", "job-1"])
-    expect(refresh).toHaveBeenCalledWith("job-0")
-    expect(refresh).toHaveBeenCalledWith("job-1")
-  })
-})
-
 describe("liveness budget", () => {
   it("pre-task is a sync kind: its sweep fails + refunds, so a live run's only protection is a fresh stamp", () => {
     expect(isSyncKind("pre-task")).toBe(true)
@@ -141,8 +123,16 @@ describe("liveness budget", () => {
     expect(2 * PRE_TASK_HEARTBEAT_MS).toBeLessThan(THRESHOLD)
   })
 
-  it("the cap outlasts the threshold (or it would re-open the gap) and is the orchestrator's own per-node ceiling", () => {
+  // The cap is what bounds a job on a DIRECT lane (no orchestrator ceiling), so
+  // it must clear the longest legitimate run on this worker — a final-quality
+  // apply-edl render of a maximum-length episode at ~2× real time — and it must
+  // outlast the orchestrator's own per-node ceiling, or a DAG node would lose
+  // its beats before the orchestrator gave up on it. A run past the cap is the
+  // stated residual: failed + refunded one threshold later.
+  it("the cap outlasts the threshold (or it would re-open the gap), the orchestrator's per-node ceiling, and the longest legitimate render", () => {
     expect(PRE_TASK_HEARTBEAT_MAX_MS).toBeGreaterThan(THRESHOLD)
-    expect(PRE_TASK_HEARTBEAT_MAX_MS).toBe(NODE_TIMEOUT_MS)
+    expect(PRE_TASK_HEARTBEAT_MAX_MS).toBeGreaterThanOrEqual(NODE_TIMEOUT_MS)
+    const longestRenderAtTwiceRealTime = 2 * EDIT_PLAN_MAX_MINUTES * MIN
+    expect(PRE_TASK_HEARTBEAT_MAX_MS).toBeGreaterThanOrEqual(longestRenderAtTwiceRealTime)
   })
 })

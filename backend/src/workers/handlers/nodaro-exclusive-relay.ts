@@ -1,8 +1,9 @@
 /**
  * Run a Nodaro-EXCLUSIVE node on the connected cloud (4b, PR 3).
  *
- * The exclusive nodes (voice-changer-pro, generate-video-pro, edit-video-pro,
- * video-analysis, video-audit) are implemented by @nodaroai/cloud-plugins,
+ * The exclusive nodes (every key of `EXCLUSIVE_ROUTE_BY_JOB_TYPE` below —
+ * voice-changer-pro, generate-video-pro, edit-video-pro, video-analysis,
+ * video-audit, edit-plan) are implemented by @nodaroai/cloud-plugins,
  * which never loads on a self-host — so unlike the vendor-direct relay
  * (cloud-video-relay.ts) there is no local implementation to fall back FROM:
  * the connection IS the implementation. A sibling of that relay rather than a
