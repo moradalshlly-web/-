@@ -1,7 +1,7 @@
 ---
 node_type: gif-to-video
-generated_at: 2026-08-27T21:15:58.235Z
-generated_from: 2266777f4
+generated_at: 2026-09-21T19:12:09.988Z
+generated_from: 09788c987
 ---
 
 # Gif to Video
@@ -9,7 +9,7 @@ generated_from: 2266777f4
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `gif-to-video`
 **Category:** processing
-**Credit cost:** 0
+**Credit cost:** `0` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `image`
 **Outputs (source handles):** `video`
 

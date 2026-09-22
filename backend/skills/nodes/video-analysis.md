@@ -1,7 +1,7 @@
 ---
 node_type: video-analysis
-generated_at: 2026-08-29T19:02:38.898Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:09.613Z
+generated_from: 09788c987
 ---
 
 # Video Analysis
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `video-analysis`
 **Category:** processing
-**Credit cost:** 3
+**Credit cost:** `181-2081` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `video`
 **Outputs (source handles):** `json`, `text`
 

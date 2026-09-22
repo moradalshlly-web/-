@@ -1,7 +1,7 @@
 ---
 node_type: creature
-generated_at: 2026-08-25T18:44:26.436Z
-generated_from: 273c2bef2
+generated_at: 2026-09-21T19:12:10.187Z
+generated_from: 09788c987
 ---
 
 # Animal/Creature
@@ -9,7 +9,7 @@ generated_from: 273c2bef2
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `creature`
 **Category:** creature
-**Credit cost:** 5
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`, `type`
 **Outputs (source handles):** `creatureRef`, `image`
 

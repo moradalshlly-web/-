@@ -1,7 +1,7 @@
 ---
 node_type: render-video
-generated_at: 2026-09-10T20:58:24.875Z
-generated_from: 0b46d5d75
+generated_at: 2026-09-21T19:12:09.961Z
+generated_from: 09788c987
 ---
 
 # Render Video
@@ -9,7 +9,7 @@ generated_from: 0b46d5d75
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `render-video`
 **Category:** processing
-**Credit cost:** 50
+**Credit cost:** `50-125` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `video`
 

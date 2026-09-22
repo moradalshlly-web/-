@@ -3939,21 +3939,24 @@ unit fits: `startTime`/`endTime` seconds, `trim*Frames`, `trim*Seconds`, or
 ```ts
 addCaptions(input: {
   videoUrl: string
-  text?: string
+  text?: string                       // on "subtitle": the caption itself — ONE static block for the whole video, never transcribed over.
+                                      // On a kinetic style: only the fallback when transcription returns nothing
   captions?: Array<{ text: string; startMs: number; endMs: number; timestampMs?: number | null; confidence?: number | null }>
-  autoTranscribe?: boolean            // transcribe the audio when no text/captions given (default true)
+                                      // timestampMs / confidence are accepted but nothing in the render reads them
+  autoTranscribe?: boolean            // transcribe the audio when nothing else supplies the words (default true)
   transcribeProvider?: "whisper" | "incredibly-fast-whisper" | "elevenlabs-stt"
-                                      // "whisper" has no word timestamps — rejected only when transcription is the render's only caption source
+                                      // "whisper" has no word timestamps — fine for "subtitle" (phrase timing is enough); on a kinetic
+                                      // style it is rejected only when transcription is the render's only caption source
   style?: CaptionStyle                // "subtitle" (static) | "word-highlight" | "karaoke" | "tiktok-words" | "word-pop" | "bouncy"
   position?: "bottom" | "top" | "center"
   fontSize?: number
   color?: string
   backgroundColor?: string
   // Look + motion levers. The STYLING levers (look, fontFamily, fontWeight,
-  // strokeColor/strokeWidth, uppercase, positionY) now apply to the static
-  // "subtitle" style too — a subtitle carrying any of them renders via Remotion.
+  // strokeColor/strokeWidth, uppercase, positionY, maxWordsPerLine) apply to the
+  // static "subtitle" style too — a subtitle carrying any of them renders via Remotion.
   // Only highlightColor and animate stay kinetic-only (rejected 400 on subtitle):
-  look?: "outline" | "clean"          // preset; on the kinetic styles an UNSET look renders as "outline"
+  look?: "outline" | "clean"          // preset; an UNSET look renders as "outline" on the kinetic styles, "clean" on "subtitle"
   fontFamily?: SupportedFontName
   fontWeight?: number                 // 100–900 in 100s
   strokeColor?: string
@@ -3961,6 +3964,7 @@ addCaptions(input: {
   highlightColor?: string             // kinetic only — the spoken/active word colour
   uppercase?: boolean
   positionY?: number                  // caption CENTER as % of height; overrides position
+  maxWordsPerLine?: number            // integer 1–20; caps the WORDS per caption line / tiktok-words page, for any input (inert on "word-pop")
   animate?: boolean                   // kinetic only; false freezes per-word motion (default true)
   // Apply different treatments to non-overlapping time ranges in one call:
   segments?: CaptionSegmentInput[]
@@ -3969,36 +3973,91 @@ addCaptions(input: {
 
 Burn captions into a video (`POST /v1/add-captions`). Give the words as `text`,
 word-timed `captions[]` (one entry per WORD for the kinetic styles), or let it
-transcribe (the default). On the kinetic styles a `look` preset — `outline`
+transcribe (the default). When a call carries more than one source the
+precedence is `captions[]` > `transcript` > `text` on `subtitle` >
+auto-transcription.
+
+What `text` does depends on the style. On a top-level `"subtitle"` (no
+`segments[]`) it **is** the caption: burned as-is as ONE static block shown for
+the whole video, never transcribed over — with or without styling levers (`\n`
+forces a line break). Omit `text` to caption the speech instead. On a kinetic
+style `text` is only the **fallback**, used when transcription returns nothing or
+`autoTranscribe` is `false`, and it is then spread evenly across the video as
+synthetic word timings. With `segments[]` a top-level `text` is that same
+fallback.
+
+On the kinetic styles a `look` preset — `outline`
 (Montserrat 900, UPPERCASE, black outline, yellow spoken word — the TikTok read)
-or `clean` — drives the styling, and an unset `look` renders as `outline`; the
+or `clean` — drives the styling, and an unset `look` renders as `outline` (on
+`subtitle` an unset `look` renders as `clean`); the
 explicit levers override individual fields of it. The styling levers (`look`,
 `fontFamily`, `fontWeight`, `strokeColor`/`strokeWidth`, `uppercase`,
-`positionY`) now apply to `subtitle` too — a styled subtitle renders via Remotion
-and bills at the kinetic price, while a bare plain-text subtitle stays on the
-cheap FFmpeg path. Only `highlightColor` and `animate` stay kinetic-only.
+`positionY`, `maxWordsPerLine`) apply to `subtitle` too — a styled subtitle
+renders via Remotion and bills at the kinetic price, while a bare plain-text
+subtitle stays on the cheap FFmpeg path. Only `highlightColor` and `animate` stay
+kinetic-only.
 `animate` (default `true`) freezes the per-word motion when `false` — grouping,
 line-holding and the highlight colour stay; set `highlightColor` = `color` for a
 fully static line. `segments[]` applies different treatments to non-overlapping
 time ranges; a segment that names its own `look` starts fresh from that preset
 and does not inherit the top-level explicit levers. Poll `jobs.get(jobId)`.
 
-A kinetic style (and any `segments[]` render) is word-timed, so when the call
-auto-transcribes, `transcribeProvider` must be an engine that returns word
-timestamps — `incredibly-fast-whisper` (the default here) or `elevenlabs-stt`.
+`maxWordsPerLine` (integer 1–20, optional) caps how many words one caption line —
+or one `tiktok-words` page — may hold, **on top of** the rules that already close
+a line (the ~85 % frame-width budget, a sentence end, a pause of 0.5 s or more).
+`1`–`2` gives the punchy CapCut read; unset fits the width. It applies to
+`word-highlight`, `karaoke`, `bouncy`, `tiktok-words` and `subtitle`, and is inert
+on `word-pop` (always one word). It costs nothing extra on the kinetic styles; on
+`subtitle` it is a styling lever, so that render goes through Remotion and bills
+at the kinetic price. It counts whitespace-separated **words**, not caption
+entries, so it holds for any input: an entry that alone holds more than N words
+(a phrase-level `captions[]` entry, a phrase from an engine without word
+timings) is split into consecutive sub-phrases of at most N words, its time span
+divided between them in proportion to their character length. The one exception
+is a `text` subtitle, where it only sets the line breaks — the block stays one
+static block. It exists top-level **and** per segment — a segment that
+does not set its own inherits the top-level value:
+
+```ts
+await client.media.addCaptions({
+  videoUrl: "https://…/talk.mp4",
+  style: "word-highlight",
+  maxWordsPerLine: 2,                  // no line holds more than two words
+})
+```
+
+A kinetic style is word-timed, so when the call auto-transcribes,
+`transcribeProvider` must be an engine that returns word timestamps —
+`incredibly-fast-whisper` (the default here) or `elevenlabs-stt`.
 Naming `"whisper"` is rejected with `400 validation_error` on
 `transcribeProvider` only when transcription is the render's ONLY possible
 caption source; with `text`, `captions[]`, a `transcript`, `autoTranscribe:
 false`, or self-sourced `segments[]`, the call is accepted and the
 word-timing-less engine is simply never called — the render falls back to that
-other source (with only `text`, evenly-spaced synthetic captions). It also stays
-valid for the static `subtitle` style, which never transcribes.
+other source (with only `text`, evenly-spaced synthetic captions). In a
+`segments[]` render only a kinetic segment that falls back to the shared
+transcription needs word timings.
 
-`word-highlight` shows ONE held line at a time: words are grouped into a line
-that fits the frame, the line closes on a sentence end or a pause, and the
-highlight walks word to word inside it. A word's `startMs`/`endMs` is its
-**spoken** window — what times the highlight — not how long its text is on
-screen.
+`subtitle` + auto-transcribe works with **any** engine, `"whisper"` included: a
+subtitle draws whole phrase lines, so phrase timing is all it needs. (An
+auto-transcribed subtitle renders via Remotion and bills at the kinetic price.)
+
+`word-highlight`, `karaoke` and `bouncy` show ONE held line at a time: words are
+grouped into a line that fits the frame, the line closes on a sentence end, a
+pause or the `maxWordsPerLine` cap, and the per-word effect (highlight / fill /
+bounce) walks word to word inside it. `karaoke` and `bouncy` used to draw the
+whole transcript as one block. `word-pop` keeps each word up until the next one
+starts, and a `tiktok-words` page never spans a sentence end or a pause and
+stays up until the next page starts — both for at most 1.5 s past the last
+spoken word. A word's `startMs`/`endMs` is its **spoken** window — what times
+the effect — not how long its text is on screen. Full rules:
+[Add Captions → Line grouping](./nodes/processing-video/add-captions.md#line-grouping).
+
+A Remotion caption render keeps the **source video's frame rate** (rounded to a
+whole number, within 15–60 fps) — it no longer re-times every clip to 30 fps.
+Two kinds of source still render at 30 fps: a variable-frame-rate source, and a
+clip long enough that its duration × the source rate would exceed the render's
+frame cap.
 
 **Transcribe → correct → burn.** Because `captions[]` is exactly the shape
 [`audio.transcribe()`](#transcribeinput) returns in `output_data.words`, the two
@@ -4358,7 +4417,7 @@ is a `url` with an optional `[startTime, endTime]` sub-range.
 ```ts
 transcribe(input: {
   audioUrl: string
-  provider?: TranscribeProvider   // "elevenlabs-stt" — the enabled enum
+  provider?: TranscribeProvider   // "elevenlabs-stt" | "incredibly-fast-whisper" | "whisper"
   language?: string               // force a language; omit to auto-detect
   diarize?: boolean               // label who spoke each word (elevenlabs-stt)
   tagAudioEvents?: boolean        // tag laughter / applause / … (elevenlabs-stt)
@@ -4368,11 +4427,18 @@ transcribe(input: {
 
 Transcribe an audio (or video) track to text (`POST /v1/transcribe`).
 
-Pass `provider: "elevenlabs-stt"` whenever you want WORD TIMINGS: Scribe is
-always word-level (flag or not) and is the lane that honours `diarize` and
-`tagAudioEvents`. **Omitting `provider`** falls back to the legacy whisper lane,
-which cannot produce word timings — asking it for them (`wordTimestamps: true`)
-is rejected with `400 validation_error` at ingress, before any credit is spent.
+Three engines are accepted:
+
+| `provider` | Word timings | Notes |
+|------------|--------------|-------|
+| `"elevenlabs-stt"` | ✓ always | Scribe — word-level flag or not, and the only lane that honours `diarize` and `tagAudioEvents` |
+| `"incredibly-fast-whisper"` | ✓ with `wordTimestamps: true` | ONLY when asked — without the flag the job succeeds and is charged, with phrase `segments` and an empty `words` list |
+| `"whisper"` | ✗ | phrase segments only; `wordTimestamps: true` is rejected with `400 validation_error`, before any credit is spent |
+
+**Omitting `provider`** still falls back to the legacy `whisper` lane, so
+`wordTimestamps: true` with no `provider` earns the same `400`. Name
+`"elevenlabs-stt"`, or `"incredibly-fast-whisper"` with `wordTimestamps: true`,
+whenever you want word timings — a kinetic caption render needs them.
 
 Poll `jobs.get(jobId)`. The completed job's `output_data` is a
 `TranscribeJobOutput`:
@@ -4381,7 +4447,7 @@ Poll `jobs.get(jobId)`. The completed job's `output_data` is a
 |-------|-------|------------|
 | `text` | — | the whole transcript as one string |
 | `language` | — | the detected (or requested) language code |
-| `words` | **ms** | one entry per word: `{ text, startMs, endMs, speaker? }` |
+| `words` | **ms** | one entry per word: `{ text, startMs, endMs, speaker? }` — empty when the engine was not asked for word timings (see the table above) |
 | `json` | **ms** | the normalized `Transcript` (`{ version, language, words[], segments? }`) — what `client.edit.*` consumes |
 | `segments` | **seconds** | the raw per-utterance ranges — *not* ms, unlike everything above. **Legacy lanes only:** `elevenlabs-stt` returns none, so read `words` |
 
@@ -5258,7 +5324,7 @@ not two.
 - `VideoMetadata` — `media.videoMetadata()` result (best-effort probe fields)
 - `DownloadVideoProgress` — one `media.downloadVideoProgress()` event: `{ phase, percent, videoUrl?, thumbnailUrl?, error? }`
 - `MediaProcessInput`, `MediaProcessResult` — `media.process()` input / stored-file result
-- `TranscribeProvider` — the enabled `audio.transcribe()` provider enum (`"elevenlabs-stt"`), re-exported from `@nodaro/shared`
+- `TranscribeProvider` — the `audio.transcribe()` provider enum (`"elevenlabs-stt" | "whisper" | "incredibly-fast-whisper"`), re-exported from `@nodaro/shared`. `"elevenlabs-stt"` always returns word timings, `"incredibly-fast-whisper"` only with `wordTimestamps: true`, `"whisper"` never
 - `TranscribeWord` — one word of an `audio.transcribe()` result: `{ text, startMs, endMs, speaker? }` in MILLISECONDS, structurally the `captions[]` entry `media.addCaptions()` takes
 - `TranscribeJobOutput` — a completed transcribe job's `output_data`: `{ text, language?, words?, json?, segments? }` (`words`/`json` in ms, `segments` in SECONDS)
 

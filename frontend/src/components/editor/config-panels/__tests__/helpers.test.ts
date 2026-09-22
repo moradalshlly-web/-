@@ -8,7 +8,7 @@ import {
   getModelIdentifier,
   buildCreditModelIdentifier,
 } from "../helpers"
-import { sunoCreditType, SUNO_SELECT_OPERATIONS, SUNO_MODELS, applyDefaultVideoSelection, buildVideoCreditModelIdentifier, mergeNodeInputOverrides } from "@nodaro/shared"
+import { sunoCreditType, SUNO_SELECT_OPERATIONS, SUNO_MODELS, applyDefaultVideoSelection, buildVideoCreditModelIdentifier, mergeNodeInputOverrides, DEFAULT_TRANSCRIBE_NODE_PROVIDER } from "@nodaro/shared"
 import type { SourceNodeInfo } from "../types"
 import type { WorkflowNode, WorkflowEdge } from "@/types/nodes"
 
@@ -499,6 +499,92 @@ describe("getModelIdentifier", () => {
         expect(getModelIdentifier(node)).toBe(sunoCreditType(model, operation))
       }
     }
+  })
+
+  // Add Captions: the badge must quote the row the run RESERVES, and that row
+  // follows the RENDERER, not the style — same predicate as the route's credit
+  // id and the DAG payload-builder. Style alone under-quoted every subtitle
+  // that still renders through Remotion.
+  describe("add-captions", () => {
+    const captions = (data: Record<string, unknown>) =>
+      makeNode({ id: "ac", type: "add-captions", data: { label: "Captions", style: "subtitle", ...data } as any })
+
+    it("a plain subtitle burning inline text stays on the cheap FFmpeg row", () => {
+      expect(getModelIdentifier(captions({ text: "hello" }), [])).toBe("add-captions")
+    })
+
+    it("a kinetic style is Remotion", () => {
+      expect(getModelIdentifier(captions({ style: "word-pop", text: "hello" }), [])).toBe("add-captions:kinetic")
+    })
+
+    it("a styled subtitle is Remotion — one lever at a time", () => {
+      for (const lever of [
+        { fontWeight: 700 },
+        { strokeWidth: 4 },
+        { positionY: 65 },
+        { maxWordsPerLine: 3 },
+        { look: "outline" },
+        { uppercase: true },
+        { fontFamily: "Montserrat" },
+      ]) {
+        expect(getModelIdentifier(captions({ text: "hello", ...lever }), []), JSON.stringify(lever)).toBe(
+          "add-captions:kinetic",
+        )
+      }
+    })
+
+    // The canvas node has no text field and only takes a video + a Transcript,
+    // so a bare subtitle auto-transcribes: timed captions, Remotion, and the
+    // kinetic row is what the run actually reserves.
+    it("an auto-transcribing subtitle (no text — the canvas default) is Remotion", () => {
+      expect(getModelIdentifier(captions({}), [])).toBe("add-captions:kinetic")
+    })
+
+    it("a wired Transcript makes even a plain subtitle Remotion", () => {
+      const node = captions({ text: "hello" })
+      const edges = [makeEdge({ id: "e", source: "t1", target: "ac", sourceHandle: "json", targetHandle: "transcript" })]
+      expect(getModelIdentifier(node, edges)).toBe("add-captions:kinetic")
+    })
+
+    // A transcribe node wired into the node's DEFAULT handle feeds captions the
+    // same way (input-resolver fills `captions`/`prompt` from it), so the graph
+    // fact, not the handle name, is what decides.
+    it("a transcribe node wired in on any handle makes even a plain subtitle Remotion", () => {
+      const node = captions({ text: "hello" })
+      const edges = [makeEdge({ id: "e", source: "t1", target: "ac", sourceHandle: "json", targetHandle: "in" })]
+      const nodes = [node, makeNode({ id: "t1", type: "transcribe", data: { label: "Transcribe" } as any })]
+      expect(getModelIdentifier(node, edges, nodes)).toBe("add-captions:kinetic")
+    })
+
+    // An estimate may over-quote, never under-quote: with no edges to read, the
+    // graph fact is invisible and the pricier family is the only safe answer.
+    it("unknown edges quote the pricier family", () => {
+      expect(getModelIdentifier(captions({ text: "hello" }))).toBe("add-captions:kinetic")
+    })
+
+    // `{Label}` can resolve to nothing at run time, which leaves transcription
+    // as the only source — so a ref does not prove the cheap lane.
+    it("a {Label} reference in the text does not prove the cheap lane", () => {
+      expect(getModelIdentifier(captions({ text: "{Script}" }), [])).toBe("add-captions:kinetic")
+    })
+  })
+
+  // Transcribe reserves on the ENGINE (execute-node sends
+  // `d.provider || DEFAULT_TRANSCRIBE_NODE_PROVIDER`, payload-builder reserves
+  // that lane), so a provider-less node must not be quoted on the bare node key.
+  describe("transcribe", () => {
+    it("a provider-less node quotes the default engine, never the bare node type", () => {
+      const node = makeNode({ id: "t1", type: "transcribe", data: { label: "Transcribe" } as any })
+      expect(getModelIdentifier(node, [])).toBe(DEFAULT_TRANSCRIBE_NODE_PROVIDER)
+      expect(getModelIdentifier(node, [])).not.toBe("transcribe")
+    })
+
+    it("a named engine is quoted as itself", () => {
+      for (const provider of ["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]) {
+        const node = makeNode({ id: "t1", type: "transcribe", data: { label: "Transcribe", provider } as any })
+        expect(getModelIdentifier(node, [])).toBe(provider)
+      }
+    })
   })
 })
 

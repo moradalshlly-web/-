@@ -1,6 +1,12 @@
 import { z } from "zod"
 import { safeUrlSchema } from "./url-validator.js"
-import { ALL_CAPTION_STYLES, SUPPORTED_FONT_NAMES, scene3DAnyPlanSchema } from "@nodaro/shared"
+import {
+  ALL_CAPTION_STYLES,
+  SUPPORTED_FONT_NAMES,
+  CAPTION_MAX_WORDS_PER_LINE_MIN,
+  CAPTION_MAX_WORDS_PER_LINE_MAX,
+  scene3DAnyPlanSchema,
+} from "@nodaro/shared"
 import type { BrandTokens } from "@nodaro/prompts"
 import type { ShotElement } from "@nodaro/shared"
 import { cdnMediaUrlSchema } from "./cdn-media-url.js"
@@ -477,6 +483,23 @@ const captionSchema = z.object({
 // can't drift on what a valid weight is.
 export const captionFontWeightSchema = z.number().int().min(100).max(900).multipleOf(100)
 
+// The frame rates the burn-captions render accepts. Exported because the worker
+// derives the plan's fps from the SOURCE clip's own frame rate and has to land
+// inside these bounds — a probe that reads 23.976 or 120 must be rounded and
+// clamped here, not rejected after the job is already paid for.
+export const BURN_CAPTIONS_FPS_MIN = 15
+export const BURN_CAPTIONS_FPS_MAX = 60
+/** The fps used when the source's frame rate is unknown (probe failed / no
+ *  parseable rate) — the value this render hardcoded before it followed the
+ *  source, so an unreadable clip behaves exactly as it always did. */
+export const BURN_CAPTIONS_FPS_FALLBACK = 30
+/** The frame budget one burn-captions render may ask for. Exported because the
+ *  worker multiplies the clip's duration by its SOURCE frame rate, so it has to
+ *  fall back to BURN_CAPTIONS_FPS_FALLBACK before building a plan that exceeds
+ *  this — the cap is checked at plan validation, which happens AFTER credits are
+ *  reserved. */
+export const BURN_CAPTIONS_MAX_FRAMES = 108_000
+
 // One resolved caption segment on the render plan. `style` is ALL styles (not
 // just kinetic): a segmented render is entirely Remotion, so `subtitle` renders
 // via the Remotion SubtitleOverlay. The backend resolver fills every field.
@@ -496,6 +519,7 @@ const burnCaptionsSegmentSchema = z.object({
   uppercase: z.boolean().optional(),
   positionY: z.number().min(0).max(100).optional(),
   animate: z.boolean().optional(),
+  maxWordsPerLine: z.number().int().min(CAPTION_MAX_WORDS_PER_LINE_MIN).max(CAPTION_MAX_WORDS_PER_LINE_MAX).optional(),
   captions: z.array(captionSchema),
 })
 
@@ -526,13 +550,16 @@ export const burnCaptionsPlanSchema = z
     uppercase: z.boolean().optional(),
     positionY: z.number().min(0).max(100).optional(),
     animate: z.boolean().optional(),
+    // Cap on how many words one caption line (or tiktok-words page) may hold,
+    // on top of the width budget / sentence end / pause rules.
+    maxWordsPerLine: z.number().int().min(CAPTION_MAX_WORDS_PER_LINE_MIN).max(CAPTION_MAX_WORDS_PER_LINE_MAX).optional(),
     // Optional per-segment captions (resolved): when present the composition
     // renders these instead of the top-level captions/style above.
     segments: z.array(burnCaptionsSegmentSchema).optional(),
-    fps: z.number().min(15).max(60),
+    fps: z.number().min(BURN_CAPTIONS_FPS_MIN).max(BURN_CAPTIONS_FPS_MAX),
     width: z.number().min(100).max(3840),
     height: z.number().min(100).max(3840),
-    durationInFrames: z.number().min(1).max(108000),
+    durationInFrames: z.number().min(1).max(BURN_CAPTIONS_MAX_FRAMES),
   })
   .passthrough()
   .superRefine((v, ctx) => {

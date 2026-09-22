@@ -1,7 +1,7 @@
 ---
 node_type: generate-3d-scene
-generated_at: 2026-09-08T10:02:17.514Z
-generated_from: 30e183608
+generated_at: 2026-09-21T19:12:09.911Z
+generated_from: 09788c987
 ---
 
 # Generate 3D Scene
@@ -9,7 +9,7 @@ generated_from: 30e183608
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `generate-3d-scene`
 **Category:** ai
-**Credit cost:** 30
+**Credit cost:** `10-40` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `references`
 **Outputs (source handles):** `composition`
 

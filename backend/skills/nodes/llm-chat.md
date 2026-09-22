@@ -1,7 +1,7 @@
 ---
 node_type: llm-chat
-generated_at: 2026-09-17T08:03:17.018Z
-generated_from: 3c6f8cfbf
+generated_at: 2026-09-21T19:12:10.231Z
+generated_from: 09788c987
 ---
 
 # LLM Chat
@@ -9,7 +9,7 @@ generated_from: 3c6f8cfbf
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `llm-chat`
 **Category:** ai
-**Credit cost:** 3
+**Credit cost:** `3-15` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`, `references`, `system-prompt`
 **Outputs (source handles):** `text`, `items`
 

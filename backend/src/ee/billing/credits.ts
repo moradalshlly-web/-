@@ -17,7 +17,7 @@ import { getAppSettings } from "../../lib/app-settings.js"
 import { APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE } from "../../lib/apply-edl-plan.js"
 import { buildSeedanceExtendCreditIdentifier } from "../../lib/seedance-extend-model.js"
 import { FREE_TIER_RESTRICTIONS, TIER_STORAGE_LIMITS } from "./stripe-config.js"
-import { PIPELINE_PINNABLE_SCRIPT_LLMS, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, INSTAGRAM_SCRAPE_CREDIT_COSTS, instagramScrapeCreditIdFromNode, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, EDIT_PLAN_BUCKET_MINUTES, buildEditPlanCreditId, type EditPlanTier } from "@nodaro/shared"
+import { PIPELINE_PINNABLE_SCRIPT_LLMS, captionRoutesToRemotion, DEFAULT_TRANSCRIBE_NODE_PROVIDER, getLlmTier, buildCreditModelIdentifier, buildVideoCreditModelIdentifier, isSeedanceVideoEditProvider, seedanceVideoEditCreditId, buildMotionCreditModelIdentifier, buildLlmCreditIdentifier, FLUX2_RES_MP, type Flux2Model, AI_AVATAR_DURATION_BUCKETS, resolveAiAvatarCreditId, type AiAvatarEngine, type AiAvatarResolution, CINEMATIC_MIN_DURATION_SEC, CINEMATIC_MAX_DURATION_SEC, cinematicCreditId, resolveCinematicCreditId, type CinematicResolution, resolveSwitchXCreditId, VIDEO_ANALYSIS_DURATION_BUCKETS, VIDEO_ANALYSIS_MAX_DURATION_SEC, VIDEO_ANALYSIS_BUCKET_CREDITS, buildVideoAnalysisCreditId, resolveVideoAnalysisModel, DEFAULT_VIDEO_ANALYSIS_MODEL, VIDEO_AUDIT_BUCKET_CREDITS, buildVideoAuditCreditId, resolveEffectiveTier, resolveStoredTier, sunoCreditType, resolveTopazUpscale, imageOverlayCredits, renderVideoCreditId, scene3DRenderTierCredits, META_ADS_SCRAPE_CREDIT_COSTS, metaAdsScrapeCreditIdFromNode, INSTAGRAM_SCRAPE_CREDIT_COSTS, instagramScrapeCreditIdFromNode, EDIT_PLAN_MODES, EDIT_PLAN_TIERS, EDIT_PLAN_BUCKET_MINUTES, buildEditPlanCreditId, type EditPlanTier } from "@nodaro/shared"
 // Provider-$ cost formulas — CORE lib (not @nodaro/shared, an irrevocably
 // published Apache package). See the 2026-07-06 public-flip IP audit, S5.
 import { flux2BaseCredits } from "../../lib/pricing/flux2-cost.js"
@@ -1309,9 +1309,13 @@ export const STATIC_CREDIT_COSTS: Record<string, number> = {
   // "lyria": 7,                    // Replicate Google Lyria 2
   // "bark": 7,                     // Replicate Suno Bark
   "elevenlabs-isolation": 74,     // /sec, variable; ~148s avg = (from audit)
-  // Replicate disabled
-  // "whisper": 4,                   // Replicate whisper transcription
-  // "incredibly-fast-whisper": 4,   // Replicate fast whisper
+  // Both Replicate transcription lanes are LIVE again — the canvas Transcribe
+  // node has offered them since #768 and /v1/transcribe accepts all three
+  // engines, so a commented-out row here is a 503 price_not_configured on a
+  // legal request. Values read from the production model_pricing rows
+  // (2026-09-21); migration 288 seeded 40 and the table was tuned up from there.
+  "whisper": 40,                  // Replicate openai/whisper — no word timings (BASE price, = migration 288; the service markup is applied on top at read time)
+  "incredibly-fast-whisper": 40,  // Replicate fast whisper — word timings on request (BASE price, = migration 288)
   "elevenlabs-stt": 22,           // avg (from audit)
   "elevenlabs-dialogue": 25,     // per 1K chars
   "elevenlabs-voice-changer": 40,  // ElevenLabs speech-to-speech
@@ -3286,11 +3290,17 @@ export class CreditsService {
    * Estimate credits for a workflow, reading node data for variable-cost nodes.
    * Mirrors the frontend getModelIdentifier() logic for composite model identifiers.
    */
-  static estimateWorkflowCredits(nodes: ReadonlyArray<{ type: string; data?: Record<string, unknown> }>): number {
+  static estimateWorkflowCredits(
+    nodes: ReadonlyArray<EstimateNode>,
+    /** The workflow's edges, when the caller has them. Some prices are a GRAPH
+     *  fact (does an edge feed add-captions a timed caption source?). Without
+     *  edges the estimator assumes the pricier answer — never under-quote. */
+    edges?: ReadonlyArray<EstimateEdge>,
+  ): number {
     return nodes.reduce((sum, node) => {
       // Image Overlay is base + 2 per extra platform render — the shared formula.
       if (node.type === "image-overlay") return sum + imageOverlayCredits((node.data?.variants as unknown[] | undefined))
-      const modelId = getNodeModelIdentifier(node)
+      const modelId = getNodeModelIdentifier(node, { timedCaptionSourceWired: timedCaptionSourceWired(node, nodes, edges) })
       return sum + (STATIC_CREDIT_COSTS[modelId] ?? STATIC_CREDIT_COSTS[node.type] ?? 0)
     }, 0)
   }
@@ -3300,7 +3310,31 @@ export class CreditsService {
  * Compute composite model identifier from a workflow node for credit estimation.
  * Mirrors frontend getModelIdentifier() in config-panels/helpers.ts.
  */
-function getNodeModelIdentifier(node: { type: string; data?: Record<string, unknown> }): string {
+/** The shape `estimateWorkflowCredits` reads a node in. Exported so every caller
+ *  passes the estimator's OWN type instead of re-declaring a structural copy at
+ *  the call site — a copy cannot be widened (an `id`, an `edges` parameter)
+ *  without someone noticing every place that still omits it. */
+export type EstimateNode = { id?: string; type: string; data?: Record<string, unknown> }
+/** Ditto for an edge. Only the three fields a price can depend on. */
+export type EstimateEdge = { source?: string; target: string; targetHandle?: string | null }
+
+/**
+ * Does an edge feed this add-captions node a TIMED caption source — a Transcript
+ * on its `transcript` handle, or a transcribe node wired straight in? That makes
+ * the render Remotion (add-captions:kinetic) whatever the node's own data says.
+ * UNKNOWN (no edges passed, or a node without an id) answers TRUE: the estimate
+ * may over-quote, it must never under-quote.
+ */
+function timedCaptionSourceWired(node: EstimateNode, nodes: ReadonlyArray<EstimateNode>, edges?: ReadonlyArray<EstimateEdge>): boolean {
+  if (node.type !== "add-captions") return false
+  if (!edges || !node.id) return true
+  const typeById = new Map(nodes.map((n) => [n.id, n.type]))
+  return edges.some(
+    (e) => e.target === node.id && (e.targetHandle === "transcript" || typeById.get(e.source ?? "") === "transcribe"),
+  )
+}
+
+function getNodeModelIdentifier(node: EstimateNode, graph: { timedCaptionSourceWired?: boolean } = {}): string {
   const nodeType = node.type
   const data = node.data ?? {}
 
@@ -3376,6 +3410,49 @@ function getNodeModelIdentifier(node: { type: string; data?: Record<string, unkn
       resolveVideoAnalysisModel(data.llmModel as string | undefined),
       durationSec,
     )
+  }
+
+  // Add Captions: the price follows the RENDERER, via the same predicate the
+  // route's credit id, payload-builder's reservation and the worker's dispatch
+  // all use — a styled / timed / transcribed / segmented caption is a Remotion
+  // render (`add-captions:kinetic`), a plain-text subtitle is the cheap FFmpeg
+  // burn. Without this branch every caption node quoted the FFmpeg price for a
+  // Remotion render. `text` is read from node data only: this pre-execution
+  // estimate cannot see a wired upstream text, and an absent/empty `text`
+  // correctly yields kinetic — an estimate may OVER-quote, it must never
+  // under-quote (it feeds published apps' advertised price).
+  if (nodeType === "add-captions") {
+    // `text` proves the cheap FFmpeg burn only when it is LITERAL: a `{Label}`
+    // reference can resolve to nothing at run time, which flips the render to
+    // transcription → Remotion. And a wired timed source (a graph fact this
+    // node-only view gets from `graph`) always means Remotion.
+    const rawText = typeof data.text === "string" ? data.text : undefined
+    const literalText = rawText && !/\{[^{}]+\}/.test(rawText) ? rawText : undefined
+    return captionRoutesToRemotion({
+      style: (data.captionStyle ?? data.style) as string | undefined,
+      text: literalText,
+      segments: Array.isArray(data.segments) ? (data.segments as unknown[]) : undefined,
+      transcript: graph.timedCaptionSourceWired ? {} : data.transcript,
+      captions: Array.isArray(data.captions) ? (data.captions as unknown[]) : undefined,
+      look: data.look,
+      fontFamily: data.fontFamily,
+      fontWeight: data.fontWeight,
+      strokeColor: data.strokeColor,
+      strokeWidth: data.strokeWidth,
+      uppercase: data.uppercase,
+      positionY: data.positionY,
+      maxWordsPerLine: data.maxWordsPerLine,
+    })
+      ? "add-captions:kinetic"
+      : "add-captions"
+  }
+
+  // Transcribe reserves on the ENGINE (payload-builder → DEFAULT_TRANSCRIBE_NODE_PROVIDER
+  // when the node names none), never on the bare node-type key — which priced a
+  // provider-less node at the generic `transcribe` row while the run reserved the
+  // engine's. An estimate may over-quote, never under-quote.
+  if (nodeType === "transcribe") {
+    return (typeof data.provider === "string" && data.provider) || DEFAULT_TRANSCRIBE_NODE_PROVIDER
   }
 
   const provider = data.provider as string | undefined
@@ -3471,6 +3548,9 @@ function getNodeModelIdentifier(node: { type: string; data?: Record<string, unkn
 }
 
 // Export legacy function for backward compatibility
-export function estimateWorkflowCredits(nodes: ReadonlyArray<{ type: string; data?: Record<string, unknown> }>): number {
-  return CreditsService.estimateWorkflowCredits(nodes)
+export function estimateWorkflowCredits(
+  nodes: ReadonlyArray<EstimateNode>,
+  edges?: ReadonlyArray<EstimateEdge>,
+): number {
+  return CreditsService.estimateWorkflowCredits(nodes, edges)
 }

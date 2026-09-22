@@ -30,11 +30,17 @@ const WORKSPACE_PACKAGE_ROOTS: Record<string, string> = {
   "@nodaro/prompts": "packages/prompts/src/index",
 }
 
+/**
+ * NOTE: no `creditCost`. `NODE_DEFINITIONS.creditCost` is a frontend constant
+ * nothing at runtime reads — it survived the ×10 re-denomination untouched and
+ * published a wrong price on every generated skill. The skill header takes its
+ * figure from the backend `NODE_REGISTRY` instead (`credit-line.ts`); leaving
+ * the frontend number off this shape is what stops it coming back.
+ */
 export interface NodeDef {
   type: string
   label: string
   category: string
-  creditCost: number
   inputs: string[]
   outputs: string[]
   defaultData: Record<string, unknown>
@@ -89,7 +95,6 @@ function readNodeDefObject(obj: ObjectLiteralExpression, ctx: ParseContext): Nod
   const type = readStringProp(obj, "type")
   const label = readStringProp(obj, "label")
   const category = readStringProp(obj, "category")
-  const creditCost = readNumberProp(obj, "creditCost") ?? 0
   const inputs = readStringArrayProp(obj, "inputs") ?? []
   const outputs = readStringArrayProp(obj, "outputs") ?? []
 
@@ -104,7 +109,7 @@ function readNodeDefObject(obj: ObjectLiteralExpression, ctx: ParseContext): Nod
     }
   }
 
-  return { type, label, category, creditCost, inputs, outputs, defaultData }
+  return { type, label, category, inputs, outputs, defaultData }
 }
 
 function readStringProp(obj: ObjectLiteralExpression, name: string): string {
@@ -130,25 +135,9 @@ function readStringExpr(expr: import("ts-morph").Node, name: string): string {
   throw new Error(`property '${name}' is not a string literal: kind=${expr.getKindName()}`)
 }
 
-function readNumberProp(obj: ObjectLiteralExpression, name: string): number | undefined {
-  const prop = obj.getProperty(name)
-  if (!prop) return undefined
-  const init = prop.asKindOrThrow(SyntaxKind.PropertyAssignment).getInitializer()
-  if (!init) return undefined
-  return readNumberFromExpr(init)
-}
-
-function readNumberFromExpr(expr: import("ts-morph").Node): number | undefined {
-  if (expr.getKind() === SyntaxKind.NumericLiteral) {
-    return Number(expr.asKindOrThrow(SyntaxKind.NumericLiteral).getLiteralText())
-  }
-  // Peel `as Foo` / `as const` casts that wrap a numeric literal — keeps
-  // readNumberProp symmetric with readStringExpr.
-  if (expr.getKind() === SyntaxKind.AsExpression) {
-    return readNumberFromExpr(expr.asKindOrThrow(SyntaxKind.AsExpression).getExpression())
-  }
-  return undefined
-}
+// A number reader lived here for `creditCost` alone. It went with the field —
+// see the note on NodeDef: nothing in a NODE_DEFINITIONS entry is a number the
+// generator is allowed to publish.
 
 function readStringArrayProp(obj: ObjectLiteralExpression, name: string): string[] | undefined {
   const prop = obj.getProperty(name)

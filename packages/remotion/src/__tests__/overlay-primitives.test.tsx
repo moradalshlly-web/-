@@ -44,18 +44,18 @@ describe("CaptionOverlay", () => {
   // inline-block word span must also carry white-space: pre, or the words
   // burn in glued together ("Twopeopletalking"). Pins the pair for every
   // style, so a new overlay that copies the inline-block span inherits the rule.
+  // The delimiter is a text node of the ROW between two word boxes — never the
+  // leading space of the second box: inside an inline-block that carries its
+  // own direction (a Hebrew word in a Latin line) that space lands on the box's
+  // start side, the wrong side in a mixed row, and the words glue together.
   it.each(["word-highlight", "karaoke", "bouncy"] as const)(
-    "style %s keeps the leading-space delimiter on inline-block word spans",
+    "style %s separates word boxes with a row-level space, never a leading space inside the box",
     (style) => {
       const html = renderToStaticMarkup(
         <CaptionOverlay captions={fixture} style={style} position="bottom" fontSize={32} color="#ffffff" />,
       )
-      const spans = html.match(/<span[^>]*>[^<]*<\/span>/g) ?? []
-      const wordSpans = spans.filter((s) => s.endsWith("> world</span>"))
-      expect(wordSpans.length).toBeGreaterThan(0)
-      for (const span of wordSpans) {
-        if (span.includes("display:inline-block")) expect(span).toContain("white-space:pre")
-      }
+      expect(html).toMatch(/Hello<\/span>(<\/span>)? <span[^>]*>world/)
+      expect(html).not.toMatch(/<span[^>]*> world/)
     },
   )
 
@@ -70,7 +70,9 @@ describe("CaptionOverlay", () => {
         <CaptionOverlay captions={fixture} style="word-highlight" position="bottom" fontSize={32} color="#ffffff" />,
       )
       expect(html).toContain("Hello")
-      expect(html).toContain(" world")
+      // The delimiter is a text node of the ROW, between the two word boxes —
+      // never inside " world"'s own box (see the note in word-highlight-overlay).
+      expect(html).toMatch(/Hello<\/span> <span[^>]*>world<\/span>/)
     })
 
     // The regression: at 1000 ms no word is being spoken (the first ended at
@@ -100,7 +102,7 @@ describe("CaptionOverlay", () => {
         <CaptionOverlay captions={eight} style="word-highlight" position="bottom" fontSize={32} color="#ffffff" />,
       )
       // 1920-wide frame @32px fits all eight words on one line.
-      for (const word of ["alpha", " bravo", " hotel"]) expect(html).toContain(`>${word}</span>`)
+      for (const word of ["alpha", "bravo", "hotel"]) expect(html).toContain(`>${word}</span>`)
     })
 
     // Production render 2026-09-18: a flat scale(1.15) drew the long active word
@@ -114,7 +116,7 @@ describe("CaptionOverlay", () => {
       const html = renderToStaticMarkup(
         <CaptionOverlay captions={clip} style="word-highlight" position="bottom" fontSize={50} color="#ffffff" />,
       )
-      const active = (html.match(/<span[^>]*>[^<]*<\/span>/g) ?? []).find((s) => s.endsWith("> re-prompting.</span>"))
+      const active = (html.match(/<span[^>]*>[^<]*<\/span>/g) ?? []).find((s) => s.endsWith(">re-prompting.</span>"))
       expect(active).toBeDefined()
       expect(active).not.toContain("scale(1.15)")
       const scale = Number(/scale\(([\d.]+)\)/.exec(active!)?.[1])

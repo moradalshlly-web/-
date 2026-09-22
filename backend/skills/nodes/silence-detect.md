@@ -1,7 +1,7 @@
 ---
 node_type: silence-detect
-generated_at: 2026-09-17T19:42:43.708Z
-generated_from: a03903d30
+generated_at: 2026-09-21T19:12:09.804Z
+generated_from: 09788c987
 ---
 
 # Silence Detect
@@ -9,7 +9,7 @@ generated_from: a03903d30
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `silence-detect`
 **Category:** processing
-**Credit cost:** 1
+**Credit cost:** `1` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `json`
 

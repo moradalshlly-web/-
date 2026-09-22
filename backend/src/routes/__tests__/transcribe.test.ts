@@ -260,10 +260,11 @@ describe("POST /v1/transcribe", () => {
 // ---------------------------------------------------------------------------
 // wordTimestamps × provider capability
 //
-// openai/whisper (the route's default for an absent provider) has no
-// `word_timestamps` input on Replicate — the key is silently dropped and the
-// job "succeeds" with an empty word list after credits are spent. The route
-// rejects the impossible pair BEFORE the job insert and the reservation.
+// The route accepts all three engines; only the CAPABILITY differs. openai/
+// whisper (the route's default for an absent provider) has no `word_timestamps`
+// input on Replicate — the key is silently dropped and the job "succeeds" with
+// an empty word list after credits are spent. The route rejects that pair
+// BEFORE the job insert and the reservation; the other two lanes run.
 // ---------------------------------------------------------------------------
 
 describe("POST /v1/transcribe — wordTimestamps capability gate", () => {
@@ -285,8 +286,10 @@ describe("POST /v1/transcribe — wordTimestamps capability gate", () => {
     expect(body.error.code).toBe("validation_error")
     expect(body.error.message).toContain("wordTimestamps")
     expect(body.error.issues.map((i: { path: string }) => i.path)).toContain("wordTimestamps")
-    // It names a provider that CAN do it, derived from the capability table.
+    // It names EVERY provider that can do it, derived from the capability table
+    // — not a hand-written list, so a new capable lane joins the message free.
     expect(body.error.message).toContain("elevenlabs-stt")
+    expect(body.error.message).toContain("incredibly-fast-whisper")
     // Nothing was created, reserved or queued — the gate is pre-insert and
     // therefore pre-reservation.
     expect(mockFrom).not.toHaveBeenCalled()
@@ -346,28 +349,94 @@ describe("POST /v1/transcribe — wordTimestamps capability gate", () => {
     expect(res.statusCode).toBe(200)
   })
 
-  it.each(["whisper", "incredibly-fast-whisper"])(
-    "rejects the Replicate lane %s outright — it is not in the route's provider enum",
+  it("rejects an EXPLICIT whisper + wordTimestamps on the capability, not the enum", async () => {
+    // The Replicate lanes are in TRANSCRIBE_PROVIDERS now (the canvas node has
+    // offered them since #768, while the route's enum still 400'd them — a
+    // single-node Run on Whisper failed where the same node in a workflow ran).
+    // So whisper reaches superRefine and is refused on `wordTimestamps` — the
+    // capability it lacks — never on `provider`, which is a legal engine.
+    const { mockFrom } = mockJobInsert("job-1")
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/transcribe",
+      payload: {
+        audioUrl: "https://example.com/audio.mp3",
+        provider: "whisper",
+        wordTimestamps: true,
+        userId: VALID_UUID,
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    const body = res.json()
+    expect(body.error.code).toBe("validation_error")
+    const paths = body.error.issues.map((i: { path: string }) => i.path)
+    expect(paths).toContain("wordTimestamps")
+    expect(paths).not.toContain("provider")
+    expect(mockFrom).not.toHaveBeenCalled()
+    expect(vi.mocked(reserveCreditsForJob)).not.toHaveBeenCalled()
+    expect(vi.mocked(videoQueue.add)).not.toHaveBeenCalled()
+  })
+
+  it("accepts wordTimestamps with incredibly-fast-whisper (timestamp: \"word\")", async () => {
+    mockJobInsert("job-1")
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/transcribe",
+      payload: {
+        audioUrl: "https://example.com/audio.mp3",
+        provider: "incredibly-fast-whisper",
+        wordTimestamps: true,
+        userId: VALID_UUID,
+      },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(vi.mocked(videoQueue.add)).toHaveBeenCalledWith(
+      "transcribe",
+      expect.objectContaining({ provider: "incredibly-fast-whisper", wordTimestamps: true }),
+    )
+  })
+
+  it.each(["elevenlabs-stt", "whisper", "incredibly-fast-whisper"])(
+    "runs %s with no wordTimestamps — every engine in the enum is accepted",
     async (provider) => {
-      // Reality check, not the capability rule: TRANSCRIBE_PROVIDERS hides both
-      // Replicate lanes, so an explicit whisper / incredibly-fast-whisper gets
-      // the ENUM 400 (Zod aborts the object parse before superRefine runs) and
-      // never reaches the wordTimestamps issue.
+      mockJobInsert("job-1")
+
       const res = await app.inject({
         method: "POST",
         url: "/v1/transcribe",
         payload: {
           audioUrl: "https://example.com/audio.mp3",
           provider,
-          wordTimestamps: true,
           userId: VALID_UUID,
         },
       })
 
-      expect(res.statusCode).toBe(400)
-      const body = res.json()
-      expect(body.error.code).toBe("validation_error")
-      expect(body.error.issues.map((i: { path: string }) => i.path)).toContain("provider")
+      expect(res.statusCode).toBe(200)
+      expect(vi.mocked(videoQueue.add)).toHaveBeenCalledWith(
+        "transcribe",
+        expect.objectContaining({ provider }),
+      )
     },
   )
+
+  it("still rejects an engine that is not one of the three", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/transcribe",
+      payload: {
+        audioUrl: "https://example.com/audio.mp3",
+        provider: "not-an-engine",
+        userId: VALID_UUID,
+      },
+    })
+
+    expect(res.statusCode).toBe(400)
+    const body = res.json()
+    expect(body.error.code).toBe("validation_error")
+    expect(body.error.issues.map((i: { path: string }) => i.path)).toContain("provider")
+  })
 })

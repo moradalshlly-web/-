@@ -689,6 +689,61 @@ describe("buildPayload", () => {
       expect(result.payload.captions).toBeUndefined()
     })
 
+    it("add-captions COERCES out-of-range numeric levers from authored node data (top level + segments) instead of failing the plan after credits reserve", () => {
+      const n = node("n1", "add-captions", {
+        style: "word-highlight",
+        fontSize: 999, strokeWidth: -2, positionY: 140, fontWeight: 850, maxWordsPerLine: 0,
+        segments: [{ startMs: 0, endMs: 1000, fontSize: 1, maxWordsPerLine: 99, positionY: "50" }],
+      })
+      const result = buildPayload(n, jobId, { videoUrl: "https://v.mp4" })
+      expect(result.payload).toMatchObject({ fontSize: 200, strokeWidth: 0, positionY: 100, fontWeight: 900, maxWordsPerLine: 1 })
+      expect((result.payload.segments as Record<string, unknown>[])[0]).toMatchObject({ fontSize: 12, maxWordsPerLine: 20, positionY: 50 })
+    })
+
+    // S7 — `null` is UNSET. Stored workflow JSON (an agent's write, an import, a
+    // template, a cleared field) carries nulls for levers nobody chose; the render
+    // plan's schemas are `.optional()`, never `.nullable()`, so a forwarded null
+    // fails validation mid-run — after credits reserve and after any paid
+    // transcription — on what should have been the cheap FFmpeg burn.
+    it("add-captions forwards NO null lever, and a node full of them still prices as the plain burn", () => {
+      const n = node("n1", "add-captions", {
+        style: "subtitle", text: "Hi",
+        look: null, fontFamily: null, strokeColor: null, highlightColor: null,
+        uppercase: null, animate: null, color: null, backgroundColor: null,
+        positionY: null, maxWordsPerLine: null, fontWeight: null, strokeWidth: null, fontSize: null,
+      })
+      const result = buildPayload(n, jobId, { videoUrl: "https://v.mp4" })
+      for (const k of [
+        "look", "fontFamily", "strokeColor", "highlightColor", "uppercase", "animate",
+        "color", "backgroundColor", "positionY", "maxWordsPerLine", "fontWeight", "strokeWidth", "fontSize",
+      ]) {
+        expect(result.payload[k]).toBeUndefined()
+      }
+      // A null lever is not a lever, so this stays a plain-text subtitle: the
+      // cheap drawtext burn, not the kinetic price.
+      expect(result.modelIdentifier).toBe("add-captions")
+    })
+
+    it("add-captions drops a null lever inside each segment too", () => {
+      const n = node("n1", "add-captions", {
+        style: "word-highlight",
+        segments: [{ startMs: 0, endMs: 1000, look: null, uppercase: null, strokeColor: null, positionY: null, fontFamily: null }],
+      })
+      const result = buildPayload(n, jobId, { videoUrl: "https://v.mp4" })
+      const seg = (result.payload.segments as Record<string, unknown>[])[0]!
+      for (const k of ["look", "uppercase", "strokeColor", "positionY", "fontFamily"]) {
+        expect(seg[k]).toBeUndefined()
+      }
+      expect(seg).toMatchObject({ startMs: 0, endMs: 1000 })
+    })
+
+    it("add-captions DROPS a garbage numeric lever rather than sending it to the render plan", () => {
+      const n = node("n1", "add-captions", { style: "karaoke", text: "hi", positionY: "bottom-ish", fontSize: Number.NaN })
+      const result = buildPayload(n, jobId, { videoUrl: "https://v.mp4" })
+      expect(result.payload.positionY).toBeUndefined()
+      expect(result.payload.fontSize).toBeUndefined()
+    })
+
     it("add-captions forwards structured captions[] as payload.captions (kinetic path)", () => {
       const captionsArr = [
         { text: "hi", startMs: 0, endMs: 500, timestampMs: 0, confidence: null },
@@ -1734,18 +1789,27 @@ describe("buildPayload — transcribe word timestamps", () => {
     expect(payload.wordTimestamps).toBe(false)
   })
 
-  it("gates the carried data.wordTimestamps flag the same way (it is inferred too)", () => {
-    // `data.wordTimestamps` is stamped by the graph-aware request builders, not
-    // by a user toggle — there is no such control in the UI — so it gets the
-    // same capability gate as the live jsonWired check.
-    expect(
-      buildPayload(transcribeNode({ provider: "whisper", wordTimestamps: true }), jobId, {}).payload
-        .wordTimestamps,
-    ).toBe(false)
+  it("REFUSES an explicit data.wordTimestamps on an incapable lane, before any credit is reserved", () => {
+    // An explicit ask is the user's, not the platform's inference — coercing it
+    // to false billed a transcription that came back with `words: []` and left
+    // the downstream add-captions node to fail on the empty list. buildPayload
+    // runs before node-executor reserves, so the throw costs nothing.
+    expect(() =>
+      buildPayload(transcribeNode({ provider: "whisper", wordTimestamps: true }), jobId, {}),
+    ).toThrow(/does not return word timings/)
+  })
+
+  it("honours an explicit data.wordTimestamps on a capable lane", () => {
     expect(
       buildPayload(transcribeNode({ provider: "incredibly-fast-whisper", wordTimestamps: true }), jobId, {})
         .payload.wordTimestamps,
     ).toBe(true)
+  })
+
+  it("REFUSES an explicit data.wordTimestamps on an UNKNOWN lane (untrusted node data, no promise to keep)", () => {
+    expect(() =>
+      buildPayload(transcribeNode({ provider: "deepgram", wordTimestamps: true }), jobId, {}),
+    ).toThrow(/does not return word timings/)
   })
 
   it("stays off for a text-only run on a capable lane (byte-identical to before)", () => {

@@ -1,7 +1,7 @@
 ---
 node_type: suno-style-boost
-generated_at: 2026-08-29T19:02:38.725Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:09.456Z
+generated_from: 09788c987
 ---
 
 # Suno Style Boost
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `suno-style-boost`
 **Category:** ai
-**Credit cost:** 1
+**Credit cost:** `10` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `prompt`
 **Outputs (source handles):** `text`
 

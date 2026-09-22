@@ -328,6 +328,41 @@ const SEEDANCE_VIDEO_EDIT_VERB_BYTES = 377
 // total − 363_284 base = 602 B, so the headroom the list had before is exactly
 // the headroom it has after. Held to the rule by `studio-tool-vocabulary.test.ts`.
 const STUDIO_PERSON_VOCABULARY_BYTES = 602
+//
+// LOWERED 2026-09-21 by the add-captions doctrine move + the one new
+// `max_words_per_line` argument, and nothing else. The FIRST negative entry in
+// this sum, and it is the same rule as every positive one — the budget moves by
+// exactly what the change costs, here a refund rather than a charge. Recording
+// it as a raise of nothing, or quietly leaving the slack in the total, would
+// hand the next family 1.5 KB it never accounted for.
+//
+// `add_captions` had been living ~45 B under the per-tool cap, so every new
+// lever forced a prose trim of something unrelated. The cause was that the tool
+// description carried the DOCTRINE: what each look preset resolves to, a
+// lever-by-lever explanation, the `segments[]` look cascade, the `captions[]`
+// entry semantics. All of it now lives in the hand-written prose of
+// `backend/skills/nodes/add-captions.md`, served by `get_node_skill` to the one
+// caller who asks — nothing was dropped, and one sentence that had gone false
+// (styling levers "refused on subtitle"; the route rejects only
+// `highlight_color` and `animate` there) was corrected in the move. What stays
+// on the wire is what an agent needs to make a correct call, plus the pointer
+// to the skill. `max_words_per_line` (1-20, top level and per segment) rides
+// along inside the refund.
+//
+// measured by this suite: add_captions 8_021 -> 6_491 B, so it now has 1_701 B
+// of per-tool headroom instead of 171; total 363_885 -> 362_355. The list's
+// headroom became 186 B, not the 126 B it had before: the 60 B of
+// SCENE3D_REVIEW_UNUSABLE_BYTES above had been declared but never added to the
+// sum, and joining it here is what widened the slack — no prose grew by it.
+const CAPTION_DOCTRINE_TO_SKILL_BYTES = -1_530
+// `text` on `subtitle` IS the caption (one static block, never transcribed
+// over) — a live regression had the worker transcribing over it, and the
+// description said nothing either way. The one sentence that states it, plus
+// the per-style default look (`clean` on subtitle) and the words-not-entries
+// wording of `max_words_per_line`, are the minimum an agent needs on the wire;
+// the mechanics stay in the skill. measured: add_captions 6_491 -> 6_683 B
+// (1_509 B of per-tool headroom left); total 362_355 -> 362_547, headroom 186 B.
+const CAPTION_TEXT_SEMANTICS_BYTES = 192
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -343,6 +378,7 @@ export const TOOL_WIRE_BUDGET = {
     SCENE3D_RETAINED_FAILURE_BYTES +
     SCENE3D_MECHANICAL_PASSES_BYTES +
     SCENE3D_REVIEW_UNAVAILABLE_BYTES +
+    SCENE3D_REVIEW_UNUSABLE_BYTES +
     CAPTION_LOOK_LEVERS_BYTES +
     CAPTION_SEGMENTS_BYTES +
     PLAN_EDIT_TOOL_BYTES +
@@ -353,7 +389,9 @@ export const TOOL_WIRE_BUDGET = {
     CAPTION_WORD_WINDOW_WORDING_BYTES +
     VIDEO_AUTO_DURATION_WORDING_BYTES +
     SEEDANCE_VIDEO_EDIT_VERB_BYTES +
-    STUDIO_PERSON_VOCABULARY_BYTES,
+    STUDIO_PERSON_VOCABULARY_BYTES +
+    CAPTION_DOCTRINE_TO_SKILL_BYTES +
+    CAPTION_TEXT_SEMANTICS_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }

@@ -1,7 +1,7 @@
 ---
 node_type: lip-sync
-generated_at: 2026-08-29T19:02:39.224Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:10.023Z
+generated_from: 09788c987
 ---
 
 # Lip Sync
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `lip-sync`
 **Category:** ai
-**Credit cost:** 40
+**Credit cost:** `130` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `image`, `video`, `audio`
 **Outputs (source handles):** `video`
 

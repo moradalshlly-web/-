@@ -1,7 +1,7 @@
 ---
 node_type: image-to-video
-generated_at: 2026-09-16T00:12:42.295Z
-generated_from: e4f44341a
+generated_at: 2026-09-21T19:12:09.210Z
+generated_from: 09788c987
 ---
 
 # image-to-video
@@ -9,7 +9,7 @@ generated_from: e4f44341a
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `image-to-video`
 **Category:** ai
-**Credit cost:** 20
+**Credit cost:** `30-8550` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `startFrame`, `endFrame`, `audio`
 **Outputs (source handles):** `video`
 

@@ -2,9 +2,15 @@ import React from "react"
 import { useCurrentFrame, useVideoConfig, spring } from "remotion"
 import type { OverlayCommonProps } from "./subtitle-overlay"
 import { captionAnchor, captionLookStyle } from "./caption-look"
+import { activeHeldCaption, captionEnterFrame } from "./caption-lines"
 import { directionStyle } from "./text-direction"
 
-/** Render exactly one word at a time, springing in then out. */
+/** Render exactly one word at a time, springing in as it starts.
+ *  The word is HELD until the next one starts (capped at
+ *  `CAPTION_LINE_MAX_HOLD_MS` past its own end) — a membership test on each
+ *  word's [startMs, endMs] rendered NOTHING in every inter-word gap, and on a
+ *  real clip those gaps run 40-700 ms, so the caption strobed. `maxWordsPerLine`
+ *  is inert here: this overlay is one word wide by construction. */
 export const WordPopOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
   fontFamily, fontWeight, strokeColor, strokeWidth, uppercase, positionY, animate,
@@ -12,11 +18,15 @@ export const WordPopOverlay: React.FC<OverlayCommonProps> = ({
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const ms = (frame / fps) * 1000
-  const active = captions.find((c) => ms >= c.startMs && ms <= c.endMs)
+  const active = activeHeldCaption(captions, ms)
   if (!active) return null
-  const localFrame = frame - (active.startMs / 1000) * fps
-  // animate:false drops the per-word pop spring — the word just appears.
-  const enter = animate === false ? 1 : spring({ frame: localFrame, fps, config: { damping: 8, stiffness: 250 } })
+  const localFrame = captionEnterFrame(active.startMs, frame, fps)
+  // animate:false drops the per-word pop spring — the word just appears. So does a
+  // word whose startMs is not a usable number (spring throws on a NaN frame):
+  // the word is drawn at rest rather than failing the render.
+  const enter = animate === false || localFrame === null
+    ? 1
+    : spring({ frame: localFrame, fps, config: { damping: 8, stiffness: 250 } })
   const anchor = captionAnchor(position, positionY)
   return (
     <div style={{

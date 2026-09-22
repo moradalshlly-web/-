@@ -462,7 +462,7 @@ function NodeTypeConfig({ nodeType, nodeData, configProps, updateNodeData, onExp
     case "ai-avatar": return <AiAvatarConfig {...configProps} />
     case "cinematic-avatar": return <CinematicAvatarConfig {...configProps} nodeId={selectedNodeId} />
     case "motion-transfer": return <MotionTransferConfig {...configProps} nodeId={selectedNodeId} />
-    case "transcribe": return <TranscribeConfig {...configProps} />
+    case "transcribe": return <TranscribeConfig {...configProps} nodeId={selectedNodeId} />
     case "image-to-text": return <ImageToTextConfig {...configProps} nodeId={selectedNodeId} />
     case "describe-to-picker": return <DescribeToPickerConfig {...configProps} nodeId={selectedNodeId} />
     case "llm-chat": return <LLMChatConfig {...configProps} nodeId={selectedNodeId} />

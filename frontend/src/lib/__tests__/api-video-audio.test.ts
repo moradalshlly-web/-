@@ -941,6 +941,7 @@ describe("addCaptionsApi", () => {
 
     await addCaptionsApi("http://vid.mp4", "hi", "word-pop", "bottom", 64, "#fff", undefined, undefined, {
       look: "outline", fontFamily: "Montserrat", fontWeight: 900, highlightColor: "#FFE600", uppercase: true, positionY: 65, animate: false,
+      maxWordsPerLine: 3,
     })
 
     const body = JSON.parse(mock.mock.calls[0][1].body as string)
@@ -950,6 +951,7 @@ describe("addCaptionsApi", () => {
     expect(body.uppercase).toBe(true)
     expect(body.positionY).toBe(65)
     expect(body.animate).toBe(false)
+    expect(body.maxWordsPerLine).toBe(3)
   })
 
   it("keeps STYLING levers for the static subtitle style, strips only the kinetic-only two", async () => {
@@ -962,6 +964,7 @@ describe("addCaptionsApi", () => {
     // (the route Zod rejects those two on the static style).
     await addCaptionsApi("http://vid.mp4", "hi", "subtitle", "bottom", 32, "#fff", undefined, undefined, {
       look: "outline", fontFamily: "Montserrat", fontWeight: 900, strokeColor: "#000000", strokeWidth: 4, uppercase: true, positionY: 65,
+      maxWordsPerLine: 2,
       highlightColor: "#FFE600", animate: false,
     })
 
@@ -974,9 +977,26 @@ describe("addCaptionsApi", () => {
     expect(body.strokeWidth).toBe(4)
     expect(body.uppercase).toBe(true)
     expect(body.positionY).toBe(65)
+    // Line grouping is a STYLING lever too, so a subtitle keeps it.
+    expect(body.maxWordsPerLine).toBe(2)
     // Kinetic-only levers are stripped on the static style.
     expect(body.highlightColor).toBeUndefined()
     expect(body.animate).toBeUndefined()
+  })
+
+  it("omits maxWordsPerLine entirely when it is unset (Auto)", async () => {
+    noSession()
+    const mock = mockFetchJson({ jobId: "ja" })
+    vi.stubGlobal("fetch", mock)
+
+    await addCaptionsApi("http://vid.mp4", "hi", "subtitle", "bottom", 32, "#fff", undefined, undefined, {
+      look: "outline",
+    })
+
+    const body = JSON.parse(mock.mock.calls[0][1].body as string)
+    // Absent, not null/0 — the route reads "unset" as "fit the frame width",
+    // and a sent `undefined` would be a different request shape.
+    expect("maxWordsPerLine" in body).toBe(false)
   })
 
   it("throws on error response", async () => {

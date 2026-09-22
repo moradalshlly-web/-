@@ -297,12 +297,12 @@ describe("add-captions handler — the kinetic transcribe ladder", () => {
     expect(payload).toMatchObject({
       jobId: "job-1",
       audioUrl: "https://v.mp4",
-      // NOT the local default (`incredibly-fast-whisper`): the cloud's
-      // /v1/transcribe enum is the ENABLED subset, which has held no Replicate
-      // lane since they were disabled — relaying one verbatim was a guaranteed
-      // 400. The relay lane is derived from TRANSCRIBE_PROVIDERS ∩ "can do word
-      // timestamps".
-      provider: "elevenlabs-stt",
+      // The local default (`incredibly-fast-whisper`) relayed VERBATIM, because
+      // the cloud's /v1/transcribe enum accepts it again. The substitution lane
+      // (TRANSCRIBE_PROVIDERS ∩ "can do word timestamps") only kicks in for a
+      // local choice the cloud would reject — relaying one of those was a
+      // guaranteed 400 while the Replicate lanes were hidden from the enum.
+      provider: "incredibly-fast-whisper",
       wordTimestamps: true,
     })
     expect(mocks.mockTranscribe).not.toHaveBeenCalled()
@@ -393,6 +393,349 @@ describe("add-captions handler — the kinetic transcribe ladder", () => {
     expect(mocks.mockShouldRunOnCloud).not.toHaveBeenCalled()
     expect(mocks.mockRunJobOnCloud).not.toHaveBeenCalled()
     expect(mocks.mockTranscribe).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * A SUBTITLE does not need word timings. It draws whole lines and the Remotion
+ * SubtitleOverlay groups/holds them itself, so the phrase segments EVERY lane
+ * returns are enough. Before this, `subtitle` + `whisper` + no `text` reserved
+ * credits, skipped the transcription as if the lane were useless, and then died
+ * with "transcribe returned no words" — a refund for a render that was always
+ * servable.
+ */
+describe("add-captions handler — phrase-level transcription for a subtitle", () => {
+  const handler = ffmpegHandlers["add-captions"]
+
+  /** A subtitle that routes to Remotion (a styling lever) and auto-transcribes. */
+  const subtitleJob = (extra: Record<string, unknown> = {}) =>
+    makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "subtitle",
+      uppercase: true,
+      transcribe_provider: "whisper",
+      ...extra,
+    })
+
+  const planOf = () => mocks.mockRenderQueueAdd.mock.calls[0][1].plan as Record<string, unknown>
+
+  it("RUNS the word-less lane without asking for word timings, and captions its segments", async () => {
+    mocks.mockShouldRunOnCloud.mockResolvedValue(false)
+    mocks.mockTranscribe.mockResolvedValueOnce({
+      text: "one two. three four.",
+      segments: [
+        { start: 0, end: 1.5, text: "one two." },
+        { start: 1.5, end: 3, text: "three four." },
+      ],
+    })
+
+    await handler(subtitleJob() as never, makeCtx())
+
+    expect(mocks.mockTranscribe).toHaveBeenCalledTimes(1)
+    expect(mocks.mockTranscribe.mock.calls[0][1]).toBe("whisper")
+    expect(mocks.mockTranscribe.mock.calls[0][3]).toMatchObject({ wordTimestamps: false })
+    expect(planOf().captions).toEqual([
+      { text: "one two.", startMs: 0, endMs: 1500, timestampMs: 0, confidence: null },
+      { text: " three four.", startMs: 1500, endMs: 3000, timestampMs: 1500, confidence: null },
+    ])
+  })
+
+  it("a CAPABLE lane is still asked for word timings on a subtitle (words are the better input)", async () => {
+    // The line overlays group words into lines themselves, and `maxWordsPerLine`
+    // counts WORDS — asking the default auto-transcribe lane for chunks instead
+    // would silently coarsen every subtitle and break that lever. Only a lane
+    // that cannot give words drops to phrase segments.
+    mocks.mockShouldRunOnCloud.mockResolvedValue(false)
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "subtitle",
+      uppercase: true,
+      maxWordsPerLine: 3,
+      // no transcribe_provider → the worker's own default, incredibly-fast-whisper
+    })
+
+    await handler(job as never, makeCtx())
+
+    expect(mocks.mockTranscribe.mock.calls[0][1]).toBe("incredibly-fast-whisper")
+    expect(mocks.mockTranscribe.mock.calls[0][3]).toMatchObject({ wordTimestamps: true })
+  })
+
+  it("relays a CAPABLE lane WITH the flag even for a subtitle", async () => {
+    mocks.mockShouldRunOnCloud.mockResolvedValue(true)
+    mocks.mockRunJobOnCloud.mockResolvedValueOnce({
+      text: "hi",
+      words: [{ text: "hi", startMs: 0, endMs: 400 }],
+    })
+
+    await handler(subtitleJob({ transcribe_provider: "elevenlabs-stt" }) as never, makeCtx())
+
+    expect(mocks.mockRunJobOnCloud.mock.calls[0][1]).toMatchObject({
+      provider: "elevenlabs-stt",
+      wordTimestamps: true,
+    })
+  })
+
+  it("prefers the words when the lane returns them anyway (elevenlabs is always word-level)", async () => {
+    mocks.mockShouldRunOnCloud.mockResolvedValue(false)
+    mocks.mockTranscribe.mockResolvedValueOnce({
+      text: "hi there",
+      words: [{ text: "hi", startMs: 0, endMs: 400 }],
+      segments: [{ start: 0, end: 1, text: "hi there" }],
+    })
+
+    await handler(subtitleJob({ transcribe_provider: "elevenlabs-stt" }) as never, makeCtx())
+
+    expect(planOf().captions).toEqual([{ text: "hi", startMs: 0, endMs: 400 }])
+  })
+
+  it("relays WITHOUT the word-timings flag, and accepts a segments-only cloud answer", async () => {
+    mocks.mockShouldRunOnCloud.mockResolvedValue(true)
+    mocks.mockRunJobOnCloud.mockResolvedValueOnce({
+      text: "hello",
+      segments: [{ start: 0, end: 2, text: "hello" }],
+    })
+
+    await handler(subtitleJob() as never, makeCtx())
+
+    const payload = mocks.mockRunJobOnCloud.mock.calls[0][1]
+    expect(payload).not.toHaveProperty("wordTimestamps")
+    expect(planOf().captions).toEqual([
+      { text: "hello", startMs: 0, endMs: 2000, timestampMs: 0, confidence: null },
+    ])
+  })
+
+  it("a KINETIC style still skips the word-less lane (it cannot serve that render)", async () => {
+    mocks.mockShouldRunOnCloud.mockResolvedValue(false)
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "karaoke",
+      transcribe_provider: "whisper",
+      text: "hello world",
+    })
+
+    await handler(job as never, makeCtx())
+
+    expect(mocks.mockTranscribe).not.toHaveBeenCalled()
+  })
+
+  it("still fails honestly when the lane returns no speech and there is no text", async () => {
+    mocks.mockShouldRunOnCloud.mockResolvedValue(false)
+    mocks.mockTranscribe.mockResolvedValueOnce({ text: "", segments: [] })
+
+    await expect(handler(subtitleJob() as never, makeCtx())).rejects.toThrow(
+      /no speech and no text fallback/,
+    )
+  })
+})
+
+/**
+ * S1 — `text` on a `subtitle` IS the caption. #1536 routed a subtitle carrying a
+ * styling lever to Remotion, where `needTranscribe` never consulted `text`: the
+ * caller's words were silently replaced by a transcription of the audio (and a
+ * transcription failure failed the job despite the text being right there).
+ */
+describe("add-captions handler — a subtitle's `text` is the caption, not a fallback", () => {
+  const handler = ffmpegHandlers["add-captions"]
+
+  const planOf = () => mocks.mockRenderQueueAdd.mock.calls[0][1].plan as {
+    captions: Array<Record<string, unknown>>
+    maxWordsPerLine?: number
+    durationInFrames: number
+  }
+
+  /** A 12 s source, so a caption spanning the video is distinguishable from the
+   *  5 s "duration unknown" fallback. */
+  const probe12s = () =>
+    mocks.mockProbeVideoSource.mockResolvedValueOnce({ width: 1080, height: 1920, durationSeconds: 12 })
+
+  it("burns the text as ONE block spanning the clip, with NO vendor call", async () => {
+    probe12s()
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "subtitle",
+      text: "SALE ENDS\nFRIDAY",
+      positionY: 65, // a styling lever → this render is Remotion, billed :kinetic
+    })
+
+    await handler(job as never, makeCtx())
+
+    // No transcription: not locally, and not relayed to the cloud either.
+    expect(mocks.mockTranscribe).not.toHaveBeenCalled()
+    expect(mocks.mockRunJobOnCloud).not.toHaveBeenCalled()
+    // Exactly one caption, the caller's own text, spanning the whole video.
+    expect(planOf().captions).toEqual([
+      { text: "SALE ENDS\nFRIDAY", startMs: 0, endMs: 12000, timestampMs: 0, confidence: null },
+    ])
+    expect(planOf().durationInFrames).toBe(360) // 12 s at the fallback 30 fps
+  })
+
+  it("does not transcribe even when auto_transcribe is explicitly true", async () => {
+    probe12s()
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "subtitle",
+      text: "STILL MY TEXT",
+      uppercase: true,
+      auto_transcribe: true,
+    })
+
+    await handler(job as never, makeCtx())
+
+    expect(mocks.mockTranscribe).not.toHaveBeenCalled()
+    expect(planOf().captions).toHaveLength(1)
+    expect(planOf().captions[0]!.text).toBe("STILL MY TEXT")
+  })
+
+  it("maxWordsPerLine re-wraps the block itself and NEVER reaches the render plan", async () => {
+    // The overlay time-splits a capped entry into pages; a static block must stay
+    // one block, so the cap is applied to the TEXT here and withheld from the plan.
+    probe12s()
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "subtitle",
+      text: "one two three four five",
+      maxWordsPerLine: 2,
+    })
+
+    await handler(job as never, makeCtx())
+
+    expect(mocks.mockTranscribe).not.toHaveBeenCalled()
+    expect(planOf().captions).toHaveLength(1)
+    expect(planOf().captions[0]!.text).toBe("one two\nthree four\nfive")
+    expect(planOf().maxWordsPerLine).toBeUndefined()
+  })
+
+  it("a KINETIC style keeps `text` as the evenly-timed FALLBACK (unchanged), cap and all", async () => {
+    probe12s()
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "word-pop",
+      text: "one two three",
+      maxWordsPerLine: 2,
+      transcribe_provider: "whisper", // word-less lane → skipped, text carries the render
+    })
+
+    await handler(job as never, makeCtx())
+
+    expect(planOf().captions.map((c) => c.text)).toEqual(["one", " two", " three"])
+    expect(planOf().maxWordsPerLine).toBe(2)
+  })
+
+  it("a transcript still WINS over text on a subtitle (precedence unchanged)", async () => {
+    probe12s()
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "subtitle",
+      text: "ignored",
+      transcript: { version: 1, words: [{ text: "real", startMs: 0, endMs: 400 }] },
+    })
+
+    await handler(job as never, makeCtx())
+
+    expect(planOf().captions.map((c) => c.text)).toEqual(["real"])
+  })
+})
+
+/**
+ * OUTPUT FPS = SOURCE FPS. Burning captions re-encodes the clip through
+ * Remotion, so a hardcoded 30 re-timed every 24 fps source (judder + a duration
+ * that no longer matches the input). render-worker renders at `plan.fps`, so
+ * the plan is where the source's rate has to land.
+ */
+describe("add-captions handler — the render follows the source frame rate", () => {
+  const handler = ffmpegHandlers["add-captions"]
+
+  const probe = (fps?: number) =>
+    mocks.mockProbeVideoSource.mockResolvedValueOnce({
+      width: 1080,
+      height: 1920,
+      durationSeconds: 5,
+      ...(fps !== undefined ? { fps } : {}),
+    })
+
+  const kineticJob = () =>
+    makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "karaoke",
+      captions: [{ text: "hi", startMs: 0, endMs: 1000 }],
+    })
+
+  const planOf = () => mocks.mockRenderQueueAdd.mock.calls[0][1].plan as { fps: number; durationInFrames: number }
+
+  it("renders a 24 fps source at 24, and counts frames at that rate", async () => {
+    probe(24)
+    await handler(kineticJob() as never, makeCtx())
+    // 5s of video (longer than the 1s of captions) at 24 fps.
+    expect(planOf()).toMatchObject({ fps: 24, durationInFrames: 120 })
+  })
+
+  it("rounds a fractional rate (23.976 → 24)", async () => {
+    probe(24000 / 1001)
+    await handler(kineticJob() as never, makeCtx())
+    expect(planOf().fps).toBe(24)
+  })
+
+  it("clamps to the plan's accepted band instead of failing validation after the job is paid for", async () => {
+    probe(120)
+    await handler(kineticJob() as never, makeCtx())
+    expect(planOf().fps).toBe(60)
+
+    mocks.mockRenderQueueAdd.mockClear()
+    probe(8)
+    await handler(kineticJob() as never, makeCtx())
+    expect(planOf().fps).toBe(15)
+  })
+
+  it("keeps 30 when the container reports no usable rate", async () => {
+    probe(undefined)
+    await handler(kineticJob() as never, makeCtx())
+    expect(planOf()).toMatchObject({ fps: 30, durationInFrames: 150 })
+  })
+
+  it("keeps 30 when the probe itself failed", async () => {
+    mocks.mockProbeVideoSource.mockRejectedValueOnce(new Error("ffprobe failed"))
+    await handler(kineticJob() as never, makeCtx())
+    // No duration either — the plan falls back to the captions' own span.
+    expect(planOf().fps).toBe(30)
+  })
+
+  // S6's second fallback: the plan's frame budget is checked at plan validation,
+  // which is AFTER credits are reserved (and after any paid transcription), so a
+  // clip long enough to blow it renders at the historical 30 instead.
+  it("falls back to 30 when duration x source fps would exceed the plan's frame cap", async () => {
+    mocks.mockProbeVideoSource.mockResolvedValueOnce({ width: 1080, height: 1920, durationSeconds: 1860, fps: 60 })
+    await handler(kineticJob() as never, makeCtx())
+    // 31 min at 60 fps = 111,600 frames, past the cap; at 30 it is 55,800.
+    expect(planOf()).toMatchObject({ fps: 30, durationInFrames: 55800 })
+  })
+
+  it("keeps 60 for a long clip that still FITS the cap", async () => {
+    mocks.mockProbeVideoSource.mockResolvedValueOnce({ width: 1080, height: 1920, durationSeconds: 1700, fps: 60 })
+    await handler(kineticJob() as never, makeCtx())
+    expect(planOf()).toMatchObject({ fps: 60, durationInFrames: 102000 })
+  })
+})
+
+describe("add-captions handler — maxWordsPerLine reaches the render plan", () => {
+  const handler = ffmpegHandlers["add-captions"]
+
+  it("carries the top-level cap, and a segment inherits it", async () => {
+    const job = makeJob("add-captions", {
+      videoUrl: "https://v.mp4",
+      style: "word-highlight",
+      captions: [{ text: "hi", startMs: 0, endMs: 1000 }],
+      maxWordsPerLine: 3,
+      segments: [{ startMs: 0, endMs: 1000 }, { startMs: 1000, endMs: 2000, maxWordsPerLine: 5 }],
+    })
+
+    await handler(job as never, makeCtx())
+
+    const plan = mocks.mockRenderQueueAdd.mock.calls[0][1].plan as {
+      maxWordsPerLine?: number
+      segments?: Array<{ maxWordsPerLine?: number }>
+    }
+    expect(plan.maxWordsPerLine).toBe(3)
+    expect(plan.segments?.map((s) => s.maxWordsPerLine)).toEqual([3, 5])
   })
 })
 

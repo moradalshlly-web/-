@@ -151,9 +151,19 @@ const refundBody = z.object({
 
 const estimateWorkflowBody = z.object({
   nodes: z.array(z.object({
+    id: z.string().optional(),
     type: z.string().min(1),
     data: z.record(z.string(), z.unknown()).optional(),
   })),
+  /** Optional wiring. Some prices depend on what a node is CONNECTED to
+   *  (add-captions renders through the pricier lane when a transcript is
+   *  wired in). Omitted ⇒ the estimate assumes the pricier lane, so a quote
+   *  without edges can only over-state, never under-state. */
+  edges: z.array(z.object({
+    source: z.string().optional(),
+    target: z.string(),
+    targetHandle: z.string().nullable().optional(),
+  })).optional(),
   /** P14/W8 — lets the billing hook resolve the payer for this estimate
    *  (rung 1 runs the workflow's own run predicate; a viewer of a shared
    *  workflow never reaches the workspace branch, so budget numbers stay
@@ -610,10 +620,10 @@ export async function creditsRoutes(app: FastifyInstance) {
         error: { code: "validation_error", ...formatZodError(parsed.error) },
       })
     }
-    const { nodes } = parsed.data
+    const { nodes, edges } = parsed.data
 
     try {
-      const totalCredits = CreditsService.estimateWorkflowCredits(nodes)
+      const totalCredits = CreditsService.estimateWorkflowCredits(nodes, edges)
       // P14/W8: the payer-aware half. The billing hook already resolved this
       // request's payer (rung 1 via the body's workflowId — which required
       // the run predicate — or rung 2 via the validated workspace header),

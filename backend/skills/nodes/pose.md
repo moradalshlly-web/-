@@ -1,7 +1,7 @@
 ---
 node_type: pose
-generated_at: 2026-08-28T10:30:57.523Z
-generated_from: ae8d76277
+generated_at: 2026-09-21T19:12:09.027Z
+generated_from: 09788c987
 ---
 
 # Pose
@@ -9,7 +9,7 @@ generated_from: ae8d76277
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `pose`
 **Category:** parameter
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `out`
 

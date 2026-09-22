@@ -3825,6 +3825,11 @@ export type AddCaptionsData = {
   animate?: boolean
   uppercase?: boolean
   positionY?: number
+  // Caps the words a caption LINE (or tiktok-words page) may hold, on top of
+  // the frame-width budget / sentence ends / pauses that already close a line.
+  // A STYLING lever like the ones above — a `subtitle` carrying it routes to
+  // Remotion. Unset = fit the frame width; inert on word-pop (always one word).
+  maxWordsPerLine?: number
 }
 
 export type ResizeVideoData = {

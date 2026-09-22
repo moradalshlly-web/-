@@ -23,6 +23,29 @@ import { SUNO_MODELS, SUNO_LEGACY_MODELS, SUNO_ADD_TRACK_MODELS, DEFAULT_SUNO_MO
 const MCP_TRANSCRIBE_PROVIDER: TranscribeProvider = "elevenlabs-stt"
 
 /**
+ * Resolve an `audio_asset_id` that is documented as "audio OR video job id".
+ *
+ * `resolveAssetId` is kind-strict, so asking it for audio refuses every
+ * ordinary video job ("expected audio, got job of type …") — yet the routes
+ * behind these verbs take any media URL, and a video is the common input
+ * (captioning a clip, isolating a voice out of one, reverbing a voice-over).
+ * Try audio first, then video; ownership is enforced inside `resolveAssetId`
+ * on BOTH attempts, and any other failure (not found, foreign id, an image)
+ * propagates untouched.
+ *
+ * One helper rather than a copy per verb: the tool descriptions all make the
+ * same promise, so they have to resolve the same way.
+ */
+async function resolveSpeechSource(assetId: string, userId: string): Promise<string | null> {
+  try {
+    return await resolveAssetId({ assetId, userId, expectedKind: "audio" })
+  } catch (err) {
+    if (!(err instanceof Error) || !err.message.startsWith("expected audio")) throw err
+    return resolveAssetId({ assetId, userId, expectedKind: "video" })
+  }
+}
+
+/**
  * Suno versions as the MCP verbs describe them — one string, reused by every
  * verb with a model arg (the enum itself carries the full list).
  */
@@ -1982,11 +2005,10 @@ export function registerAudioVerbs({ server, session, fastify }: RegisterOpts): 
       },
     },
     async (args) => {
+      // "audio or video job id" is what the arg promises — resolve it as both.
       const audioUrl =
         args.audio_url ??
-        (args.audio_asset_id
-          ? await resolveAssetId({ assetId: args.audio_asset_id, userId: session.userId, expectedKind: "audio" })
-          : null)
+        (args.audio_asset_id ? await resolveSpeechSource(args.audio_asset_id, session.userId) : null)
       if (!audioUrl) return { content: [{ type: "text" as const, text: "Pass audio_url or audio_asset_id." }], isError: true }
       return dispatchJob(fastify, session, { url: "/v1/audio-isolation", payload: { audioUrl, mcp_client: session.clientName, userId: session.userId }, label: "audio isolation", widgetKind: "audio", widgetData: { prompt: "(isolate audio)", model: "audio-isolation" } })
     },
@@ -2077,11 +2099,10 @@ export function registerAudioVerbs({ server, session, fastify }: RegisterOpts): 
       },
     },
     async (args) => {
+      // "audio or video job id" is what the arg promises — resolve it as both.
       const audioUrl =
         args.audio_url ??
-        (args.audio_asset_id
-          ? await resolveAssetId({ assetId: args.audio_asset_id, userId: session.userId, expectedKind: "audio" })
-          : null)
+        (args.audio_asset_id ? await resolveSpeechSource(args.audio_asset_id, session.userId) : null)
       if (!audioUrl) return { content: [{ type: "text" as const, text: "Pass audio_url or audio_asset_id." }], isError: true }
       return dispatchJob(fastify, session, {
         url: "/v1/audio-fx",
@@ -2115,20 +2136,7 @@ export function registerAudioVerbs({ server, session, fastify }: RegisterOpts): 
       _meta: uiMeta(WIDGET_URI.jobAuto),
     },
     async (args) => {
-      // The argument is documented as "audio or video job id" and transcribing a
-      // VIDEO's speech is the common case (captions), but the resolver is
-      // kind-strict and refused every ordinary video job ("expected audio, got job
-      // of type …"). Resolve as audio first, then as video — the route takes any
-      // media URL. Ownership is enforced inside resolveAssetId on both attempts.
-      const resolveSpeechSource = async (assetId: string): Promise<string | null> => {
-        try {
-          return await resolveAssetId({ assetId, userId: session.userId, expectedKind: "audio" })
-        } catch (err) {
-          if (!(err instanceof Error) || !err.message.startsWith("expected audio")) throw err
-          return resolveAssetId({ assetId, userId: session.userId, expectedKind: "video" })
-        }
-      }
-      const audioUrl = args.audio_url ?? (args.audio_asset_id ? await resolveSpeechSource(args.audio_asset_id) : null)
+      const audioUrl = args.audio_url ?? (args.audio_asset_id ? await resolveSpeechSource(args.audio_asset_id, session.userId) : null)
       if (!audioUrl) return { content: [{ type: "text" as const, text: "Pass audio_url or audio_asset_id." }], isError: true }
       const payload: Record<string, unknown> = {
         audioUrl,

@@ -1,7 +1,7 @@
 ---
 node_type: reference-audio
-generated_at: 2026-09-21T18:20:26.342Z
-generated_from: b40e2db40
+generated_at: 2026-09-21T22:42:07.400Z
+generated_from: bc7a796c4
 ---
 
 # Reference Audio
@@ -9,7 +9,7 @@ generated_from: b40e2db40
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `reference-audio`
 **Category:** input
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `audio`
 

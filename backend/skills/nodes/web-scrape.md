@@ -1,7 +1,7 @@
 ---
 node_type: web-scrape
-generated_at: 2026-08-18T14:53:18.719Z
-generated_from: 0301f807a
+generated_at: 2026-09-21T19:12:08.672Z
+generated_from: 09788c987
 ---
 
 # Web Scrape
@@ -9,7 +9,7 @@ generated_from: 0301f807a
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `web-scrape`
 **Category:** input
-**Credit cost:** 5
+**Credit cost:** `20` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `json`
 

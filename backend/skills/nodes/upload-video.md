@@ -1,7 +1,7 @@
 ---
 node_type: upload-video
-generated_at: 2026-08-15T21:55:05.668Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T19:12:08.610Z
+generated_from: 09788c987
 ---
 
 # Upload Video
@@ -9,7 +9,7 @@ generated_from: 150c80ac9
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `upload-video`
 **Category:** input
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `video`
 

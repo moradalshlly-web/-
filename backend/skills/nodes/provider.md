@@ -1,7 +1,7 @@
 ---
 node_type: provider
-generated_at: 2026-08-15T21:55:05.817Z
-generated_from: 150c80ac9
+generated_at: 2026-09-21T19:12:08.760Z
+generated_from: 09788c987
 ---
 
 # Provider
@@ -9,7 +9,7 @@ generated_from: 150c80ac9
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `provider`
 **Category:** parameter
-**Credit cost:** 0
+**Credit cost:** `0` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `provider`
 

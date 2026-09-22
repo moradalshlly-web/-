@@ -84,4 +84,18 @@ describe("audio resource", () => {
     await c.audio.transcribe({ audioUrl: "https://x/a.mp3" })
     expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)).toEqual({ audioUrl: "https://x/a.mp3" })
   })
+
+  it("transcribe() accepts every engine the route does — the two whisper lanes as well as Scribe", async () => {
+    // Doubles as a compile-time pin: `provider` is `TranscribeProvider`, so a
+    // lane leaving that enum would fail tsc here rather than at a caller's 400.
+    for (const provider of ["whisper", "incredibly-fast-whisper", "elevenlabs-stt"] as const) {
+      const fetchMock = vi.fn().mockReturnValueOnce(mockOk({ jobId: "j9" }))
+      const c = make(fetchMock)
+      await c.audio.transcribe({ audioUrl: "https://x/a.mp3", provider })
+      expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)).toEqual({
+        audioUrl: "https://x/a.mp3",
+        provider,
+      })
+    }
+  })
 })

@@ -648,6 +648,61 @@ describe("probeVideoSource", () => {
     expect(result).toEqual({ width: 1920, height: 1080, durationSeconds: 7.0 })
     expect(mocks.dnsLookup).not.toHaveBeenCalled()
   })
+
+  // --- frame rate (the burn-captions render follows the SOURCE's rate) ---
+
+  const withRate = (rates: Record<string, unknown>) =>
+    JSON.stringify({ streams: [{ width: 1920, height: 1080, ...rates }], format: { duration: "5" } })
+
+  it("parses the rational avg_frame_rate", async () => {
+    execFileOnce(withRate({ avg_frame_rate: "24000/1001", r_frame_rate: "24000/1001" }))
+    expect((await probeVideoSource("/tmp/v.mp4")).fps).toBeCloseTo(23.976, 3)
+  })
+
+  it("asks ffprobe for both rates", async () => {
+    execFileOnce(withRate({ avg_frame_rate: "30/1" }))
+    await probeVideoSource("/tmp/v.mp4")
+    expect(execArgs()).toContain("stream=width,height,avg_frame_rate,r_frame_rate:format=duration")
+  })
+
+  it("falls back to r_frame_rate when the average is the unusable 0/0", async () => {
+    execFileOnce(withRate({ avg_frame_rate: "0/0", r_frame_rate: "25/1" }))
+    expect((await probeVideoSource("/tmp/v.mp4")).fps).toBe(25)
+  })
+
+  it("reports NO fps for a VARIABLE-frame-rate source (average far from the nominal base)", async () => {
+    // A sparse screen recording: 6.2 fps average against a 60 fps base. Neither
+    // number is a constant playback rate, and re-encoding at the average
+    // decimates the bursts of real motion — so the caller falls back instead.
+    execFileOnce(withRate({ avg_frame_rate: "31/5", r_frame_rate: "60/1" }))
+    expect((await probeVideoSource("/tmp/v.mp4")).fps).toBeUndefined()
+  })
+
+  it("keeps the average when the two rates agree (ordinary constant-rate clip)", async () => {
+    execFileOnce(withRate({ avg_frame_rate: "30000/1001", r_frame_rate: "30/1" }))
+    expect((await probeVideoSource("/tmp/v.mp4")).fps).toBeCloseTo(29.97, 2)
+    // Just inside the tolerance (10 %) stays a rate; just outside does not.
+    execFileOnce(withRate({ avg_frame_rate: "55/1", r_frame_rate: "60/1" }))
+    expect((await probeVideoSource("/tmp/v.mp4")).fps).toBe(55)
+    execFileOnce(withRate({ avg_frame_rate: "50/1", r_frame_rate: "60/1" }))
+    expect((await probeVideoSource("/tmp/v.mp4")).fps).toBeUndefined()
+  })
+
+  it.each([
+    { avg_frame_rate: "0/0", r_frame_rate: "0/0" },
+    { avg_frame_rate: "N/A" },
+    { avg_frame_rate: "30/0" },
+    { avg_frame_rate: "" },
+    { avg_frame_rate: 30 },
+    {},
+  ])("reports NO fps rather than a made-up one: %j", async (rates) => {
+    execFileOnce(withRate(rates))
+    // The caller decides the fallback — an unreadable rate is not an error
+    // either: dimensions and duration are the contract, fps is a bonus.
+    const result = await probeVideoSource("/tmp/v.mp4")
+    expect(result.fps).toBeUndefined()
+    expect(result.durationSeconds).toBe(5)
+  })
 })
 
 // ===========================================================================

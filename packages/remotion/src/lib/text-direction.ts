@@ -37,11 +37,26 @@ const ARABIC = new RegExp(`[${ARABIC_RANGES}]`)
 
 export const containsArabic = (text: string): boolean => ARABIC.test(text)
 
-/** Base direction for a row of caption words — detects from the joined line text
- *  so the flex row can be laid out RTL without reversing the words array
- *  (which would corrupt timing indices). */
+/**
+ * Base direction for a row of caption words: the direction of the LANGUAGE of
+ * the piece, so the row can be laid out RTL without reversing the words array
+ * (which would corrupt timing indices). Decided by the MAJORITY of strong
+ * letters across the whole list, not the first one: a Hebrew or Arabic piece
+ * very often opens with a Latin token (a brand, a product, a handle), and
+ * first-strong would lay every one of its lines out backwards. A tie — or a
+ * list with no letters at all — falls back to the first strong character.
+ */
 export function rowDirectionFromCaptions(captions: readonly { text: string }[]): TextDirection {
-  return detectBaseDirection(captions.map((c) => c.text).join(" "))
+  const text = captions.map((c) => c.text).join(" ")
+  let rtl = 0
+  let ltr = 0
+  for (const ch of text) {
+    if (RTL_STRONG.test(ch)) rtl++
+    else if (/\p{L}/u.test(ch)) ltr++
+  }
+  if (rtl > ltr) return "rtl"
+  if (ltr > rtl) return "ltr"
+  return detectBaseDirection(text)
 }
 
 /**

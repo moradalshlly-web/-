@@ -1,7 +1,7 @@
 ---
 node_type: pro-3d-render
-generated_at: 2026-09-10T20:56:41.899Z
-generated_from: b8aa8d86e
+generated_at: 2026-09-21T19:12:09.936Z
+generated_from: 09788c987
 ---
 
 # 3D Render Pro
@@ -9,7 +9,7 @@ generated_from: b8aa8d86e
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `pro-3d-render`
 **Category:** ai
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `scene`, `references`
 **Outputs (source handles):** `composition`, `stills`, `video`
 

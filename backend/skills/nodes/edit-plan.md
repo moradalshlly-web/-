@@ -1,7 +1,7 @@
 ---
 node_type: edit-plan
-generated_at: 2026-09-18T01:36:03.776Z
-generated_from: a48b46290
+generated_at: 2026-09-21T19:12:09.664Z
+generated_from: 09788c987
 ---
 
 # Edit Plan
@@ -9,7 +9,7 @@ generated_from: a48b46290
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `edit-plan`
 **Category:** processing
-**Credit cost:** 240
+**Credit cost:** `30-1480` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `transcript`, `silence`, `sources`
 **Outputs (source handles):** `edl`
 

@@ -28,11 +28,12 @@ Each is a thin wrapper over the SDK (`client.audio.transcribe` /
 and `--watch` conventions. Every enum a flag validates against is read from
 `@nodaro/shared` (`ALL_CAPTION_STYLES`, `CAPTION_LOOK_IDS`,
 `SUPPORTED_FONT_NAMES`, `TRANSCRIBE_PROVIDERS`, `TRANSCRIBE_LANES`) rather than
-re-listed here, so a new style, look, face or lane needs no CLI edit. Note that
-the two provider flags read DIFFERENT enums on purpose: `--provider` on
-transcribe accepts the enabled `TRANSCRIBE_PROVIDERS`, while add-captions'
-`--transcribe-provider` accepts every `TRANSCRIBE_LANES` member, matching what
-each route's own Zod accepts.
+re-listed here, so a new style, look, face or lane needs no CLI edit. The two
+provider flags read DIFFERENT enums on purpose — `--provider` on transcribe the
+caller-facing `TRANSCRIBE_PROVIDERS`, add-captions' `--transcribe-provider` every
+`TRANSCRIBE_LANES` member — each matching what its own route's Zod accepts. The
+two sets hold the same three lanes today; they have diverged before, and reading
+them separately is what lets them diverge again with no CLI edit.
 
 The `@nodaro/shared` patch bump carries no source change: it exists only to lift
 the CLI's `@nodaro/shared` floor to a version that ships `TRANSCRIBE_LANES` and

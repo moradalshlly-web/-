@@ -16,7 +16,6 @@ const SAMPLE_DEF: NodeDef = {
   type: "generate-image",
   label: "Generate Image",
   category: "ai",
-  creditCost: 5,
   inputs: ["in"],
   outputs: ["image"],
   defaultData: {
@@ -48,7 +47,8 @@ describe("renderNodeDataShapeBlock", () => {
     const out = renderNodeDataShapeBlock(SAMPLE_DEF, SAMPLE_SHAPE)
     expect(out).toContain("**Type:** `generate-image`")
     expect(out).toContain("**Category:** ai")
-    expect(out).toContain("**Credit cost:** 5")
+    expect(out).toContain("**Credit cost:**")
+    expect(out).toContain("/v1/credits/model-cost")
     expect(out).toContain("Inputs")
     expect(out).toContain("in")
     expect(out).toContain("Outputs")
@@ -88,7 +88,6 @@ describe("renderNodeDataShapeBlock", () => {
     const def = {
       type: "setting",
       category: "parameter",
-      creditCost: 0,
       inputs: ["in"],
       outputs: ["out"],
       defaultData: { label: "Setting", setting: "forest" },
@@ -102,7 +101,6 @@ describe("renderNodeDataShapeBlock", () => {
     const def = {
       type: "generate-image",
       category: "ai-image",
-      creditCost: "1-6",
       inputs: ["in"],
       outputs: ["out"],
       defaultData: {},

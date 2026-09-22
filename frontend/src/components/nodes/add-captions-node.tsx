@@ -16,6 +16,8 @@ import { useWorkflowStore } from "@/hooks/use-workflow-store"
 import { MediaPreviewModal } from "@/components/editor/media-preview-modal"
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog"
 import { useModelCredits } from "@/ee/hooks/use-model-credits"
+import { useAddCaptionsCreditId } from "./use-add-captions-credit-id"
+import { estimateNodeCredits } from "@/components/editor/workflow-editor/types"
 import { VideoResultOverlay } from "./video-result-overlay"
 import { useResultAspectRatio } from "@/hooks/use-result-aspect-ratio"
 import { videoNodeSizing } from "./video-node-defaults"
@@ -25,7 +27,13 @@ import type { AddCaptionsData } from "@/types/nodes"
 function AddCaptionsNodeComponent({ id, data, selected }: NodeProps) {
   const t = useT()
   const nodeData = data as AddCaptionsData
-  const credits = useModelCredits("ffmpeg", 1)
+  // The row the run RESERVES (renderer-following, edge-aware), not the generic
+  // ffmpeg row — see use-add-captions-credit-id. Cold-cache fallback is the
+  // static base row, as elsewhere.
+  const credits = useModelCredits(
+    useAddCaptionsCreditId(id, nodeData as Record<string, unknown>),
+    estimateNodeCredits({ id, type: "add-captions", data: nodeData as Record<string, unknown> }),
+  )
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData)
   const runSingleNode = useWorkflowStore((s) => s.runSingleNode)
   const selectNode = useWorkflowStore((s) => s.selectNode)

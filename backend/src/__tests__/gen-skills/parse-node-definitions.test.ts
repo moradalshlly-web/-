@@ -14,7 +14,6 @@ describe("parseNodeDefinitions", () => {
     expect(gi).toBeDefined()
     expect(gi?.label).toBe("Generate Image")
     expect(gi?.category).toBe("ai")
-    expect(typeof gi?.creditCost).toBe("number")
     expect(gi?.inputs).toEqual(expect.arrayContaining(["prompt", "negative", "references", "assets", "elements", "look"]))
     expect(gi?.outputs).toContain("image")
     expect(gi?.defaultData).toMatchObject({
@@ -46,7 +45,6 @@ describe("parseNodeDefinitions", () => {
       expect(d.type, `entry: ${JSON.stringify(d)}`).toMatch(/^[a-z0-9][a-z0-9-]*$/)
       expect(d.label).toBeDefined()
       expect(d.category).toBeDefined()
-      expect(typeof d.creditCost).toBe("number")
       expect(Array.isArray(d.inputs)).toBe(true)
       expect(Array.isArray(d.outputs)).toBe(true)
       expect(typeof d.defaultData).toBe("object")

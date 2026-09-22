@@ -532,6 +532,36 @@ describe("media add-captions command", () => {
     expect(mocks.addCaptions.mock.calls[0][0]).not.toHaveProperty("animate")
   })
 
+  it("--max-words-per-line sends a NUMBER, and an untouched flag sends nothing", async () => {
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-mw1" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "word-highlight", "--max-words-per-line", "3", "--json")
+    expect(mocks.addCaptions.mock.calls[0][0]).toMatchObject({ maxWordsPerLine: 3 })
+
+    mocks.addCaptions.mockClear()
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-mw2" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "word-highlight", "--json")
+    expect(mocks.addCaptions.mock.calls[0][0]).not.toHaveProperty("maxWordsPerLine")
+  })
+
+  it("--max-words-per-line takes it on the static subtitle style too (a styling lever, not a kinetic one)", async () => {
+    mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-mw3" })
+    await runCmd("media", "add-captions", "https://x/clip.mp4", "--style", "subtitle", "--max-words-per-line", "2", "--json")
+    expect(mocks.addCaptions.mock.calls[0][0]).toMatchObject({ style: "subtitle", maxWordsPerLine: 2 })
+  })
+
+  it("errors on a --max-words-per-line outside the bounds or not a whole number", async () => {
+    for (const bad of ["0", "21", "2.5", "abc"]) {
+      vi.mocked(warn).mockClear()
+      await expect(
+        runCmd("media", "add-captions", "https://x/clip.mp4", "--max-words-per-line", bad),
+      ).rejects.toThrow("process.exit(1)")
+      // The refusal quotes what was TYPED, so "2.5" reads back as 2.5, not 2.
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--max-words-per-line"))
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining(bad))
+    }
+    expect(mocks.addCaptions).not.toHaveBeenCalled()
+  })
+
   it("sends autoTranscribe:false and the transcribe provider when asked", async () => {
     mocks.addCaptions.mockResolvedValueOnce({ jobId: "j-cap3" })
     await runCmd(

@@ -254,7 +254,7 @@ Example:
     .requiredOption("--audio <url>", "audio (or video) URL to transcribe")
     .option(
       "--provider <name>",
-      `transcription engine: ${TRANSCRIBE_PROVIDERS.join(" | ")} — omit it and the legacy "${DEFAULT_TRANSCRIBE_PROVIDER}" lane runs, which returns NO word timings`,
+      `transcription engine: ${TRANSCRIBE_PROVIDERS.join(" | ")} — "${DEFAULT_TRANSCRIBE_PROVIDER}" returns NO word timings, named or reached by omitting this flag`,
     )
     .option("--language <code>", "language code to force (default: auto-detect)")
     .option("--diarize", "label which speaker said each word (elevenlabs-stt)")

@@ -18,6 +18,7 @@ import { directionStyle, rowDirectionFromCaptions } from "./text-direction"
 export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
   captions, position, fontSize, color, backgroundColor,
   fontFamily, fontWeight, strokeColor, strokeWidth, highlightColor, uppercase, positionY, animate,
+  maxWordsPerLine,
 }) => {
   const frame = useCurrentFrame()
   const { fps, width } = useVideoConfig()
@@ -30,8 +31,9 @@ export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
     () => groupCaptionLines(
       captions,
       captionLineCharBudget({ frameWidth: width, fontSize, fontFamily, fontWeight: fontWeight ?? 700, uppercase }),
+      { maxWords: maxWordsPerLine },
     ),
-    [captions, width, fontSize, fontFamily, fontWeight, uppercase],
+    [captions, width, fontSize, fontFamily, fontWeight, uppercase, maxWordsPerLine],
   )
   const hit = activeCaptionLine(lines, ms)
   if (!hit) return null
@@ -53,8 +55,16 @@ export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
     }}>
       {hit.line.words.map((c, i) => {
         const isActive = i === hit.activeIndex
+        // The delimiter space sits OUTSIDE the word's box, as a text node of the row:
+        // inside an inline-block that carries its own direction (a Hebrew word in a
+        // Latin line, a brand name in a Hebrew one) the leading space lands on the
+        // box's own start side — the wrong side in a mixed row, gluing the word to its
+        // neighbour ("Nodaroזה"). In the row's bidi context a space between two atomic
+        // boxes always falls between them, whichever way the row reads.
         return (
-          <span key={i} style={{
+          <React.Fragment key={i}>
+          {i > 0 ? " " : null}
+          <span style={{
             color: isActive ? spoken : rest,
             // The pop grows the word around its centre with NO layout space of its
             // own, so every word carries a fixed padding and the scale is bounded to
@@ -69,17 +79,15 @@ export const WordHighlightOverlay: React.FC<OverlayCommonProps> = ({
               ? `scale(${activeWordScale(c.text, { fontFamily, fontWeight: fontWeight ?? 700, uppercase })})`
               : "scale(1)",
             display: "inline-block",
-            // An inline-block starts its own line box, so CSS removes the
-            // collapsible leading space that is the @remotion/captions word
-            // delimiter — words rendered glued ("Twopeopletalking"). pre keeps it.
             whiteSpace: "pre",
             // The pill keeps the SAME horizontal padding as every word, so the row does not
             // shift sideways as the highlight moves.
             ...(isActive && backgroundColor ? { background: backgroundColor, padding: `0.05em ${CAPTION_WORD_PAD_EM}em`, borderRadius: "0.3em" } : {}),
             ...directionStyle(c.text),
           }}>
-            {captionWord(c.text, i)}
+            {captionWord(c.text, 0)}
           </span>
+          </React.Fragment>
         )
       })}
     </div>

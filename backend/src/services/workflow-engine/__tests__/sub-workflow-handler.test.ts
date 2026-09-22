@@ -230,6 +230,39 @@ describe("executeSubWorkflow", () => {
     expect(result.output.text).toBe("hello from sub")
   })
 
+  it("REFUSES a nested graph whose whisper transcript feeds add-captions — before any node runs", async () => {
+    // The nested graph never reaches the orchestrator's pre-run wall, so the
+    // handler asks the same question itself: whisper returns `words: []`, is
+    // billed, and the add-captions behind it can then only fail.
+    const n = node("sw", "sub-workflow", { workflowId: "ref-wf" })
+    const subNodes: SimpleNode[] = [
+      node("t", "transcribe", { provider: "whisper" }),
+      node("c", "add-captions"),
+      node("out", "sub-workflow-output"),
+    ]
+    const subEdges: SimpleEdge[] = [
+      { id: "t->c", source: "t", target: "c", sourceHandle: "json", targetHandle: "transcript" },
+      edge("c", "out"),
+    ]
+    mockSingle.mockResolvedValue({ data: { nodes: subNodes, edges: subEdges }, error: null })
+
+    const run = executeSubWorkflow(n, {}, ctx())
+    await expect(run).rejects.toThrow(/does not return word timings/)
+    await expect(run).rejects.toMatchObject({ code: "transcript_has_no_word_timings" })
+    expect(executeNode).not.toHaveBeenCalled()
+  })
+
+  it("does NOT refuse the same nested graph on a word-capable engine", async () => {
+    const n = node("sw", "sub-workflow", { workflowId: "ref-wf" })
+    const subNodes: SimpleNode[] = [node("t", "transcribe", { provider: "elevenlabs-stt" }), node("c", "add-captions"), node("out", "sub-workflow-output")]
+    const subEdges: SimpleEdge[] = [
+      { id: "t->c", source: "t", target: "c", sourceHandle: "json", targetHandle: "transcript" },
+      edge("c", "out"),
+    ]
+    mockSingle.mockResolvedValue({ data: { nodes: subNodes, edges: subEdges }, error: null })
+    await expect(executeSubWorkflow(n, {}, ctx())).resolves.toBeDefined()
+  })
+
   it("pre-completes parameter-picker nodes instead of executing them (Unknown-node-type regression)", async () => {
     // A parameter picker (mood/lens/framing/…) inside a sub-workflow has no job
     // handler. Before the fix it reached executeNode → buildPayload threw

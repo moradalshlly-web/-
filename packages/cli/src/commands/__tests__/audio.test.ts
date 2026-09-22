@@ -219,10 +219,19 @@ describe("audio transcribe", () => {
 
   it("errors on a provider outside the enabled enum", async () => {
     await expect(
-      runCmd("audio", "transcribe", "--audio", "https://x/a.mp3", "--provider", "whisper"),
+      runCmd("audio", "transcribe", "--audio", "https://x/a.mp3", "--provider", "deepgram"),
     ).rejects.toThrow("process.exit(1)")
     expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--provider"))
     expect(mocks.transcribe).not.toHaveBeenCalled()
+  })
+
+  it("accepts every engine the route does — both whisper lanes as well as Scribe", async () => {
+    for (const provider of ["whisper", "incredibly-fast-whisper", "elevenlabs-stt"]) {
+      mocks.transcribe.mockClear()
+      mocks.transcribe.mockResolvedValueOnce({ jobId: `j-${provider}` })
+      await runCmd("audio", "transcribe", "--audio", "https://x/a.mp3", "--provider", provider, "--json")
+      expect(mocks.transcribe).toHaveBeenCalledWith({ audioUrl: "https://x/a.mp3", provider })
+    }
   })
 
   it("refuses --word-timestamps on the default (word-timing-less) lane before any request", async () => {
@@ -232,5 +241,32 @@ describe("audio transcribe", () => {
     expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("--word-timestamps"))
     expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("elevenlabs-stt"))
     expect(mocks.transcribe).not.toHaveBeenCalled()
+  })
+
+  it("refuses --word-timestamps on an explicitly named whisper, and names both capable lanes", async () => {
+    // whisper is inside the accepted enum again, so the refusal has to come from
+    // the CAPABILITY table, not from "this provider is not offered".
+    await expect(
+      runCmd("audio", "transcribe", "--audio", "https://x/a.mp3", "--provider", "whisper", "--word-timestamps"),
+    ).rejects.toThrow("process.exit(1)")
+    // Quoted, so `incredibly-fast-whisper` further down the message cannot
+    // satisfy this on its own — the refusal must name the lane that was asked for.
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('by "whisper"'))
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("elevenlabs-stt"))
+    expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining("incredibly-fast-whisper"))
+    expect(mocks.transcribe).not.toHaveBeenCalled()
+  })
+
+  it("sends --word-timestamps on the other word-capable lane", async () => {
+    mocks.transcribe.mockResolvedValueOnce({ jobId: "j-ifw" })
+    await runCmd(
+      "audio", "transcribe", "--audio", "https://x/a.mp3",
+      "--provider", "incredibly-fast-whisper", "--word-timestamps", "--json",
+    )
+    expect(mocks.transcribe).toHaveBeenCalledWith({
+      audioUrl: "https://x/a.mp3",
+      provider: "incredibly-fast-whisper",
+      wordTimestamps: true,
+    })
   })
 })

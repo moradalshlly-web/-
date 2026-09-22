@@ -76,9 +76,9 @@ export type KineticOnlyCaptionLeverKey = (typeof KINETIC_ONLY_CAPTION_LEVER_KEYS
  * one-fixed-string drawtext pass cannot do:
  *   - per-segment treatments (`segments`),
  *   - a kinetic style,
- *   - any STYLING lever (look/font/weight/stroke/uppercase/position_y) — FFmpeg
- *     drawtext can't apply a webfont face, weight, outline, casing, or a free
- *     vertical position,
+ *   - any STYLING lever (look/font/weight/stroke/uppercase/position_y/
+ *     max_words_per_line) — FFmpeg drawtext can't apply a webfont face, weight,
+ *     outline, casing, a free vertical position, or line grouping,
  *   - TIMED captions (a wired `transcript` or an explicit `captions[]` array),
  *   - auto-transcription, i.e. no `text` to burn as one static block.
  * Plain-`text` `subtitle` with no lever stays on FFmpeg (unchanged, cheap).
@@ -101,18 +101,25 @@ export function captionRoutesToRemotion(input: {
   strokeWidth?: unknown
   uppercase?: unknown
   positionY?: unknown
+  maxWordsPerLine?: unknown
 }): boolean {
   if (input.segments && input.segments.length > 0) return true
   if (isKineticCaptionStyle(input.style)) return true
   // From here the style is `subtitle` (or unset → the subtitle default).
+  // `null` is "not set", exactly like `undefined`: stored node JSON (an agent's
+  // write, an import, a cleared field) carries nulls, and a null lever that
+  // counted as a lever would route a plain subtitle to Remotion — and its price
+  // — for a lever nobody chose.
+  const isSet = (v: unknown): boolean => v !== undefined && v !== null
   const hasStylingLever =
-    input.look !== undefined ||
-    input.fontFamily !== undefined ||
-    input.fontWeight !== undefined ||
-    input.strokeColor !== undefined ||
-    input.strokeWidth !== undefined ||
-    input.uppercase !== undefined ||
-    input.positionY !== undefined
+    isSet(input.look) ||
+    isSet(input.fontFamily) ||
+    isSet(input.fontWeight) ||
+    isSet(input.strokeColor) ||
+    isSet(input.strokeWidth) ||
+    isSet(input.uppercase) ||
+    isSet(input.positionY) ||
+    isSet(input.maxWordsPerLine)
   if (hasStylingLever) return true
   if (input.transcript !== undefined && input.transcript !== null) return true
   if (input.captions && input.captions.length > 0) return true
@@ -120,6 +127,67 @@ export function captionRoutesToRemotion(input: {
   // transcription, which produces TIMED captions the drawtext pass can't show.
   if (!input.text) return true
   return false
+}
+
+/**
+ * `maxWordsPerLine` — caps how many words a caption LINE (or tiktok-words page)
+ * may hold, on top of the frame-width budget, sentence ends and pauses that
+ * already close a line. 1–2 gives the punchy CapCut read; unset = fit the width.
+ * Applies to every line/page-grouped render (word-highlight, karaoke, bouncy,
+ * tiktok-words, and a Remotion-rendered subtitle); inert on word-pop (always one
+ * word). Bounds single-sourced here for the route Zod, the plan schema, the MCP
+ * schema, the CLI and the canvas panel.
+ */
+export const CAPTION_MAX_WORDS_PER_LINE_MIN = 1
+export const CAPTION_MAX_WORDS_PER_LINE_MAX = 20
+
+/**
+ * Numeric caption levers and their wire bounds — the SAME limits the route Zod
+ * and the render-plan schema enforce. Single-sourced so the coercion below and
+ * those schemas cannot disagree (a guard test pins the route to these).
+ */
+export const CAPTION_LEVER_BOUNDS = {
+  fontSize: { min: 12, max: 200 },
+  strokeWidth: { min: 0, max: 40 },
+  positionY: { min: 0, max: 100 },
+  fontWeight: { min: 100, max: 900 },
+  maxWordsPerLine: { min: CAPTION_MAX_WORDS_PER_LINE_MIN, max: CAPTION_MAX_WORDS_PER_LINE_MAX },
+} as const
+
+type CaptionNumericLeverKey = keyof typeof CAPTION_LEVER_BOUNDS
+const CAPTION_NUMERIC_LEVER_KEYS = Object.keys(CAPTION_LEVER_BOUNDS) as CaptionNumericLeverKey[]
+
+/**
+ * COERCE, never reject: bring the numeric caption levers of node data that
+ * never passed a Zod (a workflow written by an agent, an import, a template, a
+ * FieldMapping) into the range the render plan accepts. Without this an
+ * out-of-range value only surfaces when the plan schema throws — mid-run, after
+ * credits are reserved. A `null` / non-finite / non-numeric value is DROPPED (the
+ * render default applies); an out-of-range one is clamped; `fontWeight` snaps to the
+ * nearest 100 and `maxWordsPerLine` to a whole number. Pure; returns a copy and
+ * leaves every other field untouched. Applied by payload-builder to the node's
+ * top level and to each `segments[]` entry.
+ */
+export function normalizeCaptionNumericLevers<T extends Record<string, unknown>>(input: T): T {
+  const out: Record<string, unknown> = { ...input }
+  for (const key of CAPTION_NUMERIC_LEVER_KEYS) {
+    if (!(key in out) || out[key] === undefined) continue
+    // `null` is "not set": drop it rather than carry it — the render plan's
+    // numeric schema rejects a null, mid-run, after credits are reserved.
+    if (out[key] === null) {
+      delete out[key]
+      continue
+    }
+    const raw = typeof out[key] === "string" && (out[key] as string).trim() !== "" ? Number(out[key]) : out[key]
+    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+      delete out[key]
+      continue
+    }
+    const { min, max } = CAPTION_LEVER_BOUNDS[key]
+    const shaped = key === "fontWeight" ? Math.round(raw / 100) * 100 : key === "maxWordsPerLine" ? Math.round(raw) : raw
+    out[key] = Math.min(max, Math.max(min, shaped))
+  }
+  return out as T
 }
 
 /** The concrete levers a look (and any explicit override) resolves to. */

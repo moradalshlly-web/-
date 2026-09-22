@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { KINETIC_ONLY_CAPTION_LEVER_KEYS } from "@nodaro/shared"
+import { KINETIC_ONLY_CAPTION_LEVER_KEYS, CAPTION_LEVER_BOUNDS } from "@nodaro/shared"
 import { addCaptionsBody } from "../add-captions.js"
 
 const VIDEO = "https://example.com/clip.mp4"
@@ -287,18 +287,34 @@ describe("addCaptionsBody — transcribe_provider must be able to do word timing
     expect(issuePaths(r)).toContain("transcribe_provider")
   })
 
-  it("rejects whisper for a segmented render that needs the shared transcript", () => {
+  it("rejects whisper for a segmented render whose shared-transcript segment is KINETIC", () => {
     const r = addCaptionsBody.safeParse({
       videoUrl: VIDEO,
       transcribe_provider: "whisper",
-      // Second segment carries no own words → needs the shared transcript.
+      // Second segment carries no own words → needs the shared transcript, and
+      // its kinetic style needs that transcript to be word-timed.
+      segments: [
+        { startMs: 0, endMs: 3000, text: "own words" },
+        { startMs: 3000, endMs: 6000, style: "karaoke" },
+      ],
+    })
+    expect(r.success).toBe(false)
+    expect(issuePaths(r)).toContain("transcribe_provider")
+  })
+
+  it("ACCEPTS whisper when the shared-transcript segments are SUBTITLE (phrase lines need no word timings)", () => {
+    // A subtitle segment draws whole lines, so the worker asks the lane for
+    // phrase segments — which whisper returns. Rejecting this would refuse a
+    // render the worker can serve.
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      transcribe_provider: "whisper",
       segments: [
         { startMs: 0, endMs: 3000, text: "own words" },
         { startMs: 3000, endMs: 6000 },
       ],
     })
-    expect(r.success).toBe(false)
-    expect(issuePaths(r)).toContain("transcribe_provider")
+    expect(r.success).toBe(true)
   })
 
   it("names the capable providers in the message", () => {
@@ -324,6 +340,26 @@ describe("addCaptionsBody — transcribe_provider must be able to do word timing
       expect(r.success).toBe(true)
     },
   )
+
+  // S1 — on a `subtitle` the caller's `text` IS the caption, so no transcription
+  // runs at all and the lane's word-timing capability is irrelevant. Ingress must
+  // accept the request unchanged (nothing refused, nothing stripped) whichever
+  // lane is named and whatever `auto_transcribe` says: the worker's own
+  // needTranscribe now shares this predicate (isStaticTextCaptionSource).
+  it("accepts a word-less lane on a lever-carrying subtitle whose text IS the source", () => {
+    const r = addCaptionsBody.safeParse({
+      videoUrl: VIDEO,
+      style: "subtitle",
+      text: "SALE ENDS\nFRIDAY",
+      positionY: 65, // a styling lever → Remotion renders it, still from the text
+      transcribe_provider: "whisper",
+      auto_transcribe: true,
+    })
+    expect(r.success).toBe(true)
+    // The text survives ingress verbatim — line breaks included.
+    expect(r.success && r.data.text).toBe("SALE ENDS\nFRIDAY")
+    expect(r.success && r.data.positionY).toBe(65)
+  })
 
   it("accepts whisper when no transcription runs (auto_transcribe: false)", () => {
     const r = addCaptionsBody.safeParse({
@@ -467,5 +503,20 @@ describe("buildAddCaptionsCreditId follows the renderer (source guard)", () => {
   it("bills a Remotion render as add-captions:kinetic and a plain-text burn as add-captions", () => {
     expect(src).toContain('"add-captions:kinetic"')
     expect(src).toContain('"add-captions"')
+  })
+})
+
+// The numeric lever limits live in THREE places that must agree: this route's
+// Zod, the render-plan schema, and @nodaro/shared's CAPTION_LEVER_BOUNDS (which
+// payload-builder uses to COERCE authored node data). This pins the route to the
+// shared bounds so a future edit to one cannot silently strand the others.
+describe("addCaptionsBody numeric lever bounds = CAPTION_LEVER_BOUNDS", () => {
+  const base = { videoUrl: "https://example.com/v.mp4", style: "word-highlight", text: "hi" }
+  it.each(Object.entries(CAPTION_LEVER_BOUNDS))("%s accepts [min,max] and rejects just outside", (key, { min, max }) => {
+    const step = key === "fontWeight" ? 100 : 1
+    expect(addCaptionsBody.safeParse({ ...base, [key]: min }).success, `${key}=min`).toBe(true)
+    expect(addCaptionsBody.safeParse({ ...base, [key]: max }).success, `${key}=max`).toBe(true)
+    expect(addCaptionsBody.safeParse({ ...base, [key]: min - step }).success, `${key}<min`).toBe(false)
+    expect(addCaptionsBody.safeParse({ ...base, [key]: max + step }).success, `${key}>max`).toBe(false)
   })
 })

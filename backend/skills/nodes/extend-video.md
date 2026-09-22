@@ -1,7 +1,7 @@
 ---
 node_type: extend-video
-generated_at: 2026-08-29T19:02:39.278Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:10.073Z
+generated_from: 09788c987
 ---
 
 # Extend Video
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `extend-video`
 **Category:** ai
-**Credit cost:** 40
+**Credit cost:** `400` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `video`, `cinematography`, `prompt`
 **Outputs (source handles):** `video`
 

@@ -1,7 +1,7 @@
 ---
 node_type: camera-motion
-generated_at: 2026-08-28T10:28:28.223Z
-generated_from: ae8d76277
+generated_at: 2026-09-21T19:12:08.804Z
+generated_from: 09788c987
 ---
 
 # Camera Motion
@@ -9,7 +9,7 @@ generated_from: ae8d76277
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `camera-motion`
 **Category:** parameter
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `out`
 

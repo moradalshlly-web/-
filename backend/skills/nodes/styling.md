@@ -1,7 +1,7 @@
 ---
 node_type: styling
-generated_at: 2026-09-01T14:41:53.694Z
-generated_from: 36ffac616
+generated_at: 2026-09-21T19:12:09.036Z
+generated_from: 09788c987
 ---
 
 # Styling
@@ -9,7 +9,7 @@ generated_from: 36ffac616
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `styling`
 **Category:** parameter
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`, `picker-json`
 **Outputs (source handles):** `out`
 

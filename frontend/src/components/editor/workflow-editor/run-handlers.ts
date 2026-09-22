@@ -22,6 +22,8 @@ import {
   type RunConfirmInfo,
 } from "./types";
 import { estimateRunCredits } from "./estimate-run-credits";
+import { wordTimingsPreflight } from "./add-captions-preflight";
+import { nestedWordTimingsPreflight } from "./sub-workflow-preflight";
 import { COMPOSER_PLAN_MAP, CREDIT_BASE_USD, planFanOut, TRANSIENT_RUNTIME_KEYS, isExpandedClone, unwrapEditPlanOutput } from "@nodaro/shared"
 import { clearedConnectedListRows } from "./clear-run-results"
 import { namedRunOutputFields } from "@/lib/named-run-outputs"
@@ -274,6 +276,20 @@ async function confirmRunOrAbort(
   catch (error) {
     if (error instanceof SequenceExecutionRequiredError) { toast.error(error.message); return false; }
     throw error;
+  }
+  // A Transcribe node on a word-incapable lane feeding Add Captions: the lane
+  // bills, returns `words: []`, and the captions node then fails. Refused here —
+  // in the ONE funnel all four run triggers pass through — so no run reaches the
+  // point of spending on a transcription it can't use.
+  //
+  // Nested graphs are checked in the same breath: a chain inside a referenced
+  // workflow used to pass every gate and be refused mid-run, once the parent's
+  // upstream nodes had executed and billed. The nested pass loads the referenced
+  // routes (one round-trip per sub-workflow node in the run, and only then).
+  {
+    const blocked =
+      wordTimingsPreflight(executable, edges) ?? (await nestedWordTimingsPreflight(executable));
+    if (blocked) { toast.error(blocked); return false; }
   }
   if (skip || !ctx.confirmRun || executable.length === 0) return true;
   const estimatedCredits = hasCredits() ? estimateRunCredits(executable, allNodes, edges, getCachedCredits) : null;

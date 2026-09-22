@@ -3873,6 +3873,7 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
   // Caption look levers (see AddCaptionsData). The styling levers apply to EVERY
   // style; only highlightColor + animate are kinetic-only (see the strip below).
   look?: string; fontFamily?: string; fontWeight?: number; strokeColor?: string; strokeWidth?: number; highlightColor?: string; uppercase?: boolean; positionY?: number; animate?: boolean;
+  maxWordsPerLine?: number;
 }): Promise<{ jobId: string }> {
   // text is OMITTED when empty — the route's schema is `min(1).optional()`,
   // so sending `text: ""` fails validation even though absent-text is the
@@ -3920,6 +3921,9 @@ export async function addCaptionsApi(videoUrl: string, text: string, style?: str
       uppercase: opts.uppercase,
       positionY: opts.positionY,
       animate: opts.animate,
+      // Line grouping is a STYLING lever, not a kinetic one — a subtitle keeps it
+      // (it renders through the Remotion SubtitleOverlay, which groups lines).
+      maxWordsPerLine: opts.maxWordsPerLine,
     }
     for (const k of Object.keys(leverVals)) {
       if (leverVals[k] !== undefined && (kinetic || !kineticOnly.has(k))) {

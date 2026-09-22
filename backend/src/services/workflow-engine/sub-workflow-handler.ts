@@ -1,4 +1,4 @@
-import { assertCanvasExecutionAllowed } from "@nodaro/shared"
+import { assertCanvasExecutionAllowed, findWordlessTranscriptFeeds, type WordlessTranscriptFeed } from "@nodaro/shared"
 /**
  * Sub-workflow handler — executes a referenced workflow recursively.
  * Ported from frontend sub-workflow-executor.ts.
@@ -66,6 +66,182 @@ export function prepareSubWorkflowNodes(
   return normalizeLegacyNodeTypes(rawNodes)
 }
 
+/** The reference a sub-workflow node carries: which workflow, which route, and
+ *  the `workflowId:routeId` cycle key both the executor and the up-front
+ *  preflight below key their visited sets on. */
+export function subWorkflowReference(node: SimpleNode): {
+  referencedWorkflowId: string | undefined
+  routeId: string
+  routeKey: string
+} {
+  const referencedWorkflowId = node.data?.workflowId as string | undefined
+  const routeId = (node.data?.selectedRouteId as string) ?? "default"
+  return { referencedWorkflowId, routeId, routeKey: `${referencedWorkflowId}:${routeId}` }
+}
+
+/**
+ * Which workflow a sub-workflow reference resolves against.
+ *
+ * `ctx.workflowOwnerId` when set: sub-workflow references point at workflows
+ * owned by the *author* of the containing workflow, which can differ from
+ * `ctx.userId` for shared-workflow presentation runs (viewer pays) and app runs
+ * (creator's snapshot, runner's identity). Falls back to `ctx.userId` so legacy
+ * callers stay protected. ONE derivation, so the executor and the preflight can
+ * never scope the same reference differently.
+ */
+export function subWorkflowOwnerId(ctx: Pick<OrchestratorContext, "userId" | "workflowOwnerId">): string {
+  return ctx.workflowOwnerId ?? ctx.userId
+}
+
+/**
+ * Load the graph a sub-workflow node references, EXACTLY as the run will see it:
+ * owner-scoped fetch, legacy-type migration, route-snapshot reachability filter.
+ *
+ * The one loader for both `executeSubWorkflow` (below) and
+ * `findNestedWordlessTranscriptFeeds` (the orchestrator's up-front check), so
+ * the two can never disagree about which nodes a nested run will execute.
+ *
+ * `null` = the reference does not resolve (no `workflowId`, or no row for this
+ * owner). Callers decide what that means: the executor throws the not-found
+ * error at that node; the preflight treats it as "nothing to see here" and lets
+ * the run raise it.
+ */
+export async function loadSubWorkflowGraph(
+  node: SimpleNode,
+  ownerId: string,
+): Promise<{ nodes: SimpleNode[]; edges: SimpleEdge[] } | null> {
+  const { referencedWorkflowId } = subWorkflowReference(node)
+  if (!referencedWorkflowId) return null
+
+  // `supabase` here is the service-role client (bypasses RLS) and the node's
+  // workflowId is user-controlled, so the fetch MUST be scoped by owner to
+  // prevent referencing arbitrary workflows (IDOR).
+  const { data: workflow, error: wfError } = await supabase
+    .from("workflows")
+    .select("nodes, edges")
+    .eq("id", referencedWorkflowId)
+    .eq("user_id", ownerId)
+    .single()
+
+  if (wfError || !workflow) return null
+
+  // Migrate legacy node types before processing, via the shared helper (single
+  // source of truth). Re-threads parentId so group children flow into the
+  // sub-workflow execution graph — see prepareSubWorkflowNodes.
+  let subNodes: SimpleNode[] = prepareSubWorkflowNodes((workflow.nodes as SimpleNode[]) ?? [])
+  let subEdges: SimpleEdge[] = (workflow.edges as SimpleEdge[]) ?? []
+
+  // Filter to reachable nodes for the selected route (if route filtering is configured)
+  const routeSnapshot = node.data?.routeSnapshot as {
+    inputPorts?: Array<{ id: string; mediaType: string }>
+    outputPorts?: Array<{ id: string; mediaType: string }>
+    inputNodeId?: string
+    outputNodeId?: string
+  } | undefined
+
+  if (routeSnapshot?.inputNodeId && routeSnapshot?.outputNodeId) {
+    const reachable = getReachableNodes(
+      routeSnapshot.inputNodeId,
+      routeSnapshot.outputNodeId,
+      subEdges,
+    )
+    subNodes = subNodes.filter((n) => reachable.has(n.id))
+    subEdges = subEdges.filter(
+      (e) => reachable.has(e.source) && reachable.has(e.target),
+    )
+  }
+
+  return { nodes: subNodes, edges: subEdges }
+}
+
+/** A wordless transcript feed found inside a NESTED graph, plus the sub-workflow
+ *  node ids that lead to it — so the refusal can name where to look. */
+export interface NestedWordlessTranscriptFeed extends WordlessTranscriptFeed {
+  /** Sub-workflow node ids from the run graph down to the graph holding the
+   *  feed, outermost first. Never empty. */
+  readonly subWorkflowPath: readonly string[]
+}
+
+/** The refusal line for a nested hit: the message, then the path to the pair. */
+export function nestedWordlessFeedMessage(feed: NestedWordlessTranscriptFeed): string {
+  return (
+    `${feed.message} (Sub-workflow node ${feed.subWorkflowPath.join(" → ")}` +
+    ` → Transcribe node ${feed.transcribeNodeId} → Add Captions node ${feed.consumerNodeId})`
+  )
+}
+
+/**
+ * The same word-timings question `findWordlessTranscriptFeeds` asks of the run
+ * graph, asked of every graph a `sub-workflow` node in it will run — before any
+ * node runs, so a nested whisper→captions chain is refused up front instead of
+ * mid-run, after upstream parent nodes executed and billed.
+ *
+ * Descends only (the caller has already asked about its own nodes), loads each
+ * referenced graph through `loadSubWorkflowGraph` (so it sees exactly the nodes
+ * the run would execute), and mirrors `executeSubWorkflow`'s limits: the same
+ * `MAX_SUB_WORKFLOW_DEPTH` ceiling and the same `workflowId:routeId` cycle key,
+ * carried down the path so a self-referencing graph is loaded once and not
+ * walked again.
+ *
+ * A reference that cannot be loaded is NOT the preflight's problem: it answers
+ * "no hit" and the run raises its own not-found error at that node. A load that
+ * THROWS is swallowed the same way — this check may only ever refuse for a real
+ * word-timings hit, never for an unreachable database.
+ *
+ * NOT covered, by construction: a chain that CROSSES a sub-workflow boundary
+ * (transcribe in the parent, add-captions in the child, or the reverse). No
+ * single graph holds that edge pair, so no graph-local check can see it.
+ */
+export async function findNestedWordlessTranscriptFeeds(
+  nodes: ReadonlyArray<SimpleNode>,
+  edges: ReadonlyArray<SimpleEdge>,
+  ownerId: string,
+  depth: number = 0,
+  visitedRouteKeys: ReadonlySet<string> = new Set(),
+  path: ReadonlyArray<string> = [],
+): Promise<NestedWordlessTranscriptFeed[]> {
+  // Mirrors executeSubWorkflow's ceiling: a node at this depth throws instead of
+  // running, so there is nothing below it to check.
+  if (depth >= MAX_SUB_WORKFLOW_DEPTH) return []
+
+  const out: NestedWordlessTranscriptFeed[] = []
+
+  for (const node of nodes) {
+    if (node.type !== "sub-workflow" || node.data?.skipped === true) continue
+    const { routeKey } = subWorkflowReference(node)
+    if (visitedRouteKeys.has(routeKey)) continue
+
+    let loaded: { nodes: SimpleNode[]; edges: SimpleEdge[] } | null = null
+    try {
+      loaded = await loadSubWorkflowGraph(node, ownerId)
+    } catch (err) {
+      console.warn(
+        `[transcribe-preflight] could not load the graph behind sub-workflow node ${node.id}` +
+          ` — leaving it to the run: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      continue
+    }
+    if (!loaded) continue
+
+    const nextPath = [...path, node.id]
+    for (const feed of findWordlessTranscriptFeeds(loaded.nodes, loaded.edges)) {
+      out.push({ ...feed, subWorkflowPath: nextPath })
+    }
+    out.push(
+      ...(await findNestedWordlessTranscriptFeeds(
+        loaded.nodes,
+        loaded.edges,
+        ownerId,
+        depth + 1,
+        new Set([...visitedRouteKeys, routeKey]),
+        nextPath,
+      )),
+    )
+  }
+
+  return out
+}
+
 /**
  * Execute a sub-workflow node.
  *
@@ -87,42 +263,32 @@ export async function executeSubWorkflow(
     throw new Error(`Sub-workflow depth limit exceeded (max ${MAX_SUB_WORKFLOW_DEPTH})`)
   }
 
-  const data = node.data
-  const referencedWorkflowId = data.workflowId as string | undefined
-  const routeId = (data.selectedRouteId as string) ?? "default"
+  const { referencedWorkflowId, routeKey } = subWorkflowReference(node)
 
   if (!referencedWorkflowId) {
     throw new Error("Sub-workflow node has no referenced workflow")
   }
 
   // Cycle detection
-  const routeKey = `${referencedWorkflowId}:${routeId}`
   if (executingRouteKeys.has(routeKey)) {
     throw new Error(`Cycle detected in sub-workflows: ${routeKey}`)
   }
   const newRouteKeys = new Set(executingRouteKeys)
   newRouteKeys.add(routeKey)
 
-  // Load referenced workflow. `supabase` here is the service-role client
-  // (bypasses RLS) and the node's workflowId is user-controlled, so we must
-  // scope by owner to prevent referencing arbitrary workflows (IDOR).
-  //
-  // Scope to `ctx.workflowOwnerId` when set: sub-workflow references point at
-  // workflows owned by the *author* of the containing workflow, which can
-  // differ from `ctx.userId` for shared-workflow presentation runs (viewer
-  // pays) and app runs (creator's snapshot, runner's identity). Fall back to
-  // `ctx.userId` when owner is unknown so legacy callers stay protected.
-  const ownerId = ctx.workflowOwnerId ?? ctx.userId
-  const { data: workflow, error: wfError } = await supabase
-    .from("workflows")
-    .select("nodes, edges")
-    .eq("id", referencedWorkflowId)
-    .eq("user_id", ownerId)
-    .single()
+  // Load the referenced graph through the SHARED loader (owner-scoped fetch,
+  // legacy-type migration, route-snapshot reachability filter) — the same one
+  // the orchestrator's up-front nested word-timings check uses, so the two can
+  // never disagree about which nodes this run will execute.
+  const ownerId = subWorkflowOwnerId(ctx)
+  const loaded = await loadSubWorkflowGraph(node, ownerId)
 
-  if (wfError || !workflow) {
+  if (!loaded) {
     throw new Error(`Referenced workflow ${referencedWorkflowId} not found`)
   }
+
+  const subNodes: SimpleNode[] = loaded.nodes
+  const subEdges: SimpleEdge[] = loaded.edges
 
   // Scoping the fetch to the workflow's AUTHOR (`ownerId`) is the guard, and it
   // is the one this path has always had: a sub-workflow reference resolves only
@@ -141,32 +307,6 @@ export async function executeSubWorkflow(
   // tracked as a flag-flip prerequisite in the orgs deferred-items note rather
   // than closed here by breaking live app and presentation runs.
 
-  // Migrate legacy node types before processing, via the shared helper (single
-  // source of truth). Re-threads parentId so group children flow into the
-  // sub-workflow execution graph — see prepareSubWorkflowNodes.
-  let subNodes: SimpleNode[] = prepareSubWorkflowNodes((workflow.nodes as SimpleNode[]) ?? [])
-  let subEdges: SimpleEdge[] = (workflow.edges as SimpleEdge[]) ?? []
-
-  // Filter to reachable nodes for the selected route (if route filtering is configured)
-  const routeSnapshot = data.routeSnapshot as {
-    inputPorts?: Array<{ id: string; mediaType: string }>
-    outputPorts?: Array<{ id: string; mediaType: string }>
-    inputNodeId?: string
-    outputNodeId?: string
-  } | undefined
-
-  if (routeSnapshot?.inputNodeId && routeSnapshot?.outputNodeId) {
-    const reachable = getReachableNodes(
-      routeSnapshot.inputNodeId,
-      routeSnapshot.outputNodeId,
-      subEdges,
-    )
-    subNodes = subNodes.filter((n) => reachable.has(n.id))
-    subEdges = subEdges.filter(
-      (e) => reachable.has(e.source) && reachable.has(e.target),
-    )
-  }
-
   assertCanvasExecutionAllowed(subNodes)
 
   // The nested graph never passes the orchestrator's chokepoint — it is
@@ -178,6 +318,24 @@ export async function executeSubWorkflow(
     if (foreign.length > 0) {
       const err = new Error(foreignCatalogIdMessage(foreign)) as Error & { code?: string }
       err.code = "catalog_value_not_available"
+      throw err
+    }
+  }
+
+  // Same reason, second wall: a transcribe node on a lane that can't return word
+  // timings whose transcript reaches add-captions can only fail AFTER the
+  // transcription is billed. The orchestrator refuses that up front
+  // (orchestrator-worker.ts); a nested graph never reaches that check, so ask
+  // again here, on the route-filtered node set that will actually run.
+  {
+    const wordless = findWordlessTranscriptFeeds(subNodes, subEdges)
+    if (wordless.length > 0) {
+      const err = new Error(
+        wordless
+          .map((w) => `${w.message} (Transcribe node ${w.transcribeNodeId} → Add Captions node ${w.consumerNodeId})`)
+          .join(" "),
+      ) as Error & { code?: string }
+      err.code = "transcript_has_no_word_timings"
       throw err
     }
   }

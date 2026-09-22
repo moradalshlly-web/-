@@ -466,14 +466,61 @@ export async function assertSafeProbeSource(src: string): Promise<void> {
 }
 
 /**
- * Probe a video URL for dimensions + duration in a single ffprobe call.
- * Accepts a local path OR a remote http(s) URL — ffprobe reads both. Remote
- * URLs go through assertSafeProbeSource first (SSRF guard); see that helper.
+ * ffprobe reports a frame rate as the rational string "num/den" ("30000/1001").
+ * A stream with no usable rate reports "0/0" — and a still-image or malformed
+ * stream can report anything at all — so every unusable form answers `undefined`
+ * rather than a made-up number: the caller decides the fallback.
+ */
+function parseFrameRate(value: unknown): number | undefined {
+  if (typeof value !== "string") return undefined
+  const [num, den] = value.trim().split("/")
+  const n = Number(num)
+  const d = den === undefined ? 1 : Number(den)
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d === 0 || n <= 0) return undefined
+  const fps = n / d
+  return Number.isFinite(fps) && fps > 0 ? fps : undefined
+}
+
+/**
+ * How far the clip's AVERAGE rate may sit from its nominal base rate before the
+ * source counts as variable-frame-rate, as a fraction of the larger of the two.
+ */
+const VFR_RATE_TOLERANCE = 0.1
+
+/**
+ * The clip's CONSTANT frame rate, or `undefined` when it has none.
+ *
+ * `avg_frame_rate` is what the clip actually played at, `r_frame_rate` the
+ * container's nominal base rate. When only one parses, that is the best answer
+ * available. When both do and they DISAGREE by more than VFR_RATE_TOLERANCE, the
+ * source is variable-frame-rate: neither number describes a constant rate (a
+ * sparse screen recording reports an average of ~6 against a base of 60), so
+ * re-encoding at either one is wrong — a bursty source rendered at its low
+ * average decimates the real motion. Report no rate and let the caller fall back.
+ */
+function constantFrameRate(avg: number | undefined, nominal: number | undefined): number | undefined {
+  if (avg === undefined) return nominal
+  if (nominal === undefined) return avg
+  const spread = Math.abs(avg - nominal) / Math.max(avg, nominal)
+  return spread > VFR_RATE_TOLERANCE ? undefined : avg
+}
+
+/**
+ * Probe a video URL for dimensions + duration (+ frame rate) in a single
+ * ffprobe call. Accepts a local path OR a remote http(s) URL — ffprobe reads
+ * both. Remote URLs go through assertSafeProbeSource first (SSRF guard); see
+ * that helper.
+ *
+ * `fps` is OPTIONAL on purpose: dimensions and duration are the contract (a
+ * missing one throws), but a container that reports no usable frame rate — or a
+ * VARIABLE one, which is no single rate at all (see `constantFrameRate`) — is
+ * still a perfectly probeable video, and the caller falls back rather than fails.
  */
 export async function probeVideoSource(srcUrlOrPath: string): Promise<{
   width: number
   height: number
   durationSeconds: number
+  fps?: number
 }> {
   await assertSafeProbeSource(srcUrlOrPath)
   const output = await runFfprobe([
@@ -482,14 +529,14 @@ export async function probeVideoSource(srcUrlOrPath: string): Promise<{
     // can't pivot to other protocols. Keep `file` so local-path probes work.
     "-protocol_whitelist", "file,http,https,tcp,tls",
     "-select_streams", "v:0",
-    "-show_entries", "stream=width,height:format=duration",
+    "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate:format=duration",
     "-of", "json",
     srcUrlOrPath,
   ])
   // CSV inserts extra fields for stream side data (including an empty field
   // on Remotion MP4s). Read named fields so metadata cannot shift dimensions.
   let metadata: {
-    streams?: Array<{ width?: unknown; height?: unknown }>
+    streams?: Array<{ width?: unknown; height?: unknown; avg_frame_rate?: unknown; r_frame_rate?: unknown }>
     format?: { duration?: unknown }
   }
   try {
@@ -504,7 +551,11 @@ export async function probeVideoSource(srcUrlOrPath: string): Promise<{
     || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
     throw new Error(`probeVideoSource failed to parse: "${output.trim()}"`)
   }
-  return { width, height, durationSeconds }
+  const fps = constantFrameRate(
+    parseFrameRate(metadata?.streams?.[0]?.avg_frame_rate),
+    parseFrameRate(metadata?.streams?.[0]?.r_frame_rate),
+  )
+  return { width, height, durationSeconds, ...(fps !== undefined ? { fps } : {}) }
 }
 
 /**

@@ -71,7 +71,7 @@ import {
   registerStaticCreditCosts,
   STATIC_CREDIT_COSTS,
 } from "../credits.js"
-import type { CreditProfile, StorageProfile } from "../credits.js"
+import type { CreditProfile, StorageProfile, EstimateEdge } from "../credits.js"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1076,6 +1076,120 @@ describe("CreditsService", () => {
       // resolution is never CHEAPER.
       expect(k720!).toBeGreaterThanOrEqual(k480!)
       expect(k1080!).toBeGreaterThanOrEqual(k720!)
+    })
+  })
+
+  // ════════════════════════════════════════════════════════════════════════
+  // estimateWorkflowCredits — add-captions follows the RENDERER
+  //
+  // The price of a caption node is not a property of the node type: a plain
+  // static subtitle is an FFmpeg drawtext burn, anything styled / timed /
+  // transcribed / segmented is a Remotion render at the kinetic price. The
+  // estimate asks the same shared predicate the route, the orchestrator's
+  // reservation and the worker's dispatch ask, so a quote can never say
+  // "FFmpeg" while the reservation bills a render.
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("estimateWorkflowCredits for add-captions", () => {
+    /**
+     * The node's own data, in a graph whose wiring is KNOWN and empty: an id so
+     * the estimator can match edges to this node, and an explicit `[]` so
+     * "nothing is wired in" is a fact rather than a gap. A caller who passes no
+     * edges gets the pricier lane instead (pinned separately below).
+     */
+    const estimate = (data: Record<string, unknown>, edges: EstimateEdge[] = []) =>
+      CreditsService.estimateWorkflowCredits([{ id: "ac1", type: "add-captions", data }], edges)
+
+    it("quotes the FFmpeg price for a plain-text subtitle", () => {
+      expect(estimate({ style: "subtitle", text: "hello world" })).toBe(30)
+    })
+
+    it("quotes the FFmpeg price when the style is unset (subtitle default)", () => {
+      expect(estimate({ text: "hello world" })).toBe(30)
+    })
+
+    it("quotes the kinetic price for a kinetic style", () => {
+      expect(estimate({ style: "word-highlight", text: "hello world" })).toBe(50)
+    })
+
+    it("reads the canvas `captionStyle` spelling too", () => {
+      expect(estimate({ captionStyle: "karaoke", text: "hello world" })).toBe(50)
+    })
+
+    it("quotes kinetic for a subtitle carrying a styling lever (look)", () => {
+      expect(estimate({ style: "subtitle", text: "hello world", look: "outline" })).toBe(50)
+    })
+
+    it("quotes kinetic for a subtitle carrying maxWordsPerLine", () => {
+      // The newest styling lever — line grouping is a Remotion capability, so a
+      // subtitle that carries it routes (and bills) as a render.
+      expect(estimate({ style: "subtitle", text: "hello world", maxWordsPerLine: 3 })).toBe(50)
+    })
+
+    it("quotes kinetic for a subtitle fed by a wired transcript", () => {
+      expect(estimate({ style: "subtitle", transcript: { words: [] } })).toBe(50)
+    })
+
+    it("quotes kinetic for per-segment treatments", () => {
+      expect(estimate({ style: "subtitle", text: "hi", segments: [{ startMs: 0, endMs: 10 }] })).toBe(50)
+    })
+
+    it("quotes kinetic when there is no text — the caption source is transcription", () => {
+      // The estimate cannot see a wired upstream text, and auto-transcription
+      // produces TIMED captions the drawtext pass cannot show. Over-quoting here
+      // is correct; under-quoting a render never is.
+      expect(estimate({ style: "subtitle" })).toBe(50)
+      expect(estimate({ style: "subtitle", text: "" })).toBe(50)
+    })
+
+    // ── the graph half ──────────────────────────────────────────────────
+    // Whether a timed caption source reaches this node is a fact about the
+    // EDGES, not about the node, and it beats anything the node's own data
+    // says. The run reserves on what the edge delivered, so a nodes-only
+    // quote of the cheap row against a render is the under-quote this branch
+    // exists to close.
+
+    it("quotes kinetic when a transcript is wired in, whatever the node's own text says", () => {
+      expect(
+        estimate({ style: "subtitle", text: "hello world" }, [
+          { source: "tr1", target: "ac1", targetHandle: "transcript" },
+        ]),
+      ).toBe(50)
+    })
+
+    it("quotes kinetic for a transcribe node wired in on any handle", () => {
+      // input-resolver hands a transcribe → add-captions edge word-timed
+      // `captions` alongside the text, so the render is Remotion even though
+      // the edge names no `transcript` handle.
+      expect(
+        CreditsService.estimateWorkflowCredits(
+          [
+            { id: "tr1", type: "transcribe", data: { provider: "elevenlabs-stt" } },
+            { id: "ac1", type: "add-captions", data: { style: "subtitle", text: "hello world" } },
+          ],
+          [{ source: "tr1", target: "ac1" }],
+        ),
+      ).toBe(STATIC_CREDIT_COSTS["elevenlabs-stt"] + 50)
+    })
+
+    it("leaves the cheap quote alone for an edge that is not a caption source", () => {
+      expect(
+        estimate({ style: "subtitle", text: "hello world" }, [{ source: "up1", target: "ac1" }]),
+      ).toBe(30)
+    })
+
+    it("quotes the pricier lane when the caller passes NO edges at all", () => {
+      // A nodes-only caller (the older estimate-workflow body) cannot be told
+      // whether a transcript is wired in. Unknown ⇒ quote the render.
+      expect(
+        CreditsService.estimateWorkflowCredits([{ id: "ac1", type: "add-captions", data: { style: "subtitle", text: "hello world" } }]),
+      ).toBe(50)
+    })
+
+    it("quotes the pricier lane for a node with no id — its edges cannot be matched", () => {
+      expect(
+        CreditsService.estimateWorkflowCredits([{ type: "add-captions", data: { style: "subtitle", text: "hello world" } }], []),
+      ).toBe(50)
     })
   })
 

@@ -36,8 +36,18 @@ import { slideshow } from "../../providers/video/slideshow.js"
 import { transcribe, type TranscribeProvider } from "../../providers/audio/transcribe.js"
 import { detectSilence } from "../../providers/audio/silence-detect.js"
 import { config } from "../../lib/config.js"
-import { syntheticCaptionsFromText, transcriptToCaptions } from "../../providers/audio/captions-mappers.js"
-import { resolveCaptionSegments, explicitLevers, type CaptionSegmentInput } from "../../providers/video/caption-segments.js"
+import { syntheticCaptionsFromText, transcribeSegmentsToCaptions, transcriptToCaptions } from "../../providers/audio/captions-mappers.js"
+import {
+  captionRenderFps,
+  captionRenderFpsWithinFrameCap,
+  captionsNeedWordTimings,
+  explicitLevers,
+  isStaticTextCaptionSource,
+  resolveCaptionSegments,
+  staticTextCaptionBlock,
+  type CaptionSegmentInput,
+} from "../../providers/video/caption-segments.js"
+import { BURN_CAPTIONS_FPS_FALLBACK } from "../../lib/plan-schemas.js"
 import {
   commitJobCredits,
   shouldSaveJobResult,
@@ -583,6 +593,7 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
     uppercase?: boolean
     positionY?: number
     animate?: boolean
+    maxWordsPerLine?: number
     segments?: CaptionSegmentInput[]
   }
   const style = data.style ?? "subtitle"
@@ -618,6 +629,14 @@ const handleAddCaptions: HandlerFn = async function handleAddCaptions(job, ctx) 
   await completeFfmpegVideoJob(outputPath, ctx)
 }
 
+/** What a transcription — local or relayed — can hand this render. `words` is
+ *  present only when the lane was asked for (and delivers) word timings;
+ *  `segments` are the phrase ranges in SECONDS that every lane returns. */
+interface TranscribedCaptionSource {
+  words?: Caption[]
+  segments?: Array<{ start: number; end: number; text: string }>
+}
+
 async function dispatchKineticCaptions(
   job: Job,
   ctx: JobContext,
@@ -642,11 +661,15 @@ async function dispatchKineticCaptions(
     uppercase?: boolean
     positionY?: number
     animate?: boolean
+    maxWordsPerLine?: number
     look?: CaptionLookId
     segments?: CaptionSegmentInput[]
   },
 ): Promise<void> {
-  const fps = 30
+  // Rendering re-encodes the video, so the plan's fps must be the SOURCE clip's
+  // own — a hardcoded 30 re-timed every 24 fps clip. Filled from the probe below;
+  // an unreadable rate keeps the historical fallback (captionRenderFps).
+  let fps = BURN_CAPTIONS_FPS_FALLBACK
   let width = 1920
   let height = 1080
   let videoDurationSeconds = 0
@@ -658,11 +681,38 @@ async function dispatchKineticCaptions(
   const hasTranscript = data.transcript !== undefined && data.transcript !== null
   const someSegmentNeedsShared =
     hasSegments && data.segments!.some((s) => !(s.text || (s.captions && s.captions.length > 0)))
+  // `text` on a `subtitle` IS the caption — one static block for the whole clip,
+  // never transcribed over, whichever renderer draws it. A styling lever moves
+  // that render here (to Remotion), and this path used to ignore `text` and burn
+  // a transcription of the audio over the caller's words. On a KINETIC style the
+  // same `text` stays the FALLBACK it always was (synthetic word timings), so the
+  // predicate is shared with the ingress rather than re-spelled here.
+  const staticText = isStaticTextCaptionSource(data)
+  // `null` is UNSET for the levers this handler forwards RAW into the plan (and
+  // into the segment defaults): stored workflow JSON written by an agent / import
+  // / a cleared field carries nulls, and the plan's schemas are `.optional()`,
+  // never `.nullable()` — a forwarded null fails validation mid-run, after
+  // credits are reserved. Normalized once, here, so every use below is safe.
+  const look = data.look ?? undefined
+  const positionY = data.positionY ?? undefined
+  const animate = data.animate ?? undefined
+  const maxWordsPerLine = data.maxWordsPerLine ?? undefined
   // Probe + transcribe in parallel — both depend only on data.videoUrl. A wired
   // transcript IS the shared caption source, so skip the vendor call entirely
-  // (otherwise we would pay for a transcription we then discard).
+  // (otherwise we would pay for a transcription we then discard) — and so is a
+  // static text block.
   const needTranscribe =
-    !data.captions?.length && !hasTranscript && data.auto_transcribe !== false && (!hasSegments || someSegmentNeedsShared)
+    !staticText && !data.captions?.length && !hasTranscript && data.auto_transcribe !== false && (!hasSegments || someSegmentNeedsShared)
+  // Does the RENDER need per-word timings, or will phrase lines do? Only the
+  // kinetic styles move word by word; a `subtitle` draws whole lines and the
+  // Remotion SubtitleOverlay groups/holds them itself. This does NOT decide what
+  // we ASK the lane for — a capable lane is always asked for words, which is
+  // strictly better input for both renders — it decides what happens on a lane
+  // that CANNOT give them: a kinetic render skips the vendor call (nothing
+  // usable could come back), a line render runs it for the phrase segments every
+  // lane returns. Same predicate the route refuses on, so a request ingress
+  // accepted is a request this render can actually serve.
+  const needsWordTimings = captionsNeedWordTimings({ style: data.style, segments: data.segments })
 
   // THE SAME THREE-WAY LADDER handleTranscribe uses (workers/handlers/audio-ai.ts),
   // for the same reason (#761): transcription calls a vendor client straight
@@ -687,33 +737,41 @@ async function dispatchKineticCaptions(
   const localTranscribeKey =
     transcribeProvider === "elevenlabs-stt" ? config.ELEVENLABS_API_KEY : config.REPLICATE_API_TOKEN
   const { shouldRunOnCloud, runJobOnCloud } = await import("../../providers/nodaro/run-on-cloud.js")
-  const runTranscription = async (): Promise<{ words?: Caption[] } | null> => {
+  const runTranscription = async (): Promise<TranscribedCaptionSource | null> => {
     if (!needTranscribe) return null
-    // The chosen lane cannot produce word timings, and this render is word-timed.
-    // `transcribe()` now REFUSES that pair before the provider call, so calling
-    // it would fail the whole job — including the case where `text` is present
-    // and used to carry the render as synthetic captions. Skip the vendor call
-    // entirely and return the same `null` "not run" value, leaving the
-    // text / no-caption-source ladder below to decide. (The route rejects this
-    // pair at ingress when transcription is the ONLY possible caption source;
-    // an incapable lane reaches here from the DAG / authored node data, which
-    // never passes through that Zod.)
-    if (!transcribeLaneSupportsWordTimestamps(transcribeProvider)) {
+    // The chosen lane cannot produce word timings, and this render IS word-timed
+    // (a kinetic style). `transcribe()` REFUSES that pair before the provider
+    // call, so calling it would fail the whole job — including the case where
+    // `text` is present and used to carry the render as synthetic captions. Skip
+    // the vendor call entirely and return the same `null` "not run" value,
+    // leaving the text / no-caption-source ladder below to decide. (The route
+    // rejects this pair at ingress when transcription is the ONLY possible
+    // caption source; an incapable lane reaches here from the DAG / authored
+    // node data, which never passes through that Zod.)
+    // A render that does NOT need word timings never lands here: it asks the
+    // same lane for phrase segments, which every lane returns.
+    if (needsWordTimings && !transcribeLaneSupportsWordTimestamps(transcribeProvider)) {
       console.warn(
         `[add-captions kinetic] transcription SKIPPED: provider "${transcribeProvider}" cannot return word timestamps, which this render needs — falling back to the text / no-caption-source path.`,
       )
       return null
     }
     if (!(await shouldRunOnCloud(localTranscribeKey))) {
-      return transcribe(data.videoUrl, transcribeProvider, undefined, { wordTimestamps: true })
+      // Ask for word timings whenever the lane CAN give them, whatever the
+      // render is: the line overlays group words themselves, so words are the
+      // better input for a subtitle too, and every capable lane stays
+      // byte-identical to before. Only a lane that cannot — reached here solely
+      // by a render that does not need them — is asked for phrase segments.
+      return transcribe(data.videoUrl, transcribeProvider, undefined, {
+        wordTimestamps: transcribeLaneSupportsWordTimestamps(transcribeProvider),
+      })
     }
     // The RELAY provider is not necessarily the local one. The cloud's
-    // /v1/transcribe enum is `TRANSCRIBE_PROVIDERS` (the enabled subset), and
-    // the local default `incredibly-fast-whisper` has not been in it since the
-    // Replicate lanes were disabled — relaying it verbatim is a guaranteed 400.
-    // Send the local choice when the cloud still accepts it, otherwise the first
-    // ENABLED lane that can do word timings. Derived from the two shared tables,
-    // never a hand-written provider name.
+    // /v1/transcribe enum is `TRANSCRIBE_PROVIDERS` (what a caller may name),
+    // which has not always held every lane this worker can pick locally —
+    // relaying an unaccepted one is a guaranteed 400. Send the local choice when
+    // the cloud accepts it, otherwise the first accepted lane that can do word
+    // timings. Derived from the two shared tables, never a hand-written name.
     const relayProvider = (TRANSCRIBE_PROVIDERS as readonly string[]).includes(transcribeProvider)
       ? transcribeProvider
       : CLOUD_RELAY_TRANSCRIBE_PROVIDER
@@ -725,17 +783,25 @@ async function dispatchKineticCaptions(
     const cloud = await runJobOnCloud("transcribe", {
       jobId: ctx.jobId,
       audioUrl: data.videoUrl,
+      // Same rule as the local leg, asked of the RELAY lane (which is not always
+      // the local one): the flag rides only when that lane can honour it —
+      // sending it to one that cannot is what makes the cloud's `/v1/transcribe`
+      // refuse a render it could otherwise serve with phrase segments.
+      ...(transcribeLaneSupportsWordTimestamps(relayProvider) ? { wordTimestamps: true } : {}),
       provider: relayProvider,
-      wordTimestamps: true,
     })
-    // Validate rather than trust — a version-skewed far end returning no words
-    // would otherwise fall through to the synthetic-text branch or die with a
-    // misleading "no words" message (the suno-lyrics rule, and the same check
-    // handleTranscribe makes on its own cloud result).
-    if (!Array.isArray((cloud as { words?: unknown }).words)) {
+    // Validate rather than trust — a version-skewed far end returning nothing
+    // usable would otherwise fall through to the synthetic-text branch or die
+    // with a misleading "no words" message (the suno-lyrics rule, and the same
+    // check handleTranscribe makes on its own cloud result). What counts as
+    // usable follows the ask: words for a word-timed render, words OR phrase
+    // segments for a line-based one.
+    const relayed = cloud as TranscribedCaptionSource
+    const usable = Array.isArray(relayed.words) || (!needsWordTimings && Array.isArray(relayed.segments))
+    if (!usable) {
       throw new Error("nodaro.ai returned no transcription")
     }
-    return cloud as { words?: Caption[] }
+    return relayed
   }
 
   const [probeResult, transcribeResult] = await Promise.allSettled([
@@ -747,6 +813,9 @@ async function dispatchKineticCaptions(
     width = probeResult.value.width
     height = probeResult.value.height
     videoDurationSeconds = probeResult.value.durationSeconds
+    // Render AT the source's frame rate (rounded + clamped to the plan's band);
+    // an unreadable rate leaves the fallback in place.
+    fps = captionRenderFps(probeResult.value.fps)
   } else {
     console.warn(
       `[add-captions kinetic] ffprobe failed for ${data.videoUrl}; falling back to 1920x1080. Error: ${probeResult.reason instanceof Error ? probeResult.reason.message : String(probeResult.reason)}`,
@@ -783,19 +852,41 @@ async function dispatchKineticCaptions(
         `transcribe failed: ${transcribeResult.reason instanceof Error ? transcribeResult.reason.message : String(transcribeResult.reason)}`,
       )
     }
+    // Word timings when the render needs (and got) them; otherwise the phrase
+    // segments — one caption per segment, which the SubtitleOverlay groups and
+    // holds into lines. A word-less lane can therefore still caption a subtitle
+    // instead of dying on an empty word list after the transcription was paid for.
     const result = transcribeResult.value
-    if (!result || !result.words || result.words.length === 0) {
+    const transcribed =
+      result?.words && result.words.length > 0
+        ? result.words
+        : !needsWordTimings && result?.segments
+          ? transcribeSegmentsToCaptions(result.segments)
+          : []
+    if (transcribed.length === 0) {
       if (!data.text) {
-        throw new Error("transcribe returned no words and no text fallback was provided")
+        throw new Error(
+          needsWordTimings
+            ? "transcribe returned no words and no text fallback was provided"
+            : "transcribe returned no speech and no text fallback was provided",
+        )
       }
       const fallbackEndMs = videoDurationSeconds > 0 ? videoDurationSeconds * 1000 : 5000
       captions = syntheticCaptionsFromText(data.text, { startMs: 0, endMs: fallbackEndMs })
     } else {
-      captions = result.words
+      captions = transcribed
     }
   } else if (data.text) {
-    const fallbackEndMs = videoDurationSeconds > 0 ? videoDurationSeconds * 1000 : 5000
-    captions = syntheticCaptionsFromText(data.text, { startMs: 0, endMs: fallbackEndMs })
+    // The SAME text, two meanings (see isStaticTextCaptionSource): on a subtitle
+    // it is the caption — ONE block spanning the clip, `\n` a forced break, the
+    // words-per-line cap applied to the text itself; on a kinetic style it is the
+    // fallback, sliced into evenly-timed words the overlay re-groups.
+    captions = staticText
+      ? [staticTextCaptionBlock(data.text, { videoDurationSeconds, maxWordsPerLine })]
+      : syntheticCaptionsFromText(data.text, {
+          startMs: 0,
+          endMs: videoDurationSeconds > 0 ? videoDurationSeconds * 1000 : 5000,
+        })
   } else if (hasSegments) {
     // No shared transcript needed — every segment carries its own words.
     captions = []
@@ -820,7 +911,7 @@ async function dispatchKineticCaptions(
   // Bare `subtitle` (no look) → plain (explicit levers only); kinetic or a
   // look-named subtitle → resolve the preset. Shared with the segment resolver
   // and the frontend so the rule can't drift (resolveCaptionLevers).
-  const topLevers = resolveCaptionLevers(data.style, data.look, topExplicit, topFontSize)
+  const topLevers = resolveCaptionLevers(data.style, look, topExplicit, topFontSize)
 
   // Per-segment captions: resolve each segment to its own words + merged levers.
   // The composition renders these instead of the top-level captions/style.
@@ -828,10 +919,11 @@ async function dispatchKineticCaptions(
     ? resolveCaptionSegments(captions, data.segments!, {
         style: data.style ?? "subtitle",
         position: (data.position as "top" | "center" | "bottom" | undefined) ?? "bottom",
-        positionY: data.positionY,
+        positionY,
         fontSize: topFontSize,
-        look: data.look,
-        animate: data.animate,
+        look,
+        animate,
+        maxWordsPerLine,
         explicit: topExplicit,
       })
     : undefined
@@ -848,6 +940,11 @@ async function dispatchKineticCaptions(
   const lastCaptionEndMs = Math.max(captions[captions.length - 1]?.endMs ?? 0, segmentsLastEndMs)
   const captionsDurationSeconds = lastCaptionEndMs / 1000
   const targetDurationSeconds = Math.max(captionsDurationSeconds, videoDurationSeconds)
+  // A long clip at a high source rate would ask for more frames than the plan
+  // accepts, and that cap is only checked when the plan validates — after credits
+  // are reserved and after any paid transcription. Fall back to the historical 30,
+  // exactly as an unreadable source rate does.
+  fps = captionRenderFpsWithinFrameCap(fps, targetDurationSeconds)
   const durationInFrames = Math.max(30, Math.ceil(targetDurationSeconds * fps))
 
   // Clear the video-worker's `pre-task` reconcile sentinel before handing this
@@ -895,8 +992,14 @@ async function dispatchKineticCaptions(
         strokeWidth: topLevers.strokeWidth,
         highlightColor: topLevers.highlightColor,
         uppercase: topLevers.uppercase,
-        positionY: data.positionY,
-        animate: data.animate,
+        // Null-normalized above — the plan's schemas are `.optional()`, never
+        // `.nullable()`.
+        positionY,
+        animate,
+        // A static text block is ONE caption and the cap was already applied to
+        // the text itself (staticTextCaptionBlock) — passing it on would let the
+        // overlay time-split the block into pages.
+        maxWordsPerLine: staticText ? undefined : maxWordsPerLine,
         ...(resolvedSegments ? { segments: resolvedSegments } : {}),
         fps,
         width,

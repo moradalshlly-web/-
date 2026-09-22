@@ -80,6 +80,15 @@ const DIRECT_API_EXEMPTIONS = new Set<string>([
   "wav2lip",
   "video-retalking",
   "sadtalker",
+  // ── Transcription ──────────────────────────────────────────────────────
+  // The two Whisper lanes run on Replicate straight from the transcribe
+  // provider (backend/src/providers/audio/transcribe.ts — pinned model versions,
+  // `predictions.create` + wait), never through providerRegistry. They are
+  // nameable on /v1/transcribe again (TRANSCRIBE_PROVIDERS), like the canvas
+  // Transcribe node has offered since #768. `elevenlabs-stt` is covered by
+  // KIE_STT_MODELS, so it needs no exemption.
+  "whisper",
+  "incredibly-fast-whisper",
   "heygen-lipsync-precision",
   "lipsync-2-pro",
   // fal-direct lip-sync — implemented in backend/src/providers/fal/lip-sync.ts

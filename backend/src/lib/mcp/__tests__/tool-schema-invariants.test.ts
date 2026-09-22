@@ -14,7 +14,9 @@ import { ALL_SCOPES } from "../../scopes.js"
  * narrow outputSchema, or a new tool with no docs entry, fails CI.
  */
 describe("MCP tool-schema invariants", () => {
-  it("(d) every job-widget tool's outputSchema declares the keys widgetData emits (prompt + model)", async () => {
+  // Builds the full MCP server: ~5 s on a loaded runner, i.e. right AT vitest's
+  // 5 s default — it flaked under parallel load. Explicit headroom.
+  it("(d) every job-widget tool's outputSchema declares the keys widgetData emits (prompt + model)", { timeout: 20_000 }, async () => {
     const tools = await captureMcpToolSchemas(ALL_SCOPES)
     // A generation verb routes its result through jobResultWithWidget, whose
     // widgetData is `Omit<SingleJobStructuredContent,"jobId">` — it carries

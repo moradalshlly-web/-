@@ -27,7 +27,7 @@ import { orchestrationQueue } from "../lib/orchestration-queue.js"
 import { personalPayer } from "../lib/billing-context.js"
 import { deploymentPayerActive, deploymentPayerId } from "../lib/deployment-payer.js"
 import { billingPairColumns } from "../lib/insert-job.js"
-import { estimateWorkflowCredits } from "../ee/billing/credits.js"
+import { estimateWorkflowCredits, type EstimateNode } from "../ee/billing/credits.js"
 import type { WorkflowExecutionJob, NodeExecutionState } from "../services/workflow-engine/types.js"
 import { normalizeLegacyNodeTypes } from "../services/workflow-engine/normalize-node-types.js"
 import { getInputNodes, getOutputNodes, getOutputType, getNodeLabel, getInputFieldSchema, flattenItems, migrateToItems } from "@nodaro/shared"
@@ -677,7 +677,7 @@ export async function apiTokenRoutes(app: FastifyInstance) {
         ? sortByOrder(outputNodes, outputNodeIds)
         : outputNodes
 
-      const estimatedCredits = estimateWorkflowCredits(nodes as Array<{ type: string; data?: Record<string, unknown> }>)
+      const estimatedCredits = estimateWorkflowCredits(nodes as EstimateNode[], edges)
 
       const inputs = sortedInputs.map((node) => {
         const fieldSchema = getInputFieldSchema(node.type ?? "")

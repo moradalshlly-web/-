@@ -1,7 +1,7 @@
 ---
 node_type: character
-generated_at: 2026-08-25T18:44:26.368Z
-generated_from: 273c2bef2
+generated_at: 2026-09-21T19:12:10.133Z
+generated_from: 09788c987
 ---
 
 # Character
@@ -9,7 +9,7 @@ generated_from: 273c2bef2
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `character`
 **Category:** character
-**Credit cost:** 5
+**Credit cost:** `20` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `assets`, `in`
 **Outputs (source handles):** `characterRef`, `image`
 

@@ -1,7 +1,7 @@
 ---
 node_type: sticky-note
-generated_at: 2026-09-14T18:06:53.874Z
-generated_from: 5323e14a6
+generated_at: 2026-09-21T19:12:10.459Z
+generated_from: 09788c987
 ---
 
 # Sticky Note
@@ -9,7 +9,7 @@ generated_from: 5323e14a6
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `sticky-note`
 **Category:** utility
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** (none)
 **Outputs (source handles):** (none)
 

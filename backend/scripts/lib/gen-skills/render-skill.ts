@@ -8,6 +8,7 @@ import type {
   InterfaceShape,
 } from "./parse-node-definitions.js"
 import type { CapturedSchema } from "./capture-mcp-schemas.js"
+import { renderCreditCostLine } from "./credit-line.js"
 import {
   PROVIDER_PROMPT_DOCTRINES,
   IMAGE_REFERENCE_PROMPT_DOCTRINE,
@@ -57,7 +58,7 @@ export function renderNodeDataShapeBlock(
   const lines: string[] = []
   lines.push(`**Type:** \`${def.type}\``)
   lines.push(`**Category:** ${def.category}`)
-  lines.push(`**Credit cost:** ${def.creditCost}`)
+  lines.push(renderCreditCostLine(def.type))
   lines.push(
     `**Inputs (target handles):** ${
       def.inputs.length

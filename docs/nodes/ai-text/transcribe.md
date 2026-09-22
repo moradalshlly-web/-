@@ -3,7 +3,7 @@
 
 ## Overview
 
-The Transcribe node converts audio into a text transcript. The engine is ElevenLabs Speech-to-Text — the node's default and the only one the editor's picker offers today. Two Replicate-hosted engines, Whisper and Incredibly Fast Whisper, remain implemented and are still reachable through a node's `provider` written directly into workflow JSON (an agent, an import, a template) and through Add Captions' `transcribe_provider`; see [Word timestamps: which engine can do it](#word-timestamps-which-engine-can-do-it). The node supports automatic language detection or explicit language selection, speaker diarization (identifying who said what), and audio event tagging (labeling non-speech sounds like music, laughter, or applause).
+The Transcribe node converts audio into a text transcript. Three engines are available, and the same three are accepted **everywhere** — the editor's picker, `POST /v1/transcribe`, the SDK and the CLI: ElevenLabs Speech-to-Text (`elevenlabs-stt`, the node's default), Incredibly Fast Whisper (`incredibly-fast-whisper`) and Whisper (`whisper`). They differ in one capability that matters downstream — **word timings**; see [Word timestamps: which engine can do it](#word-timestamps-which-engine-can-do-it). The node supports automatic language detection or explicit language selection, speaker diarization (identifying who said what), and audio event tagging (labeling non-speech sounds like music, laughter, or applause).
 
 The node has two output handles: a **`text`** handle carrying the plain transcript, and a **`json`** handle carrying a normalized **Transcript** object with word- and segment-level timings. The `json` handle is the structured form the caption and editing nodes consume; the `text` handle is unchanged from earlier versions, so existing wires keep working.
 
@@ -13,7 +13,7 @@ On a self-hosted install the chosen engine runs on your own key (`ELEVENLABS_API
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| Provider | `TranscribeProvider` | `"elevenlabs-stt"` | Transcription engine — `elevenlabs-stt`, `incredibly-fast-whisper`, or `whisper`. Only the first two return **word timestamps**; `whisper` never does — see [below](#word-timestamps-which-engine-can-do-it) |
+| Provider | `TranscribeProvider` | `"elevenlabs-stt"` | Transcription engine — `elevenlabs-stt`, `incredibly-fast-whisper`, or `whisper`. `elevenlabs-stt` always returns **word timestamps**, `incredibly-fast-whisper` only when they are requested, `whisper` never — see [below](#word-timestamps-which-engine-can-do-it) |
 | Language | `string` | `"auto"` | Language code for the audio, or "auto" for automatic detection. Supports 20+ languages |
 | Speaker Diarization | `boolean` | `false` | When enabled, identifies and labels different speakers in the transcript |
 | Tag Audio Events | `boolean` | `false` | When enabled, annotates non-speech audio events (music, laughter, applause, etc.) in the transcript |
@@ -53,47 +53,55 @@ All timings are integer **milliseconds**. `words` is populated whenever word-lev
 
 ### Word timestamps: which engine can do it
 
-| Engine | Word timestamps | Notes |
-|--------|-----------------|-------|
-| `elevenlabs-stt` (default) | Yes, always | Word-level by design — the flag changes nothing |
-| `incredibly-fast-whisper` | Yes, on request | Switches the model to word-granularity timestamps |
-| `whisper` | **No** | `openai/whisper` has no word-timestamps input at all |
+| Engine | Word timings | Notes |
+|--------|--------------|-------|
+| `elevenlabs-stt` (default) | ✓ always | Word-level by design — the `wordTimestamps` flag changes nothing |
+| `incredibly-fast-whisper` | ✓ on request | Only when `wordTimestamps: true` is sent — that switches the model to word-granularity timestamps. Without it the job still succeeds, with phrase chunks and an empty `words` list |
+| `whisper` | ✗ | Phrase segments only — `openai/whisper` has no word-timestamps input at all. `wordTimestamps: true` on this engine is a `400`, nothing charged |
 
 `whisper` cannot produce word timings under any setting. Asking it for them used
 to return an empty word list from a job that reported success; an explicit
 request is now **refused** instead, and an *inferred* one is simply not made.
 
-**Over `POST /v1/transcribe`,** `provider` currently accepts exactly one value:
-`elevenlabs-stt`.
+**Where the engines are selectable — everywhere:**
 
-- Naming any other engine — `provider: "whisper"`, `provider:
-  "incredibly-fast-whisper"` — is a `400 validation_error` on **`provider`**:
-  those lanes are not in the route's enum at all, so such a request never
-  reaches the word-timestamps rule.
-- **Omitting `provider`** falls back to the legacy `whisper` lane, and that is
-  the only way to reach the word-timestamps refusal from REST: `wordTimestamps:
-  true` with no `provider` returns `400 validation_error` on
-  **`wordTimestamps`**, naming the engine to set instead. Pass `provider:
-  "elevenlabs-stt"` and the same call succeeds.
+| Surface | How | Engines |
+|---------|-----|---------|
+| Canvas | The Transcribe node's **Provider** picker | all three |
+| REST | `POST /v1/transcribe` → `provider` | all three |
+| SDK | `client.audio.transcribe({ provider })` | all three |
+| CLI | `nodaro audio transcribe --provider <engine>` | all three |
+| Add Captions | `transcribe_provider` — on `POST /v1/add-captions`, in the MCP `add_captions` tool, the SDK/CLI, and in its node data | all three (`incredibly-fast-whisper` is its default). See [Add Captions](../processing-video/add-captions.md#the-auto-transcribe-engine-transcribe_provider) |
+| MCP `transcribe` tool | — (no engine argument) | always `elevenlabs-stt` |
+
+**Over `POST /v1/transcribe`,** `provider` accepts `elevenlabs-stt`,
+`incredibly-fast-whisper` or `whisper`.
+
+- An engine name outside that list is a `400 validation_error` on
+  **`provider`**.
+- `wordTimestamps: true` on `whisper` is a `400 validation_error` on
+  **`wordTimestamps`**, naming the engines to set instead
+  (`elevenlabs-stt` or `incredibly-fast-whisper`).
+- `incredibly-fast-whisper` returns word timings **only** when
+  `wordTimestamps: true` is sent. Naming the engine alone is not enough: without
+  the flag the job succeeds and is charged, and returns phrase `segments` with
+  `json.words: []`.
+- **Omitting `provider`** still falls back to the legacy `whisper` lane — kept
+  so an existing caller keeps running (and paying for) the engine it always
+  did. So `wordTimestamps: true` with no `provider` earns the same `400`; pass
+  `provider: "elevenlabs-stt"` and the same call succeeds. Name the engine
+  explicitly whenever you need word timings, `diarize` or `tagAudioEvents`.
 - Either rejection lands before the job is created, so nothing is charged. The
   engine is never silently swapped — that would change what you pay for without
   asking.
-
-**Where `incredibly-fast-whisper` and `whisper` *are* selectable:** inside a
-workflow run, never over `POST /v1/transcribe`.
-
-- A **Transcribe node** runs whatever `provider` its node data carries. The
-  editor's picker only offers ElevenLabs STT, so the whisper lanes reach a run
-  only through workflow JSON written by an agent, an import, or a template.
-- **Add Captions** takes a `transcribe_provider` of `elevenlabs-stt`,
-  `incredibly-fast-whisper` (its default) or `whisper` — on `POST
-  /v1/add-captions`, in the MCP `add_captions` tool, and in its node data. See
-  [Add Captions](../processing-video/add-captions.md#the-auto-transcribe-engine-transcribe_provider).
 
 **What happens on a run:**
 
 - The MCP `transcribe` tool always runs `elevenlabs-stt`, so its result always
   carries `output_data.json.words`.
+- A **Transcribe node** runs whatever `provider` its node data carries; a node
+  with no `provider` at all runs `elevenlabs-stt` (the node default — *not* the
+  REST route's legacy fallback).
 - A run with the `json` handle connected asks for word timings automatically —
   but only when the node's engine can deliver them. On `whisper` the request is
   simply not made: the run completes with a segments-only transcript whose
@@ -106,12 +114,56 @@ workflow run, never over `POST /v1/transcribe`.
   cannot do what was asked. Audio with no speech at all still succeeds with no
   words, including an audio-event-only clip that transcribes as `[music]`.
 
+### A Whisper transcript wired into Add Captions is refused before the run
+
+[Add Captions](../processing-video/add-captions.md#transcript-input) reads the
+**words** of a wired transcript, and rejects a transcript that has none. A
+Transcribe node on `whisper` still runs and still bills — it just hands back
+phrase segments with an empty `words` list — so a workflow that wires it into
+Add Captions could only fail *after* the transcription had been paid for.
+
+That workflow is now refused **before it runs**. When a Transcribe node on a
+word-incapable engine has its `json` output wired into an Add Captions
+`transcript` input — **directly, or through an [Apply EDL](../processing-video/apply-edl.md)
+node** (which remaps the transcript and passes it on) — the run is refused
+before anything executes or bills. That includes a chain that sits **inside a
+sub-workflow**, at any depth: the nested graphs are checked before the parent
+run starts. The error names the Transcribe node and says what to change:
+
+```
+Captions need word timings, but the "whisper" engine does not return word timings — pick incredibly-fast-whisper or elevenlabs-stt.
+```
+
+Switch that node's Provider to `elevenlabs-stt` or `incredibly-fast-whisper` and
+the run proceeds. Notes:
+
+- The check is on the **graph**, and it runs both in the editor and on the
+  server, so it covers a run started from the canvas as well as one started
+  through the API or MCP. The Transcribe node's config panel shows the same
+  message next to the Provider picker as soon as the wire exists, so you can fix
+  it before pressing Run.
+- It looks only at the nodes the run will actually execute: running the
+  Transcribe node on its own is never blocked.
+- It applies whatever the Add Captions style is — a wired transcript must carry
+  words even for `subtitle`. (Add Captions' *own* auto-transcription is
+  different: there a `subtitle` is happy with Whisper's phrase timing. See
+  [the auto-transcribe engine](../processing-video/add-captions.md#the-auto-transcribe-engine-transcribe_provider).)
+- Skipped nodes are ignored, on both ends of the wire.
+- A Whisper node whose `json` output goes anywhere else is untouched, and so is
+  its `text` output: only the transcript → captions chain needs words.
+- The **one** case the check cannot see is a chain that **crosses a sub-workflow
+  boundary** — the Transcribe node on one side, Add Captions on the other. That
+  run is refused at the Add Captions node ("transcript has no words"), **after**
+  the transcription has run and been billed.
+
 ### Composing into burned-in captions
 
 The node feeds Add Captions two ways:
 
 1. **Wire the `json` handle into Add Captions.** The node requests word timings
    automatically, and Add Captions renders them as word-aligned kinetic captions.
+   Use `elevenlabs-stt` or `incredibly-fast-whisper` for this — a `whisper` node
+   wired this way is [refused before the run](#a-whisper-transcript-wired-into-add-captions-is-refused-before-the-run).
 2. **Pass the words through the API.** A finished transcribe job's
    `output_data.words` is already the caption shape (`text`, `startMs`, `endMs`)
    — hand it straight to `POST /v1/add-captions` as `captions[]`:
@@ -137,6 +189,18 @@ The `text` handle and `{Label}` references resolve the plain transcript, exactly
 When Speaker Diarization is enabled, the transcript includes speaker labels (e.g., "Speaker 1:", "Speaker 2:") before each segment, and each word in the `Transcript` carries its `speaker`.
 
 When Tag Audio Events is enabled, non-speech sounds are annotated inline (e.g., "[music]", "[laughter]").
+## Credits
+
+Charged **per run, by engine** — a flat amount, not metered by audio length:
+
+| Engine | Credits | Word timings |
+|--------|---------|--------------|
+| `elevenlabs-stt` | **22** | ✓ always |
+| `incredibly-fast-whisper` | **40** | ✓ when requested |
+| `whisper` | **40** | ✗ phrase segments only |
+
+The exact figure for your account is always `GET /v1/credits/model-cost?model=<engine>` (MCP: `list_models`). Nothing is reserved for a request that is refused up front — `wordTimestamps: true` on `whisper` (`400`), or a workflow whose Whisper transcript feeds Add Captions (refused before it runs; the one exception, a chain that crosses a sub-workflow boundary, is described [above](#a-whisper-transcript-wired-into-add-captions-is-refused-before-the-run)).
+
 ## Best Practices
 
 - Use auto-detect for language unless you know the audio is in a specific language. Explicit language selection can improve accuracy for languages that sound similar.
@@ -160,4 +224,4 @@ When Tag Audio Events is enabled, non-speech sounds are annotated inline (e.g., 
 - Speaker diarization and audio event tagging are independent options -- you can enable one, both, or neither.
 - The transcription is processed asynchronously via the backend worker queue. Progress is shown in the node during execution.
 - Language auto-detection works across the full set of supported languages. The explicit language dropdown provides 20+ language options matching the ElevenLabs STT model's capabilities.
-- For word-level timestamps, connect the `json` output — it already carries per-word timings on `elevenlabs-stt` (the node's engine) and on `incredibly-fast-whisper` where that lane is in use; on `whisper` the timings are segment-level only. The Forced Alignment node remains available for realigning an externally supplied transcript to audio.
+- For word-level timestamps, connect the `json` output — it already carries per-word timings on `elevenlabs-stt` (the node's default engine) and on `incredibly-fast-whisper`; on `whisper` the timings are segment-level only. The Forced Alignment node remains available for realigning an externally supplied transcript to audio.

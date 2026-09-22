@@ -14,6 +14,8 @@ import {
   captionRoutesToRemotion,
   SUPPORTED_FONT_NAMES,
   CAPTION_LOOK_IDS,
+  CAPTION_MAX_WORDS_PER_LINE_MIN,
+  CAPTION_MAX_WORDS_PER_LINE_MAX,
   KINETIC_ONLY_CAPTION_LEVER_KEYS,
   normalizeTranscript,
   TRANSCRIBE_LANES,
@@ -21,7 +23,7 @@ import {
   transcribeProvidersWithWordTimestamps,
 } from "@nodaro/shared"
 import { captionFontWeightSchema } from "../lib/plan-schemas.js"
-import { findSegmentOverlap } from "../providers/video/caption-segments.js"
+import { captionsNeedWordTimings, findSegmentOverlap, isStaticTextCaptionSource } from "../providers/video/caption-segments.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 
@@ -78,6 +80,7 @@ const captionSegmentInputSchema = z.object({
   uppercase: z.boolean().optional(),
   positionY: z.number().min(0).max(100).optional(),
   animate: z.boolean().optional(),
+  maxWordsPerLine: z.number().int().min(CAPTION_MAX_WORDS_PER_LINE_MIN).max(CAPTION_MAX_WORDS_PER_LINE_MAX).optional(),
   text: nonBlankText.optional(),
   captions: z.array(captionInputSchema).optional(),
 }).refine((s) => s.endMs > s.startMs, { message: "segment endMs must be greater than startMs" })
@@ -103,15 +106,18 @@ function buildAddCaptionsCreditId(body: unknown): string {
     strokeWidth: b.strokeWidth,
     uppercase: b.uppercase,
     positionY: b.positionY,
+    maxWordsPerLine: b.maxWordsPerLine,
   })
     ? "add-captions:kinetic"
     : "add-captions"
 }
 
-// Optional "look" levers. They shape ONLY the Remotion-rendered kinetic styles;
-// the static `subtitle` path is FFmpeg drawtext and cannot honour them, so the
-// refine below REJECTS them on a non-kinetic style rather than silently
-// dropping them (a silent no-op is the failure this guards against).
+// Optional "look" levers. A styling lever on `subtitle` is VALID — it moves that
+// render from the FFmpeg drawtext burn to the Remotion SubtitleOverlay, which
+// applies it (captionRoutesToRemotion). Only the levers that have no meaning at
+// all outside a per-word render (KINETIC_ONLY_CAPTION_LEVER_KEYS) are REJECTED on
+// a non-kinetic style rather than silently dropped — a silent no-op is the
+// failure the refine below guards against.
 export const addCaptionsBody = z.object({
   videoUrl: safeUrlSchema,
   text: nonBlankText.optional(),
@@ -146,6 +152,12 @@ export const addCaptionsBody = z.object({
   // Per-word motion switch for the kinetic styles (default true); rejected on
   // `subtitle` (nothing to animate) by the KINETIC_ONLY guard below.
   animate: z.boolean().optional(),
+  // Cap on how many words one caption LINE (or tiktok-words page) may hold, on
+  // top of the width budget / sentence end / pause rules. A STYLING lever, so
+  // it is valid on `subtitle` too (it routes that render to the Remotion
+  // SubtitleOverlay, which groups the lines); inert on word-pop (one word
+  // always).
+  maxWordsPerLine: z.number().int().min(CAPTION_MAX_WORDS_PER_LINE_MIN).max(CAPTION_MAX_WORDS_PER_LINE_MAX).optional(),
   // Optional per-segment captions: apply DIFFERENT treatments to time ranges of
   // the same video in one call (e.g. a large top intro, then a bottom body).
   segments: z.array(captionSegmentInputSchema).min(1).optional(),
@@ -164,35 +176,41 @@ export const addCaptionsBody = z.object({
       message: "Provide text, captions, auto_transcribe, or give each segment its own text/captions",
     })
   }
-  // The auto-transcribe lane feeds WORD timings to the kinetic/segmented
-  // render, so a transcription provider that cannot produce them has nothing to
-  // give it. The worker SKIPS the vendor call for such a lane (it would only
-  // earn `transcribe()`'s refusal) and falls through to its text / no-source
-  // ladder — so the request is only impossible when transcription is the ONLY
-  // caption source this render could have. Reject exactly that case at ingress;
-  // anything the worker can still render must pass.
+  // The auto-transcribe lane feeds WORD timings to a KINETIC render, so a
+  // transcription provider that cannot produce them has nothing to give that
+  // render. (A `subtitle` is fine on any lane — the worker asks it for phrase
+  // segments instead.) For the kinetic pair the worker SKIPS the vendor call
+  // entirely (it would only earn `transcribe()`'s refusal) and falls through to
+  // its text / no-source ladder — so the request is only impossible when
+  // transcription is the ONLY caption source this render could have. Reject
+  // exactly that case at ingress; anything the worker can still render must pass.
   // Four conditions, all required:
-  //   1. the render actually needs word timings — a kinetic style, or segments
-  //      (a segmented render is entirely Remotion and word-timed);
+  //   1. the render actually needs word timings — a kinetic style, or a segment
+  //      that falls back to the shared transcript and is kinetic itself. A
+  //      `subtitle` does NOT: it draws whole lines, and the worker asks the lane
+  //      for phrase segments instead. Shared with the worker
+  //      (`captionsNeedWordTimings`) so ingress and render cannot disagree;
   //   2. transcription actually runs — MIRRORS the worker's own `needTranscribe`
   //      (workers/handlers/ffmpeg.ts): captions[] or a wired transcript replace
-  //      it, `auto_transcribe: false` disables it, and with segments it only
-  //      runs when some segment needs the shared transcript. NOTE `text` does
-  //      NOT disable transcription in the worker — it is the FALLBACK source
-  //      (condition 3), used whenever the transcription produced no words or
-  //      was skipped. The two predicates live in different files and must be
-  //      changed together;
+  //      it, `auto_transcribe: false` disables it, a static text block IS the
+  //      caption (`isStaticTextCaptionSource`, the shared predicate both sides
+  //      call so they cannot drift), and with segments it only runs when some
+  //      segment needs the shared transcript. On a KINETIC style `text` does NOT
+  //      disable transcription — there it is the FALLBACK source (condition 3),
+  //      used whenever the transcription produced no words or was skipped;
   //   3. there is no `text` to fall back to. With `text`, a skipped/word-less
-  //      transcription still renders — as evenly-spaced synthetic captions off
-  //      that text, which is what this node did before word timings existed.
-  //      Rejecting it would break a previously-working call;
+  //      transcription still renders — on a subtitle as the caller's own block,
+  //      on a kinetic style as evenly-spaced synthetic captions off that text,
+  //      which is what this node did before word timings existed. Rejecting it
+  //      would break a previously-working call;
   //   4. the caller explicitly named a provider that can't do word timings.
   //      An absent provider is fine: the worker defaults to a capable lane.
   if (v.transcribe_provider && !TRANSCRIBE_PROVIDER_CAPABILITIES[v.transcribe_provider].wordTimestamps) {
-    const needsWordTimings = hasSegments || isKineticCaptionStyle(v.style)
+    const needsWordTimings = captionsNeedWordTimings({ style: v.style, segments: v.segments })
     const someSegmentNeedsShared =
       hasSegments && v.segments!.some((s) => !(s.text || (s.captions && s.captions.length > 0)))
     const willTranscribe =
+      !isStaticTextCaptionSource(v) &&
       !(v.captions && v.captions.length > 0) &&
       !hasTranscript &&
       v.auto_transcribe !== false &&

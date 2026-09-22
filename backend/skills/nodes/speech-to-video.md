@@ -1,7 +1,7 @@
 ---
 node_type: speech-to-video
-generated_at: 2026-08-29T19:02:39.233Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:10.031Z
+generated_from: 09788c987
 ---
 
 # Speech to Video
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `speech-to-video`
 **Category:** ai
-**Credit cost:** 4
+**Credit cost:** `3-6` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `image`, `audio`, `prompt`, `cinematography`
 **Outputs (source handles):** `video`
 

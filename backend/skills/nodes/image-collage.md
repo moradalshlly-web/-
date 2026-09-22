@@ -1,7 +1,7 @@
 ---
 node_type: image-collage
-generated_at: 2026-08-29T19:04:28.729Z
-generated_from: 1906376e1
+generated_at: 2026-09-21T19:12:09.674Z
+generated_from: 09788c987
 ---
 
 # Image Collage
@@ -9,7 +9,7 @@ generated_from: 1906376e1
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `image-collage`
 **Category:** processing
-**Credit cost:** 2
+**Credit cost:** `2-4` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `image`
 

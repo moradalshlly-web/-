@@ -1,7 +1,7 @@
 ---
 node_type: video-retake
-generated_at: 2026-08-29T19:02:38.576Z
-generated_from: 7dbf4818b
+generated_at: 2026-09-21T19:12:09.309Z
+generated_from: 09788c987
 ---
 
 # Retake Video
@@ -9,7 +9,7 @@ generated_from: 7dbf4818b
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `video-retake`
 **Category:** ai
-**Credit cost:** 25
+**Credit cost:** `100-500` per `GET /v1/nodes` — the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `video`, `prompt`, `look`
 **Outputs (source handles):** `video`
 

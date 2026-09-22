@@ -1,7 +1,7 @@
 ---
 node_type: upload-image
-generated_at: 2026-08-25T08:41:49.526Z
-generated_from: dcf5458cc
+generated_at: 2026-09-21T19:12:08.600Z
+generated_from: 09788c987
 ---
 
 # Upload Image
@@ -9,7 +9,7 @@ generated_from: dcf5458cc
 <!-- AUTO-GEN:START node-data-shape -->
 **Type:** `upload-image`
 **Category:** input
-**Credit cost:** 0
+**Credit cost:** none declared — an input / parameter / trigger node runs no job; otherwise the live price is `GET /v1/credits/model-cost?model=<model id>` (MCP: `list_models`).
 **Inputs (target handles):** `in`
 **Outputs (source handles):** `image`
 

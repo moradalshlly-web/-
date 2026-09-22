@@ -1,4 +1,4 @@
-import { assertCanvasExecutionAllowed } from "@nodaro/shared"
+import { assertCanvasExecutionAllowed, findWordlessTranscriptFeeds } from "@nodaro/shared"
 /**
  * Orchestrator worker — processes workflow executions.
  * Loads workflow graph, topological sort, executes nodes level-by-level.
@@ -46,6 +46,11 @@ import { migrateGenerateImageHandles } from "../lib/generate-image-handle-migrat
 import { extractSourceNodeOutput, extractSavedNodeOutput } from "../services/workflow-engine/output-extractor.js"
 import { executeNode, loadCompletedFanOutIterations, type ExecuteNodeResult } from "../services/workflow-engine/node-executor.js"
 import { labelRefHintContext } from "../services/workflow-engine/label-ref-hint-context.js"
+import {
+  findNestedWordlessTranscriptFeeds,
+  nestedWordlessFeedMessage,
+  subWorkflowOwnerId,
+} from "../services/workflow-engine/sub-workflow-handler.js"
 import type {
   WorkflowExecutionJob,
   SimpleNode,
@@ -637,6 +642,58 @@ export async function processWorkflowExecution(job: Job<WorkflowExecutionJob>): 
             foreign.map((f) => `${f.nodeType}.${f.field}="${f.id}"`).join(", "),
         )
         await failExecution(executionId, foreignCatalogIdMessage(foreign))
+        return
+      }
+    }
+
+    // A transcription lane that cannot return per-word timings still RUNS and
+    // BILLS — it hands back phrase segments with `words: []`. Wire that json
+    // output into an add-captions `transcript` input and the run can only end
+    // one way: the transcribe node completes and charges, then the captions node
+    // fails on the empty word list. Refuse the whole execution HERE, before any
+    // node runs or reserves a credit, for the same reason the catalog wall sits
+    // above: this is the one place every run passes with its graph in hand.
+    // Scoped to the nodes this run will actually execute — a transcribe node
+    // outside a partial-run subset is pre-completed from its saved output and
+    // never re-transcribes (the empty-word transcript it saved is caught by
+    // payload-builder's own transcript check instead). Skipped nodes are
+    // ignored by the helper on both ends.
+    {
+      const runNodes = nodeSubset ? nodes.filter((n) => nodeSubset.has(n.id)) : nodes
+      const wordless = findWordlessTranscriptFeeds(runNodes, edges)
+      if (wordless.length > 0) {
+        console.warn(
+          `[transcribe-preflight] execution ${executionId} REFUSED — ${wordless.length} transcribe node(s) feed captions with no word timings: ` +
+            wordless.map((w) => `${w.transcribeNodeId}(${w.provider})->${w.consumerNodeId}`).join(", "),
+        )
+        await failExecution(
+          executionId,
+          wordless
+            .map((w) => `${w.message} (Transcribe node ${w.transcribeNodeId} → Add Captions node ${w.consumerNodeId})`)
+            .join(" "),
+        )
+        return
+      }
+
+      // The same question, asked of every graph a `sub-workflow` node in this
+      // run will execute. A nested chain used to be refused only when the
+      // sub-workflow node's turn came — after the parent's upstream nodes had
+      // run and billed — so "the run does not start: nothing executes and
+      // nothing is billed" was not true for a nested graph. The nested graphs
+      // are loaded through the SAME loader executeSubWorkflow uses (owner
+      // scoping, legacy-type migration, route-snapshot filter), so preflight and
+      // run can never disagree about which nodes will run; the sub-workflow
+      // handler keeps its own check as defence in depth. NOT covered, by
+      // construction: a chain that CROSSES the boundary (transcribe in the
+      // parent, add-captions in the child, or the reverse) — no single graph
+      // holds that edge pair.
+      const nested = await findNestedWordlessTranscriptFeeds(runNodes, edges, subWorkflowOwnerId(ctx))
+      if (nested.length > 0) {
+        console.warn(
+          `[transcribe-preflight] execution ${executionId} REFUSED — ${nested.length} nested transcribe node(s) feed captions with no word timings: ` +
+            nested.map((w) => `${w.subWorkflowPath.join("/")}:${w.transcribeNodeId}(${w.provider})->${w.consumerNodeId}`).join(", "),
+        )
+        await failExecution(executionId, nested.map(nestedWordlessFeedMessage).join(" "))
         return
       }
     }
