@@ -1,5 +1,134 @@
 # @nodaro/cli
 
+## 1.21.0
+
+### Minor Changes
+
+- a3e000a: `nodaro media add-captions` gains `--animate/--no-animate`.
+- 65b4cdd: `nodaro media add-captions` gains `--max-words-per-line <n>`, and `nodaro audio
+transcribe --provider` offers every engine the route accepts.
+
+  `--max-words-per-line` caps the words on one caption line (or `tiktok-words`
+  page) on top of the width budget, sentence ends and pauses that already close
+  one. The bounds come from `@nodaro/shared`
+  (`CAPTION_MAX_WORDS_PER_LINE_MIN`/`_MAX`, 1-20) rather than a pair of numbers
+  repeated here, and the flag is validated before anything is read or sent: a
+  value outside the range, or one that is not a whole number, is refused locally
+  with a message quoting what was typed — `--max-words-per-line 2.5` says 2.5
+  rather than silently running as 2. An omitted flag sends nothing, so the server
+  default still decides. It works on the static `subtitle` style too, and a
+  `--segments-file` entry naming its own cap overrides it for that range.
+
+  `--provider` on `audio transcribe` reads the re-widened `TRANSCRIBE_PROVIDERS`,
+  so all three lanes are offered. The `--word-timestamps` refusal is unchanged in
+  shape and still asks the shared capability table rather than matching on a
+  provider name — but now that `whisper` is an accepted provider again, it is the
+  CAPABILITY that refuses it, and the message names both lanes that can answer
+  (`elevenlabs-stt`, `incredibly-fast-whisper`). The flag's help text says the
+  same: `whisper` returns no word timings whether it is named or reached by
+  omitting the flag.
+
+- a7774fc: Add the `edit` command group over the phase-1 editorial primitives:
+
+  - `nodaro edit silence-detect <audioUrl>` — detect silence ranges (`--threshold-db`,
+    `--min-silence-ms`, `--pad-ms`).
+  - `nodaro edit apply-edl --edl <file>` — render an EDL into a video/audio cut
+    (`--transcript`, repeatable `--source` overrides, `--output`, `--quality`,
+    `--crossfade-ms`).
+  - `nodaro edit plan --mode <m> --plan-tier <t> --transcript <file>` — plan a
+    transcript-driven cut / clips / chapters (repeatable `--source url[@kind]` or a
+    full `--sources-file`, plus `--silence`, `--instructions`, `--style-guide`,
+    `--count`, `--target-duration-sec`, `--target-aspect`, `--platform`).
+
+  Each is a thin wrapper over the SDK `client.edit.*` methods and honors the
+  CLI's multi-profile auth, `--json` and `--watch` conventions.
+
+- a610640: Add the two commands that make the transcribe → captions path runnable from a
+  terminal:
+
+  - `nodaro audio transcribe --audio <url>` — speech to text (`--provider`,
+    `--language`, `--diarize`, `--tag-audio-events`, `--word-timestamps`). The
+    flag shape follows the rest of the `audio` group, which takes its source as
+    `--audio <url>`. `--word-timestamps` on a lane that cannot produce them is
+    refused locally with the same verdict the route gives, and the message names
+    only providers this command would itself accept.
+  - `nodaro media add-captions <videoUrl>` — burn captions in (`--text`,
+    `--captions-file`, `--style`, `--look`, `--position`, `--position-y`,
+    `--font-size`, `--font-family`, `--font-weight`, `--color`,
+    `--background-color`, `--stroke-color`, `--stroke-width`,
+    `--highlight-color`, `--uppercase`, `--no-auto-transcribe`,
+    `--transcribe-provider`, `--segments-file`). `--captions-file` takes a JSON
+    array of word-timed entries — an `audio transcribe` job's `output_data.words`
+    drops in verbatim — and `--segments-file` gives non-overlapping ranges their
+    own treatment. Both file inputs are array-guarded with a friendly message
+    naming the flag, like `edit plan --sources-file`.
+
+  Each is a thin wrapper over the SDK (`client.audio.transcribe` /
+  `client.media.addCaptions`) and honours the CLI's multi-profile auth, `--json`
+  and `--watch` conventions. Every enum a flag validates against is read from
+  `@nodaro/shared` (`ALL_CAPTION_STYLES`, `CAPTION_LOOK_IDS`,
+  `SUPPORTED_FONT_NAMES`, `TRANSCRIBE_PROVIDERS`, `TRANSCRIBE_LANES`) rather than
+  re-listed here, so a new style, look, face or lane needs no CLI edit. The two
+  provider flags read DIFFERENT enums on purpose — `--provider` on transcribe the
+  caller-facing `TRANSCRIBE_PROVIDERS`, add-captions' `--transcribe-provider` every
+  `TRANSCRIBE_LANES` member — each matching what its own route's Zod accepts. The
+  two sets hold the same three lanes today; they have diverged before, and reading
+  them separately is what lets them diverge again with no CLI edit.
+
+  The `@nodaro/shared` patch bump carries no source change: it exists only to lift
+  the CLI's `@nodaro/shared` floor to a version that ships `TRANSCRIBE_LANES` and
+  the capability helpers. The commands VALUE-import those symbols, so pairing this
+  CLI with an older shared would make the validation read `undefined` at runtime —
+  the bump rewrites the dependency range so a consumer can never resolve that
+  stale sibling.
+
+### Patch Changes
+
+- b839ceb: README: the standalone-binary install commands reach a binary again. Every `releases/latest/download/…` link answered 404 — the repository's "latest" release is the app's, and the CLI binaries are attached to `cli-vX.Y.Z` releases. The commands now resolve the newest `cli-v*` tag when they run and download from it (with `curl -f`, so an HTTP error is an error and not a page saved as the binary), and Windows gets a PowerShell equivalent.
+- Updated dependencies [e37fe27]
+- Updated dependencies [81be5f2]
+- Updated dependencies [a3e000a]
+- Updated dependencies [a3e000a]
+- Updated dependencies [65b4cdd]
+- Updated dependencies [65b4cdd]
+- Updated dependencies [f75ebfe]
+- Updated dependencies [00ac720]
+- Updated dependencies [d1c71f3]
+- Updated dependencies [2263cf6]
+- Updated dependencies [a48b462]
+- Updated dependencies [a48b462]
+- Updated dependencies [dcaaa20]
+- Updated dependencies [a7774fc]
+- Updated dependencies [d4b3145]
+- Updated dependencies [2b32c90]
+- Updated dependencies [f86ad38]
+- Updated dependencies [a49c7c6]
+- Updated dependencies [6ad3d61]
+- Updated dependencies [1a89eff]
+- Updated dependencies [6a69e7d]
+- Updated dependencies [368e95a]
+- Updated dependencies [c79489e]
+- Updated dependencies [a976e32]
+- Updated dependencies [1126801]
+- Updated dependencies [7f5159d]
+- Updated dependencies [9e25b67]
+- Updated dependencies [ccb8a93]
+- Updated dependencies [5b9f5ed]
+- Updated dependencies [06d7acf]
+- Updated dependencies [a436fab]
+- Updated dependencies [8efa462]
+- Updated dependencies [5c672cb]
+- Updated dependencies [a610640]
+- Updated dependencies [a610640]
+- Updated dependencies [8e97188]
+- Updated dependencies [ccb8a93]
+- Updated dependencies [74e4373]
+- Updated dependencies [d4b3145]
+- Updated dependencies [1c8b7de]
+  - @nodaro/shared@3.12.0
+  - @nodaro/sdk@2.13.0
+  - @nodaro/prompts@1.22.0
+
 ## 1.20.0
 
 ### Minor Changes
