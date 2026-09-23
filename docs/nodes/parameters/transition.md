@@ -14,7 +14,7 @@ Unlike the `transition` field on the Combine Videos node (which is an FFmpeg pos
 |-------|------|---------|-------------|
 | Transition | multi-select | `"auto"` | Catalog entry id, or array of 1-2 ids for compound transitions (e.g., `["smash-cut","white-flash"]`). |
 | Position | select | `"auto"` | Where in the clip the transition occurs: `auto` / `start` / `middle` / `end` / `full`. |
-| Duration | select | `"auto"` | How long the transition lasts: `auto` / `instant` / `short` (~1s) / `medium` (~2s) / `long` (~3s). |
+| Duration | select | `"auto"` | How long the transition lasts: `auto` / `instant` / `short` (~1s) / `medium` (~2s) / `long` (~3s). Ignored for a cut (see below). |
 | Intensity | select | `"auto"` | Energy/character of the transition: `auto` / `subtle` / `natural` / `dynamic` / `crazy`. |
 | Pre Text | text | empty | Free-form text prepended to the composed hint. |
 | Post Text | text | empty | Free-form text appended to the composed hint. |
@@ -23,6 +23,8 @@ Unlike the `transition` field on the Combine Videos node (which is an FFmpeg pos
 All four enum fields default to `auto`, which contributes no prompt text. Setting them to non-`auto` values appends descriptive clauses to the composed hint.
 
 Position, Duration and Intensity are catalogs, not free values: the `transition` picker catalog exposes them as `dimensions` beside its `options` (`GET /v1/picker-catalogs/transition`, `client.pickerCatalogs.get("transition")`, the MCP `get_picker_catalog` tool, or `TRANSITION_POSITIONS` / `TRANSITION_DURATIONS` / `TRANSITION_INTENSITIES` from `@nodaro/prompts`), each row carrying the exact clause it injects. The [Character FX](./character-fx.md) node has the same three fields with the same ids but its own wording — read each node's own rows. See [Parameter Picker Catalogs](../../picker-catalogs.md#single-dimension-pickers-with-secondary-parameters-transition-character-fx).
+
+**Cuts take no duration.** Eight transitions are cuts — the change happens between two frames: `none` (hard cut), `snap-to-black`, `match-cut`, `smash-cut`, `seamless-match`, `jump-cut`, `jump-match` and `action-relay`. For these, Duration is dropped from the prompt: a length on a cut makes video models render a dissolve instead. Position and Intensity still apply. When two transitions are picked and only one is a cut, Duration is kept. The picker catalog marks these rows `instant: true` on their options, and `@nodaro/prompts` exports `isInstantTransition(id)`, so a client can hide the Duration control for them.
 
 ## Catalog (82 entries across 8 categories)
 

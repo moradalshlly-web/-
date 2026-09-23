@@ -11,11 +11,19 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import { config } from "./config.js"
 import { describeEmptyCapability, type ProviderKeyName } from "../providers/provider-keys.js"
-import { getLlmModel, LLM_FEATURE_DEFAULTS, effectiveReasoningEffort } from "@nodaro/shared"
+import { getLlmModel, LLM_FEATURE_DEFAULTS, effectiveReasoningEffort, reasoningOutputFloor } from "@nodaro/shared"
 import type { LlmModelDef, LlmFeature, LlmReasoningEffort } from "@nodaro/shared"
 import { calculateLlmCost, type LlmServingLane } from "./pricing/llm-cost.js"
 import { getAnthropicClient } from "./anthropic.js"
 import { callGeminiDirect, streamGeminiDirect } from "./gemini/client.js"
+import {
+  LlmOutputTruncatedError,
+  LlmStreamResponseError,
+  assertNotOutputCapped,
+  isOutputCapStop,
+  outputCappedMessage,
+  type ReplyEnd,
+} from "./llm-errors.js"
 import { KIE_API_BASE } from "../providers/kie/client.js"
 import { z, type ZodType } from "zod"
 import { extractJsonFromAIResponse, extractKieToolCallInput } from "./json-utils.js"
@@ -278,6 +286,7 @@ export async function llmComplete(req: LlmRequest): Promise<LlmResponse> {
     try {
       return await callKie(model, req)
     } catch (err) {
+      if (!laneFallbackAllowed(err)) throw err
       // KIE proxy failure — the direct SDK is the reliability backstop.
       warnLaneFallback({ modelId: model.id, primary: "kie", fallback: "direct-anthropic" }, err)
       return callAnthropicDirect(model, req)
@@ -451,6 +460,18 @@ function warnLaneFallback(ctx: LaneFallbackCtx, err: unknown): void {
   )
 }
 
+/**
+ * May a failure on one lane be re-asked on the other? Not a cap stop: the
+ * reply ran to the output cap, and that cap is the request's, not the lane's —
+ * the other lane gets the SAME cap for the same prompt, so a fallback buys a
+ * second billed full-length reply that most likely stops at the same place
+ * (the direct Gemini lane reasons MORE than KIE's on the same input, #1588).
+ * Every other failure keeps the fallback.
+ */
+function laneFallbackAllowed(err: unknown): boolean {
+  return !(err instanceof LlmOutputTruncatedError)
+}
+
 /** Run `primary`, falling back to `secondary` on failure (warn-logged). With no
  *  secondary the original error propagates untouched. */
 async function withFallback(
@@ -462,6 +483,7 @@ async function withFallback(
   try {
     return await primary()
   } catch (err) {
+    if (!laneFallbackAllowed(err)) throw err
     warnLaneFallback(ctx, err)
     return secondary()
   }
@@ -499,7 +521,7 @@ export async function llmStream(
     try {
       return await streamKie(model, req, wrapped, signal)
     } catch (err) {
-      if (emitted) throw err
+      if (emitted || !laneFallbackAllowed(err)) throw err
       warnLaneFallback({ modelId: model.id, primary: "kie", fallback: "direct-anthropic" }, err)
       return streamAnthropicDirect(model, req, onToken, signal)
     }
@@ -545,7 +567,8 @@ async function streamWithFallback(
   try {
     return await primary((chunk) => { emitted = true; onToken(chunk) })
   } catch (err) {
-    if (emitted) throw err
+    // A cap stop with no visible token (all of it reasoning) is still a cap stop.
+    if (emitted || !laneFallbackAllowed(err)) throw err
     warnLaneFallback(ctx, err)
     return secondary(onToken)
   }
@@ -574,25 +597,10 @@ export class StructuredLlmError extends Error {
   }
 }
 
-/**
- * A provider failure that REPORTED USAGE. Two things follow from that, and they are the
- * reason this class exists rather than a plain `Error`:
- *
- * 1. the usage must survive to the caller, so the job is billed for what it actually spent;
- * 2. the call must never be retried — the provider answered and charged for answering, so a
- *    second attempt is a second bill for the same question.
- *
- * Everything that fails WITHOUT usage — a connection error, a 5xx before the stream starts, an
- * `event: error` frame that arrives before any token — is a plain `Error`, and that is what
- * {@link transportRetryable} keys on. The distinction is made at the one place that can see
- * the usage (`parseSseStream`), not guessed downstream.
- */
-class LlmStreamResponseError extends Error {
-  constructor(message: string, readonly usage: StructuredLlmError["usage"]) {
-    super(message)
-    this.name = "LlmStreamResponseError"
-  }
-}
+// `LlmStreamResponseError` — the usage-carrying failure every rule below keys on
+// — lives in ./llm-errors.ts with its `LlmOutputTruncatedError` subclass, so the
+// direct Gemini lane can throw them too.
+export { LlmOutputTruncatedError } from "./llm-errors.js"
 
 /**
  * The transport-retry ladder: the pause before each EXTRA attempt at a failure that cost
@@ -848,8 +856,9 @@ function effectiveTimeout(req: LlmRequest): number {
 }
 
 /** Per-request derived params: clamped effort, temperature (stripped for
- *  models that reject it), and the output-token cap (raised to 32768 whenever
- *  reasoning tokens share the budget — at xhigh/max, or on ANY call to a
+ *  models that reject it), and the output-token cap (raised to the model's
+ *  reasoning floor — 32768 unless a lane caps it lower — whenever reasoning
+ *  tokens share the budget: at xhigh/max, or on ANY call to a
  *  `thinkingDefaultOn` model — so thinking doesn't truncate the answer). */
 function deriveParams(model: LlmModelDef, req: LlmRequest): {
   eff: LlmReasoningEffort | undefined
@@ -880,8 +889,13 @@ function deriveParams(model: LlmModelDef, req: LlmRequest): {
   // truncate its answer because thinking consumed a small legacy cap. The cap
   // is a ceiling, not spend: billing is flat per call, so raising it costs
   // nothing unless the model actually generates that much.
+  //
+  // The floor is the model's own (`reasoningOutputFloor`), not a flat 32768:
+  // it rides every lane the model can be served on, and the Gemini flash KIE
+  // endpoints are only known to take 8192. Issue #1588 is what a missing floor
+  // costs — gemini-3.6-flash reasons by default and was sent a node's 1,100.
   if (eff === "xhigh" || eff === "max" || model.thinkingDefaultOn) {
-    maxTokens = Math.max(maxTokens, 32768)
+    maxTokens = Math.max(maxTokens, reasoningOutputFloor(model))
   }
   return { eff, temperature, topP, maxTokens }
 }
@@ -1142,6 +1156,7 @@ function assertMediaIngested(model: LlmModelDef, req: LlmRequest, usage?: { inpu
 function buildResponse(
   model: LlmModelDef,
   text: string,
+  end: ReplyEnd,
   usage?: { inputTokens: number; outputTokens: number },
   actualUsd?: number,
   lane: LlmServingLane = "kie",
@@ -1157,11 +1172,18 @@ function buildResponse(
       )
     }
   }
+  const providerCost = actualUsd ?? tableEstimate
+  // Only the KIE formats and the direct Anthropic SDK build through here (the
+  // Gemini lane has its own builder), so "direct" names Anthropic.
+  assertNotOutputCapped({
+    modelId: model.id, lane: lane === "direct" ? "direct-anthropic" : "kie",
+    stopReason: end.stopReason, cap: end.cap, usage, providerCost,
+  })
   return {
     text,
     usage,
     model: model.id,
-    providerCost: actualUsd ?? tableEstimate,
+    providerCost,
   }
 }
 
@@ -1267,6 +1289,7 @@ async function callKieChatCompletions(model: LlmModelDef, req: LlmRequest): Prom
   return buildResponse(
     model,
     text,
+    { stopReason: choices?.[0]?.finish_reason, cap: maxTokens },
     usage ? { inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0 } : undefined,
     extractActualUsd(data),
     "kie",
@@ -1303,7 +1326,7 @@ async function streamKieChatCompletions(
     throw new Error(`KIE.ai chat-completions stream ${model.id} failed (${response.status}): ${errText}`)
   }
 
-  return parseSseStream(response, model.id, onToken, "chat-completions")
+  return parseSseStream(response, model.id, onToken, "chat-completions", maxTokens)
 }
 
 // -- Messages format (Claude models) --
@@ -1311,7 +1334,8 @@ async function streamKieChatCompletions(
 async function callKieMessages(model: LlmModelDef, req: LlmRequest): Promise<LlmResponse> {
   const url = `${KIE_API_BASE}/claude/v1/messages`
   // KIE defaults stream to true for Claude — must explicitly set false
-  const body = { ...buildMessagesBody(model, req), stream: false }
+  const base = buildMessagesBody(model, req)
+  const body = { ...base, stream: false }
 
   const response = await fetch(url, {
     method: "POST",
@@ -1355,6 +1379,7 @@ async function callKieMessages(model: LlmModelDef, req: LlmRequest): Promise<Llm
   return buildResponse(
     model,
     text,
+    { stopReason: data.stop_reason, cap: base.max_tokens as number },
     usage ? { inputTokens: usage.input_tokens ?? 0, outputTokens: usage.output_tokens ?? 0 } : undefined,
     extractActualUsd(data),
     "kie",
@@ -1366,7 +1391,8 @@ async function streamKieMessages(
   model: LlmModelDef, req: LlmRequest, onToken: (chunk: string) => void, signal?: AbortSignal,
 ): Promise<LlmResponse> {
   const url = `${KIE_API_BASE}/claude/v1/messages`
-  const body = { ...buildMessagesBody(model, req), stream: true }
+  const base = buildMessagesBody(model, req)
+  const body = { ...base, stream: true }
 
   const response = await fetch(url, {
     method: "POST",
@@ -1380,7 +1406,7 @@ async function streamKieMessages(
     throw new Error(`KIE.ai messages stream ${model.id} failed (${response.status}): ${errText}`)
   }
 
-  return parseSseStream(response, model.id, onToken, "messages")
+  return parseSseStream(response, model.id, onToken, "messages", base.max_tokens as number)
 }
 
 /**
@@ -1470,10 +1496,16 @@ async function callKieResponses(model: LlmModelDef, req: LlmRequest): Promise<Ll
   const textBlock = contentArr.find((c) => c.type === "output_text")
   const text = (textBlock?.text as string) ?? ""
   const usage = data.usage as Record<string, number> | undefined
+  // The responses dialect states an unfinished reply as `status: "incomplete"`
+  // plus a reason — "max_output_tokens" is the cap.
+  const incompleteReason = data.status === "incomplete"
+    ? (data.incomplete_details as Record<string, unknown> | undefined)?.reason
+    : undefined
 
   return buildResponse(
     model,
     text,
+    { stopReason: incompleteReason, cap: body.max_output_tokens as number | undefined },
     usage ? { inputTokens: usage.input_tokens ?? 0, outputTokens: usage.output_tokens ?? 0 } : undefined,
     extractActualUsd(data),
     "kie",
@@ -1509,7 +1541,7 @@ async function streamKieResponses(
     throw new Error(`KIE.ai responses stream ${model.id} failed (${response.status}): ${errText}`)
   }
 
-  return parseSseStream(response, model.id, onToken, "responses")
+  return parseSseStream(response, model.id, onToken, "responses", body.max_output_tokens as number | undefined)
 }
 
 /**
@@ -1633,7 +1665,14 @@ async function callAnthropicDirect(model: LlmModelDef, req: LlmRequest): Promise
     )
     const usage = { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens }
     // Anthropic's own API served this — cost it on the direct band, not KIE's.
-    return buildResponse(model, toolUse ? JSON.stringify(toolUse.input) : "", usage, undefined, "direct")
+    return buildResponse(
+      model,
+      toolUse ? JSON.stringify(toolUse.input) : "",
+      { stopReason: response.stop_reason, cap: maxTokens },
+      usage,
+      undefined,
+      "direct",
+    )
   }
 
   const response = await anthropic.messages.create(
@@ -1650,7 +1689,14 @@ async function callAnthropicDirect(model: LlmModelDef, req: LlmRequest): Promise
 
   const textBlock = response.content.find((b) => b.type === "text")
   const usage = { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens }
-  return buildResponse(model, textBlock?.text ?? "", usage, undefined, "direct")
+  return buildResponse(
+    model,
+    textBlock?.text ?? "",
+    { stopReason: response.stop_reason, cap: maxTokens },
+    usage,
+    undefined,
+    "direct",
+  )
 }
 
 async function streamAnthropicDirect(
@@ -1683,7 +1729,14 @@ async function streamAnthropicDirect(
 
   const finalMessage = await stream.finalMessage()
   const usage = { inputTokens: finalMessage.usage.input_tokens, outputTokens: finalMessage.usage.output_tokens }
-  return buildResponse(model, fullText, usage, undefined, "direct")
+  return buildResponse(
+    model,
+    fullText,
+    { stopReason: finalMessage.stop_reason, cap: maxTokens },
+    usage,
+    undefined,
+    "direct",
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -1806,12 +1859,18 @@ async function parseSseStream(
   modelId: string,
   onToken: (chunk: string) => void,
   format: "chat-completions" | "messages" | "responses",
+  /** The output cap sent — `ReplyEnd.cap`; required so no stream lane skips the cap check. */
+  cap: ReplyEnd["cap"],
 ): Promise<LlmResponse> {
   const reader = response.body?.getReader()
   if (!reader) throw new Error("No response body for SSE stream")
 
   const decoder = new TextDecoder()
   let fullText = ""
+  // How the provider said the reply ended — chat-completions puts it on the
+  // last chunk's `finish_reason`, Claude on `message_delta.delta.stop_reason`.
+  // (A responses stream states a cap stop as `response.incomplete`, below.)
+  let stopReason: unknown
   // Forced-tool output arrives as `input_json_delta` fragments rather than text.
   // Accumulated separately and NEVER pushed through `onToken` — it is a JSON
   // payload, not display text — then used as the response body when no text
@@ -1935,6 +1994,8 @@ async function parseSseStream(
             fullText += text
             onToken(text)
           }
+          const finishReason = choices?.[0]?.finish_reason
+          if (typeof finishReason === "string" && finishReason) stopReason = finishReason
           if (parsed.usage) {
             const u = parsed.usage as Record<string, number>
             usage = { inputTokens: u.prompt_tokens ?? 0, outputTokens: u.completion_tokens ?? 0 }
@@ -1956,6 +2017,8 @@ async function parseSseStream(
             if (u) {
               usage = { inputTokens: u.input_tokens ?? 0, outputTokens: u.output_tokens ?? 0 }
             }
+            const d = parsed.delta as Record<string, unknown> | undefined
+            if (d?.stop_reason) stopReason = d.stop_reason
           }
         } else if (format === "responses") {
           const eventType = parsed.type as string | undefined
@@ -1998,10 +2061,18 @@ async function parseSseStream(
                 (reason ? `: ${reason}` : "") +
                 ` (in ${usage?.inputTokens ?? 0} / out ${usage?.outputTokens ?? 0} tokens)`
               console.warn(`[llm-kie-stream-terminal] ${detail}`)
-              throw new LlmStreamResponseError(detail, {
+              const failureUsage = {
                 inputTokens: usage?.inputTokens ?? 0, outputTokens: usage?.outputTokens ?? 0,
                 providerCost, complete: usage !== undefined && providerCost !== undefined,
-              })
+              }
+              // A cap stop is the truncation every other lane reports as
+              // `LlmOutputTruncatedError` (#1588): same class and opening sentence
+              // there, with this lane's own diagnostic kept in the parentheses.
+              const incomplete = (resp?.incomplete_details as Record<string, unknown> | undefined)?.reason
+              if (isOutputCapStop(incomplete)) {
+                throw new LlmOutputTruncatedError(`${outputCappedMessage()} (${detail})`, failureUsage)
+              }
+              throw new LlmStreamResponseError(detail, failureUsage)
             }
             // This event completes the response even if the HTTP connection stays
             // open. Preserve its usage, then release the reader in finally.
@@ -2030,13 +2101,18 @@ async function parseSseStream(
     })
   }
 
+  // Real billing beats the estimate, same precedence as the non-streaming path.
+  const providerCost = actualUsd ?? (usage ? calculateLlmCost(modelId, usage) : undefined)
+  // Last, so a streamed caller has already shown every token it received — the
+  // throw is what stops those tokens being saved as a finished answer.
+  assertNotOutputCapped({ modelId, lane: `kie ${format} stream`, stopReason, cap, usage, providerCost })
+
   return {
     // Text wins when present; the accumulated tool payload is the body only for
     // a forced-tool call, which emits no text block at all.
     text: fullText || toolJson,
     usage,
     model: modelId,
-    // Real billing beats the estimate, same precedence as the non-streaming path.
-    providerCost: actualUsd ?? (usage ? calculateLlmCost(modelId, usage) : undefined),
+    providerCost,
   }
 }

@@ -16,6 +16,7 @@ import { buildJobInputData } from "../lib/job-input-data.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { sendInternalError } from "../lib/http-errors.js"
 import { markProviderCallStart } from "../lib/reconcile/persistence.js"
+import { billedProviderCost } from "../lib/llm-errors.js"
 
 const llmChatBody = z.object({
   // LLM_TEXT_INPUT_MAX (100K): the "Generate Text" node feeds an LLM whose
@@ -178,8 +179,9 @@ export async function llmChatRoutes(app: FastifyInstance) {
 
         await supabase
           .from("jobs")
-          .update({ status: "failed", output_data: { error: message } })
+          .update({ status: "failed", output_data: { error: message }, provider_cost: billedProviderCost(err) })
           .eq("id", job.id)
+          .eq("user_id", userId)
 
         if (usageLogId) {
           await CreditsService.refundCredits(usageLogId)
@@ -328,8 +330,9 @@ export async function llmChatRoutes(app: FastifyInstance) {
 
         await supabase
           .from("jobs")
-          .update({ status: "failed", output_data: { error: message } })
+          .update({ status: "failed", output_data: { error: message }, provider_cost: billedProviderCost(err) })
           .eq("id", job.id)
+          .eq("user_id", userId)
 
         if (usageLogId) {
           await CreditsService.refundCredits(usageLogId)

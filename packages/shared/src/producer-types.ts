@@ -234,6 +234,6 @@ export const FAN_OUT_EACH_TYPES: ReadonlySet<string> = new Set([
   // apply-edl render) per clip. The `tighten`/`chapters` modes emit an OBJECT,
   // for which the list extractors return undefined, so an "each" edge falls back
   // to the scalar `edl` value (no fan-out) — the same graceful degradation
-  // web-scrape relies on. See `unwrapEditPlanOutput` in `edl.ts`.
+  // web-scrape relies on. See `unwrapEditPlanOutput` in `edit-plan-contract.ts`.
   "edit-plan",
 ])

@@ -2970,19 +2970,19 @@
     },
     {
       "key": "transition/timing",
-      "note": "transition with position + duration + intensity, no ctx",
+      "note": "transition with position + duration + intensity, no ctx (a non-instant row, so the duration clause is emitted)",
       "node": {
         "id": "n1",
         "type": "transition",
         "data": {
-          "transition": "none",
+          "transition": "cross-dissolve",
           "position": "middle",
           "duration": "short",
           "intensity": "dynamic"
         }
       },
       "ctx": null,
-      "expected": "no transition, hard cut, instantaneous switch from first shot to second shot, the transition occurs in the middle of the clip, lasting approximately 1 second, with dynamic energy and assertive flourish"
+      "expected": "smooth cross-dissolve transition where the first shot gradually fades out as the second shot fades in, the transition occurs in the middle of the clip, lasting approximately 1 second, with dynamic energy and assertive flourish"
     },
     {
       "key": "transition/timing-auto",
@@ -2999,6 +2999,22 @@
       },
       "ctx": null,
       "expected": "no transition, hard cut, instantaneous switch from first shot to second shot"
+    },
+    {
+      "key": "transition/timing-instant",
+      "note": "an INSTANT transition (a cut) with position + duration + intensity — the duration clause is dropped",
+      "node": {
+        "id": "n1",
+        "type": "transition",
+        "data": {
+          "transition": "none",
+          "position": "middle",
+          "duration": "short",
+          "intensity": "dynamic"
+        }
+      },
+      "ctx": null,
+      "expected": "no transition, hard cut, instantaneous switch from first shot to second shot, the transition occurs in the middle of the clip, with dynamic energy and assertive flourish"
     },
     {
       "key": "transition/with-ctx",

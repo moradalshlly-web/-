@@ -15,6 +15,7 @@ import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/re
 import { buildJobInputData } from "../lib/job-input-data.js"
 import { formatZodError } from "../lib/zod-error.js"
 import { markProviderCallStart } from "../lib/reconcile/persistence.js"
+import { billedProviderCost } from "../lib/llm-errors.js"
 
 const aiWriterBody = z.object({
   // LLM_TEXT_INPUT_MAX (100K) — same rationale as llm-chat: the input feeds an
@@ -150,8 +151,9 @@ export async function aiWriterRoutes(app: FastifyInstance) {
 
         await supabase
           .from("jobs")
-          .update({ status: "failed", output_data: { error: message } })
+          .update({ status: "failed", output_data: { error: message }, provider_cost: billedProviderCost(err) })
           .eq("id", job.id)
+          .eq("user_id", userId)
 
         if (usageLogId) {
           await CreditsService.refundCredits(usageLogId)
@@ -331,8 +333,9 @@ export async function aiWriterRoutes(app: FastifyInstance) {
         // Mark job as failed
         await supabase
           .from("jobs")
-          .update({ status: "failed", output_data: { error: message } })
+          .update({ status: "failed", output_data: { error: message }, provider_cost: billedProviderCost(err) })
           .eq("id", job.id)
+          .eq("user_id", userId)
 
         // Refund credits
         if (usageLogId) {

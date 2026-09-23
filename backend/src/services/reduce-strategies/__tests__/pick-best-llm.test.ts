@@ -7,12 +7,31 @@ vi.mock("../../../lib/llm-client", () => ({
 const { llmComplete } = await import("../../../lib/llm-client")
 const { execute } = await import("../pick-best-llm")
 const { LLM_FEATURE_DEFAULTS } = await import("@nodaro/shared")
+const { LlmOutputTruncatedError } = await import("../../../lib/llm-errors")
 
 const ctx = { userId: "u1", jobId: "j1", logger: console as any }
 
 describe("pick-best-llm strategy", () => {
   beforeEach(() => {
     vi.mocked(llmComplete).mockReset()
+  })
+
+  it("a verdict cut off at the output cap keeps the first-survivor fallback instead of failing the reduce (#1588)", async () => {
+    vi.mocked(llmComplete).mockRejectedValue(
+      new LlmOutputTruncatedError("The answer was cut off", { inputTokens: 10, outputTokens: 400, complete: false }),
+    )
+
+    const out = await execute(["", "beta", "gamma"], { criteria: "x", inputKind: "text" }, ctx)
+
+    expect(out.result).toBe("beta")
+    expect(out.meta.selectedIndex).toBe(1)
+    expect(out.meta.reasoning).toMatch(/cut off/)
+  })
+
+  it("any other judge failure still fails the strategy", async () => {
+    vi.mocked(llmComplete).mockRejectedValue(new Error("KIE.ai chat-completions failed (500)"))
+
+    await expect(execute(["a", "b"], { criteria: "x", inputKind: "text" }, ctx)).rejects.toThrow(/500/)
   })
 
   it("judges with the feature default model when none is chosen, under its own feature id", async () => {

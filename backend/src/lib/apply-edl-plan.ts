@@ -12,6 +12,7 @@
 import {
   type Edl,
   type EdlSegment,
+  EDL_SOURCE_ROLES,
   normalizeEdl,
   validateEdl,
   edlDurationMs,
@@ -103,6 +104,8 @@ export function applyEdlBaseCredits(edl: Edl): number {
   return APPLY_EDL_CREDITS_PER_OUTPUT_MINUTE * applyEdlReserveMinutes(edl)
 }
 
+const KNOWN_SOURCE_ROLES: ReadonlySet<string> = new Set(EDL_SOURCE_ROLES)
+
 export interface ApplyEdlValidation {
   readonly ok: boolean
   readonly issues: readonly string[]
@@ -114,8 +117,9 @@ export interface ApplyEdlValidation {
  * credits are reserved: every referenced source must have a non-empty url, a
  * `video`-output edit must give every segment a picture source, nothing the
  * phase-1 renderer cannot render may be present (multi-slot layouts, layout
- * transitions other than "cut", regions), and no segment may start before its
- * source's origin. Returns issues so the route can 400 naming exactly what is
+ * transitions other than "cut", regions), no source may carry a role this
+ * executor does not know, and no segment may start before its source's origin.
+ * Returns issues so the route can 400 naming exactly what is
  * wrong. (Whether a segment runs PAST a source's end needs the file itself and
  * is checked by the executor after download — it fails naming the segment,
  * never clamps.)
@@ -123,6 +127,17 @@ export interface ApplyEdlValidation {
 export function validateEffectiveEdl(edl: Edl, output: "video" | "audio"): ApplyEdlValidation {
   const base = validateEdl(edl)
   const issues = [...base.issues]
+
+  // An unknown role is only a WARNING in the shared contract (a newer producer
+  // may know more roles), but this executor knows exactly EDL_SOURCE_ROLES, and
+  // the one it acts on is "master-audio": a misspelled one would silently take
+  // every segment's sound from its own camera. So it is PROMOTED to an issue
+  // here — checked against the registry directly, never by parsing warnings.
+  for (const s of edl.sources) {
+    if (s.role !== undefined && !KNOWN_SOURCE_ROLES.has(s.role)) {
+      issues.push(`source "${s.id}": unknown role "${s.role}" — this renderer knows only ${EDL_SOURCE_ROLES.join(", ")} (a misspelled "master-audio" would take each segment's sound from its own camera)`)
+    }
+  }
 
   // Every source the segments reference must resolve to a real url (the
   // executor downloads from `EdlSource.url`). validateEdl already flags empty

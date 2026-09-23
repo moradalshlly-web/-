@@ -32,7 +32,7 @@ function totalSilentMs(ranges: Array<{ startMs: number; endMs: number }>): numbe
 function SilenceDetectNodeComponent({ id, data, selected }: NodeProps) {
   const t = useT()
   const nodeData = data as SilenceDetectNodeData
-  const credits = useModelCredits("silence-detect", 1)
+  const credits = useModelCredits("silence-detect", 10)
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData)
   const runSingleNode = useWorkflowStore((s) => s.runSingleNode)
   const status = nodeData.executionStatus ?? "idle"

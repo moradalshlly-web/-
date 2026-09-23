@@ -1,5 +1,81 @@
 # @nodaro/prompts
 
+## 1.23.0
+
+### Minor Changes
+
+- 0ea567d: Transitions: instant (cut) rows take no duration.
+
+  `Transition` gains an optional `instant?: boolean`, set on the eight rows whose mechanism is a cut — `none` (hard cut), `snap-to-black`, `match-cut`, `smash-cut`, `seamless-match` (invisible cut), `jump-cut`, `jump-match` (match cut on a jump) and `action-relay` (match cut on action). New export `isInstantTransition(id | ids)` — true when the id (or, for a multi-pick, EVERY picked id) is instant; unknown / `auto` / empty are false.
+
+  `composeTransitionHintFromConnections` now drops the duration clause ("lasting approximately 1 second", including `instant`'s "occurring instantaneously") when every picked transition is instant: a duration on a cut made video models render a dissolve. Position and intensity clauses still apply. A mixed pick (a cut plus a non-cut) keeps its duration. Consumers (the canvas transition picker, Studio) can read `isInstantTransition` to hide the duration lever for these rows.
+
+  `PickerOption` gains `instant?: true`, carried on the transition picker catalog's cut rows (`getPickerCatalog("transition").options`), so a client that reads only the wire catalog (`/v1/picker-catalogs/transition`) can hide the Duration lever for cuts. The field is absent on every other row and catalog; a row a catalog pack adds carries it only when the pack's own option does.
+
+## 1.22.0
+
+### Minor Changes
+
+- a48b462: `edit-plan` (podcast editing) registers in `NODE_PROMPT_FIELDS` with its
+  `instructions` field as the affix-capable prompt, so `promptPrefix` /
+  `promptSuffix` wrap the editing instructions across every prompt surface.
+  Additive.
+- d4b3145: New Generate Video factory preset `generate-video/edit-video` (group "Video Editing"): Seedance 2.5 with Aspect ratio `adaptive` and Auto duration (`-1`) — the shape the provider requires to edit a wired reference clip — shipping only pre & post text (`edit {video:1} as follows:` + a keep-everything-else-unchanged tail), so the user's own sentence is the whole prompt.
+- 6ad3d61: Instagram scraper node: shared vocabulary (`instagram-scrape.ts` — modes, tiered credit ids reusing the analysis multiples, featured text/image/video outputs, target splitter, `instagramScrapeCreditIdFromNode`), the shared scraper handle-typing branch now covers `instagram-scrape`, and `@nodaro/prompts` adds `POST_CONTENT_ANALYSIS_SYSTEM_PROMPT` (the organic-content twin of the ad-analyst prompt, same output shape) so scraper nodes can run a content-analyst pass.
+- 74e4373: Seedance video EDIT contract for the Video to Video node. Seedance has no video-to-video endpoint — it edits a video handed to it as a _reference_ when the prompt reads as an edit instruction — so every surface dispatches that lane as a text-to-video request in edit shape, with the source clip as reference video 1.
+
+  `@nodaro/shared` adds:
+
+  - `SEEDANCE_VIDEO_EDIT_PROVIDERS` + `isSeedanceVideoEditProvider(provider)` — the models that behave this way (`seedance-2-5` today), and the type `SeedanceVideoEditProvider`.
+  - `VIDEO_TO_VIDEO_NODE_PROVIDERS` + `VideoToVideoNodeProvider` — every model the Video to Video NODE offers, i.e. `VIDEO_TO_VIDEO_PROVIDERS` plus the edit providers. `VIDEO_TO_VIDEO_PROVIDERS` (the `/v1/video-to-video` route enum) is deliberately UNCHANGED: that endpoint cannot serve these models, so a client must keep validating route requests against it.
+  - `SEEDANCE_VIDEO_EDIT_SHAPE` — the `{ aspectRatio: "adaptive", duration: -1 }` pair the edit request sends up front, so the output keeps the source clip's own ratio and length.
+  - `seedanceVideoEditCreditId(provider, resolution?)` — the credit identifier that lane reserves under (the reference-video ladder at the model's longest clip, settled down to the delivered length). One builder, so a quote can never disagree with the reservation.
+
+  `@nodaro/prompts` adds:
+
+  - `SEEDANCE_VIDEO_EDIT_PREFIX` — the `edit {video:1} as follows:\n` instruction, written with the editor reference token so it resolves through the normal reference resolver.
+  - `buildSeedanceVideoEditPrompt(prompt)` — frames a prompt as an edit of the source clip. Idempotent: a prompt that already opens with the instruction (either token spelling) is returned unchanged.
+
+  All additive — no existing export changes shape or behaviour.
+
+### Patch Changes
+
+- d1c71f3: Apply catalog exclusions to auxiliary dimensions and keep curated defaults within the offered choices.
+- Updated dependencies [e37fe27]
+- Updated dependencies [81be5f2]
+- Updated dependencies [a3e000a]
+- Updated dependencies [65b4cdd]
+- Updated dependencies [f75ebfe]
+- Updated dependencies [00ac720]
+- Updated dependencies [2263cf6]
+- Updated dependencies [a48b462]
+- Updated dependencies [dcaaa20]
+- Updated dependencies [a7774fc]
+- Updated dependencies [2b32c90]
+- Updated dependencies [f86ad38]
+- Updated dependencies [a49c7c6]
+- Updated dependencies [6ad3d61]
+- Updated dependencies [1a89eff]
+- Updated dependencies [6a69e7d]
+- Updated dependencies [368e95a]
+- Updated dependencies [c79489e]
+- Updated dependencies [a976e32]
+- Updated dependencies [1126801]
+- Updated dependencies [7f5159d]
+- Updated dependencies [9e25b67]
+- Updated dependencies [ccb8a93]
+- Updated dependencies [5b9f5ed]
+- Updated dependencies [a436fab]
+- Updated dependencies [8efa462]
+- Updated dependencies [5c672cb]
+- Updated dependencies [a610640]
+- Updated dependencies [8e97188]
+- Updated dependencies [ccb8a93]
+- Updated dependencies [74e4373]
+- Updated dependencies [d4b3145]
+- Updated dependencies [1c8b7de]
+  - @nodaro/shared@3.12.0
+
 ## 1.21.0
 
 ### Minor Changes

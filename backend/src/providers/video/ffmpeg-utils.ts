@@ -10,6 +10,7 @@ import { lookup as dnsLookup } from "node:dns/promises"
 import { isIP } from "node:net"
 import { config } from "../../lib/config.js"
 import { safeFetch, isPrivateOrReservedIP } from "../../lib/safe-fetch.js"
+import { csvFields } from "./ffprobe-csv.js"
 
 export async function downloadFile(url: string, dest: string, opts: { maxBytes?: number } = {}): Promise<void> {
   // safeFetch: callers include media-process which streams user-supplied
@@ -325,6 +326,22 @@ export async function wroteOutputFile(filePath: string): Promise<boolean> {
   }
 }
 
+let ffmpegVersionPromise: Promise<string> | undefined
+/** The installed ffmpeg's first `-version` line (e.g. `ffmpeg version n8.1.2-…`),
+ *  resolved once per process. Rendered output is ffmpeg-build-dependent, so
+ *  render caches key on it. A failed probe is NOT memoized and resolves to
+ *  "unknown" — a cache then misses (safe), it never matches wrongly. */
+export function ffmpegVersionLine(): Promise<string> {
+  ffmpegVersionPromise ??= runFfmpeg(["-version"]).then(
+    (out) => out.split("\n", 1)[0].trim() || "unknown",
+    () => {
+      ffmpegVersionPromise = undefined
+      return "unknown"
+    },
+  )
+  return ffmpegVersionPromise
+}
+
 export function logFfmpegVersion(tag: string): void {
   execFile("ffmpeg", ["-version"], { timeout: 10_000 }, (error, stdout) => {
     if (error) {
@@ -380,7 +397,7 @@ export async function getVideoFps(filePath: string): Promise<number> {
       "-v", "error", "-select_streams", "v:0",
       "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", filePath,
     ])
-    const [n, d] = out.trim().split("/").map(Number)
+    const [n, d] = (csvFields(out)[0] ?? "").split("/").map(Number)
     const fps = d ? n / d : n
     return fps && Number.isFinite(fps) && fps > 0 ? fps : 30
   } catch {
@@ -601,8 +618,19 @@ export type TrackEnd =
   | { readonly state: "absent" }
   /** The track's real end, in seconds on the RENDER's clock. */
   | { readonly state: "measured"; readonly endSec: number }
-  /** The track is there but its end could not be read (no timestamps, or the scan failed). */
-  | { readonly state: "unmeasured"; readonly reason: string }
+  /** The track is there but its end could not be read (no timestamps, or the scan failed).
+   *  `declaredEndSec` is set ONLY for a re-anchoring container (MPEG-TS/PS) whose
+   *  timestamps run continuously (never back, never forward past the CLI's
+   *  fold threshold — see `dtsContinuity`): its `format.duration` is then the span of
+   *  every stream, which on the render's clock can only OVER-state a track's end
+   *  — a coarse upper bound the window check may refuse against without ever
+   *  refusing a correct edit. A TS/PS file whose timestamps jump BACK (two
+   *  recordings joined, a stream reconnect, a restarted encoder) gets none:
+   *  ffprobe's duration is then last-minus-first timestamp and UNDER-states the
+   *  content the render plays straight through (a 20 s joined file declares
+   *  10 s). A plain scan failure gets none either: there the declaration can
+   *  UNDER-report too (a Xing-less VBR mp3 of 600 s declares 554 s). */
+  | { readonly state: "unmeasured"; readonly reason: string; readonly declaredEndSec?: number }
 
 /** The picture and sound tracks of one source file. */
 export interface StreamEnds {
@@ -645,7 +673,10 @@ export interface StreamEnds {
  *    handled the same way. EXCEPTION: MPEG-TS / program-stream containers
  *    re-anchor to the earliest MAPPED stream (which chunking changes), so
  *    `format.start_time` is not the render's zero for them — both tracks come
- *    back `unmeasured` and the window check is skipped rather than made wrong.
+ *    back `unmeasured`. Their declared duration is attached as a coarse upper
+ *    bound only when a packet scan of every mapped track shows its DTS running
+ *    continuously; otherwise the window check is skipped for the source
+ *    rather than made wrong.
  *
  * Cost is I/O only and scales with file size. Packet lines are STREAMED (a
  * two-hour track is several MB of csv — past `runFfprobe`'s buffer). Local
@@ -657,16 +688,30 @@ export interface StreamEnds {
 export async function probeStreamEnds(filePath: string): Promise<StreamEnds> {
   const listing = await runFfprobe([
     "-v", "error",
-    "-show_entries", "format=start_time,format_name:stream=index,codec_type:stream_disposition=attached_pic",
+    "-show_entries", "format=start_time,duration,format_name:stream=index,codec_type:stream_disposition=attached_pic",
     "-of", "json",
     filePath,
   ])
-  const { video, audio, startSec, reAnchors } = parseStreamListing(listing)
+  const { video, audio, startSec, reAnchors, declaredSec } = parseStreamListing(listing)
   if (reAnchors) {
     // The container's timestamps do not share the render's clock (see the
-    // docstring) — measuring against them would refuse correct edits or pass
-    // bad ones. Skip the check; the render proceeds as it always has.
-    const unmeasured: TrackEnd = { state: "unmeasured", reason: "MPEG-TS/PS container re-anchors timestamps; not on the render's clock" }
+    // docstring) — measuring per track against them would refuse correct edits
+    // or pass bad ones. Its declared duration (the span of every stream) is a
+    // safe UPPER bound instead — but only while the timestamps run forward: a
+    // backward jump makes it UNDER-state the content (see `TrackEnd`), and a
+    // bound that refuses correct paid edits is worse than none. When it holds,
+    // the window check refuses past it + a wider tolerance, so an overrun
+    // cannot deliver minutes of frozen picture.
+    const mapped = [video, audio].filter((i): i is number => i !== undefined)
+    const continuity = declaredSec !== undefined ? await dtsContinuity(filePath, mapped) : undefined
+    const base = "MPEG-TS/PS container re-anchors timestamps; not on the render's clock"
+    const unmeasured: TrackEnd = {
+      state: "unmeasured",
+      reason: continuity === undefined || continuity === "monotonic"
+        ? base
+        : `${base}; ${continuity}, so its declared length is no bound`,
+      ...(declaredSec !== undefined && continuity === "monotonic" ? { declaredEndSec: declaredSec } : {}),
+    }
     return {
       video: video === undefined ? { state: "absent" } : unmeasured,
       audio: audio === undefined ? { state: "absent" } : unmeasured,
@@ -687,17 +732,18 @@ export async function probeStreamEnds(filePath: string): Promise<StreamEnds> {
   return { video: await measure(video), audio: await measure(audio) }
 }
 
-/** From an ffprobe `-show_entries format=start_time,format_name:stream=index,
- *  codec_type:stream_disposition=attached_pic -of json` listing: the first REAL
- *  video stream (not cover art) and the first audio stream, by index, the
- *  file's start time in seconds (0 when the container reports none), and
+/** From an ffprobe `-show_entries format=start_time,duration,format_name:
+ *  stream=index,codec_type:stream_disposition=attached_pic -of json` listing:
+ *  the first REAL video stream (not cover art) and the first audio stream, by
+ *  index, the file's start time in seconds (0 when the container reports none),
  *  `reAnchors` — whether the container re-anchors timestamps to the earliest
  *  mapped stream (MPEG-TS / program stream), so `format.start_time` is not the
- *  render's zero. Exported for its unit test. */
-export function parseStreamListing(listingJson: string): { video?: number; audio?: number; startSec: number; reAnchors: boolean } {
+ *  render's zero — and `declaredSec`, the container's declared duration when it
+ *  reports a positive one. Exported for its unit test. */
+export function parseStreamListing(listingJson: string): { video?: number; audio?: number; startSec: number; reAnchors: boolean; declaredSec?: number } {
   let parsed: {
     streams?: Array<{ index?: number; codec_type?: string; disposition?: { attached_pic?: number } }>
-    format?: { start_time?: string; format_name?: string }
+    format?: { start_time?: string; duration?: string; format_name?: string }
   }
   try {
     parsed = JSON.parse(listingJson) as typeof parsed
@@ -711,12 +757,44 @@ export function parseStreamListing(listingJson: string): { video?: number; audio
   // ffprobe joins comma-separated demuxer names, e.g. "mpegts" or "mpeg".
   const names = (parsed.format?.format_name ?? "").split(",").map((n) => n.trim())
   const reAnchors = names.includes("mpegts") || names.includes("mpegtsraw") || names.includes("mpeg")
+  const declared = Number(parsed.format?.duration)
   return {
     ...(typeof video === "number" ? { video } : {}),
     ...(typeof audio === "number" ? { audio } : {}),
     startSec: Number.isFinite(start) ? start : 0,
     reAnchors,
+    ...(Number.isFinite(declared) && declared > 0 ? { declaredSec: declared } : {}),
   }
+}
+
+/** Do these tracks' packet DTS run continuously? "monotonic" when every track
+ *  has DTS and none jumps; otherwise a short reason. A jump is either a step
+ *  BACK — within one stream DTS is non-decreasing even with B-frames (PTS is
+ *  what reorders) — or a step FORWARD past where the previous packet ENDS
+ *  (dts + duration, the CLI's own `next_dts` prediction) by more than
+ *  `DTS_JUMP_THRESHOLD_SEC`, the CLI's `-dts_delta_threshold` (so a still-image
+ *  stream whose frames each last 12 s is continuous, as the CLI sees it): both are discontinuities the
+ *  CLI folds away at render time, so the content plays straight through while
+ *  `format.duration` (last minus first timestamp) says something else. The
+ *  forward case matters: libavformat treats a timestamp more than 60 s below
+ *  the first one as a 33-bit wrap and adds 2^33 ticks, so a recording that
+ *  restarted its clock reads as one ~26.5 h forward step (a genuine wrap, which
+ *  libavformat unwraps into continuous timestamps, stays monotonic). A scan
+ *  that fails is reported, never treated as continuous. */
+export const DTS_JUMP_THRESHOLD_SEC = 10
+
+async function dtsContinuity(filePath: string, streamIndices: readonly number[]): Promise<string> {
+  if (streamIndices.length === 0) return "no mapped track to scan"
+  for (const index of streamIndices) {
+    try {
+      const { dtsSteps } = await scanPacketEnds(filePath, index)
+      if (dtsSteps === "none") return `stream ${index} carries no DTS`
+      if (dtsSteps === "discontinuous") return `stream ${index}'s timestamps jump (back, or forward by more than ${DTS_JUMP_THRESHOLD_SEC} s — a joined or reconnected recording)`
+    } catch (err) {
+      return `stream ${index} could not be scanned (${err instanceof Error ? err.message : String(err)})`
+    }
+  }
+  return "monotonic"
 }
 
 /** One packet csv line — ffprobe always writes the fields in its own order,
@@ -742,9 +820,10 @@ export function parsePacketLine(line: string): { pts?: number; dts?: number; dur
 }
 
 /** Stream one track's packet list through ffprobe; keep the max PTS end and,
- *  for a stream with no pts at all, the max DTS end. Discarded packets never
- *  count. */
-function scanPacketEnds(filePath: string, streamIndex: number): Promise<{ maxPtsEnd?: number; maxDtsEnd?: number }> {
+ *  for a stream with no pts at all, the max DTS end, and whether its DTS ever
+ *  JUMPS — back, or forward past `DTS_JUMP_THRESHOLD_SEC` (`dtsSteps`, read by
+ *  `dtsContinuity`). Discarded packets never count. */
+function scanPacketEnds(filePath: string, streamIndex: number): Promise<{ maxPtsEnd?: number; maxDtsEnd?: number; dtsSteps: "monotonic" | "discontinuous" | "none" }> {
   return new Promise((resolve, reject) => {
     const proc = spawn("ffprobe", [
       "-v", "error",
@@ -762,12 +841,20 @@ function scanPacketEnds(filePath: string, streamIndex: number): Promise<{ maxPts
 
     let maxPtsEnd: number | undefined
     let maxDtsEnd: number | undefined
+    let lastDts: number | undefined
+    let lastDur = 0
+    let dtsJumps = false
     let lineBuf = ""
     const take = (line: string) => {
       const pkt = parsePacketLine(line)
       if (!pkt || pkt.discard) return
       if (pkt.pts !== undefined && (maxPtsEnd === undefined || pkt.pts + pkt.dur > maxPtsEnd)) maxPtsEnd = pkt.pts + pkt.dur
       if (pkt.dts !== undefined && (maxDtsEnd === undefined || pkt.dts + pkt.dur > maxDtsEnd)) maxDtsEnd = pkt.dts + pkt.dur
+      if (pkt.dts !== undefined) {
+        if (lastDts !== undefined && (pkt.dts < lastDts || pkt.dts - (lastDts + lastDur) > DTS_JUMP_THRESHOLD_SEC)) dtsJumps = true
+        lastDts = pkt.dts
+        lastDur = pkt.dur
+      }
     }
     proc.stdout.on("data", (chunk: Buffer) => {
       lineBuf += chunk.toString()
@@ -791,6 +878,7 @@ function scanPacketEnds(filePath: string, streamIndex: number): Promise<{ maxPts
       else resolve({
         ...(maxPtsEnd !== undefined ? { maxPtsEnd } : {}),
         ...(maxDtsEnd !== undefined ? { maxDtsEnd } : {}),
+        dtsSteps: lastDts === undefined ? "none" : dtsJumps ? "discontinuous" : "monotonic",
       })
     })
   })
@@ -860,8 +948,8 @@ export async function probeVideoStream(filePath: string): Promise<{ codec: strin
     "-of", "csv=p=0",
     filePath,
   ])
-  // ffprobe CSV output: "h264,yuv420p"
-  const parts = output.trim().toLowerCase().split(",")
+  // ffprobe CSV output: "h264,yuv420p" (see csvFields for the shapes a plain split misreads)
+  const parts = csvFields(output.toLowerCase())
   return {
     codec: parts[0] ?? "",
     pixFmt: parts[1] ?? "",
@@ -1186,7 +1274,7 @@ async function probeFirstAudioCodec(filePath: string): Promise<string | null> {
     "-of", "csv=p=0",
     filePath,
   ])
-  const codec = output.trim().toLowerCase()
+  const codec = (csvFields(output.toLowerCase())[0] ?? "")
   return codec.length > 0 ? codec : null
 }
 

@@ -7,6 +7,7 @@ import { config } from "../lib/config.js"
 import { creditGuard, reserveCreditsForJob } from "../middleware/credit-guard.js"
 import { CreditsService } from "../ee/billing/credits.js"
 import { llmCompleteStructured } from "../lib/llm-client.js"
+import { LlmOutputTruncatedError, billedProviderCost } from "../lib/llm-errors.js"
 import { LLM_ROUTE_DEFAULTS, LLM_MODEL_IDS, LLM_REASONING_EFFORTS, buildLlmCreditIdentifier, resolveLlmCreditId, LLM_FEATURE_DEFAULTS } from "@nodaro/shared"
 import { LLM_ADVANCED_SHAPE, advancedModeError, resolveLlmParams } from "../lib/llm-advanced-mode.js"
 import { extractWorkflowId, extractNodeId, extractForcePrivate } from "../lib/request-helpers.js"
@@ -276,14 +277,16 @@ export async function promptHelperRoutes(app: FastifyInstance) {
         const message = err instanceof Error ? err.message : "Prompt wizard failed"
 
         await Promise.all([
-          supabase.from("jobs").update({ status: "failed", output_data: { error: message } }).eq("id", job.id).eq("user_id", userId),
+          supabase.from("jobs").update({ status: "failed", output_data: { error: message }, provider_cost: billedProviderCost(err) }).eq("id", job.id).eq("user_id", userId),
           usageLogId ? CreditsService.refundCredits(usageLogId) : undefined,
         ])
 
         // A structured-output failure after retries is still a malformed-response
-        // situation from the client's perspective (502, not a generic 500).
+        // situation from the client's perspective (502, not a generic 500). So is
+        // a reply cut off at its output cap (#1588): the provider answered, badly.
+        const truncated = err instanceof Error && err.cause instanceof LlmOutputTruncatedError
         const isMalformed = message.includes("Malformed") || message.includes("invalid JSON") || message.includes("llm-structured")
-        return reply.status(isMalformed ? 502 : 500).send({
+        return reply.status(isMalformed || truncated ? 502 : 500).send({
           error: { code: isMalformed ? "malformed_response" : "llm_error", message },
         })
       }

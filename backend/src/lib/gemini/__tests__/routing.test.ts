@@ -91,10 +91,20 @@ describe("preferDirect model (gemini-3.1-pro)", () => {
     const { llmComplete } = await import("../../llm-client.js")
     callGeminiDirect.mockResolvedValue(directOk())
 
-    await llmComplete({ modelId: "gemini-3.1-pro", ...baseReq, temperature: 0.4, maxTokens: 1234 })
+    // Above the model's reasoning floor, so the caller's cap is what arrives.
+    await llmComplete({ modelId: "gemini-3.1-pro", ...baseReq, temperature: 0.4, maxTokens: 20_000 })
 
     const params = callGeminiDirect.mock.calls[0]![2]
-    expect(params).toMatchObject({ temperature: 0.4, maxTokens: 1234 })
+    expect(params).toMatchObject({ temperature: 0.4, maxTokens: 20_000 })
+  })
+
+  it("floors a small cap to the model's reasoning floor — the model reasons by default (#1588)", async () => {
+    const { llmComplete } = await import("../../llm-client.js")
+    callGeminiDirect.mockResolvedValue(directOk())
+
+    await llmComplete({ modelId: "gemini-3.1-pro", ...baseReq, maxTokens: 1234 })
+
+    expect(callGeminiDirect.mock.calls[0]![2]).toMatchObject({ maxTokens: 16_384 })
   })
 })
 

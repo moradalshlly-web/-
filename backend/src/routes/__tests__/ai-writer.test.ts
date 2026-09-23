@@ -73,7 +73,12 @@ beforeEach(async () => {
   const mockSingle = vi.fn().mockResolvedValue({ data: { id: "job-1" }, error: null })
   const mockSelect = vi.fn().mockReturnValue({ single: mockSingle })
   const mockInsert = vi.fn().mockReturnValue({ select: mockSelect })
-  const mockEq = vi.fn().mockResolvedValue({ data: null, error: null })
+  // self-chaining thenable: supports `.eq(...).eq(...)` (id + user_id scope) and `await`
+  const chain: { eq: (...a: unknown[]) => unknown; then: (r: (v: { data: null; error: null }) => void) => void } = {
+    eq: (...a) => mockEq(...a),
+    then: (resolve) => resolve({ data: null, error: null }),
+  }
+  const mockEq = vi.fn((..._args: unknown[]) => chain)
   const mockUpdate = vi.fn().mockReturnValue({ eq: mockEq })
   vi.mocked(supabase.from).mockReturnValue({ insert: mockInsert, update: mockUpdate } as never)
 

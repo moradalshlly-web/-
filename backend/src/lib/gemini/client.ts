@@ -29,6 +29,7 @@ import { config } from "../config.js"
 import { calculateLlmCost } from "../pricing/llm-cost.js"
 import { blocksToGeminiParts } from "./media.js"
 import { toGeminiResponseSchema } from "./response-schema.js"
+import { assertNotOutputCapped, type ReplyEnd } from "../llm-errors.js"
 import type { LlmRequest, LlmResponse } from "../llm-client.js"
 
 /** Per-call params already derived by `llm-client.deriveParams` — passed in so
@@ -123,20 +124,26 @@ function readUsage(meta: {
   }
 }
 
+/**
+ * `end` is required for the same reason it is on `llm-client`'s builders: a
+ * `MAX_TOKENS` reply reads like a finished one. This is the lane issue #1588
+ * happened on — Gemini reasons by default here, `maxOutputTokens` covers the
+ * reasoning too, and a 1,100-token cap came back as 120 characters marked done.
+ */
 function toResponse(
   model: LlmModelDef,
   text: string,
+  end: ReplyEnd,
   usage: { inputTokens: number; outputTokens: number } | undefined,
 ): LlmResponse {
-  return {
-    text,
-    usage,
-    model: model.id,
-    // Costed on the DIRECT rate band — Google list price, not KIE's resale.
-    // There is no `credits_consumed` equivalent to reconcile against here, so
-    // the rate table is the only source of truth for this lane.
-    providerCost: usage ? calculateLlmCost(model, usage, "direct") : undefined,
-  }
+  // Costed on the DIRECT rate band — Google list price, not KIE's resale.
+  // There is no `credits_consumed` equivalent to reconcile against here, so
+  // the rate table is the only source of truth for this lane.
+  const providerCost = usage ? calculateLlmCost(model, usage, "direct") : undefined
+  assertNotOutputCapped({
+    modelId: model.id, lane: "direct-gemini", stopReason: end.stopReason, cap: end.cap, usage, providerCost,
+  })
+  return { text, usage, model: model.id, providerCost }
 }
 
 function geminiModelId(model: LlmModelDef): string {
@@ -157,7 +164,12 @@ export async function callGeminiDirect(
     contents: await buildContents(req),
     config: buildConfig(model, req, params),
   })
-  return toResponse(model, response.text ?? "", readUsage(response.usageMetadata))
+  return toResponse(
+    model,
+    response.text ?? "",
+    { stopReason: response.candidates?.[0]?.finishReason, cap: params.maxTokens },
+    readUsage(response.usageMetadata),
+  )
 }
 
 export async function streamGeminiDirect(
@@ -177,6 +189,8 @@ export async function streamGeminiDirect(
   let text = ""
   // Usage arrives cumulatively; the LAST chunk carrying it is authoritative.
   let usage: { inputTokens: number; outputTokens: number } | undefined
+  // So does the finish reason — only the final chunk states it.
+  let stopReason: unknown
   for await (const chunk of stream) {
     const piece = chunk.text
     if (piece) {
@@ -185,6 +199,8 @@ export async function streamGeminiDirect(
     }
     const chunkUsage = readUsage(chunk.usageMetadata)
     if (chunkUsage) usage = chunkUsage
+    const finishReason = chunk.candidates?.[0]?.finishReason
+    if (finishReason) stopReason = finishReason
   }
-  return toResponse(model, text, usage)
+  return toResponse(model, text, { stopReason, cap: params.maxTokens }, usage)
 }
