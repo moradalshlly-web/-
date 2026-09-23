@@ -1312,5 +1312,8 @@ export type { CharacterMotionMetadata } from "./character-motion-metadata.js"
 // --- EDL: the edit decision list contract (podcast editing primitives).
 //     Types + validators + pure remap/duration functions; structural only. ---
 export * from "./edl.js"
+export * from "./speaker-layouts.js"
+export * from "./edl-multicam.js"
+export * from "./edit-plan-contract.js"
 
 export { VIDEO_DURATION_AUTO, isAutoVideoDuration } from "./video-duration-auto.js"
