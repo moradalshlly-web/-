@@ -630,7 +630,7 @@ prompt with no questions round-trip.
 | `describe_studio_production` | (Cloud only) Hand a `brief` to the Director and let it write scenes, cast and looks into an existing production. Costs an LLM run, not a render; returns a job id and marks the production; the draft is written into the document by your next `get_studio_production` and by nothing else (`get_job` / `wait_for_job` land nothing). `mode`: `append` (default) or `replace`. Needs both `workflows:write` and `workflows:execute`. |
 | `generate_studio_still` | (Cloud only) Generate a scene's **frame** (the document's `still`): `count` candidate images from what the scene already says, plus per-call `overrides`. Spends credits per candidate — `dry_run: true` prices it and starts nothing. Returns job ids; a finished image joins the scene's takes only on your next `get_studio_production` (`get_job` / `wait_for_job` report status and land nothing). Generating again ADDS takes, it never replaces one. Needs both `workflows:write` and `workflows:execute`. |
 | `generate_studio_keyframe` | (Cloud only; requires a backend with dependent-frame support) Generate one candidate for a **planned frame** (a keyframe, `keyframe_id` — not a scene's frame, which is `generate_studio_still`) at `expected_revision`. A derived frame requires an accepted parent. Description-only cast works without portraits; generating a portrait later does not change that choice. Spends credits; quoting is unavailable and `dry_run: true` is rejected before submission. The candidate reaches the frame only on your next `get_studio_production` (`get_job` / `wait_for_job` land nothing), and landing it neither accepts it nor starts another frame. Accept explicitly through `edit_studio_production` after review. Needs both `workflows:write` and `workflows:execute`. |
-| `generate_studio_clip` | (Cloud only) Generate a scene's **motion** (the document's `clip`) from its frame, start/end frames and direction; the lane is chosen from the inputs unless `mode` forces one. Spends credits — `dry_run: true` prices it and starts nothing. Returns a job id and marks the scene as rendering; the finished take reaches the scene only on your next `get_studio_production` (`get_job` / `wait_for_job` land nothing). Framing and directing can be in flight at once. Needs both `workflows:write` and `workflows:execute`. |
+| `generate_studio_clip` | (Cloud only) Generate a scene's **motion** (the document's `clip`) from its frame, start/end frames and direction; the lane is chosen from the scene's saved inputs (a pinned end frame included) unless `mode` forces one: `start` sends only the start frame (a pinned end frame is **not** sent), `start-end` sends the start and the end frame, `references` sends the reference media — omit `mode` unless you mean to override the scene. Spends credits — `dry_run: true` prices it and starts nothing. Returns a job id and marks the scene as rendering; the finished take reaches the scene only on your next `get_studio_production` (`get_job` / `wait_for_job` land nothing). Framing and directing can be in flight at once. Needs both `workflows:write` and `workflows:execute`. |
 | `new_studio_shot_from_frame` | (Cloud only) Grab a frame out of a scene's current motion and put it to work — `target: "new-shot"` (default) opens the next **scene** on it, `"start-frame"` / `"end-frame"` pin it as this scene's endpoint, `"still"` adds it as a take of its frame. `mode`: `first` / `last` / `timestamp` (with `timestamp` in seconds). Costs a frame extraction; the route waits and answers with the updated production. Needs both `workflows:write` and `workflows:execute`. |
 | `voice_studio_shot` | (Cloud only) Speak a line over a scene — the voiceover lane. Give the `text`; pick a `voice_id` from `list_voices` or let the scene's own voice settings stand. Costs a text-to-speech run; the route waits and answers with the updated production. Needs both `workflows:write` and `workflows:execute`. |
 | `revoice_studio_clip` | (Cloud only) Replace the voices inside a scene's current motion — the dialogue is re-performed and mixed back over the same picture. Takes a `plan` naming which speaker gets which voice (see the operating skill). Spends credits and returns a job id; the new mix reaches the scene only on your next `get_studio_production` (`get_job` / `wait_for_job` land nothing). Needs both `workflows:write` and `workflows:execute`. |
@@ -1259,9 +1259,19 @@ policy reason if the review rejects it.
 
 **Job envelope (structuredContent):** `jobId`, `status`, `progress`, `jobType`,
 `assetKind` (`image` / `video` / `audio` / null), `outputUrl`, `outputData`,
-`errorMessage`, `credits`, `createdAt`, `startedAt`, `completedAt`, plus
+`input`, `errorMessage`, `credits`, `createdAt`, `startedAt`, `completedAt`, plus
 `retryable`, `guidance` and `suggestedProvider` on a failed, cancelled or held
-job. `get_asset` and `wait_for_job` return the same envelope. Poll every 5–10 s
+job. `get_asset` and `wait_for_job` return the same envelope (`get_asset` without
+`input`).
+
+`input` is a safe subset of what the job was submitted with, or null — enough
+to check what the model was actually sent: `prompt` (the prompt as rendered,
+after any server-side fold of direction / subject / references), `userPrompt`
+(the caller's own words), `negativePrompt`, `direction` and `subject` (their
+catalog ids only), `provider`, `model`, `duration`, `resolution`,
+`aspectRatio`, `imageUrl` / `endFrameUrl`, the `reference{Image,Video,Audio}Urls`
+and the job `type`. Internal ids and anything outside that list are never
+included. Poll every 5–10 s
 (an image usually finishes within a minute, a video in 2–10 minutes), or call
 `wait_for_job` to block.
 
