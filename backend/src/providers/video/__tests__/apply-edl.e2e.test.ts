@@ -131,7 +131,7 @@ async function probeColor(path: string, t: number): Promise<{ r: number; g: numb
  *  green, "~" anything else (a dissolve frame). Asserting the runs pins the
  *  EXACT frame each cut lands on — a sampled colour or a duration cannot see a
  *  single dropped frame that a clone at the chunk's end then hides. */
-async function frameRuns(path: string): Promise<string> {
+async function frameRuns(path: string, strict = false): Promise<string> {
   const raw = join(tmpdir(), `ae-frames-${Math.random().toString(36).slice(2)}.raw`)
   await runFfmpeg(["-y", "-i", path, "-vf", "scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", raw])
   const buf = await fs.readFile(raw)
@@ -139,7 +139,11 @@ async function frameRuns(path: string): Promise<string> {
   const runs: Array<[string, number]> = []
   for (let i = 0; i + 2 < buf.length; i += 3) {
     const [r, g, b] = [buf[i]!, buf[i + 1]!, buf[i + 2]!]
-    const c = r > 150 && g < 60 && b < 60 ? "R" : b > 150 && r < 60 && g < 60 ? "B" : g > 80 && r < 60 && b < 60 ? "G" : "~"
+    // strict: only a PURE source colour counts, so a dissolve frame — even one
+    // barely into the blend — reads "~" and the dissolve's exact start shows.
+    const c = strict
+      ? r > 235 && g < 20 && b < 20 ? "R" : b > 235 && r < 20 && g < 20 ? "B" : g > 110 && g < 150 && r < 20 && b < 20 ? "G" : "~"
+      : r > 150 && g < 60 && b < 60 ? "R" : b > 150 && r < 60 && g < 60 ? "B" : g > 80 && r < 60 && b < 60 ? "G" : "~"
     const last = runs[runs.length - 1]
     if (last && last[0] === c) last[1]++
     else runs.push([c, 1])
@@ -1086,6 +1090,74 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
     const { outputPath } = await render({ edl, output: "video", quality: "final", jobId: "t-1f-first", checkpoint: false })
     const runs = await frameRuns(outputPath)
     expect(runs.startsWith("R1 B"), runs).toBe(true)
+    await fs.rm(outputPath, { force: true })
+  }, 120_000)
+
+  // Track 0.16: a crossfade's offset counted NOMINAL seconds while each
+  // segment's `fps` output rounds (a sliver or one-frame segment rounds UP),
+  // so after short segments the joined picture ran long and xfade cut real
+  // frames off the segment before the dissolve. Offsets are now whole frames
+  // of the accumulated picture on the global grid.
+  it("short segments before a crossfade: every segment keeps its grid frames and the dissolve starts on its frame (Track 0.16)", async () => {
+    const sources: Edl["sources"] = [
+      { id: "A", url: "https://fixtures.test/a.mp4", kind: "video" },
+      { id: "B", url: "https://fixtures.test/b.mp4", kind: "video" },
+      { id: "C", url: "https://fixtures.test/c.mp4", kind: "video" },
+    ]
+    const edl: Edl = {
+      version: 1, clock: "master", sources,
+      segments: [
+        { id: "s0", inMs: 0, outMs: 1000, video: "A", audio: "A" }, //   frames  0-30  red
+        { id: "s1", inMs: 0, outMs: 40, video: "B", audio: "B" }, //     frame  30     blue
+        { id: "s2", inMs: 0, outMs: 40, video: "C", audio: "C" }, //     frame  31     green
+        { id: "s3", inMs: 0, outMs: 1000, video: "A", audio: "A" }, //   frames 32-62  red
+        { id: "s4", inMs: 0, outMs: 1000, video: "B", audio: "B", transition: { type: "crossfade", durationMs: 300 } },
+        //  s4 starts at 1.78 s → frame 53; the dissolve spans frames 53-62; blue to frame 83
+      ],
+    }
+    const { outputPath } = await render({ edl, output: "video", quality: "final", jobId: "t-short-then-xfade", checkpoint: false })
+    const runs = await frameRuns(outputPath, true)
+    const parts = runs.split(" ")
+    expect(parts.slice(0, 3).join(" "), runs).toBe("R30 B1 G1")
+    expect(parts[3], runs).toMatch(/^R2[12]$/) // s3's 21 pure frames (+ at most the dissolve's untouched first frame)
+    expect(runs.split(" ").reduce((n, run) => n + Number(run.slice(1)), 0), runs).toBe(83)
+    expect(parts[parts.length - 1], runs).toMatch(/^B2[01]$/)
+    await fs.rm(outputPath, { force: true })
+  }, 120_000)
+
+  it("a crossfade shorter than one frame is a clean cut on the grid (Track 0.16)", async () => {
+    const sources: Edl["sources"] = [
+      { id: "A", url: "https://fixtures.test/a.mp4", kind: "video" },
+      { id: "B", url: "https://fixtures.test/b.mp4", kind: "video" },
+    ]
+    const edl: Edl = {
+      version: 1, clock: "master", sources,
+      segments: [
+        { id: "s0", inMs: 0, outMs: 1000, video: "A", audio: "A" },
+        { id: "s1", inMs: 0, outMs: 1000, video: "B", audio: "B", transition: { type: "crossfade", durationMs: 10 } },
+      ],
+    }
+    const { outputPath } = await render({ edl, output: "video", quality: "final", jobId: "t-subframe-xfade", checkpoint: false })
+    expect(await frameRuns(outputPath, true)).toBe("R30 B30")
+    await fs.rm(outputPath, { force: true })
+  }, 120_000)
+
+  it("a crossfade into a zero-frame sliver drops the sliver and cuts cleanly to the next segment (Track 0.16)", async () => {
+    const sources: Edl["sources"] = [
+      { id: "A", url: "https://fixtures.test/a.mp4", kind: "video" },
+      { id: "B", url: "https://fixtures.test/b.mp4", kind: "video" },
+      { id: "C", url: "https://fixtures.test/c.mp4", kind: "video" },
+    ]
+    const edl: Edl = {
+      version: 1, clock: "master", sources,
+      segments: [
+        { id: "s0", inMs: 0, outMs: 1000, video: "A", audio: "A" },
+        { id: "s1", inMs: 505, outMs: 515, video: "C", audio: "C", transition: { type: "crossfade", durationMs: 9 } },
+        { id: "s2", inMs: 0, outMs: 1000, video: "B", audio: "B" },
+      ],
+    }
+    const { outputPath } = await render({ edl, output: "video", quality: "final", jobId: "t-xfade-into-sliver", checkpoint: false })
+    expect(await frameRuns(outputPath, true)).toBe("R30 B30")
     await fs.rm(outputPath, { force: true })
   }, 120_000)
 
