@@ -5,6 +5,7 @@ import {
   composeTransitionHintFromConnections,
   isInstantTransition,
 } from "../transitions.js"
+import { getPickerCatalog } from "../picker-catalogs.js"
 
 /**
  * F5 (transition QA, 2026-09-22): a duration clause on a cut ("match cut, …,
@@ -91,5 +92,21 @@ describe("instant transitions — the composer drops the duration lever", () => 
   it("a no-op 'auto' beside a cut does not make the pick non-instant", () => {
     const r = composeTransitionHintFromConnections(["auto", "smash-cut"], [], [], { duration: "long" })
     expect(r).not.toContain("lasting approximately")
+  })
+})
+
+describe("instant transitions — on the wire catalog", () => {
+  it("the transition picker options carry instant: true on exactly the cut rows", () => {
+    const options = getPickerCatalog("transition")?.options ?? []
+    expect(options.length).toBe(TRANSITIONS.length)
+    expect(options.filter((o) => o.instant === true).map((o) => o.id).sort()).toEqual([...INSTANT_IDS].sort())
+    // Absent (not `false`) everywhere else, so a non-transition catalog's shape is unchanged.
+    for (const o of options) if (!INSTANT_IDS.includes(o.id)) expect(o).not.toHaveProperty("instant")
+  })
+
+  it("no other catalog grows the field", () => {
+    const camera = getPickerCatalog("camera-motion")?.options ?? []
+    expect(camera.length).toBeGreaterThan(0)
+    for (const o of camera) expect(o).not.toHaveProperty("instant")
   })
 })
