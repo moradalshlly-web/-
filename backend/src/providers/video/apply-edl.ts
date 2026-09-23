@@ -17,10 +17,16 @@
  * Long edits (> `chunkThreshold` segments) render in chunks split ONLY at
  * hard-cut boundaries (an xfade cannot straddle a chunk), each checkpointed to
  * R2 so a worker restart resumes instead of re-rendering, then joined with a
- * stream-copy concat. The checkpoint cache (`apply-edl-cache/<jobId>/…`) is
- * internal scratch: uploaded with NO `trackUserId` so it never bills the user's
- * storage quota, and best-effort deleted once the final concat succeeds.
+ * stream-copy concat. A VIDEO render also caps every graph at
+ * `VIDEO_FILTERGRAPH_MAX_SEGMENTS`; once it is chunked, its chunks carry picture
+ * only and the audio is rendered in lossless slices, joined, encoded to AAC
+ * once and muxed on (no encoder priming at any seam). The checkpoint cache
+ * (`apply-edl-cache/<jobId>/chunk-<c>-<fingerprint>.…`, keyed by a hash of the
+ * exact command — `sliceFingerprint`) is internal scratch: uploaded with NO
+ * `trackUserId` so it never bills the user's storage quota, and best-effort
+ * deleted once the final output exists.
  */
+import { createHash } from "node:crypto"
 import { promises as fs } from "node:fs"
 import { join } from "node:path"
 import type { Edl, EdlSegment, EdlSource } from "@nodaro/shared"
@@ -37,6 +43,7 @@ import {
   DEFAULT_FFMPEG_TIMEOUT_MS,
   DOWNLOAD_TIMEOUT_MS,
   FFPROBE_TIMEOUT_MS,
+  ffmpegVersionLine,
 } from "./ffmpeg-utils.js"
 import { DeterministicJobError } from "../../lib/deterministic-job-error.js"
 import { pickTargetResolution, pickTargetFps } from "./combine-videos.js"
@@ -49,11 +56,14 @@ export interface ApplyEdlOptions {
   readonly jobUserId?: string
   /** 0..1 render progress. */
   readonly onProgress?: (fraction: number) => void
-  /** Segments per render chunk (default 100). A chunk is closed only at a
+  /** Segments per render chunk (default 100; a VIDEO render is additionally
+   *  capped at `VIDEO_FILTERGRAPH_MAX_SEGMENTS`). A chunk is closed only at a
    *  hard-cut boundary, so a long xfade run may exceed this. */
   readonly maxSegmentsPerChunk?: number
   /** At or below this many segments the whole edit renders in ONE pass with no
-   *  R2 checkpoint (default 200). Lower it to force the chunked path (tests). */
+   *  R2 checkpoint (default 200; a VIDEO render is capped lower at
+   *  `VIDEO_FILTERGRAPH_MAX_SEGMENTS`, so a video edit past that always chunks).
+   *  Lower it to force the chunked path (tests). */
   readonly chunkThreshold?: number
   /** R2 checkpointing (default true). Off = pure-local render (unit tests with
    *  no storage). */
@@ -68,6 +78,55 @@ export interface ApplyEdlResult {
 
 export const DEFAULT_MAX_SEGMENTS_PER_CHUNK = 100
 export const DEFAULT_CHUNK_THRESHOLD = 200
+
+/** Frames a grid cut reads PAST its window so `fps` yields at least the N frames
+ *  the cumulative grid asks for (Track 0.14). Reading past the source end simply
+ *  yields fewer frames — the `SOURCE_END_TOLERANCE_SEC` skew case, not a crash. */
+export const APPLY_EDL_GRID_READ_GUARD_FRAMES = 4
+
+/** Max segments in ONE video `filter_complex`. A single video graph SILENTLY
+ *  DROPS FRAMES past ~45-60 segments on a cloud runner — measured on the CI
+ *  runner with the production-pinned ffmpeg: 45 segments render all frames, 60
+ *  drop ~74, 90 drop ~629, while the sample-exact AUDIO graph of the same depth
+ *  is untouched. It is the weight of the per-segment picture chain
+ *  (fps + scale + pad + trims), not the concat depth or a logic bug — the exact
+ *  graph renders every frame locally and on the same binary under emulation, so
+ *  it is a runner resource limit the graph must stay under. Every PURE-CUT video
+ *  render is therefore chunked to at most this many segments per graph (a margin
+ *  under the cliff) and the chunks stream-copy concat; the cumulative frame grid
+ *  (`chunkStartSec`) keeps them continuous. ONE case is NOT bounded by this: a
+ *  continuous CROSSFADE run has no hard cut to split on, so `planChunks` keeps it
+ *  whole and a run longer than this stays a single graph — rare (the podcast
+ *  templates cut hard), and no worse than before this cap. Audio-only graphs are
+ *  unaffected and keep the larger `DEFAULT_*` sizes. Guarded by a frame-count
+ *  e2e assertion. */
+export const VIDEO_FILTERGRAPH_MAX_SEGMENTS = 30
+
+/** Seconds of lead-in kept before each input's earliest read in a slice when it
+ *  is seeked (`-ss`): the seek lands on the prior keyframe and decodes forward,
+ *  and the margin keeps a codec's post-seek warm-up (AAC's first frame after a
+ *  seek lacks its overlap) out of every trimmed window. */
+export const INPUT_SEEK_MARGIN_SEC = 2
+
+/** The tail that holds a chunk's picture to EXACTLY `frames` frames on the
+ *  canvas grid: clone the last frame without limit (a short chain), keep
+ *  `frames` (a long one), and rebuild the timestamps from the frame index — a
+ *  crossfade over a short outgoing input can emit frames whose timestamps do
+ *  not advance, which the encoder would otherwise drop after `trim` counted
+ *  them (pinned 8.1.2: 538 of 547). `trim` ends the stream, so the unbounded
+ *  pad terminates. */
+function gridHold(frames: number): string {
+  return `tpad=stop_mode=clone:stop=-1,trim=start_frame=0:end_frame=${frames},setpts=N/FRAME_RATE/TB`
+}
+
+/** Kill budget of option B's final step (join the lossless audio slices, encode
+ *  AAC once, stream-copy the picture, mux) per second of output, floored at the
+ *  default ffmpeg ceiling. AAC encodes far faster than real time; this is a
+ *  ceiling for a hang, not an estimate. */
+export const AUDIO_MUX_SECS_PER_OUTPUT_SEC = 1
+export function audioMuxTimeoutMs(outputSec: number): number {
+  return Math.max(DEFAULT_FFMPEG_TIMEOUT_MS, Math.ceil(outputSec * AUDIO_MUX_SECS_PER_OUTPUT_SEC) * 1000)
+}
 
 /** ffmpeg kill budget per chunk: this many seconds of wall clock per second of
  *  output, with `CHUNK_RENDER_TIMEOUT_FLOOR_MS` as the floor — a hung encode
@@ -99,12 +158,15 @@ function audioSourceId(edl: Edl, seg: EdlSegment, masterAudioId: string | undefi
 }
 
 /** How far past a track's measured end a segment may reach before it is a
- *  refusal rather than rounding — see `assertSegmentsWithinSources`. Inside
- *  it the render reads to whatever the track actually has (a transcript's last
- *  word can end a beat after the audio; a clip's audio outlasts its picture by
- *  a frame or two). NOTE: per-segment frame quantization can still drift the
- *  picture against the sound over many fractional-length segments — the
- *  cumulative frame-grid fix is Track 0.14, out of scope for this PR. */
+ *  refusal rather than rounding — see `assertSegmentsWithinSources` (a
+ *  transcript's last word can end a beat after the audio; a clip's audio
+ *  outlasts its picture by a frame or two). Inside it the segment still renders
+ *  its FULL window: every source is held past its end — the picture freezes on
+ *  its last frame (`tpad` clone), the sound continues as silence (`apad`) — so
+ *  each segment is exactly its planned length, the picture stays on the
+ *  cumulative frame grid (Track 0.14) and the delivered length is
+ *  `edlDurationMs(edl)`. A segment that came up short would pull every later cut
+ *  ahead of the single continuous audio track (option B). */
 export const SOURCE_END_TOLERANCE_SEC = 1
 
 /** A read the window check could not verify, for the caller to log. */
@@ -199,28 +261,61 @@ const even = (d: { width: number; height: number }): { width: number; height: nu
   height: Math.max(2, Math.round(d.height / 2) * 2),
 })
 
+/** How ONE contiguous slice of segments renders (see `buildSliceCommand`). */
+export interface SliceOptions {
+  readonly output: "video" | "audio"
+  readonly target: { width: number; height: number }
+  readonly fps: number
+  /** This chunk's start position on the GLOBAL output timeline, in seconds
+   *  (Σ of prior chunks' output length). The cumulative frame grid (Track
+   *  0.14) is laid from here so chunk seams sit on the same grid — a chunked
+   *  render holds round(totalDur·fps) frames end to end, not per chunk. */
+  readonly chunkStartSec: number
+  readonly masterAudioId: string | undefined
+  readonly audioPresent: Map<string, boolean>
+  /** Render the PICTURE only, no audio track (video output only). Used for the
+   *  chunks of a multi-chunk video render: their audio would be encoded and
+   *  concatenated per chunk, injecting AAC priming at every seam; instead the
+   *  audio is rendered once over the whole timeline and muxed on at the end
+   *  (option B). A single-chunk render keeps its audio (no seam). */
+  readonly omitAudio?: boolean
+  /** Audio codec for an AUDIO slice: `aac` (a deliverable) or `pcm` — lossless
+   *  32-bit float in RF64/WAV, for the slices of option B's audio pass, which
+   *  join sample-exactly and are encoded to AAC ONCE (no per-seam priming). */
+  readonly audioCodec?: "aac" | "pcm"
+}
+
+/** One slice's ffmpeg command, built WITHOUT touching the filesystem so a
+ *  resume key can be derived from exactly what would render (`sliceFingerprint`)
+ *  before anything runs. Local paths are bound at run time (`runSlice`). */
+export interface SliceCommand {
+  /** Source ids in ffmpeg input order; a silence generator follows them when
+   *  `needsSilence`. */
+  readonly inputIds: readonly string[]
+  readonly needsSilence: boolean
+  /** The whole filter graph. `runSlice` hands it to ffmpeg as a FILE
+   *  (`-/filter_complex`): a graph grows ~160 B per segment and a single argv
+   *  string is capped at 128 KiB on Linux (spawn E2BIG), a limit a dev Mac
+   *  never shows. */
+  readonly filterGraph: string
+  /** Every output argument except the output path. */
+  readonly outputArgs: readonly string[]
+  /** Per input (aligned with `inputIds`), the `-ss` seek in seconds; 0 = none.
+   *  The graph's trim times are relative to it, so the fingerprint hashes it. */
+  readonly inputSeekSec: readonly number[]
+  /** The ffmpeg kill budget for this slice (`chunkRenderTimeoutMs`). */
+  readonly timeoutMs: number
+}
+
 /**
- * Render ONE contiguous slice of segments (internal boundaries may be cut or
- * crossfade) into `outPath` via a single filter_complex. `sourcePaths` maps a
- * source id to its already-downloaded local file; `audioPresent` maps a source
- * id to whether that file carries an audio stream.
+ * Build the command that renders ONE contiguous slice of segments (internal
+ * boundaries may be cut or crossfade) through a single filter_complex.
+ * `audioPresent` maps a source id to whether its file carries an audio stream.
  */
-async function renderSlice(
-  edl: Edl,
-  segs: readonly EdlSegment[],
-  opts: {
-    output: "video" | "audio"
-    target: { width: number; height: number }
-    fps: number
-    masterAudioId: string | undefined
-    sourcePaths: Map<string, string>
-    audioPresent: Map<string, boolean>
-    outPath: string
-    workDir: string
-  },
-): Promise<void> {
-  const { output, target, fps, masterAudioId, sourcePaths, audioPresent, outPath } = opts
+export function buildSliceCommand(edl: Edl, segs: readonly EdlSegment[], opts: SliceOptions): SliceCommand {
+  const { output, target, fps, chunkStartSec, masterAudioId, audioPresent, omitAudio, audioCodec = "aac" } = opts
   const wantVideo = output === "video"
+  const emitAudio = !omitAudio // audio-only renders never pass omitAudio
 
   // Stable ffmpeg input list: every distinct source this slice touches, plus a
   // shared silent generator when some segment's audio source has no track.
@@ -234,61 +329,164 @@ async function renderSlice(
     return idx
   }
 
-  interface SegPlan { readonly vLabel?: string; readonly aLabel: string }
+  interface SegPlan { readonly vLabel?: string; readonly aLabel?: string }
   const filters: string[] = []
   const plans: SegPlan[] = []
   let needsSilence = false
+
+  // A/V DRIFT (Track 0.14): the video timeline is laid on ONE cumulative frame
+  // grid so it tracks the sample-exact audio. `fps=${fps}` on EACH segment
+  // resamples that segment's DURATION independently; when a source's fps differs
+  // from the canvas (fractional 29.97, or a mixed-fps multicam) the per-segment
+  // rounding is systematic and accumulates across cuts — measured at +0.44s over
+  // 90 cuts of a 30/24 fps two-cam edit, while the audio does not move. Instead
+  // each cut segment gets EXACTLY N_i = round(cumEnd_i·F) − round(cumStart_i·F)
+  // frames, where cumStart_i is the segment's GLOBAL output position (this
+  // chunk's start + the segments before it). The counts telescope, so the whole
+  // render holds round(totalDur·F) frames and the video end lands within a frame
+  // of the audio (measured +0.003s over the same 90 cuts). A crossfade needs
+  // frame-aligned inputs, so a chunk that CONTAINS an xfade keeps the
+  // per-segment `fps` path — and because that path can run long or short
+  // (~0.4s over 30 mixed-fps cuts), its picture is trimmed/padded at the chunk
+  // END to exactly the grid's frame count (see the xfade chain below). Any drift
+  // then stays inside that one chunk: the next chunk starts back on the grid,
+  // which option B's single continuous audio pass depends on. The podcast
+  // templates cut hard and take the grid.
+  const chunkHasXfade = wantVideo && segs.some((s, i) => i > 0 && boundaryOverlapSecs(s, segs[i - 1]) > 0)
+  const useGrid = wantVideo && !chunkHasXfade
+
+  // Per-segment frame counts on the global cumulative grid (grid path only).
+  const gridFrames: number[] = []
+  if (useGrid) {
+    let cum = chunkStartSec
+    for (const seg of segs) {
+      const startF = Math.round(cum * fps)
+      cum += secs(seg.outMs - seg.inMs)
+      gridFrames.push(Math.round(cum * fps) - startF)
+    }
+    // A whole chunk shorter than half a frame would round to zero frames
+    // everywhere and leave no video stream at all — give the first segment one
+    // frame so the render still produces a picture (degenerate EDL, never real).
+    if (gridFrames.length > 0 && !gridFrames.some((n) => n > 0)) gridFrames[0] = 1
+  }
+
+  const scalePad =
+    `scale=${target.width}:${target.height}:force_original_aspect_ratio=decrease,` +
+    `pad=${target.width}:${target.height}:(ow-iw)/2:(oh-ih)/2:color=black`
+
+  // Where each segment reads, on its source's own clock (master − offsetMs).
+  const videoReadOf = (seg: EdlSegment) => {
+    const vs = edl.sources.find((s) => s.id === seg.video)!
+    const start = Math.max(0, secs(seg.inMs - offsetOf(vs)))
+    return { id: vs.id, start, end: Math.max(start, secs(seg.outMs - offsetOf(vs))) }
+  }
+  const audioReadOf = (seg: EdlSegment) => {
+    const aId = audioSourceId(edl, seg, masterAudioId)
+    const aSrc = aId ? edl.sources.find((s) => s.id === aId) : undefined
+    if (!aSrc || !audioPresent.get(aSrc.id)) return undefined
+    const start = Math.max(0, secs(seg.inMs - offsetOf(aSrc)))
+    return { id: aSrc.id, start, end: Math.max(start, secs(seg.outMs - offsetOf(aSrc))) }
+  }
+
+  // INPUT SEEK. `trim`/`atrim` run AFTER the decoder, so without a seek a slice
+  // whose window sits at t=T decodes every source from 0 just to discard it:
+  // with chunks capped at 30 segments, the last chunk of an hour-long 1080p edit
+  // took 1,475 s on 2 cores against its 1,200 s kill budget (pinned 8.1.2). Each
+  // input is instead seeked (`-ss` before `-i`, frame/sample-accurate — ffmpeg
+  // decodes from the prior keyframe and discards up to the target) to its
+  // EARLIEST read in this slice minus INPUT_SEEK_MARGIN_SEC, and every trim on it
+  // is rebased by that offset. Measured byte-identical to the unseeked render.
+  const minReadOf = new Map<string, number>()
+  const noteRead = (id: string, t: number) => minReadOf.set(id, Math.min(minReadOf.get(id) ?? Infinity, t))
+  segs.forEach((seg, i) => {
+    if (wantVideo && !(useGrid && gridFrames[i] <= 0)) noteRead(videoReadOf(seg).id, videoReadOf(seg).start)
+    if (emitAudio) {
+      const a = audioReadOf(seg)
+      if (a) noteRead(a.id, a.start)
+    }
+  })
+  const seekOf = (id: string): number =>
+    Math.max(0, Math.floor(((minReadOf.get(id) ?? 0) - INPUT_SEEK_MARGIN_SEC) * 1000) / 1000)
 
   segs.forEach((seg, i) => {
     const durS = secs(seg.outMs - seg.inMs)
 
     // --- video --- (`:V` — a real video stream, never embedded cover art;
-    // the same stream `probeStreamEnds` measured)
+    // the same stream `probeStreamEnds` measured). Every picture read starts
+    // from the SOURCE held past its end (`tpad` clone): a window that reaches
+    // beyond the camera's last frame — inside SOURCE_END_TOLERANCE_SEC, which the
+    // window check accepts — reads a frozen last frame instead of coming up
+    // short. A short segment would otherwise pull every later cut ahead of the
+    // single continuous audio track (option B) for the rest of the render.
     let vLabel: string | undefined
     if (wantVideo) {
-      const vs = edl.sources.find((s) => s.id === seg.video)!
-      const vIdx = addInput(vs.id)
-      const start = Math.max(0, secs(seg.inMs - offsetOf(vs)))
-      const end = Math.max(start, secs(seg.outMs - offsetOf(vs)))
-      vLabel = `[v${i}]`
-      filters.push(
-        `[${vIdx}:V]trim=start=${start.toFixed(6)}:end=${end.toFixed(6)},setpts=PTS-STARTPTS,` +
-          `scale=${target.width}:${target.height}:force_original_aspect_ratio=decrease,` +
-          `pad=${target.width}:${target.height}:(ow-iw)/2:(oh-ih)/2:color=black,` +
-          `fps=${fps},format=yuv420p,setsar=1${vLabel}`,
-      )
+      const v = videoReadOf(seg)
+      const seek = seekOf(v.id)
+      const start = v.start - seek
+      const end = v.end - seek
+      const held = `[${addInput(v.id)}:V]tpad=stop_mode=clone:stop=-1,`
+      if (useGrid) {
+        const nFrames = gridFrames[i]
+        // nFrames === 0 is a sub-half-frame cut: it contributes NO video frame
+        // (skipped from the chain), while its audio atrim below still plays and
+        // the next segment's N absorbs the rounding — the total stays on grid.
+        if (nFrames > 0) {
+          vLabel = `[v${i}]`
+          // Read a few frames past the window so `fps` yields at least N_i
+          // frames, then keep EXACTLY N_i — every kept frame sits on the shared
+          // output grid, with no per-segment `fps` accumulation. The held source
+          // always has those frames, even past its real end.
+          const readEnd = end + APPLY_EDL_GRID_READ_GUARD_FRAMES / fps
+          filters.push(
+            `${held}trim=start=${start.toFixed(6)}:end=${readEnd.toFixed(6)},setpts=PTS-STARTPTS,` +
+              `${scalePad},fps=${fps},trim=start_frame=0:end_frame=${nFrames},setpts=PTS-STARTPTS,` +
+              `format=yuv420p,setsar=1${vLabel}`,
+          )
+        }
+      } else {
+        // xfade chunk: per-segment fps, frame-aligned for the transition. The
+        // held source keeps an outgoing segment at least as long as its xfade
+        // offset (a short one made xfade emit collapsed timestamps the encoder
+        // then dropped).
+        vLabel = `[v${i}]`
+        filters.push(
+          `${held}trim=start=${start.toFixed(6)}:end=${end.toFixed(6)},setpts=PTS-STARTPTS,` +
+            `${scalePad},fps=${fps},format=yuv420p,setsar=1${vLabel}`,
+        )
+      }
     }
 
-    // --- audio ---
-    const aId = audioSourceId(edl, seg, masterAudioId)
-    const aSrc = aId ? edl.sources.find((s) => s.id === aId) : undefined
-    const aLabel = `[a${i}]`
-    if (aSrc && audioPresent.get(aSrc.id)) {
-      const aIdx = addInput(aSrc.id)
-      const aStart = Math.max(0, secs(seg.inMs - offsetOf(aSrc)))
-      const aEnd = Math.max(aStart, secs(seg.outMs - offsetOf(aSrc)))
-      filters.push(
-        `[${aIdx}:a]atrim=start=${aStart.toFixed(6)}:end=${aEnd.toFixed(6)},asetpts=PTS-STARTPTS,` +
-          `aformat=sample_rates=48000:channel_layouts=stereo${aLabel}`,
-      )
-    } else {
-      // No usable audio track for this segment — synthesize silence of exactly
-      // the segment's length so the audio timeline stays continuous.
-      needsSilence = true
-      filters.push(
-        `[SILENCE]atrim=duration=${durS.toFixed(6)},asetpts=PTS-STARTPTS,` +
-          `aformat=sample_rates=48000:channel_layouts=stereo${aLabel}`,
-      )
+    // --- audio --- (skipped for a video-only chunk; the audio is rendered once
+    // over the whole timeline and muxed on later). `apad` holds the source past
+    // its end with silence, so every segment's sound is EXACTLY its window —
+    // the joined audio track cannot come up short and slide later cuts early.
+    let aLabel: string | undefined
+    if (emitAudio) {
+      const a = audioReadOf(seg)
+      aLabel = `[a${i}]`
+      if (a) {
+        const seek = seekOf(a.id)
+        filters.push(
+          `[${addInput(a.id)}:a]apad,atrim=start=${(a.start - seek).toFixed(6)}:end=${(a.end - seek).toFixed(6)},asetpts=PTS-STARTPTS,` +
+            `aformat=sample_rates=48000:channel_layouts=stereo${aLabel}`,
+        )
+      } else {
+        // No usable audio track for this segment — synthesize silence of exactly
+        // the segment's length so the audio timeline stays continuous.
+        needsSilence = true
+        filters.push(
+          `[SILENCE]atrim=duration=${durS.toFixed(6)},asetpts=PTS-STARTPTS,` +
+            `aformat=sample_rates=48000:channel_layouts=stereo${aLabel}`,
+        )
+      }
     }
 
     plans.push({ vLabel, aLabel })
   })
+  const inputSeekSec = inputIds.map((id) => seekOf(id))
 
-  // Build the ffmpeg input args from the resolved id order.
-  const inputArgs: string[] = []
-  for (const id of inputIds) inputArgs.push("-i", sourcePaths.get(id)!)
-  if (needsSilence) inputArgs.push("-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo")
-  // Re-point the [SILENCE] placeholder at the real anullsrc input index.
+  // Re-point the [SILENCE] placeholder at the anullsrc input, which `runSlice`
+  // appends right after the sources.
   const graph = needsSilence
     ? filters.map((f) => f.replaceAll("[SILENCE]", `[${inputIds.length}:a]`)).join(";")
     : filters.join(";")
@@ -297,31 +495,41 @@ async function renderSlice(
   const durs = segs.map((s) => secs(s.outMs - s.inMs))
   const chainParts: string[] = []
 
-  // audio chain (always present)
-  let aAcc = plans[0].aLabel
-  let runA = durs[0]
-  for (let i = 1; i < segs.length; i++) {
-    const D = boundaryOverlapSecs(segs[i], segs[i - 1])
-    const out = i === segs.length - 1 ? "[aout]" : `[aAcc${i}]`
-    if (D > 0) {
-      chainParts.push(`${aAcc}${plans[i].aLabel}acrossfade=d=${D.toFixed(6)}${out}`)
-      runA = Math.max(0, runA - D) + durs[i]
-    } else {
-      chainParts.push(`${aAcc}${plans[i].aLabel}concat=n=2:v=0:a=1${out}`)
-      runA += durs[i]
+  // audio chain (skipped for a video-only chunk)
+  let audioOutLabel: string | undefined
+  if (emitAudio) {
+    let aAcc = plans[0].aLabel!
+    let runA = durs[0]
+    for (let i = 1; i < segs.length; i++) {
+      const D = boundaryOverlapSecs(segs[i], segs[i - 1])
+      const out = i === segs.length - 1 ? "[aout]" : `[aAcc${i}]`
+      if (D > 0) {
+        chainParts.push(`${aAcc}${plans[i].aLabel!}acrossfade=d=${D.toFixed(6)}${out}`)
+        runA = Math.max(0, runA - D) + durs[i]
+      } else {
+        chainParts.push(`${aAcc}${plans[i].aLabel!}concat=n=2:v=0:a=1${out}`)
+        runA += durs[i]
+      }
+      aAcc = out
     }
-    aAcc = out
+    audioOutLabel = segs.length === 1 ? plans[0].aLabel! : "[aout]"
   }
-  const audioOutLabel = segs.length === 1 ? plans[0].aLabel : "[aout]"
 
   // video chain (video output only)
   let videoOutLabel: string | undefined
-  if (wantVideo) {
+  if (wantVideo && chunkHasXfade) {
+    // xfade chunk — pairwise xfade/concat, offsets accumulate. The per-segment
+    // `fps` path does not land on the frame grid, so the chain ends at [vxf]
+    // and is then held to EXACTLY the grid's frame count for this chunk:
+    // clone-pad the last frame (short case), then keep `gridN` frames (long
+    // case). That makes the chunk END on the global grid, so the next chunk and
+    // the continuous audio stay in sync. (An xfade needs ≥ 2 segments, so the
+    // chain always runs.)
     let vAcc = plans[0].vLabel!
     let runV = durs[0]
     for (let i = 1; i < segs.length; i++) {
       const D = boundaryOverlapSecs(segs[i], segs[i - 1])
-      const out = i === segs.length - 1 ? "[vout]" : `[vAcc${i}]`
+      const out = i === segs.length - 1 ? "[vxf]" : `[vAcc${i}]`
       if (D > 0) {
         const off = Math.max(0, runV - D)
         chainParts.push(`${vAcc}${plans[i].vLabel!}xfade=transition=fade:duration=${D.toFixed(6)}:offset=${off.toFixed(6)}${out}`)
@@ -332,33 +540,103 @@ async function renderSlice(
       }
       vAcc = out
     }
-    videoOutLabel = segs.length === 1 ? plans[0].vLabel! : "[vout]"
+    const gridN = Math.max(1, Math.round((chunkStartSec + chunkOutputSec(segs)) * fps) - Math.round(chunkStartSec * fps))
+    chainParts.push(`[vxf]${gridHold(gridN)}[vout]`)
+    videoOutLabel = "[vout]"
+  } else if (wantVideo) {
+    // grid chunk — every surviving segment is already `fps` with an integer
+    // frame count, so a plain concat yields a clean CFR timeline (zero-frame
+    // segments were dropped above). No final resample: the counts are on grid.
+    const vLabels = plans.map((p) => p.vLabel).filter((l): l is string => !!l)
+    let vcat = vLabels[0]
+    for (let i = 1; i < vLabels.length; i++) {
+      const out = `[vAcc${i}]`
+      chainParts.push(`${vcat}${vLabels[i]}concat=n=2:v=1:a=0${out}`)
+      vcat = out
+    }
+    // Every segment is already exactly N_i frames (held source), so this is
+    // a no-op in practice — it is the backstop that GUARANTEES the chunk ends on
+    // the grid, which option B's continuous audio depends on.
+    chainParts.push(`${vcat}${gridHold(gridFrames.reduce((a, n) => a + n, 0))}[vout]`)
+    videoOutLabel = "[vout]"
   }
 
   const fullFilter = [graph, ...chainParts].filter(Boolean).join(";")
 
   const proxy = target.height <= 720
-  const args: string[] = ["-y", ...inputArgs, "-filter_complex", fullFilter]
+  const outputArgs: string[] = []
   if (wantVideo) {
-    args.push(
-      "-map", videoOutLabel!,
-      "-map", audioOutLabel,
+    outputArgs.push("-map", videoOutLabel!)
+    if (emitAudio) outputArgs.push("-map", audioOutLabel!)
+    outputArgs.push(
       "-c:v", "libx264",
       "-preset", proxy ? "veryfast" : "fast",
       "-crf", proxy ? "26" : COMBINE_DELIVERY_CRF,
       "-pix_fmt", "yuv420p",
-      "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
-      "-movflags", "+faststart",
-      outPath,
     )
+    if (emitAudio) outputArgs.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2")
+    else outputArgs.push("-an")
+    outputArgs.push("-movflags", "+faststart")
+  } else if (audioCodec === "pcm") {
+    // RF64 keeps a multi-hour f32 stereo slice past WAV's 4 GiB header limit.
+    outputArgs.push("-map", audioOutLabel!, "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", "-rf64", "auto")
   } else {
-    args.push("-map", audioOutLabel, "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", outPath)
+    outputArgs.push("-map", audioOutLabel!, "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2")
   }
 
   // Explicit longer timeout: the default 10-min per-spawn would kill a long
   // chunk. The handler's liveness budget (`applyEdlRenderBudgetMs`) is summed
   // from this same per-chunk figure, so "hung" means one thing to both.
-  await runFfmpeg(args, chunkRenderTimeoutMs(segs))
+  return { inputIds, needsSilence, filterGraph: fullFilter, outputArgs, inputSeekSec, timeoutMs: chunkRenderTimeoutMs(segs) }
+}
+
+/** Run a built slice: bind the local source paths, hand ffmpeg the graph as a
+ *  file (`-/filter_complex` — never as one argv string, see `SliceCommand`),
+ *  write `outPath`. */
+async function runSlice(cmd: SliceCommand, sourcePaths: Map<string, string>, outPath: string): Promise<void> {
+  const graphPath = `${outPath}.filtergraph`
+  await fs.writeFile(graphPath, cmd.filterGraph)
+  const args: string[] = ["-y"]
+  cmd.inputIds.forEach((id, k) => {
+    // Omit the seek entirely at 0 — `-ss 0` still changes how an AAC input's
+    // first frame is primed.
+    if (cmd.inputSeekSec[k] > 0) args.push("-ss", cmd.inputSeekSec[k].toFixed(3))
+    args.push("-i", sourcePaths.get(id)!)
+  })
+  if (cmd.needsSilence) args.push("-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo")
+  args.push("-/filter_complex", graphPath, ...cmd.outputArgs, outPath)
+  try {
+    await runFfmpeg(args, cmd.timeoutMs)
+  } finally {
+    await fs.rm(graphPath, { force: true })
+  }
+}
+
+async function renderSlice(
+  edl: Edl,
+  segs: readonly EdlSegment[],
+  opts: SliceOptions & { readonly sourcePaths: Map<string, string>; readonly outPath: string },
+): Promise<void> {
+  await runSlice(buildSliceCommand(edl, segs, opts), opts.sourcePaths, opts.outPath)
+}
+
+/**
+ * The resume identity of a slice: a hash of EXACTLY what would render — the
+ * filter graph (trims, frame counts, grid position, canvas, fps), each input's
+ * seek (the graph's trims are relative to it), the encode arguments, the
+ * sources by id + URL (never the per-run local paths), and the ffmpeg build. A checkpoint is reused only under this key, so any change to
+ * chunk planning, the grid, the width cap, `omitAudio`, the encode, or the
+ * ffmpeg pin misses the old object instead of splicing a chunk rendered for a
+ * different plan into this one (which once completed a job with a scrambled
+ * picture over the right audio — and deleted the evidence). There is no scheme
+ * version to remember to bump: the key IS the command.
+ */
+export function sliceFingerprint(cmd: SliceCommand, edl: Edl, ffmpegVersion: string): string {
+  const sources = cmd.inputIds.map((id) => [id, edl.sources.find((s) => s.id === id)?.url ?? null])
+  return createHash("sha256")
+    .update(JSON.stringify({ ffmpegVersion, sources, inputSeekSec: cmd.inputSeekSec, needsSilence: cmd.needsSilence, filterGraph: cmd.filterGraph, outputArgs: cmd.outputArgs }))
+    .digest("hex")
+    .slice(0, 16)
 }
 
 /** The chunk plan a render uses: ONE pass at or below the threshold, else
@@ -371,6 +649,27 @@ export function resolveChunks(
   const maxPerChunk = options.maxSegmentsPerChunk ?? DEFAULT_MAX_SEGMENTS_PER_CHUNK
   const threshold = options.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD
   return segs.length > threshold ? planChunks(segs, maxPerChunk) : [segs as EdlSegment[]]
+}
+
+/** The chunk plan for a given OUTPUT. A VIDEO render additionally caps every
+ *  chunk (and the single-pass threshold) at `VIDEO_FILTERGRAPH_MAX_SEGMENTS`, so
+ *  a pure-cut video `filter_complex` never grows wide enough to drop frames on a
+ *  cloud runner (the one exception is a continuous crossfade run, which
+ *  `planChunks` keeps whole — see that constant); an AUDIO render keeps the
+ *  larger `DEFAULT_*` sizes. Both the render and its liveness budget call THIS,
+ *  so they agree on how many chunks there are. The cap is a ceiling — an
+ *  explicit smaller option still wins. */
+export function resolveChunksForOutput(
+  segs: readonly EdlSegment[],
+  output: "video" | "audio",
+  options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> = {},
+): EdlSegment[][] {
+  if (output !== "video") return resolveChunks(segs, options)
+  const cap = VIDEO_FILTERGRAPH_MAX_SEGMENTS
+  return resolveChunks(segs, {
+    chunkThreshold: Math.min(options.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD, cap),
+    maxSegmentsPerChunk: Math.min(options.maxSegmentsPerChunk ?? DEFAULT_MAX_SEGMENTS_PER_CHUNK, cap),
+  })
 }
 
 /** The output seconds one chunk renders (D17: crossfade overlaps subtracted). */
@@ -415,9 +714,12 @@ export function referencedSourceIds(edl: Edl, output: "video" | "audio"): Set<st
  * in the order it runs them — each referenced source's fetch + audio probe
  * (`referencedSourceIds`, the same read set the render uses), the canvas
  * probes (video only), every chunk's ffmpeg budget (`chunkRenderTimeoutMs`,
- * over `resolveChunks` — the same plan the render uses), and the final
- * stream-copy concat at the default ceiling when there is more than one chunk.
- * One number decides "hung" for the heartbeat and for those steps.
+ * over `resolveChunksForOutput` — the same plan the render uses), and when
+ * there is more than one chunk: the ffmpeg-build probe and the stream-copy
+ * concat (default ceiling each), plus — for a video render — every slice of the
+ * audio pass (`chunkRenderTimeoutMs` over the AUDIO plan) and the single
+ * join/encode/mux step (`audioMuxTimeoutMs`) (option B). One number decides
+ * "hung" for the heartbeat and for those steps.
  *
  * NOT in the sum, because they have no ceiling of their own to add: time
  * WAITING for an ffmpeg slot, and storage I/O (the R2 client has no request
@@ -431,12 +733,21 @@ export function applyEdlRenderBudgetMs(
   options: Pick<ApplyEdlOptions, "maxSegmentsPerChunk" | "chunkThreshold"> & { readonly output?: "video" | "audio" } = {},
 ): number {
   const output = options.output === "audio" ? "audio" : "video"
-  const chunks = resolveChunks(edl.segments, options)
+  const chunks = resolveChunksForOutput(edl.segments, output, options)
   const render = chunks.reduce((acc, chunk) => acc + chunkRenderTimeoutMs(chunk), 0)
   const prep = referencedSourceIds(edl, output).size * APPLY_EDL_PER_SOURCE_PREP_MS
     + (output === "video" ? APPLY_EDL_CANVAS_PROBE_MS : 0)
-  const concat = chunks.length > 1 ? DEFAULT_FFMPEG_TIMEOUT_MS : 0
-  return render + prep + concat
+  // A chunked render probes the ffmpeg build once (its resume keys hash it),
+  // then stream-copy concats the chunks.
+  const chunked = chunks.length > 1 ? 2 * DEFAULT_FFMPEG_TIMEOUT_MS : 0
+  // Multi-chunk VIDEO also renders the audio in slices of the AUDIO plan (each
+  // at its own kill budget) and joins/encodes/muxes them in one step (option
+  // B) — exactly the steps `applyEdl` runs in that case. Keep in lockstep.
+  const audioMux = output === "video" && chunks.length > 1
+    ? resolveChunksForOutput(edl.segments, "audio", options).reduce((acc, c) => acc + chunkRenderTimeoutMs(c), 0)
+      + audioMuxTimeoutMs(edlDurationMs(edl) / 1000)
+    : 0
+  return render + prep + chunked + audioMux
 }
 
 /** Split the timeline into contiguous slices closed ONLY at hard-cut boundaries
@@ -486,8 +797,10 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       // under-reports it; a live-muxed MediaRecorder WebM omits it; both
       // render fine), and not one blended number for a file whose picture and
       // sound differ in length. A file this cannot read at all stays
-      // unmeasured: the check skips it (logged) and the render proceeds as it
-      // always has, rather than failing a paid job over a probe.
+      // unmeasured: the check skips it (logged) rather than failing a paid job
+      // over a probe — and since every read is held past its source's end, a
+      // segment that overruns such a track renders its full window as a frozen
+      // last frame / silence, however long the overrun.
       try {
         sourceEnds.set(id, await probeStreamEnds(localPath))
       } catch (err) {
@@ -508,8 +821,8 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
     // shortened segment would deliver a shorter render than the EDL (and than
     // the reserve and the caption remap) describes, with no error anywhere.
     // Overshoot inside SOURCE_END_TOLERANCE_SEC is rounding — a transcript's
-    // last word can end a beat after the audio — and renders to whatever the
-    // track has.
+    // last word can end a beat after the audio — and renders its full window
+    // (the source is held past its end: frozen last frame, silence).
     const skipped = assertSegmentsWithinSources(edl, masterAudioId, wantVideo, sourceEnds)
     for (const s of skipped) {
       console.warn(
@@ -531,19 +844,37 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       fps = videoPaths.length > 0 ? await pickTargetFps(videoPaths) : 30
     }
 
-    const chunks = resolveChunks(edl.segments, options)
+    const chunks = resolveChunksForOutput(edl.segments, output, options)
+    // A multi-chunk VIDEO render renders its chunks WITHOUT audio and muxes one
+    // continuous audio track on at the end (option B) — never per-chunk AAC,
+    // whose stream-copy concat injects encoder priming at every seam. A
+    // single-chunk render (or an audio render) keeps its audio inline.
+    const muxAudioSeparately = wantVideo && chunks.length > 1
+    const useCheckpoint = checkpoint && chunks.length > 1
+    // Resume keys hash the exact command, including the ffmpeg build.
+    const ffmpegVersion = useCheckpoint ? await ffmpegVersionLine() : ""
 
     const chunkPaths: string[] = []
     const checkpointKeys: string[] = []
+    // Running GLOBAL output position handed to each chunk so the cumulative
+    // frame grid (Track 0.14) is continuous across chunk seams — advanced by
+    // every chunk, resumed ones included, so a resume can't shift the grid.
+    let chunkStartSec = 0
     for (let c = 0; c < chunks.length; c++) {
       const chunkPath = join(workDir, `chunk-${c}.${ext}`)
-      const key = `apply-edl-cache/${jobId}/chunk-${c}.${ext}`
+      const cmd = buildSliceCommand(edl, chunks[c], {
+        output, target, fps, chunkStartSec, masterAudioId, audioPresent, omitAudio: muxAudioSeparately,
+      })
+      // The key is the command's fingerprint, so a checkpoint rendered for a
+      // different plan (other chunk boundaries, grid position, width cap,
+      // encode, or ffmpeg build — e.g. an attempt that started before a deploy)
+      // is never spliced into this one: it simply isn't found.
+      const key = `apply-edl-cache/${jobId}/chunk-${c}-${sliceFingerprint(cmd, edl, ffmpegVersion)}.${ext}`
 
       // Resume: a chunk already checkpointed to R2 (a prior worker attempt) is
       // pulled back instead of re-rendered. Storage is dynamically imported so
       // the module graph (and unit tests) never pull the R2 client unless a
       // real multi-chunk render needs it.
-      const useCheckpoint = checkpoint && chunks.length > 1
       let resumed = false
       if (useCheckpoint) {
         try {
@@ -558,9 +889,7 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       }
 
       if (!resumed) {
-        await renderSlice(edl, chunks[c], {
-          output, target, fps, masterAudioId, sourcePaths, audioPresent, outPath: chunkPath, workDir,
-        })
+        await runSlice(cmd, sourcePaths, chunkPath)
         if (useCheckpoint) {
           try {
             const { uploadFileWithKeyToR2 } = await import("../../lib/storage.js")
@@ -574,28 +903,91 @@ export async function applyEdl(options: ApplyEdlOptions): Promise<ApplyEdlResult
       }
       if (useCheckpoint) checkpointKeys.push(key)
       chunkPaths.push(chunkPath)
+      chunkStartSec += chunkOutputSec(chunks[c])
       onProgress?.(0.2 + 0.7 * ((c + 1) / chunks.length))
     }
 
     // Single chunk → it IS the output. Multiple chunks (all joined at hard
     // cuts) → concat-demuxer stream-copy.
+    //
+    // Scratch disk: the steps below are ordered so every file dies at its LAST
+    // read — a 3-hour two-camera 1080p render holds ~15 GB of sources, ~10 GB of
+    // picture and ~4 GB of PCM, and the mux peak used to hold all of them plus
+    // the output (~40 GB). Order: audio slices (last read of the sources) →
+    // delete the sources → concat the chunks → delete the chunks → mux → delete
+    // the PCM + picture intermediate. Peak ≈ sources + chunks + PCM.
+    const writeList = (path: string, files: readonly string[]) =>
+      fs.writeFile(path, files.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"))
     let outputPath: string
     if (chunkPaths.length === 1) {
       outputPath = chunkPaths[0]
     } else {
-      outputPath = join(workDir, `output.${ext}`)
-      const listPath = join(workDir, "chunks.txt")
-      await fs.writeFile(listPath, chunkPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"))
-      await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", outputPath])
-      // The concat succeeded — the checkpoint cache has done its job (resume on
-      // restart). Best-effort delete it so the internal scratch doesn't linger.
-      if (checkpointKeys.length > 0) {
-        try {
-          const { deleteFromR2 } = await import("../../lib/storage.js")
-          await Promise.allSettled(checkpointKeys.map((k) => deleteFromR2(k)))
-        } catch {
-          /* cache cleanup is best-effort — a lifecycle rule / next run is the backstop */
+      // Option B: ONE continuous audio track over the whole timeline, encoded
+      // to AAC once. It is rendered in slices of the audio plan (one pass up
+      // to DEFAULT_CHUNK_THRESHOLD segments, else at most
+      // DEFAULT_MAX_SEGMENTS_PER_CHUNK per slice, split only at hard cuts so an
+      // acrossfade is never cut): one audio graph over every segment grows
+      // ~N^3 in cost (it blew its own kill budget from ~300-460 segments on
+      // the pinned ffmpeg). Only the video chunks are checkpointed — a retry
+      // re-runs this pass, which is cheap once each slice seeks to its window.
+      // Each slice is lossless PCM, so joining them is sample-exact and adds no
+      // encoder priming; the single AAC encode happens in the mux, which
+      // stream-copies the picture.
+      const pcmPaths: string[] = []
+      if (muxAudioSeparately) {
+        const audioChunks = resolveChunksForOutput(edl.segments, "audio", options)
+        for (let k = 0; k < audioChunks.length; k++) {
+          const pcmPath = join(workDir, `audio-${k}.wav`)
+          await renderSlice(edl, audioChunks[k], {
+            output: "audio", audioCodec: "pcm", target, fps, chunkStartSec: 0, masterAudioId, audioPresent, sourcePaths, outPath: pcmPath,
+          })
+          pcmPaths.push(pcmPath)
         }
+      }
+      // Nothing reads the sources past this point.
+      await Promise.all([...sourcePaths.values()].map((p) => fs.rm(p, { force: true })))
+
+      // For a video render the chunks are video-only, so concat into a picture
+      // scratch file and mux the audio on below. For an audio render the chunks
+      // ARE the output.
+      const concatPath = muxAudioSeparately ? join(workDir, `video.${ext}`) : join(workDir, `output.${ext}`)
+      const listPath = join(workDir, "chunks.txt")
+      await writeList(listPath, chunkPaths)
+      await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", concatPath])
+      // The chunks now live in `concatPath` (and in R2 for a resume).
+      await Promise.all(chunkPaths.map((p) => fs.rm(p, { force: true })))
+
+      if (muxAudioSeparately) {
+        const audioListPath = join(workDir, "audio-chunks.txt")
+        await writeList(audioListPath, pcmPaths)
+        outputPath = join(workDir, `output.${ext}`)
+        await runFfmpeg(
+          [
+            "-y", "-i", concatPath, "-f", "concat", "-safe", "0", "-i", audioListPath,
+            "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+            "-movflags", "+faststart", outputPath,
+          ],
+          audioMuxTimeoutMs(edlDurationMs(edl) / 1000),
+        )
+        await Promise.all([...pcmPaths, concatPath].map((p) => fs.rm(p, { force: true })))
+      } else {
+        outputPath = concatPath
+      }
+    }
+
+    // The final output exists — only NOW has the checkpoint cache done its job
+    // (a failure in the concat, the audio pass or the mux resumes every chunk
+    // instead of re-rendering the whole picture). Best-effort delete.
+    if (checkpointKeys.length > 0) {
+      try {
+        const { deleteFromR2 } = await import("../../lib/storage.js")
+        await Promise.allSettled(checkpointKeys.map((k) => deleteFromR2(k)))
+      } catch {
+        /* cleanup is best-effort. NOTHING else deletes apply-edl-cache/ today (no
+           R2 lifecycle rule is configured): a job that dies after uploading but
+           before this line, or any checkpoint under an older key scheme, stays
+           until a lifecycle rule is added for the prefix. */
       }
     }
 

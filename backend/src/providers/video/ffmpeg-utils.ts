@@ -325,6 +325,22 @@ export async function wroteOutputFile(filePath: string): Promise<boolean> {
   }
 }
 
+let ffmpegVersionPromise: Promise<string> | undefined
+/** The installed ffmpeg's first `-version` line (e.g. `ffmpeg version n8.1.2-…`),
+ *  resolved once per process. Rendered output is ffmpeg-build-dependent, so
+ *  render caches key on it. A failed probe is NOT memoized and resolves to
+ *  "unknown" — a cache then misses (safe), it never matches wrongly. */
+export function ffmpegVersionLine(): Promise<string> {
+  ffmpegVersionPromise ??= runFfmpeg(["-version"]).then(
+    (out) => out.split("\n", 1)[0].trim() || "unknown",
+    () => {
+      ffmpegVersionPromise = undefined
+      return "unknown"
+    },
+  )
+  return ffmpegVersionPromise
+}
+
 export function logFfmpegVersion(tag: string): void {
   execFile("ffmpeg", ["-version"], { timeout: 10_000 }, (error, stdout) => {
     if (error) {
