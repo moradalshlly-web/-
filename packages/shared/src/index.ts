@@ -374,6 +374,8 @@ export {
   ADVANCED_MODE_UNAVAILABLE_REASON,
   motionGraphicsFeature,
   effectiveReasoningEffort,
+  REASONING_OUTPUT_FLOOR,
+  reasoningOutputFloor,
   type LlmTier,
   type LlmFeature,
   type KieApiFormat,

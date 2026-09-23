@@ -3,7 +3,13 @@ import Fastify from "fastify"
 import { llmChatRoutes } from "../llm-chat.js"
 import { markProviderCallStart } from "../../lib/reconcile/persistence.js"
 import { llmComplete } from "../../lib/llm-client.js"
+import { LlmOutputTruncatedError } from "../../lib/llm-errors.js"
 import { reserveCreditsForJob } from "../../middleware/credit-guard.js"
+
+const { jobUpdates, credits } = vi.hoisted(() => ({
+  jobUpdates: [] as Array<Record<string, unknown>>,
+  credits: { commitCredits: vi.fn(async () => undefined), refundCredits: vi.fn(async () => undefined) },
+}))
 
 vi.mock("../../middleware/credit-guard.js", () => ({
   creditGuard: () => async () => undefined,
@@ -18,7 +24,15 @@ vi.mock("../../lib/supabase.js", () => ({
           single: async () => ({ data: { id: "job-1" }, error: null }),
         }),
       }),
-      update: () => ({ eq: async () => ({ error: null }) }),
+      update: (payload: Record<string, unknown>) => {
+        jobUpdates.push(payload)
+        // self-chaining thenable: supports `.eq(...).eq(...)` (id + user_id scope) and `await`
+        const chain: { eq: () => typeof chain; then: (r: (v: { error: null }) => void) => void } = {
+          eq: () => chain,
+          then: (resolve) => resolve({ error: null }),
+        }
+        return chain
+      },
     }),
   },
 }))
@@ -28,9 +42,7 @@ vi.mock("../../lib/llm-client.js", () => ({
   llmStream: vi.fn(),
 }))
 
-vi.mock("../../ee/billing/credits.js", () => ({
-  CreditsService: { commitCredits: async () => undefined, refundCredits: async () => undefined },
-}))
+vi.mock("../../ee/billing/credits.js", () => ({ CreditsService: credits }))
 
 vi.mock("../../lib/config.js", () => ({
   config: { KIE_API_KEY: "kie", ANTHROPIC_API_KEY: "ant" },
@@ -184,5 +196,37 @@ describe("POST /v1/llm-chat/generate — capability filter", () => {
     expect(res.statusCode).toBe(200)
     expect(markProviderCallStart).toHaveBeenCalledTimes(1)
     expect(markProviderCallStart).toHaveBeenCalledWith("job-1", "anthropic-sync")
+  })
+})
+
+describe("POST /v1/llm-chat/generate — a cut-off answer (#1588)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    jobUpdates.length = 0
+  })
+
+  it("fails the job and refunds instead of saving the fragment as completed", async () => {
+    vi.mocked(llmComplete).mockRejectedValueOnce(new LlmOutputTruncatedError(
+      "The answer was cut off: the model reached its 8192-token output limit before finishing",
+      { inputTokens: 13_657, outputTokens: 8_192, providerCost: 0.03, complete: true },
+    ))
+    const app = await buildApp()
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/llm-chat/generate",
+      payload: { systemPrompt: "", userInput: "write the brief", maxTokens: 1100 },
+    })
+
+    // The orchestrator reads a non-2xx sync-HTTP answer as a failed node, so the
+    // run stops here instead of handing a fragment to the next node.
+    expect(res.statusCode).toBe(502)
+    expect(JSON.parse(res.body).error.message).toMatch(/cut off/)
+    // The provider already billed the cut-off reply: its cost stays on the row,
+    // or every cost report loses a real charge the old "completed" row carried.
+    expect(jobUpdates).toEqual([expect.objectContaining({ status: "failed", provider_cost: 0.03 })])
+    expect(jobUpdates.some((u) => u.status === "completed")).toBe(false)
+    expect(credits.refundCredits).toHaveBeenCalledWith("ul-1")
+    expect(credits.commitCredits).not.toHaveBeenCalled()
   })
 })

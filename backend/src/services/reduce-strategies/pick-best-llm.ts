@@ -1,5 +1,6 @@
 import { LLM_FEATURE_DEFAULTS } from "@nodaro/shared"
-import { llmComplete, type LlmContentBlock, type LlmMessage } from "../../lib/llm-client.js"
+import { llmComplete, type LlmContentBlock, type LlmMessage, type LlmResponse } from "../../lib/llm-client.js"
+import { LlmOutputTruncatedError } from "../../lib/llm-errors.js"
 import { EmptyInputError, type StrategyContext, type StrategyResult } from "./types.js"
 
 type Config = { criteria: string; inputKind: "text" | "image-url"; llmModel?: string }
@@ -55,30 +56,43 @@ export async function execute(
   // registry with image support handles the image-url mode; llmComplete picks
   // the lane per model (direct SDK / KIE) — nothing here is model-specific.
   const modelId = config.llmModel || LLM_FEATURE_DEFAULTS["pick-best-llm"]
-  const resp = await llmComplete({
-    feature: "pick-best-llm",
-    modelId,
-    system: SYSTEM_PROMPT,
-    messages,
-    // Room for a full one-sentence reasoning plus the JSON envelope on the
-    // wordier models — 200 truncated some replies mid-sentence into an
-    // unparseable JSON, which silently fell back to "first survivor".
-    maxTokens: 400,
-  })
+  let resp: LlmResponse | undefined
+  try {
+    resp = await llmComplete({
+      feature: "pick-best-llm",
+      modelId,
+      system: SYSTEM_PROMPT,
+      messages,
+      // Room for a full one-sentence reasoning plus the JSON envelope on the
+      // wordier models — 200 truncated some replies mid-sentence into an
+      // unparseable JSON, which silently fell back to "first survivor".
+      maxTokens: 400,
+    })
+  } catch (err) {
+    // A verdict cut off at the cap is an unusable verdict, not a failed
+    // reduce: it keeps the same first-survivor fallback an unparseable reply
+    // gets. (Since #1588 the client throws on a cut-off instead of returning
+    // the fragment; before, the fragment failed to parse and landed here.)
+    if (!(err instanceof LlmOutputTruncatedError)) throw err
+  }
 
   let chosenIndex = 0
-  let reasoning = "fallback: first survivor (LLM response unparseable)"
-  try {
-    const parsed = JSON.parse(resp.text)
-    const ci = Number((parsed as { chosen_index?: unknown }).chosen_index)
-    if (Number.isInteger(ci) && ci >= 1 && ci <= survivors.length) {
-      chosenIndex = ci - 1
-      reasoning = String((parsed as { reasoning?: unknown }).reasoning ?? "")
-    } else {
-      reasoning = "fallback: first survivor (chosen_index out of range)"
+  let reasoning = resp
+    ? "fallback: first survivor (LLM response unparseable)"
+    : "fallback: first survivor (LLM reply cut off at its output limit)"
+  if (resp) {
+    try {
+      const parsed = JSON.parse(resp.text)
+      const ci = Number((parsed as { chosen_index?: unknown }).chosen_index)
+      if (Number.isInteger(ci) && ci >= 1 && ci <= survivors.length) {
+        chosenIndex = ci - 1
+        reasoning = String((parsed as { reasoning?: unknown }).reasoning ?? "")
+      } else {
+        reasoning = "fallback: first survivor (chosen_index out of range)"
+      }
+    } catch {
+      /* fall through to fallback */
     }
-  } catch {
-    /* fall through to fallback */
   }
 
   const chosenSurvivor = survivors[chosenIndex]

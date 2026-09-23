@@ -3886,6 +3886,47 @@ describe("llm-chat", () => {
       }),
     )
   })
+
+  // #1588: a cut-off answer fails the run server-side AFTER its tokens have
+  // streamed into generatedText — and extractNodeOutput reads generatedText
+  // whatever the status. The failure must not leave that fragment behind.
+  it("on a failed run, puts back the last good result instead of the streamed fragment", async () => {
+    mockResolveNodeInputs.mockReturnValue({})
+    mockNodes = [makeNode("llm-chat", {
+      userInput: "go",
+      generatedText: "# RADAR - NEW: (https://www.youtube.",
+      generatedResults: [{ text: "yesterday's whole brief", jobId: "j0", timestamp: "t" }],
+    })]
+    mockLlmChatStream.mockRejectedValue(new Error("The answer was cut off"))
+
+    const promise = executeNode(makeNode("llm-chat", { userInput: "go" }), makeCtx())
+    promise.catch(() => {})
+    await expect(promise).rejects.toThrow("cut off")
+
+    expect(mockUpdateNodeData).toHaveBeenCalledWith(
+      "n1",
+      expect.objectContaining({
+        executionStatus: "failed",
+        generatedText: "yesterday's whole brief",
+        activeResultIndex: 0,
+      }),
+    )
+  })
+
+  it("on a failed first run, leaves no text at all", async () => {
+    mockResolveNodeInputs.mockReturnValue({})
+    mockNodes = [makeNode("llm-chat", { userInput: "go", generatedText: "half an ans" })]
+    mockLlmChatStream.mockRejectedValue(new Error("The answer was cut off"))
+
+    const promise = executeNode(makeNode("llm-chat", { userInput: "go" }), makeCtx())
+    promise.catch(() => {})
+    await expect(promise).rejects.toThrow("cut off")
+
+    expect(mockUpdateNodeData).toHaveBeenCalledWith(
+      "n1",
+      expect.objectContaining({ executionStatus: "failed", generatedText: "" }),
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------

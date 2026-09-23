@@ -95,6 +95,16 @@ describe("POST /v1/prompt-helper/wizard", () => {
     expect(JSON.parse(res.body).error.code).toBe("malformed_response")
   })
 
+  it("returns 502 llm_error, not a 500, when the reply was cut off at its output cap (#1588)", async () => {
+    const { LlmOutputTruncatedError } = await import("../../lib/llm-errors.js")
+    const cut = new LlmOutputTruncatedError("The answer was cut off", { inputTokens: 1, outputTokens: 8192, complete: false })
+    vi.mocked(llmCompleteStructured).mockRejectedValueOnce(new Error(cut.message, { cause: cut }))
+    const app = await buildApp()
+    const res = await app.inject({ method: "POST", url: "/v1/prompt-helper/wizard", payload: { action: "enhance", nodeType: "generate-image", prompt: "x" } })
+    expect(res.statusCode).toBe(502)
+    expect(JSON.parse(res.body).error).toMatchObject({ code: "llm_error", message: expect.stringMatching(/cut off/) })
+  })
+
   it("enhance forwards reference image URLs as multimodal content", async () => {
     mockStructured({ prompt: "x" })
     const app = await buildApp()

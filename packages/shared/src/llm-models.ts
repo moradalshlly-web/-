@@ -118,12 +118,37 @@ export interface LlmModelDef {
    *
    * Consumers MUST give such a model output headroom regardless of the
    * requested effort, or reasoning silently eats a small legacy cap and the
-   * answer truncates with `stop_reason: max_tokens` — a paid-for empty reply,
-   * not an error. `deriveParams` (llm-client.ts) and the film-pipeline's
-   * `callLLM` both floor on this flag; keep it in sync with the vendor's
+   * answer truncates with `stop_reason: max_tokens` — a paid-for empty reply
+   * (since #1588 the client fails such a call rather than return the
+   * fragment, but the floor is what keeps it from happening). `deriveParams`
+   * (llm-client.ts) floors to {@link reasoningOutputFloor}; the film
+   * pipeline's `callLLM` — Anthropic SDK only, so only its Claude members
+   * matter — floors at the default. Keep the flag in sync with the vendor's
    * documented default rather than inferring it from the model name.
    */
   thinkingDefaultOn?: true
+  /**
+   * The output-token cap a REASONING call on this model is floored to — the
+   * room its thinking shares with the answer (`thinkingDefaultOn`, or an
+   * xhigh/max effort). Absent = {@link REASONING_OUTPUT_FLOOR}; read it through
+   * {@link reasoningOutputFloor}, never directly.
+   *
+   * Declare it ONLY where a lane serving this model is not known to accept the
+   * default: the floor rides every lane the model can be served on (KIE AND its
+   * direct fallback), so it has to sit at the intersection of what they take —
+   * the rule `maxOutputTokens` already follows for the Gemini flash entries.
+   * Never below `maxOutputTokens` (a floor under the default cap is not a
+   * floor — guarded by a registry test).
+   */
+  reasoningOutputFloor?: number
+}
+
+/** The reasoning floor for a model that declares no lane limit of its own. */
+export const REASONING_OUTPUT_FLOOR = 32768
+
+/** The output cap a reasoning call on `model` is floored to (see `LlmModelDef.reasoningOutputFloor`). */
+export function reasoningOutputFloor(model: LlmModelDef): number {
+  return model.reasoningOutputFloor ?? REASONING_OUTPUT_FLOOR
 }
 
 export const LLM_MODELS: readonly LlmModelDef[] = [
@@ -145,6 +170,11 @@ export const LLM_MODELS: readonly LlmModelDef[] = [
     // No `reasoningEfforts` at all on the KIE lane, but the vendor API accepts
     // the full minimal→high ladder (`none` maps to Google's `minimal`).
     directReasoningEfforts: ["none", "low", "medium", "high"],
+    // Reasons with no thinking param sent — Google's Gemini 3 default (dynamic
+    // thinking; `minimal` is its floor, never off), measured on 3.6 in #1588.
+    // Floored at the KIE-safe 8192, the same intersection as `maxOutputTokens`.
+    thinkingDefaultOn: true,
+    reasoningOutputFloor: 8192,
   },
   {
     id: "gemini-3.6-flash",
@@ -177,6 +207,15 @@ export const LLM_MODELS: readonly LlmModelDef[] = [
     // Gemini entry — the lane with the lower unit cost wins by default and
     // direct is the reliability fallback only.
     directGeminiModel: "gemini-3.6-flash",
+    // Reasons with NO thinking param sent — measured, issue #1588: a Generate
+    // Text node capped at 1,100 tokens fell back to the direct lane (KIE 500),
+    // spent ~1,060 of them reasoning, and returned 120 characters cut mid-URL.
+    // On the same input the KIE runs used ~500 output tokens in all, so only
+    // the fallback runs broke — every other run of a 5-minute schedule.
+    // Floored at 8192, NOT the default 32768: the floor rides the KIE endpoint
+    // too, and 8192 is all it is known to take (see `maxOutputTokens`).
+    thinkingDefaultOn: true,
+    reasoningOutputFloor: 8192,
   },
   {
     id: "gemini-3.7-flash",
@@ -205,6 +244,10 @@ export const LLM_MODELS: readonly LlmModelDef[] = [
     // Assumed parity with 3.6 pending a live probe on the direct lane.
     directReasoningEfforts: ["none", "low", "medium", "high"],
     directGeminiModel: "gemini-3.7-flash",
+    // Gemini 3 default: reasons with no thinking param sent (measured on 3.6,
+    // #1588). KIE-safe floor, same intersection as `maxOutputTokens`.
+    thinkingDefaultOn: true,
+    reasoningOutputFloor: 8192,
   },
   {
     id: "gemini-3.8-flash",
@@ -245,6 +288,11 @@ export const LLM_MODELS: readonly LlmModelDef[] = [
     // KIE-first (no `preferDirect`) — 3.7's posture exactly: the cheap lane
     // serves the A/B, direct is Advanced mode + the reliability fallback.
     directGeminiModel: "gemini-3.8-flash",
+    // Gemini 3 default: reasons with no thinking param sent (measured on 3.6,
+    // #1588). Floored at its own 16384, inside the 20000 its KIE endpoint was
+    // measured to honour.
+    thinkingDefaultOn: true,
+    reasoningOutputFloor: 16384,
   },
   {
     id: "claude-haiku-4.5",
@@ -318,6 +366,11 @@ export const LLM_MODELS: readonly LlmModelDef[] = [
     // `additionalProperties` (KIE's `response_format` silently DROPS
     // record/map-shaped fields — see the z.record rule in backend/CLAUDE.md).
     preferDirect: true,
+    // Reasons with no thinking param sent on both lanes — the proxied endpoint
+    // DEFAULTS to "high" (above), and the direct lane reasons harder still.
+    // Floored at its own 16384: its KIE fallback is not known to take more.
+    thinkingDefaultOn: true,
+    reasoningOutputFloor: 16384,
   },
   {
     id: "claude-opus-4.7",

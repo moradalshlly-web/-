@@ -5178,9 +5178,20 @@ function executeNodeCore(
         if (err?.name === "AbortError" || ctx.signal?.aborted) {
           return "";
         }
+        // The streamed tokens must not stay behind as the node's output:
+        // `extractNodeOutput` reads `generatedText` whatever the status, so a
+        // cut-off answer (#1588) or any other mid-stream failure would still
+        // reach a downstream "Run from here". Put back the last good result,
+        // or nothing.
+        const lastGood = (
+          useWorkflowStore.getState().nodes.find((n) => n.id === node.id)
+            ?.data as LLMChatData | undefined
+        )?.generatedResults?.[0];
         updateNodeData(node.id, {
           executionStatus: "failed",
           errorMessage: err.message || "Prompt failed",
+          generatedText: lastGood?.text ?? "",
+          ...(lastGood ? { activeResultIndex: 0 } : {}),
         });
         guardedToast.error(`Prompt failed: ${err.message}`);
         throw err;

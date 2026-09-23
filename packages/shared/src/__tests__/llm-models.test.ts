@@ -18,6 +18,8 @@ import {
   LLM_VENDOR_LABELS,
   groupLlmModelsByVendor,
   orderedLlmModels,
+  REASONING_OUTPUT_FLOOR,
+  reasoningOutputFloor,
 } from "../llm-models.js"
 import type { LlmModelDef, LlmTier, LlmFeature } from "../llm-models.js"
 import { PIPELINE_PINNABLE_SCRIPT_LLMS } from "../pipeline-types.js"
@@ -575,6 +577,38 @@ describe("reasoning effort registry", () => {
     // flagging them would inflate every call's cap for no reason.
     for (const id of ["claude-opus-4.8", "claude-opus-4.7", "claude-sonnet-5", "claude-sonnet-4.6"]) {
       expect(getLlmModel(id)?.thinkingDefaultOn, id).toBeUndefined()
+    }
+  })
+
+  it("every Gemini 3 model reasons by default and is floored within what its lanes take (#1588)", () => {
+    // Measured on 3.6 (#1588): with no thinking param sent, the direct lane
+    // spent ~1,060 of a node's 1,100-token cap reasoning and returned 120
+    // characters. Unflagged, the node's small cap reaches the wire untouched.
+    // The floor is the model's own, never the 32768 default: it rides the KIE
+    // endpoint too, and the flash ones are only known to take 8192.
+    const expected: Record<string, number> = {
+      "gemini-3-flash": 8192,
+      "gemini-3.6-flash": 8192,
+      "gemini-3.7-flash": 8192,
+      "gemini-3.8-flash": 16384,
+      "gemini-3.1-pro": 16384,
+    }
+    for (const [id, floor] of Object.entries(expected)) {
+      const m = getLlmModel(id)!
+      expect(m.thinkingDefaultOn, id).toBe(true)
+      expect(reasoningOutputFloor(m), id).toBe(floor)
+      expect(reasoningOutputFloor(m), `${id} floor above its KIE-safe cap`).toBeLessThanOrEqual(m.maxOutputTokens)
+    }
+  })
+
+  it("a reasoning floor never sits below the model's default cap, and is declared only below the default", () => {
+    for (const m of LLM_MODELS) {
+      // A floor under maxOutputTokens would LOWER a call's cap — not a floor.
+      expect(reasoningOutputFloor(m), m.id).toBeGreaterThanOrEqual(m.maxOutputTokens)
+      // Declaring the default is noise that hides which models are lane-limited.
+      if (m.reasoningOutputFloor !== undefined) {
+        expect(m.reasoningOutputFloor, m.id).toBeLessThan(REASONING_OUTPUT_FLOOR)
+      }
     }
   })
 
