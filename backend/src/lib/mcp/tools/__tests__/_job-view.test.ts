@@ -134,6 +134,31 @@ describe("jobView — the job's input, allowlisted", () => {
     }
   })
 
+  it("filters direction and subject to their catalogs' keys and id-shaped values", () => {
+    const input = jobView({
+      ...row,
+      input_data: {
+        direction: {
+          transition: ["match-cut"],
+          cameraMotion: "dolly-in",
+          internalToken: "tok-1",
+          shotSize: { nested: "object" },
+        },
+        subject: { age: "age-custom", customAge: 42, secretNote: "x", heldProp: ["cup", 3] },
+      },
+    }).input as Record<string, unknown>
+    expect(input.direction).toEqual({ transition: ["match-cut"], cameraMotion: "dolly-in" })
+    expect(input.subject).toEqual({ age: "age-custom", customAge: 42 })
+  })
+
+  it("drops a direction or subject that holds nothing from its catalog", () => {
+    const input = jobView({
+      ...row,
+      input_data: { prompt: "p", direction: { foreign: "x" }, subject: "not-a-record" },
+    }).input as Record<string, unknown>
+    expect(input).toEqual({ prompt: "p" })
+  })
+
   it("is null when the row has no input, or none of it is allowlisted", () => {
     expect(jobView({ ...row, input_data: null }).input).toBeNull()
     expect(jobView({ ...row, input_data: undefined }).input).toBeNull()

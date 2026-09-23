@@ -9,6 +9,7 @@
  * envelopes stay what they were for existing clients.
  */
 import { z } from "zod"
+import { DIRECTION_KEYS, getRegisteredSubjectKeys } from "@nodaro/prompts"
 import { redactPrivateJobData } from "../../public-job-data.js"
 import { failureGuidance } from "./_job-error.js"
 
@@ -65,13 +66,42 @@ export const JOB_INPUT_VIEW_KEYS = [
   "referenceAudioUrls",
 ] as const
 
+/**
+ * The allowlist holds ONE LEVEL DOWN too. `direction` and `subject` are records,
+ * and the routes' own schemas keep them to catalog ids — but `input_data` is also
+ * written by the orchestrator, plugins and apps, which can store any key there.
+ * So each is re-read against its catalog's key set (`DIRECTION_KEYS`; the
+ * pack-aware `getRegisteredSubjectKeys()`), and only id-shaped values survive:
+ * a string, an array of strings, or — `subject.customAge` — a number.
+ */
+function catalogRecord(value: unknown, keys: ReadonlyArray<string>): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const src = value as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const key of keys) {
+    const v = src[key]
+    if (
+      typeof v === "string" ||
+      typeof v === "number" ||
+      (Array.isArray(v) && v.every((x) => typeof x === "string"))
+    ) {
+      out[key] = v
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null
+}
+
 /** The allowlisted subset of a job's `input_data`; null when there is none to show. */
 export function jobInputView(input: unknown): Record<string, unknown> | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null
   const src = redactPrivateJobData(input as Record<string, unknown>)
   const view: Record<string, unknown> = {}
   for (const key of JOB_INPUT_VIEW_KEYS) {
-    if (src[key] !== undefined && src[key] !== null) view[key] = src[key]
+    const value =
+      key === "direction" ? catalogRecord(src[key], DIRECTION_KEYS)
+      : key === "subject" ? catalogRecord(src[key], getRegisteredSubjectKeys())
+      : src[key]
+    if (value !== undefined && value !== null) view[key] = value
   }
   return Object.keys(view).length > 0 ? view : null
 }
