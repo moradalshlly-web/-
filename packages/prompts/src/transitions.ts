@@ -41,6 +41,18 @@ export interface Transition {
    * "invisible cut"). Everywhere else the label IS the term.
    */
   readonly term?: string
+  /**
+   * `true` on rows whose mechanism IS A CUT — the change happens between two
+   * frames, so it has no duration to time. A duration clause ("lasting
+   * approximately 1 second") on such a row tells the video model to spend a
+   * second on the change, and it obliges with a dissolve: a match cut rendered
+   * as a 1.75 s cross-dissolve in QA. The composer therefore skips the duration
+   * lever when every picked transition is instant, and consumers (the picker
+   * UI, Studio) read `isInstantTransition` to hide that lever. Position and
+   * intensity still apply — WHERE the cut lands, and how hard it hits, are
+   * real choices.
+   */
+  readonly instant?: boolean
 }
 
 /**
@@ -73,7 +85,7 @@ export const TRANSITIONS: ReadonlyArray<Transition> = [
   // ============================================================================
   { id: "auto",              label: "Auto",              category: "standard", description: "Let the model choose", promptHint: "" },
   { id: "none",              label: "None / Hard Cut",   category: "standard", description: "Instantaneous switch, no transition",
-    promptHint: "no transition, hard cut, instantaneous switch from first shot to second shot", term: "hard cut" },
+    promptHint: "no transition, hard cut, instantaneous switch from first shot to second shot", term: "hard cut" , instant: true },
   { id: "cross-dissolve",    label: "Cross-Dissolve",    category: "standard", description: "Gradual blend between shots",
     promptHint: "smooth cross-dissolve transition where the first shot gradually fades out as the second shot fades in" },
   { id: "fade-to-black",     label: "Fade to Black",     category: "standard", description: "Darkens to black, second emerges",
@@ -81,11 +93,11 @@ export const TRANSITIONS: ReadonlyArray<Transition> = [
   { id: "fade-to-white",     label: "Fade to White",     category: "standard", description: "Blooms to white, second emerges",
     promptHint: "fade to white: the first shot brightens until the frame is pure white, then the second shot resolves out of the white" },
   { id: "snap-to-black",     label: "Snap to Black",     category: "standard", description: "Instant cut to full black for a beat, then the next shot",
-    promptHint: "snap to black: the first shot cuts instantly to full black with no fade, the frame holds pure black for a single beat, then the second shot cuts in at full brightness", term: "snap to black" },
+    promptHint: "snap to black: the first shot cuts instantly to full black with no fade, the frame holds pure black for a single beat, then the second shot cuts in at full brightness", term: "snap to black" , instant: true },
   { id: "match-cut",         label: "Match Cut",         category: "standard", description: "Shape or motion match across shots",
-    promptHint: "match cut: the final composition of the first shot matches the opening composition of the second shot in shape, color, and motion, so the cut feels like a visual rhyme" },
+    promptHint: "match cut: the final composition of the first shot matches the opening composition of the second shot in shape, color, and motion, so the cut feels like a visual rhyme" , instant: true },
   { id: "smash-cut",         label: "Smash Cut",         category: "standard", description: "Jarring abrupt cut between contrasting shots",
-    promptHint: "smash cut: an abrupt jarring transition between two visually or tonally contrasting shots with no fade, on a beat" },
+    promptHint: "smash cut: an abrupt jarring transition between two visually or tonally contrasting shots with no fade, on a beat" , instant: true },
   { id: "iris",              label: "Iris",              category: "standard", description: "Circular iris closes, then opens on second",
     promptHint: "iris transition: a circular vignette closes inward over the first shot until the frame is black, then opens outward to reveal the second shot", term: "iris wipe" },
   { id: "wipe",              label: "Wipe",              category: "standard", description: "Linear wipe replaces first shot",
@@ -93,11 +105,11 @@ export const TRANSITIONS: ReadonlyArray<Transition> = [
   { id: "roll-transition",   label: "Roll",              category: "standard", description: "Frame rolls 90-180°, second shot upright on landing",
     promptHint: "the frame rolls along the camera axis with a smooth 90 to 180 degree rotation, motion-blurred during the roll, and as the rotation completes the new shot is upright and stable in frame", term: "camera roll transition" },
   { id: "seamless-match",    label: "Seamless Match",    category: "standard", description: "Hidden cut disguised by matched motion and color",
-    promptHint: "hidden seamless transition: the camera motion, color palette, and on-screen motion at the end of the first shot continue exactly across the cut into the second shot, so the boundary is invisible and the two shots feel like one unbroken take", term: "invisible cut" },
+    promptHint: "hidden seamless transition: the camera motion, color palette, and on-screen motion at the end of the first shot continue exactly across the cut into the second shot, so the boundary is invisible and the two shots feel like one unbroken take", term: "invisible cut" , instant: true },
   { id: "whip-pan",          label: "Whip Pan",          category: "standard", description: "Camera whips sideways into blur, next shot rides the same direction",
     promptHint: "whip pan transition: the camera whips sideways at high speed, smearing the frame into heavy horizontal motion blur, and the second shot enters already travelling in the same direction before it settles into its framing", term: "whip pan" },
   { id: "jump-cut",          label: "Jump Cut",          category: "standard", description: "Same framing, time skips forward",
-    promptHint: "jump cut: the framing, lens, and camera position stay identical across the cut while time skips abruptly forward, so the subject snaps to a new position inside what still reads as one continuous shot", term: "jump cut" },
+    promptHint: "jump cut: the framing, lens, and camera position stay identical across the cut while time skips abruptly forward, so the subject snaps to a new position inside what still reads as one continuous shot", term: "jump cut" , instant: true },
 
   // ============================================================================
   // TIME — 8 entries — temporal shifts (same or related scene, different time, or memory)
@@ -219,11 +231,11 @@ export const TRANSITIONS: ReadonlyArray<Transition> = [
   { id: "vehicle-explosion", label: "Vehicle Explosion",  category: "physics", description: "Vehicle detonates in foreground, scene changes behind",
     promptHint: "a vehicle in the foreground erupts in a violent explosion of fire and twisted metal, the fireball expands toward the camera and washes the frame in orange flame, and as the smoke parts the second scene resolves" },
   { id: "jump-match",        label: "Jump Match",         category: "physics", description: "Subject jumps, landing matches into new scene",
-    promptHint: "the subject jumps upward and out of frame at the end of the first shot, with matched velocity the camera follows the arc, and on landing the subject is in a new location seamlessly continuing the same jump", term: "match cut on a jump" },
+    promptHint: "the subject jumps upward and out of frame at the end of the first shot, with matched velocity the camera follows the arc, and on landing the subject is in a new location seamlessly continuing the same jump", term: "match cut on a jump" , instant: true },
   { id: "hand-swipe",        label: "Hand Swipe",         category: "physics", description: "Hand swipes across lens, scene changes during occlusion",
     promptHint: "a hand sweeps across the camera lens at close range, fully occluding the frame in motion blur for a single beat, and as the hand exits the opposite side the scene has changed to the new setting" },
   { id: "action-relay",      label: "Action Match",      category: "physics", description: "Subject exits on an action and lands in the new scene mid-move",
-    promptHint: "match cut on action: the subject exits the frame on a committed action — a stride, a throw, a turn — and enters the new scene on the same beat continuing that movement at matched speed and direction, so the action carries unbroken across the cut", term: "match cut on action" },
+    promptHint: "match cut on action: the subject exits the frame on a committed action — a stride, a throw, a turn — and enters the new scene on the same beat continuing that movement at matched speed and direction, so the action carries unbroken across the cut", term: "match cut on action" , instant: true },
 
   // ============================================================================
   // LIGHT — 8 entries — flash and lens FX
@@ -314,6 +326,23 @@ export function getTransitionTerm(id: string | undefined | null): string {
 
 export const TRANSITION_IDS: ReadonlyArray<string> = TRANSITIONS.map((t) => t.id)
 
+/**
+ * Whether a transition is a CUT — instantaneous by nature, so it takes no
+ * duration (see `Transition.instant`). Reads through `getTransition`, so it
+ * answers for the same entry every other getter describes; an unknown id, the
+ * no-op "auto" and an empty value are all `false`.
+ *
+ * A multi-pick (`string[]`) is instant only when EVERY picked id is: a cut
+ * paired with a dissolve still has a dissolve to time.
+ */
+export function isInstantTransition(
+  id: string | ReadonlyArray<string> | undefined | null,
+): boolean {
+  const ids = typeof id === "string" ? [id] : id ? [...id] : []
+  if (ids.length === 0) return false
+  return ids.every((one) => getTransition(one)?.instant === true)
+}
+
 // ---------------------------------------------------------------------------
 // Graph-aware composer — start/end input handles + timing fields + multi-pick
 // ---------------------------------------------------------------------------
@@ -395,6 +424,8 @@ const INTENSITY_CLAUSES = clausesOf(TRANSITION_INTENSITIES)
  * - 0 hints (no transition, empty array, or all-empty hints) → ""
  * - n base hints joined with ", and "
  * - Timing/start/end clauses apply ONCE at the outer layer, not per-id
+ * - The duration clause is dropped when every picked id is instant (a cut —
+ *   see `isInstantTransition`); position and intensity still apply
  * - null input is treated like undefined (falsy short-circuit → returns "")
  *
  * @param mode `"compact"` builds the base from each transition's short
@@ -416,7 +447,10 @@ export function composeTransitionHintFromConnections(
   // ONLY the base fragment swaps in compact mode — the multi-pick join, the
   // timing clauses and the start/end clauses below are identical either way.
   const resolveBase = mode === "compact" ? getTransitionTerm : getTransitionPromptHint
-  const baseHints = ids.map(resolveBase).filter((h) => h.length > 0)
+  // Only ids that contribute a base hint count below — a no-op "auto" beside a
+  // cut must not make the pick look non-instant.
+  const picked = ids.filter((id) => resolveBase(id).length > 0)
+  const baseHints = picked.map(resolveBase)
   if (baseHints.length === 0) return ""
 
   const combinedBase = baseHints.join(", and ")
@@ -425,7 +459,10 @@ export function composeTransitionHintFromConnections(
   if (timing?.position && timing.position !== "auto") {
     parts.push(POSITION_CLAUSES[timing.position])
   }
-  if (timing?.duration && timing.duration !== "auto") {
+  // A cut has no duration: "lasting approximately 1 second" on a match cut
+  // makes the model render a one-second dissolve. Skipped only when EVERY
+  // picked id is instant — a mixed pick still has a non-cut to time.
+  if (timing?.duration && timing.duration !== "auto" && !isInstantTransition(picked)) {
     parts.push(DURATION_CLAUSES[timing.duration])
   }
   if (timing?.intensity && timing.intensity !== "auto") {

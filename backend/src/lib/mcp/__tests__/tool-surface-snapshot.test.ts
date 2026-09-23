@@ -363,6 +363,19 @@ const CAPTION_DOCTRINE_TO_SKILL_BYTES = -1_530
 // the mechanics stay in the skill. measured: add_captions 6_491 -> 6_683 B
 // (1_509 B of per-tool headroom left); total 362_355 -> 362_547, headroom 186 B.
 const CAPTION_TEXT_SEMANTICS_BYTES = 192
+// RAISED 2026-09-23 by two fixes from the transition QA, and nothing else. No
+// tool added — the membership fixtures do not move.
+// (1) `generate_studio_clip.mode` gains `start-end` (F8): `start` silently drops
+// a pinned end frame, and the tool offered no way to force a start+end run. The
+// description says what omitting mode does and what each lane sends. Measured:
+// 362_636 total − 362_547 dev = 89 B.
+// (2) The job envelope (`get_job` / `wait_for_job` outputSchema) gains `input`,
+// an ALLOWLISTED subset of the job's input_data (F12: a server-side prompt fold
+// could not be verified over MCP), and get_job's description names it.
+// Measured: 362_892 − 362_636 = 256 B. Together 345 B, so the list keeps the
+// 186 B of headroom it had before.
+const STUDIO_CLIP_START_END_MODE_BYTES = 89
+const JOB_ENVELOPE_INPUT_BYTES = 256
 export const TOOL_WIRE_BUDGET = {
   perToolBytes: 8_192,
   totalBytes:
@@ -391,7 +404,9 @@ export const TOOL_WIRE_BUDGET = {
     SEEDANCE_VIDEO_EDIT_VERB_BYTES +
     STUDIO_PERSON_VOCABULARY_BYTES +
     CAPTION_DOCTRINE_TO_SKILL_BYTES +
-    CAPTION_TEXT_SEMANTICS_BYTES,
+    CAPTION_TEXT_SEMANTICS_BYTES +
+    STUDIO_CLIP_START_END_MODE_BYTES +
+    JOB_ENVELOPE_INPUT_BYTES,
 }
 
 type ToolDef = { name: string; description?: string }
