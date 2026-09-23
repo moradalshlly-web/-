@@ -169,6 +169,19 @@ function audioSourceId(edl: Edl, seg: EdlSegment, masterAudioId: string | undefi
  *  ahead of the single continuous audio track (option B). */
 export const SOURCE_END_TOLERANCE_SEC = 1
 
+/** Tolerance past a re-anchoring container's DECLARED duration (MPEG-TS/PS,
+ *  whose per-track ends are not on the render's clock — `TrackEnd.declaredEndSec`).
+ *  Wider than `SOURCE_END_TOLERANCE_SEC` because the bound is coarse (the span of
+ *  every stream). The probe attaches it only when the file's timestamps never run
+ *  backwards — then it can only over-state a track's end, so this never refuses a
+ *  correct edit — and it caps what an overrun there can render as frozen picture
+ *  + silence (the source is held past its end) at a few seconds. A joined or
+ *  reconnected recording (timestamps jump back, or forward past the CLI's fold
+ *  threshold when a restarted clock is "unwrapped") declares something other
+ *  than it plays, so it carries no bound and is skipped like any unmeasured
+ *  track. */
+export const DECLARED_END_TOLERANCE_SEC = 5
+
 /** A read the window check could not verify, for the caller to log. */
 export interface SkippedWindowRead {
   readonly segment: string
@@ -188,8 +201,11 @@ export interface SkippedWindowRead {
  *     whose only "video" is cover art) — the render would otherwise fail on an
  *     empty stream specifier, or show a still.
  *  A sound source with no audio track is not a refusal: the render pads that
- *  segment with silence. A track present but unmeasured is skipped and
- *  RETURNED, so the caller can log it — a skipped check always leaves a trace.
+ *  segment with silence. A track present but unmeasured is checked coarsely
+ *  when its container declares a safe upper bound (`TrackEnd.declaredEndSec`,
+ *  MPEG-TS/PS only): past that + `DECLARED_END_TOLERANCE_SEC` it is refused the
+ *  same way. With no such bound it is skipped and RETURNED, so the caller can
+ *  log it — a skipped check always leaves a trace.
  *  Pure; the measured ends (`probeStreamEnds`) are passed in, and a source
  *  with no entry at all (its probe failed outright) is skipped silently here
  *  because the caller already logged that failure. */
@@ -217,12 +233,21 @@ export function assertSegmentsWithinSources(
         }
         continue // no sound track → the render pads this segment with silence
       }
+      const src = edl.sources.find((s) => s.id === id)
+      const endSec = secs(seg.outMs - offsetOf(src))
       if (t.state === "unmeasured") {
+        if (t.declaredEndSec !== undefined) {
+          if (endSec > t.declaredEndSec + DECLARED_END_TOLERANCE_SEC) {
+            throw new DeterministicJobError(
+              `apply-edl: segment[${i}] "${seg.id}" ends at ${endSec.toFixed(2)}s on source "${id}", ` +
+                `but that file declares only ${t.declaredEndSec.toFixed(2)}s (${t.reason}) — shorten the segment or check the source's offsetMs`,
+            )
+          }
+          continue // inside the coarse bound — renders its full window (held source)
+        }
         skipped.push({ segment: seg.id, source: id, track, reason: t.reason })
         continue
       }
-      const src = edl.sources.find((s) => s.id === id)
-      const endSec = secs(seg.outMs - offsetOf(src))
       if (endSec > t.endSec + SOURCE_END_TOLERANCE_SEC) {
         throw new DeterministicJobError(
           `apply-edl: segment[${i}] "${seg.id}" ends at ${endSec.toFixed(2)}s on source "${id}", ` +

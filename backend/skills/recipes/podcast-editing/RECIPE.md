@@ -181,6 +181,11 @@ than failing mid-render, so keep these invariants when editing by hand:
   not retried) naming the segment, the source and the track. A reach of up to one second is
   treated as rounding: the segment keeps its full length, holding the picture's last frame
   and padding the sound with silence past the track's end, so later cuts stay in sync.
+  MPEG-TS / program-stream sources (per-track timestamps not on the render's clock) are
+  checked against the length the container declares instead, with five seconds of slack —
+  unless the file's timestamps jump (two recordings joined, a reconnected stream, a
+  restarted clock), in which case the declared length misstates it and the window is not
+  checked.
 - A segment's picture source must have a real video track — an audio file, or an mp3 whose
   only "video" is embedded cover art, fails the job the same way.
 - A `layout` is accepted only when it describes what this renderer does anyway: `mode`

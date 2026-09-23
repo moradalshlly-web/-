@@ -560,6 +560,18 @@ describe("getVideoFps", () => {
     expect(fps).toBeCloseTo(29.97, 1)
   })
 
+  it("reads the first row of an MPEG-TS answer, which repeats the stream under its program (was 30000 fps → a 60 fps canvas)", async () => {
+    execFileOnce("30000/1001\n\n30000/1001\n")
+
+    expect(await getVideoFps("/tmp/cam.ts")).toBeCloseTo(29.97, 2)
+  })
+
+  it("reads a rotated phone MP4 / MPEG-PS answer, whose side data appends an empty field (was 30000 fps → a 60 fps canvas)", async () => {
+    execFileOnce("30000/1001,\n")
+
+    expect(await getVideoFps("/tmp/rotated.mp4")).toBeCloseTo(29.97, 2)
+  })
+
   it("parses a whole-number fraction (24/1)", async () => {
     execFileOnce("24/1\n")
 
@@ -752,6 +764,14 @@ describe("probeVideoStream", () => {
     const result = await probeVideoStream("/tmp/v.mp4")
 
     expect(result).toEqual({ codec: "h264", pixFmt: "yuv420p" })
+  })
+
+  it("an MPEG-TS answer (stream repeated under its program) is read from its first row — a TS used to always 'need transcode'", async () => {
+    execFileOnce("h264,yuv420p\n\nh264,yuv420p\n")
+
+    expect(await probeVideoStream("/tmp/cam.ts")).toEqual({ codec: "h264", pixFmt: "yuv420p" })
+    execFileOnce("h264,yuv420p\n\nh264,yuv420p\n")
+    expect(await needsTranscode("/tmp/cam.ts")).toBe(false)
   })
 
   it("returns empty strings when fields are missing", async () => {
@@ -1328,6 +1348,13 @@ describe("parseStreamListing", () => {
     expect(parseStreamListing(listing([])).reAnchors).toBe(false)
   })
 
+  it("reads the container's declared duration when it reports a positive one (the coarse bound for a re-anchoring container)", () => {
+    expect(parseStreamListing(listing([], { format_name: "mpegts", duration: "6.016000" })).declaredSec).toBeCloseTo(6.016, 6)
+    expect(parseStreamListing(listing([], { duration: "N/A" })).declaredSec).toBeUndefined()
+    expect(parseStreamListing(listing([], { duration: "0" })).declaredSec).toBeUndefined()
+    expect(parseStreamListing(listing([])).declaredSec).toBeUndefined()
+  })
+
   it("throws (never guesses) when the listing is not JSON", () => {
     expect(() => parseStreamListing("not json")).toThrow(/probeStreamEnds/)
   })
@@ -1365,7 +1392,7 @@ describe("probeStreamEnds", () => {
     expect((ends.audio as { endSec: number }).endSec).toBeCloseTo(3.008, 3)
 
     expect(execCmd(0)).toBe("ffprobe")
-    expect(execArgs(0)).toEqual(expect.arrayContaining(["-show_entries", "format=start_time,format_name:stream=index,codec_type:stream_disposition=attached_pic", "-of", "json"]))
+    expect(execArgs(0)).toEqual(expect.arrayContaining(["-show_entries", "format=start_time,duration,format_name:stream=index,codec_type:stream_disposition=attached_pic", "-of", "json"]))
     expect(mocks.spawn).toHaveBeenCalledTimes(2)
     const [, vArgs] = mocks.spawn.mock.calls[0]!
     expect(vArgs).toEqual(expect.arrayContaining(["-select_streams", "0", "-show_entries", "packet=pts_time,dts_time,duration_time,flags", "-of", "csv=p=0", "/tmp/off15.mp4"]))
@@ -1380,6 +1407,79 @@ describe("probeStreamEnds", () => {
     expect(ends.audio).toMatchObject({ state: "unmeasured" })
     expect((ends.video as { reason: string }).reason).toMatch(/MPEG-TS\/PS/)
     expect(mocks.spawn).not.toHaveBeenCalled() // no per-track packet scan
+  })
+
+  // A TS/PS file's declared duration is a coarse UPPER bound only while its
+  // timestamps run forward. Joined recordings / a reconnected stream jump BACK,
+  // and ffprobe's duration (last minus first timestamp) then UNDER-states what
+  // the render plays through — a bound there would refuse correct paid edits.
+  describe("the declared bound of a TS/PS container is gated on DTS continuity", () => {
+    const tsListing = (streams: unknown[]) =>
+      JSON.stringify({ streams, format: { start_time: "1.400000", duration: "6.016000", format_name: "mpegts" } })
+
+    it("attaches the declared duration when every mapped track's DTS only runs forward (one scan per track)", async () => {
+      execFileOnce(tsListing([V0, A1]))
+      mocks.spawnScripts.push({ stdout: "1.5,1.4,0.04,K__\n1.6,1.44,0.04,___\n1.54,1.48,0.04,___\n" }) // B-frames: pts reorders, dts does not
+      mocks.spawnScripts.push({ stdout: "1.4,1.4,0.02,K__\n1.42,1.42,0.02,K__\n" })
+      const ends = await probeStreamEnds("/tmp/cam.ts")
+      expect(ends.video).toMatchObject({ state: "unmeasured", declaredEndSec: 6.016 })
+      expect(ends.audio).toMatchObject({ state: "unmeasured", declaredEndSec: 6.016 })
+      expect((ends.video as { reason: string }).reason).not.toMatch(/no bound/)
+      expect(mocks.spawn).toHaveBeenCalledTimes(2)
+      expect(mocks.spawn.mock.calls[0]![1]).toEqual(expect.arrayContaining(["-select_streams", "0", "/tmp/cam.ts"]))
+      expect(mocks.spawn.mock.calls[1]![1]).toEqual(expect.arrayContaining(["-select_streams", "1"]))
+    })
+
+    it("attaches NO bound when a track's DTS steps back (joined / reconnected recording) — and says why", async () => {
+      execFileOnce(tsListing([V0, A1]))
+      mocks.spawnScripts.push({ stdout: "7.3,7.36,0.04,___\n1.4,1.4,0.04,K__\n" })
+      const ends = await probeStreamEnds("/tmp/joined.ts")
+      expect(ends.video).toEqual({ state: "unmeasured", reason: expect.stringMatching(/stream 0's timestamps jump.*no bound/) })
+      expect(ends.audio).not.toHaveProperty("declaredEndSec")
+      expect(mocks.spawn).toHaveBeenCalledTimes(1) // the first discontinuous track settles it
+    })
+
+    // A recording that restarted its clock more than 60 s below its first
+    // timestamp is "unwrapped" by libavformat (+2^33 ticks): the join reads as
+    // one ~26.5 h FORWARD step and format.duration declares ~91,853 s for 16 s
+    // of content. Any forward step past the CLI's fold threshold is a jump too.
+    it("attaches NO bound when a track's DTS jumps FORWARD past the fold threshold (an unwrapped restart)", async () => {
+      execFileOnce(tsListing([V0]))
+      mocks.spawnScripts.push({ stdout: "3600.0,3600.0,0.04,K__\n3607.96,3607.96,0.04,___\n95445.0,95445.0,0.04,K__\n" })
+      const ends = await probeStreamEnds("/tmp/restart.ts")
+      expect(ends.video).not.toHaveProperty("declaredEndSec")
+      expect((ends.video as { reason: string }).reason).toMatch(/forward by more than 10 s/)
+      expect(mocks.spawn).toHaveBeenCalledTimes(1)
+    })
+
+    // The CLI measures a forward step from where the previous packet ENDS
+    // (dts + duration), so a still-image stream whose frames each last 12 s is
+    // continuous and its declared length is a valid bound.
+    it("a still-image stream (12 s frames, 12 s steps) is continuous — keeps the bound", async () => {
+      execFileOnce(tsListing([V0]))
+      mocks.spawnScripts.push({ stdout: "1.4,1.4,12,K__\n13.4,13.4,12,K__\n25.4,25.4,12,K__\n" })
+      expect((await probeStreamEnds("/tmp/stills.ts")).video).toMatchObject({ declaredEndSec: 6.016 })
+    })
+
+    it("a forward step inside the threshold (a short gap) keeps the bound", async () => {
+      execFileOnce(tsListing([V0]))
+      mocks.spawnScripts.push({ stdout: "1.4,1.4,0.04,K__\n9.4,9.4,0.04,___\n" })
+      expect((await probeStreamEnds("/tmp/gap.ts")).video).toMatchObject({ declaredEndSec: 6.016 })
+    })
+
+    it("attaches NO bound when a scan fails or a track carries no DTS — never treated as continuous", async () => {
+      execFileOnce(tsListing([V0]))
+      mocks.spawnScripts.push({ stdout: "", code: 1, stderr: "boom" })
+      const failed = await probeStreamEnds("/tmp/bad.ts")
+      expect(failed.video).not.toHaveProperty("declaredEndSec")
+      expect((failed.video as { reason: string }).reason).toMatch(/could not be scanned/)
+
+      execFileOnce(tsListing([V0]))
+      mocks.spawnScripts.push({ stdout: "N/A,N/A,0.04,K__\n" })
+      const noDts = await probeStreamEnds("/tmp/nodts.ts")
+      expect(noDts.video).not.toHaveProperty("declaredEndSec")
+      expect((noDts.video as { reason: string }).reason).toMatch(/carries no DTS/)
+    })
   })
 
   it("a TS container missing one track: the absent track stays `absent`, the present one is unmeasured", async () => {

@@ -161,7 +161,7 @@ async function probeTone(path: string, t: number, candidates: number[]): Promise
 describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
   let dir: string
   let srcA: string, srcB: string, srcC: string, srcVbr: string, srcArt: string, srcLive: string
-  let srcLowFps: string, srcV6A3: string, srcV3A6: string, srcOff15: string, srcTs: string
+  let srcLowFps: string, srcV6A3: string, srcV3A6: string, srcOff15: string, srcTs: string, srcTsJoined: string, srcTsRestart: string, srcRotated: string
   let srcCamA30: string, srcCamB24: string, srcMaster: string, srcSweep: string
   // Every successful render leaves its work dir (source copies + output) in
   // tmpdir; a failed one is cleaned by applyEdl itself. Collected and removed.
@@ -178,7 +178,7 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
     srcA = join(dir, "a.mp4"); srcB = join(dir, "b.mp4"); srcC = join(dir, "c.mp4")
     srcVbr = join(dir, "vbr.mp3"); srcArt = join(dir, "art.mp3"); srcLive = join(dir, "live.mkv")
     srcLowFps = join(dir, "lowfps.mp4"); srcV6A3 = join(dir, "v6a3.mp4"); srcV3A6 = join(dir, "v3a6.mp4")
-    srcOff15 = join(dir, "off15.mp4"); srcTs = join(dir, "cam.ts")
+    srcOff15 = join(dir, "off15.mp4"); srcTs = join(dir, "cam.ts"); srcTsJoined = join(dir, "joined.ts"); srcTsRestart = join(dir, "restart.ts"); srcRotated = join(dir, "rotated.mp4")
     srcCamA30 = join(dir, "camA30.mp4"); srcCamB24 = join(dir, "camB24.mp4"); srcMaster = join(dir, "master.m4a")
     srcSweep = join(dir, "sweep.mp4")
     await makeSource(srcA, "red", 440, 6)
@@ -230,6 +230,28 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
     // format.start_time is NOT the render's zero. The probe must SKIP it
     // (both tracks unmeasured) rather than measure against the wrong clock.
     await runFfmpeg(["-y", "-i", srcA, "-c", "copy", "-muxdelay", "0", "-output_ts_offset", "3600", "-f", "mpegts", srcTs])
+    // Three 6 s TS remuxes (red, blue, red) joined BYTE FOR BYTE — what `cat`-ed
+    // recordings, a reconnecting stream dump or joined DVD VOBs look like. The
+    // timestamps jump back at each join, so ffprobe's duration (last minus first
+    // timestamp) declares ~6 s while the render plays all 18 s straight through.
+    const tsRed = join(dir, "part-red.ts"), tsBlue = join(dir, "part-blue.ts")
+    await runFfmpeg(["-y", "-i", srcA, "-c", "copy", "-f", "mpegts", tsRed])
+    await runFfmpeg(["-y", "-i", srcB, "-c", "copy", "-f", "mpegts", tsBlue])
+    const [red, blue] = await Promise.all([fs.readFile(tsRed), fs.readFile(tsBlue)])
+    await fs.writeFile(srcTsJoined, Buffer.concat([red, blue, red]))
+    // A recording whose clock RESTARTED more than 60 s below its first
+    // timestamp (a broadcast/DVR capture, then an encoder restart at ~0):
+    // libavformat takes the drop for a 33-bit wrap and adds 2^33 ticks, so the
+    // join reads as one ~26.5 h FORWARD step and the container declares ~25 h.
+    const tsLate = join(dir, "part-late.ts")
+    await runFfmpeg(["-y", "-i", srcA, "-c", "copy", "-output_ts_offset", "3600", "-f", "mpegts", tsLate])
+    await fs.writeFile(srcTsRestart, Buffer.concat([await fs.readFile(tsLate), blue]))
+    // A 29.97 fps phone clip shot in portrait: its display-matrix side data
+    // makes ffprobe append an empty csv field ("30000/1001,"), which read as
+    // 30000 fps and laid the whole edit on a 60 fps canvas.
+    const ntsc = join(dir, "ntsc.mp4")
+    await runFfmpeg(["-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:r=30000/1001:d=4", "-f", "lavfi", "-i", "sine=f=440:r=48000:d=4", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", ntsc])
+    await runFfmpeg(["-y", "-display_rotation", "90", "-i", ntsc, "-c", "copy", srcRotated])
     // A 6 s live-muxed Matroska (what a MediaRecorder writes) — no duration element.
     await runFfmpeg([
       "-y",
@@ -349,10 +371,78 @@ describe.skipIf(!ffmpegAvailable)("applyEdl (real ffmpeg)", () => {
   // stream, so format.start_time is not the render's clock. The probe must not
   // measure against it (that would refuse correct edits or pass bad ones) — it
   // marks both tracks unmeasured, so the window check skips the source.
-  it("marks an MPEG-TS source's tracks unmeasured — the window check is skipped, not made wrong", async () => {
+  it("marks an MPEG-TS source's tracks unmeasured, carrying the container's declared length as a coarse bound", async () => {
     const ends = await probeStreamEnds(srcTs)
     expect(ends.video.state).toBe("unmeasured")
     expect(ends.audio.state).toBe("unmeasured")
+    const declared = ends.video.state === "unmeasured" ? ends.video.declaredEndSec : undefined
+    expect(declared).toBeGreaterThan(5.5) // the 6 s fixture, offset by 3600 s
+    expect(declared).toBeLessThan(6.6)
+  })
+
+  // Before: a segment running past an MPEG-TS source's end was not checked and,
+  // with every read held past its source's end, rendered a frozen last frame
+  // over silence for however long the overrun was — completed and billed. Now
+  // the declared length bounds it: far past it fails the job (refunded, not
+  // retried); inside the tolerance it renders its full window.
+  it("refuses a segment running far past an MPEG-TS source's declared length; renders one inside the tolerance", async () => {
+    const sources: Edl["sources"] = [{ id: "TS", url: "https://fixtures.test/cam.ts", kind: "video" }]
+    const over: Edl = { version: 1, clock: "master", sources, segments: [{ id: "s0", inMs: 0, outMs: 90_000, video: "TS", audio: "TS" }] }
+    await expect(applyEdl({ edl: over, output: "video", quality: "final", jobId: "t-ts-over", checkpoint: false }))
+      .rejects.toThrow(/segment\[0\] "s0" ends at 90\.00s on source "TS", but that file declares only 6\.\d\ds/)
+    const inside: Edl = { version: 1, clock: "master", sources, segments: [{ id: "s0", inMs: 0, outMs: 9_000, video: "TS", audio: "TS" }] }
+    const { outputPath } = await render({ edl: inside, output: "video", quality: "final", jobId: "t-ts-inside", checkpoint: false })
+    expect(await probeDurationSec(outputPath)).toBeCloseTo(9, 0)
+  })
+
+  // A TS whose timestamps jump back DECLARES less than it plays (ffprobe's
+  // duration is last-minus-first timestamp): the byte-joined red|blue|red file
+  // declares ~6 s of 18 s. Refusing against that declaration failed a correct
+  // paid edit; the probe attaches the bound only for monotonic timestamps, so
+  // this edit renders — all of it, with the joined parts' real content.
+  it("renders a rotated 29.97 fps phone clip at its own rate, not on a 60 fps canvas", async () => {
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "PH", url: "https://fixtures.test/rotated.mp4", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 3_000, video: "PH", audio: "PH" }],
+    }
+    const { outputPath } = await render({ edl, output: "video", quality: "final", jobId: "t-rotated", checkpoint: false })
+    const out = (await runFfprobe(["-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries", "stream=r_frame_rate,nb_read_packets", "-of", "csv=p=0", outputPath])).trim()
+    const [rate, packets] = out.split("\n")[0]!.split(",")
+    expect(rate).toMatch(/^(30000\/1001|2997\/100)$/)
+    expect(Number(packets)).toBeGreaterThanOrEqual(89)
+    expect(Number(packets)).toBeLessThanOrEqual(91)
+  })
+
+  it("never bounds a TS whose clock restarted (an unwrapped forward jump) by its multi-hour declared length", async () => {
+    expect(await probeDurationSec(srcTsRestart)).toBeGreaterThan(3600) // precondition: the container really over-states it
+    const ends = await probeStreamEnds(srcTsRestart)
+    expect(ends.video).toMatchObject({ state: "unmeasured", reason: expect.stringMatching(/forward by more than 10 s/) })
+    expect(ends.video).not.toHaveProperty("declaredEndSec")
+  })
+
+  it("never bounds a TS whose timestamps jump back (joined recordings) by its declared length — renders its real content", async () => {
+    expect(await probeDurationSec(srcTsJoined)).toBeLessThan(7) // precondition: the container really under-states it
+    const ends = await probeStreamEnds(srcTsJoined)
+    expect(ends.video).toMatchObject({ state: "unmeasured", reason: expect.stringMatching(/timestamps jump/) })
+    expect(ends.video).not.toHaveProperty("declaredEndSec")
+    const edl: Edl = {
+      version: 1, clock: "master",
+      sources: [{ id: "TSJ", url: "https://fixtures.test/joined.ts", kind: "video" }],
+      segments: [{ id: "s0", inMs: 0, outMs: 17_000, video: "TSJ", audio: "TSJ" }],
+    }
+    const { outputPath } = await render({ edl, output: "video", quality: "final", jobId: "t-ts-joined", checkpoint: false })
+    // The canvas is the source's own 320×240 — a TS answer repeats each stream
+    // under its program, which once read as height 1080 (a 320×1080 canvas).
+    const dims = (await runFfprobe(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", outputPath])).trim()
+    expect(dims).toBe("320x240")
+    expect(await probeDurationSec(outputPath)).toBeCloseTo(17, 0)
+    const isBlue = (c: { r: number; g: number; b: number }) => c.b > 150 && c.r < 100 && c.g < 100
+    expect(colourOfFrame(await probeColor(outputPath, 3))).toBe("red")
+    expect(isBlue(await probeColor(outputPath, 9))).toBe(true) // the second part, not a frozen first-part frame
+    expect(colourOfFrame(await probeColor(outputPath, 15))).toBe("red")
+    expect(await probeTone(outputPath, 9, [440, 880])).toBe(880)
+    expect(await probeTone(outputPath, 15, [440, 880])).toBe(440)
   })
 
   // The window check measures each source's REAL stream end, not the length
