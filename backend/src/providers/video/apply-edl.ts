@@ -560,7 +560,17 @@ export function buildSliceCommand(edl: Edl, segs: readonly EdlSegment[], opts: S
         chainParts.push(`${vAcc}${plans[i].vLabel!}xfade=transition=fade:duration=${D.toFixed(6)}:offset=${off.toFixed(6)}${out}`)
         runV = off + durs[i]
       } else {
-        chainParts.push(`${vAcc}${plans[i].vLabel!}concat=n=2:v=1:a=0${out}`)
+        // `concat` outputs on the microsecond timebase while every segment (and
+        // every xfade output) is on 1/fps; xfade refuses mismatched inputs, so a
+        // crossfade that follows a hard cut failed the render (Track 0.15).
+        // Renumber the joined frames by INDEX, then re-apply the SAME `fps` to
+        // put the join back on 1/fps. A bare `fps` resamples concat's own
+        // timestamps, which are wrong at degenerate joins — a zero-frame sliver
+        // or a one-frame input (concat estimates an input's end from its frame
+        // spacing) — and `fps` then dropped a real frame there, silently moving
+        // every later cut in the chunk one frame early. Index renumbering keeps
+        // every frame, exactly as `gridHold` does.
+        chainParts.push(`${vAcc}${plans[i].vLabel!}concat=n=2:v=1:a=0,setpts=N/FRAME_RATE/TB,fps=${fps}${out}`)
         runV += durs[i]
       }
       vAcc = out
