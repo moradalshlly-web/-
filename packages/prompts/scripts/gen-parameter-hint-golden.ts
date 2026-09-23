@@ -254,7 +254,21 @@ add(
 
 add(
   "transition/timing",
-  "transition with position + duration + intensity, no ctx",
+  "transition with position + duration + intensity, no ctx (a non-instant row, so the duration clause is emitted)",
+  {
+    id: "n1",
+    type: "transition",
+    data: {
+      transition: "cross-dissolve",
+      position: "middle",
+      duration: "short",
+      intensity: "dynamic",
+    },
+  },
+)
+add(
+  "transition/timing-instant",
+  "an INSTANT transition (a cut) with position + duration + intensity — the duration clause is dropped",
   {
     id: "n1",
     type: "transition",
